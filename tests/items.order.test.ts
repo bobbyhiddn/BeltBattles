@@ -2,8 +2,9 @@
 // ITEMS-order test). THE RULE: after any world call returns (validateUpload, validate.ts's inRulesWorld and the four worlds nested in it, the
 // server's warm-up nest, ghosts:admin's revalidate), ITEMS is deep-equal to what it was AND Object.keys(ITEMS) is identical AND ITEMS.quench is
 // the def it was (KINDLING with the scaling switch on). The tests:
-//  1. the CONTROL: the old nest (the ladder fix switched off OUTSIDE the scaling switch's off call, the scaling switch innermost) does permute
-//     ITEMS and puts QUENCH TANK over KINDLING, so the sweep below is not vacuous;
+//  1. the old nests (the ladder fix switched off OUTSIDE the scaling switch's off call, the scaling switch innermost) were the damage: they
+//     permuted ITEMS and put QUENCH TANK over KINDLING. They are fixed at the root now (ranked adds; the ladder fix's round trip), with no
+//     guard around them; keepItems and the suite guard stay as defence in depth;
 //  2. the packet's test: with every switch on, an older-rules record leaves ITEMS' keys as they were;
 //  3. the SWEEP: every rules label from the oldest the server meets to bb-0.13.0 (and two it can't read), each world alone, the whole nest as
 //     validateUpload and the server's warm-up build it, validateUpload on a real deck, ghosts:admin revalidate on stored records (the committed
@@ -87,17 +88,14 @@ describe("BUMP-1F F1: ITEMS' key order does not depend on which module loads fir
   });
 });
 
-describe("BUMP-1F F1 and Q5: the control (the old nest) really did damage ITEMS", () => {
-  it("the ladder fix off OUTSIDE the scaling switch's off call puts QUENCH TANK over KINDLING (Q5, F1's first face)", () => {
+describe("BUMP-1F F1 and Q5: the old nests no longer damage ITEMS, at the root", () => {
+  it("Q5 (F1's first face): the ladder fix off OUTSIDE the scaling switch's off call leaves KINDLING over QUENCH TANK (ladderFix.ts puts back the def it displaced)", () => {
     const was = state();
-    try {
-      withLadderFix(() => withScaleRigs(() => undefined, false), false); // inRulesWorld's old nest for rules before bb-0.10.0
-      expect(ITEMS.quench.name).toBe("QUENCH TANK");
-      expect(ITEMS.quench).not.toBe(was.quench);
-    } finally {
-      putItemsBack(was.snap);
-    }
-    same(was, "after the control");
+    withLadderFix(() => withScaleRigs(() => undefined, false), false); // inRulesWorld's old nest for rules before bb-0.10.0, WITHOUT keepItems
+    expect(ITEMS.quench.name).toBe("KINDLING");
+    same(was, "the raw old nest, no keepItems");
+    withLadderFix(() => undefined, false); // the ladder alone, off and on again, the scaling switch staying on
+    same(was, "the ladder fix alone, no keepItems");
   });
 
   it("F1's second face (the scaling switch innermost, SHAPES2 off outside it: the six came back behind the seven) is gone at the root: each switch adds its ids at their rank", () => {
