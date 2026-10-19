@@ -89,7 +89,7 @@ describe("ENCHANT-2 T4: a rival's enchanted piece, in the faces the battle and t
           expect(spans.length, tag).toBe(2);
           expect(spans[1].c, tag).toBe(RARITY_COLOR[d.rarity]);
           // the word's line is on the face, kept, in its colour
-          const kind = enchantKindOf(d)!, line = icons(pieceLine(w.word, kind, w.stars)!);
+          const kind = enchantKindOf(d)!, line = icons(pieceLine(w.word, kind, w.stars, day)!); // ENCHANT-2 (T6 fix round): RISING's amount is the fight's day's
           const mine = t.body.filter((x) => x.text === line && x.colour === wordColour(w.word));
           expect(mine.length, `${tag}: the word's line`).toBe(1);
           expect(mine[0].keep, tag).toBe(true);

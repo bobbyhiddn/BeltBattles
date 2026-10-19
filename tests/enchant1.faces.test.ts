@@ -724,6 +724,41 @@ describe("ENCHANT-1 E7: every enchanted panel fits its box on the phone (402x690
     });
   });
 
+  it("ENCHANT-2 (T6 fix round, cap's ruling 2d9c4479a18adbf5): RISING's and GROWING's lines carry the DAY's amount, so they print wider than the card's (GROWING at ★3 on day 16 says +75, on day 18 +91): every rig, factory and turret that takes them, placed or installed and in cargo, ★3, on days 8, 16 and 18, on both views: the kept text is whole and no panel loses full text that the plain piece shows", () => {
+    on(() => {
+      let n = 0, worse = 0;
+      for (const day of [8, 16, 18]) for (const [view, f, touch] of VIEWS) for (const d of Object.values(ITEMS)) {
+        const kind = enchantKindOf(d);
+        if (!kind || !d.price) continue;
+        const stars = starsOn(d.id).slice(-1)[0], star = stars > 1 ? { stars } : {};
+        const placed = (id: EnchantId | null): [Run, Sel] => {
+          const w = id ? word(id, d.id, id === "growing" ? { grow: 3 } : {}) : {};
+          const run = kind === "turret" ? runWith([], [], [{ slot: 0, def: d.id, uid: 90, ...star, ...w }]) : runWith([{ uid: 9, def: d.id, x: kind === "rig" ? 3 : 0, y: kind === "rig" ? 3 : 0, ...star, ...w } as Build["items"][number]]);
+          run.day = day; // the panel's day is the run's: the amounts are the day's
+          return [run, kind === "turret" ? { kind: "turret", index: 0 } : { kind: "item", uid: 9 }];
+        };
+        const inCargo = (id: EnchantId | null): [Run, Sel] => {
+          const run = runWith([], [{ uid: 900, def: d.id, ...star, ...(id ? word(id, d.id, id === "growing" ? { grow: 3 } : {}) : {}) } as Run["inventory"][number]]);
+          run.day = day;
+          return [run, { kind: "cargo", uid: 900 }];
+        };
+        for (const make of [placed, inCargo]) {
+          const [pr, ps] = make(null), plain = panelCtx(pr, ps, f, touch).d();
+          for (const id of ["rising", "growing"] as const) {
+            if (!WORDS(kind).includes(id)) continue;
+            const [er, es] = make(id), dd = panelCtx(er, es, f, touch).d();
+            const tag = `${view} day ${day} ${id} on ${d.id} ★${stars} (${make === placed ? "placed" : "cargo"})`;
+            if (keptWhole(plain.plan)) expect(keptWhole(dd.plan), `${tag}: kept text whole`).toBe(true);
+            if (fullText(plain.plan) && !fullText(dd.plan)) worse++;
+            n++;
+          }
+        }
+      }
+      expect(n, "panels checked").toBeGreaterThan(900);
+      expect(worse, "panels that showed their full text plain and lose some with the day's amount").toBe(0);
+    });
+  });
+
   it("the title: on the phone the word and the name fit the room beside the icon (5x7 or 3x5) for every piece and word; on the desk only the two longest factory names at ★3 (DRAG CHAIN FOUNDRY, FROSTBITE FOUNDRY) are cut with a dot (the text sheet lists them)", () => {
     on(() => {
       const cut: string[] = [];

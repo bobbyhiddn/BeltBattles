@@ -1055,7 +1055,7 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   // added or changed in its colour; its one line (a LINE word) goes under the row, in every form below, kept
   const wt = slotWord(b, index);
   const trow = wt ? wordTurretRow([speedPair(rate), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(gearSlots)]], wt) : null;
-  const wl = wordLineBlocks(wt);
+  const wl = wordLineBlocks(wt, run.day); // ENCHANT-2 (REQ-BFG-085; T6 fix round): RISING's and GROWING's damage amounts on the run's day
   const stats: Block[] = [
     // NUM-4 (REQ-BFG-047): the RATE pair is the SPEED the battle uses (TurretState.speed: every gear piece, the core, the
     // long belt and the TURRET SPEED level, rounded once); Y1: a SALVO RACK's, its volley pace (above)
