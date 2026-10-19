@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { startingBuild } from "../src/sim/ai";
 import { RULES_VERSION } from "../src/sim/content";
 import { LONG_RUN_MAX_DAY, MAX_RUN_DRAWS, WIN_GOAL, setLongRun, withLongRun } from "../src/sim/longRun";
+import { ENDLESS, ENDLESS_LAST_DAY, setEndless, withEndless } from "../src/sim/endless"; // BUMP-1E: ENDLESS ships on (bb-0.12.0); the 10-day and long-run worlds below are read with it off
 import { MAX_DAY as LOCAL_MAX_DAY, isSnapshot, type GhostSnapshot as LocalSnapshot } from "../src/game/ghostSnapshot";
 import { pickGhost as poolPick } from "../src/game/ghosts";
 import {
@@ -29,8 +30,11 @@ import { entry, snap } from "./netHelpers";
 // BUMP-1D: LONG_RUN ships ON (bb-0.11.0). The "switch off" halves below are the 10-day world, so each test starts in it on purpose (the
 // beforeEach puts the switch off, as it stood when the switch shipped off) and the long halves turn it on with long(); afterEach puts
 // the shipped value back.
-beforeEach(() => setLongRun(false));
-afterEach(() => setLongRun(true)); // the shipped value (BUMP-1D: on; was false)
+// BUMP-1E: ENDLESS ships ON too (bb-0.12.0), and a read with no record's rules (snapshot.ts maxRunes(), validate.ts validateBuild's day bound) asks the
+// endless switch first: ENDLESS_LAST_DAY (64), whatever the long run's switch says. The worlds these halves read (the 10-day run; the long run's 25
+// days) are the ones before endless, so the beforeEach puts endless off as well and afterEach puts it back (was setLongRun alone)
+beforeEach(() => { setLongRun(false); setEndless(false); });
+afterEach(() => { setLongRun(true); setEndless(ENDLESS); }); // the shipped values (BUMP-1D: long run on; was false) (BUMP-1E: endless on; was off)
 const long = <T>(fn: () => T): T => withLongRun(fn);
 const v3 = (o: Partial<GhostSnapshot> = {}): GhostSnapshot => snap({ v: SNAPSHOT_V3, ...o });
 const throwsOn = (fn: () => unknown, re: RegExp) => expect(fn).toThrow(re);
@@ -51,6 +55,11 @@ describe("RUN-1 snapshot bounds (D4): data safety by the record's rules", () => 
     expect(maxRunes()).toBe(MAX_DAY + 1);
     expect(long(() => maxRunes())).toBe(LONG_RUN_MAX_DAY + 1);
     expect(LOCAL_MAX_DAY).toBe(MAX_DAY); // ONE source: the client's check re-exports the decoder's constant
+    // BUMP-1E: ENDLESS ships on, so in the shipped world (long run and endless both on) a read with no rules is the endless world's, ENDLESS_LAST_DAY + 1
+    // (the two reads above are the world before endless, set up by the beforeEach: MAX_DAY + 1 and LONG_RUN_MAX_DAY + 1, 11 and 26 as before; with the
+    // switch on and the long run off they read 65, which was the first red)
+    expect(ENDLESS).toBe(true);
+    long(() => withEndless(() => expect(maxRunes()).toBe(ENDLESS_LAST_DAY + 1)));
   });
 
   it("the day: 1..25 under a long run's rules (a day-14 ghost decodes), 1..10 otherwise; 26 is refused", () => {
@@ -303,6 +312,14 @@ describe("RUN-1 the deck check past day 10: LAST CHANCE on any day, the day boun
       // validateUpload under older rules is judged as the 10-day run, whatever the switch
       expect(validateUpload(b, 11, "bb-0.9.7").errors[0]).toBe("shape: day 11 is not in 1..10");
     });
+    // BUMP-1E: ENDLESS ships on (the beforeEach put it off for the halves above): in the shipped world (long run and endless both on) the deck check's
+    // day is 1..ENDLESS_LAST_DAY, so day 26 is no longer refused and ENDLESS_LAST_DAY + 1 is
+    expect(ENDLESS).toBe(true);
+    long(() => withEndless(() => {
+      expect(validateBuild(b, 26).errors.some((e) => e.startsWith("shape: day"))).toBe(false);
+      expect(validateBuild(b, ENDLESS_LAST_DAY).errors.some((e) => e.startsWith("shape: day"))).toBe(false);
+      expect(validateBuild(b, ENDLESS_LAST_DAY + 1).errors[0]).toBe(`shape: day ${ENDLESS_LAST_DAY + 1} is not in 1..${ENDLESS_LAST_DAY}`);
+    }));
   });
 
   it("lastChanceProblem: day 12 on a day-14 deck stands under the long run's world, not under the 10-day run's", () => {

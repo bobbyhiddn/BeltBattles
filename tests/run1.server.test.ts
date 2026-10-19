@@ -10,6 +10,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import { MAX_RUN_DRAWS, setLongRun } from "../src/sim/longRun";
+import { ENDLESS, ENDLESS_LAST_DAY, setEndless } from "../src/sim/endless"; // BUMP-1E: ENDLESS ships on (bb-0.12.0): a store's day bound under rules with endless is ENDLESS_LAST_DAY
 import { isSnapshot, setPlayerName } from "../src/game/ghostSnapshot";
 import { decodeSnapshot, encodeSnapshot, ghostId, type GhostSnapshot } from "../src/net/snapshot";
 import { isReachable } from "../src/net/records";
@@ -246,15 +247,21 @@ describe.each(storeBackends())("RUN-1 D6: the match route on the $name store wid
   it("data safety on the stores: Tigris keeps a day bucket past 10 only under a long run's rules (the JSON-lines store keeps any day)", async () => {
     const id12 = ghostId(g12); // (its id needs the long run's rules to encode)
     expect((await app.store.bucket(RULES_VERSION, 12)).map((e) => e.id)).toEqual([id12]);
-    expect(await app.store.bucket(RULES_VERSION, 26)).toEqual([]); // past the bound: nothing can be stored there
+    expect(await app.store.bucket(RULES_VERSION, 26)).toEqual([]); // past the bound: nothing can be stored there (BUMP-1E: nothing is stored on day 26; the bound is the next line's)
+    // BUMP-1E: ENDLESS ships on (the file runs in the shipped world, long run and endless both on): under rules with endless the Tigris store's day
+    // buckets run to ENDLESS_LAST_DAY (tigrisStore.ts endlessMaxDay), the run's 25 days and beyond; past it nothing can be stored
+    expect(ENDLESS).toBe(true);
+    expect(await app.store.bucket(RULES_VERSION, ENDLESS_LAST_DAY + 1)).toEqual([]);
     expect(await app.store.bucket("bb-0.9.7", 12)).toEqual([]); // older rules keep 10 (and hold no ghost)
     setLongRun(false); // the 10-day rules: the switch off reads every record's day as at most 10
+    setEndless(false); // BUMP-1E: ... and so does endless off: with it on (the shipped value) the store reads rules bb-0.12.0 as endless and keeps day 12 on Tigris too (was setLongRun(false) alone)
     try {
       const at12 = await app.store.bucket(RULES_VERSION, 12);
       if (backend.name === "tigris") expect(at12).toEqual([]);
       else expect(at12.map((e) => e.id)).toEqual([id12]);
     } finally {
       setLongRun(true);
+      setEndless(ENDLESS); // BUMP-1E: the shipped value back (on)
     }
   });
 

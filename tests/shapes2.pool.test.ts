@@ -23,6 +23,7 @@ import "../src/sim/deck";
 import { SHAPES2, SHAPES2_IDS, setShapes2, withShapes2 } from "../src/sim/shapes2";
 import { withPlainRigs } from "../src/sim/plainRigs";
 import { withLongRun } from "../src/sim/longRun";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling switch is the outermost call of every nest that turns SHAPES2 or PLAIN_RIGS off (ITEMS' key order)
 import { SNAPSHOT_V3, decodeSnapshot, encodeSnapshot } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
 import { generateSamplePool, raceGhosts } from "../tools/samplePool";
@@ -62,7 +63,11 @@ describe("SHAPES-2 S4: the seed pool's generators with the six on", () => {
     };
     const withOn = on(verdict);
     expect(withOn.errors, "SHAPES2 on").toEqual([]);
-    const off = withShapes2(verdict, false); // BUMP-1D: was verdict() (SHAPES2 shipped off); it ships on now, so the off leg sets it off itself
+    // BUMP-1D: was verdict() (SHAPES2 shipped off); it ships on now, so the off leg sets it off itself
+    // BUMP-1E: and with the scaling switch OUTERMOST (it goes off first and comes back last). SCALE_RIGS ships on and its seven ids are the last keys in ITEMS (after
+    // SHAPES2's six), so a bare withShapes2(verdict, false) put the six back BEHIND the seven for the rest of the worker, and the next test's seeded draws (the whole pool
+    // below: 'SOFT-1: stale: the pick f3:92446dc1 for foundry day 11') were another world's. The gates answer as before: SHAPES2's gate speaks before the scaling one
+    const off = withScaleRigs(() => withShapes2(verdict, false), false);
     expect(off.ok).toBe(false);
     expect(off.errors[0]).toMatch(/^rules: shaped rigs \(ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE\): not in this rules version yet$/);
   }, 900_000);
@@ -71,6 +76,7 @@ describe("SHAPES-2 S4: the seed pool's generators with the six on", () => {
   // expecting on(() => generateSamplePool()) to throw /SOFT-1: stale: the pick .* no longer matches its deck/. The bump did that
   // regeneration (SOFT1_PICKS, FLOOR_PICKS, the pool), so the shipped world builds the pool: 192 ghosts, every one graded (v3).
   it("generateSamplePool() in the shipped world: SOFT-1's picks were re-picked at the bump, so the whole pool builds (192 ghosts, every one graded)", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the shipped world has the scaling rules on (the picks were re-read in it again: R2, bb-0.12.0)
     const pool = on(() => generateSamplePool());
     expect(pool.length).toBe(192); // 4 heroes x 16 days x 3 variants
     expect(pool.every((s) => s.v === SNAPSHOT_V3 && typeof s.grade === "number")).toBe(true);
@@ -101,6 +107,7 @@ describe("SHAPES-2 S4: the seed pool's generators with the six on", () => {
 
   it("generateSamplePool() in the bb-0.10.0 catalogue (SHAPES2 and PLAIN_RIGS off, the long run on): SOFT-1's stale-pick guard still asks for the re-pick", () => {
     // BUMP-1D: the old assertion of "the new world" (before the bump's re-pick), now in the world whose par field is not the one SOFT1_PICKS was read in
-    expect(() => withShapes2(() => withPlainRigs(() => generateSamplePool(), false), false)).toThrow(/SOFT-1: stale: the pick .* no longer matches its deck/);
+    // BUMP-1E: the scaling switch outermost (was withShapes2(() => withPlainRigs(() => generateSamplePool(), false), false)): the catalogue before the twelve AND the seven
+    expect(() => withScaleRigs(() => withShapes2(() => withPlainRigs(() => generateSamplePool(), false), false), false)).toThrow(/SOFT-1: stale: the pick .* no longer matches its deck/);
   }, 900_000);
 });

@@ -16,11 +16,12 @@ import { footBox, footOf, footOnDeck, footprintCells } from "../src/sim/foot";
 import { hitsIfPlaced } from "../src/sim/beltside";
 import { SHAPES2, SHAPES2_DEFS, SHAPES2_IDS, SHAPES2_PATCHES, isShapes2Piece, setShapes2, shapes2Rules, withShapes2 } from "../src/sim/shapes2";
 import { SHAPES_IDS, shapesRules, withShapes } from "../src/sim/shapes";
+import { SCALE_IDS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the seven scaling rigs are in the catalogue (SCALE_RIGS ships on); the 0.9.11 one is read under withScaleRigs(fn, false)
 import { withPlainRigs, PLAIN_RIG_IDS, PLAIN_RIGS, plainRigsRules } from "../src/sim/plainRigs";
 import { effectAt, fusible, valueOf } from "../src/sim/stars";
 import { lastChanceParts } from "../src/sim/lastChance";
 import { DRAW, drawWares } from "../src/game/wares";
-import { SHAPES2_RULES, SHAPES_RULES, shapes2Features, shapes2GateProblem, shapes2World } from "../src/net/rulesGate";
+import { SHAPES2_RULES, SHAPES_RULES, rulesAtLeast, shapes2Features, shapes2GateProblem, shapes2World } from "../src/net/rulesGate"; // BUMP-1E: + rulesAtLeast
 import { inShapes2World, inShapesWorld, validateBuild, validateUpload } from "../src/net/validate";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 
@@ -495,8 +496,19 @@ describe("SHAPES-2 S3: the pools, in both switch states", () => {
   it("with SHAPES2 on the catalogue grows by six (and by twelve with PLAIN_RIGS on too); the per-run draw stays DRAW.active (REQ-BFG-022)", () => {
     // BUMP-1D: both ship on, so the catalogue before the twelve (n0) is measured with both off, explicitly. Measured at BUMP-1D (bb-0.11.0):
     // 91 buyable parts before the twelve, 97 with the six shaped rigs, 103 with both (the shipped catalogue)
+    // BUMP-1E: SCALE_RIGS ships on and its seven rigs are buyable (they stay in ITEMS while the twelve's two switches are off), so n0 reads 98 (was 91:
+    // +7 = SCALE_IDS), 104 with the six, 110 with both (was 103: the shipped catalogue; tests/families pins the same 103 -> 110). The 0.9.11 numbers
+    // (91, 97, 103) are read below with the scaling switch off, as the OUTERMOST call of the nest (it goes off first and comes back last: ITEMS' key order)
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the scaling rules ship on
     const n0 = withShapes2(() => withPlainRigs(() => buyableModules().length, false), false);
-    expect(n0).toBe(91);
+    expect(n0).toBe(98); // BUMP-1E: was 91
+    const [old0, old6, old12] = withScaleRigs(() => [
+      withShapes2(() => withPlainRigs(() => buyableModules().length, false), false),
+      withPlainRigs(() => withShapes2(() => buyableModules().length), false),
+      buyableModules().length,
+    ], false);
+    expect([old0, old6, old12]).toEqual([91, 97, 103]); // BUMP-1E: the 0.9.11 catalogue, as BUMP-1D measured it
+    expect(n0 - old0).toBe(SCALE_IDS.length); // the seven are the whole difference
     const sizes = (runs: number) => {
       let total = 0, min = 99, max = 0;
       for (let s = 1; s <= runs; s++) {
@@ -516,7 +528,7 @@ describe("SHAPES-2 S3: the pools, in both switch states", () => {
     }));
     // BUMP-1D: and the shipped catalogue is n0 + 12 = 103 buyable parts (both ship on)
     expect(buyableModules().length).toBe(n0 + 12);
-    expect(buyableModules().length).toBe(103);
+    expect(buyableModules().length).toBe(110); // BUMP-1E: was 103 (+7: the scaling rigs)
     console.log(`SHAPES-2 POOL draw off ${JSON.stringify(off)} on ${JSON.stringify(on)} both ${JSON.stringify(both)} (catalogue ${n0})`);
     for (const s of [off, on, both]) {
       expect(s.mean).toBeGreaterThanOrEqual(DRAW.active);
@@ -563,7 +575,11 @@ describe("SHAPES-2 S1: SHAPES2_RULES and the validator's verdicts", () => {
   it("SHAPES2_RULES is today's rules written as a literal (BUMP-1D writes 1D's); SHAPES_RULES's form", () => {
     // BUMP-1D: SHAPES2_RULES is 1D's bb-0.11.0 (was bb-0.10.0 = RULES_VERSION = SHAPES_RULES); SHAPES_RULES stays SHAPES-1's literal
     expect(SHAPES2_RULES).toBe("bb-0.11.0");
-    expect(SHAPES2_RULES).toBe(RULES_VERSION);
+    // BUMP-1E: was expect(SHAPES2_RULES).toBe(RULES_VERSION) (both bb-0.11.0). SHAPES2_RULES is a literal gate (the rules that brought the six) and stays
+    // bb-0.11.0; this build's rules are bb-0.12.0 (content.ts RULES_VERSION), the version after it, so they have the six
+    expect(RULES_VERSION).toBe("bb-0.12.0");
+    expect(SHAPES2_RULES).not.toBe(RULES_VERSION);
+    expect(rulesAtLeast(RULES_VERSION, SHAPES2_RULES)).toBe(true);
     expect(SHAPES_RULES).toBe("bb-0.10.0");
     expect(SHAPES2_RULES).not.toBe(SHAPES_RULES);
   });
