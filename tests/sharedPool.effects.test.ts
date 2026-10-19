@@ -11,6 +11,7 @@ import { Rng } from "../src/core/rng";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { blockedCells, randomPath, shortestTiles, startCells } from "../src/sim/harness/path";
 import { heroStartBuild } from "../src/sim/heroBuilds";
+import { SCALE_IDS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the seven new rigs; the 0.9.11 world
 import { validateBuild } from "../src/net/validate";
 
 const SEED = 20210924;
@@ -225,6 +226,17 @@ function decks(hero: HeroId, d: ItemDef): [Build, Build] {
   // once): twinBelts fed by a factory that pours both at once (FOUNDRY's CRUCIBLE, else a TWIN MOULD); were audited on
   // the bare deck (they had a floor: TWIN TRIGGER a shorter load time, SEAM WELDER 2 PLATE a lone load)
   if (d.id === "twintrigger" || d.id === "seamwelder") twinBelts(before, true);
+  // BUMP-1E (the scaling rules on; the readers pay for a count the deck must hold, in both decks, as a player would build it; the
+  // run's own counts (wins, hearts lost) and the foe's hits are the scenario's):
+  //  - IRON WALL pays for each 10 PLATE on the hull: a PLATE ROLLER before it (as for PLATE BREAKER); the 0.9.11 IRON WALL (no `reads`:
+  //    it plated the hull itself, OLD_WORLD's row) is audited on the bare deck as it was;
+  //  - CINDER MAIL pays PLATE for each BURN on the foe: a TEMPER before it (as for KINDLING, QUENCH TANK's id);
+  //  - ROT GAUGE and LEECH COIL pay for each POISON on the foe: a VENOM DRIP before it (POISON is a keyword, VENOM DRIP its source);
+  //  - AEGIS SPIKE pays for each SHIELD you hold: a WARD BELL on the gun (the one SHIELD source a deck holds; WARD BELL is a gear)
+  if (d.id === "shieldwall" && d.gate?.reads) tiles = later(before, rigAt(before, "plateroller", 900, [1, 2, 0]));
+  if (d.id === "cindermail") tiles = later(before, rigAt(before, "temper", 900, [1, 2, 0]));
+  if (d.id === "rotgauge" || d.id === "leechcoil") tiles = later(before, rigAt(before, "venom", 900, [1, 2, 0]));
+  if (d.id === "aegisspike") before.mods.push({ uid: 904, def: "wardbell", turret: routeInfo(before, 0).turret });
   const after = cloneBuild(before);
   if (d.kind === "gate" && d.gate?.stoke) {
     // 0.8.0 I1 M2: a STOKER works factories, never belts (P1's E3): it stands at its best stokeSpots spot
@@ -250,15 +262,22 @@ type Metrics = {
   // FLIP-X2 (REQ-BFG-069, the sustain switch on): WARD BELL's foe hits its SHIELDs stopped (SideState.blocked, Battle.shieldHit)
   // and MENDING LOOM's REGEN, the hull its `heal` events (source "regen") gave back
   blocked: number; regen: number;
+  // BUMP-1E (the scaling rules on, bb-0.12.0): the reader pieces' own act (scale.ts: a `reads` line pays for a count). `readAdd`: what
+  // the count-driven terms gave on our rigs' hits and our guns' shots (C11's `add` on the process and fire events: Battle.giveRead:
+  // the DMG, PLATE or HEAL a reader paid); `leeched`: the hull LEECH COIL's `heal` events (source "reads") gave back
+  readAdd: number; leeched: number;
 };
 
 const marks = (p: Payload): number => Object.values(p.debuffs ?? {}).filter(Boolean).length;
 
-/** Read only outcomes of the actual tick simulation, including applied Shock, and count the part's own acts. */
-function run(b: Build, foe: Build, seed: number, seconds: number): Metrics {
-  const battle = new Battle(b, foe, seed);
+/** Read only outcomes of the actual tick simulation, including applied Shock, and count the part's own acts.
+ *  BUMP-1E: `run` is the run the fight is on (its wins, its hearts lost: Battle's `wins` and `lost`, our side's, as a run's own are
+ *  passed in; the foe's 0), read only by the pieces that count them (TROPHY CHAIN, GRUDGE ROD), so the base deck fights the same fight. */
+function run(b: Build, foe: Build, seed: number, seconds: number, runState?: { wins?: number; lost?: number }): Metrics {
+  const battle = new Battle(b, foe, seed, runState?.wins === undefined ? undefined : [runState.wins, 0], undefined, runState?.lost === undefined ? undefined : [runState.lost, 0]);
   let enemyDisrupt = 0, tolls = 0, flaks = 0, repairs = 0, rips = 0, sifted = 0, machineShots = 0, braced = 0, spall = 0, plated = 0;
   let regen = 0; // FLIP-X2
+  let readAdd = 0, leeched = 0; // BUMP-1E
   // SIFTER leaves no event: count the payloads a rig of ours hits that lose a CHILL, SNAG or SAP mark on that hit
   const sim = battle as unknown as { applyHit: (s: { side: number }, a: BeltAmmo, h: { g: { def: ItemDef } }) => BeltAmmo[] };
   const applyHit = sim.applyHit.bind(battle);
@@ -280,6 +299,8 @@ function run(b: Build, foe: Build, seed: number, seconds: number): Metrics {
       if (e.type === "brace" && e.side === 0) braced += e.saved; // 0.8.0 I1
       if (e.type === "plate" && e.side === 0 && !("turret" in e) && e.amount > 0) plated += e.amount; // 0.8.0 I1: E1 only
       if (e.type === "heal" && e.source === "regen" && e.side === 0) regen += e.amount; // FLIP-X2: MENDING LOOM's REGEN
+      if ((e.type === "process" || e.type === "fire") && e.side === 0 && e.add) readAdd += e.add.amount; // BUMP-1E: a reader's count-driven DMG, PLATE or HEAL
+      if (e.type === "heal" && e.source === "reads" && e.side === 0) leeched += e.amount; // BUMP-1E: LEECH COIL's HEAL
     }
     for (const tu of battle.sides[0].turrets) spall = Math.max(spall, tu.spallCharge ?? 0); // 0.8.0 I1
     for (const pr of battle.projectiles) {
@@ -297,6 +318,7 @@ function run(b: Build, foe: Build, seed: number, seconds: number): Metrics {
     ownDisrupt: own.stats.disrupted, ownHull: own.hull.hp,
     tolls, flaks, repairs, rips, sifted, machineShots, braced, spall, plated,
     blocked: own.blocked ?? 0, regen, // FLIP-X2
+    readAdd, leeched, // BUMP-1E
   };
 }
 
@@ -347,8 +369,13 @@ function harasser(): Build {
 type Scenario = {
   foe?: (hero: HeroId) => Build; seconds?: number; seeds?: number[]; metrics?: (keyof Metrics)[];
   proof?: keyof Metrics; more?: keyof Metrics;
+  // BUMP-1E: the run the fight is on, for the readers of the run's state (TROPHY CHAIN: wins, GRUDGE ROD: hearts lost): passed to Battle
+  wins?: number; lost?: number;
 };
 const both = [...offense, ...defense];
+/** BUMP-1E: a run on day 10 has won a few fights and lost a few hearts (the audited deck is legal on day 10): what TROPHY CHAIN and
+ *  GRUDGE ROD count in their rows (the base deck is given the same run, and reads neither). */
+const RUN_WINS = 6, RUN_LOST = 3;
 const SCENARIOS: Record<string, Scenario> = {
   mantlet: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense },
   tollbooth: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: both, proof: "tolls" },
@@ -364,8 +391,27 @@ const SCENARIOS: Record<string, Scenario> = {
   braceframe: { foe: harasser, seconds: LONG, seeds: SEEDS, metrics: both, proof: "braced" },
   plateroller: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "plated" },
   seamwelder: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "plated" },
-  shieldwall: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "plated" },
-  spallcatcher: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: both, proof: "spall" },
+  // BUMP-1E (the scaling rules on: SCALE_RIGS ships on, bb-0.12.0): IRON WALL (shieldwall) and SPALL CATCHER are readers now (scale.ts
+  // SCALE_DEFS). IRON WALL pays DMG for each 10 PLATE the hull holds (decks(): a PLATE ROLLER before it, as for PLATE BREAKER), so the
+  // default fight's offence shows it and it has no row here (was shieldwall: a defence row, the plating it rolled as the proof);
+  // SPALL CATCHER pays DMG at its gun's shot for each enemy hit on you, against an armed foe, with its own act as the proof (`readAdd`:
+  // what its reads gave; was proof "spall", the charge it stored). Both 0.9.11 rows (plating, a stored charge) are OLD_WORLD's, below
+  spallcatcher: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: both, proof: "readAdd" },
+  // BUMP-1E: the seven new rigs (scale.ts SCALE_ITEMS) are sold, so they are rows. Each reads a count that the default fight does not
+  // have, so (as for the payoff pieces) its deck holds the count's source in both decks (decks()) and only the audited rig differs:
+  // CINDER MAIL pays PLATE for each BURN on the foe (a TEMPER before it), judged on the defence numbers against an armed foe as the
+  // plating parts are, with the plating it paid as the proof; ROT GAUGE pays DMG for each POISON on the foe (a VENOM DRIP before it),
+  // the default fight's offence; LEECH COIL heals for each POISON on the foe (a VENOM DRIP before it), judged on the hull the deck
+  // keeps against an armed foe as RIVETER is, with the hull it gave back as the proof; CROWD PRESS (DMG for each slug on its belt)
+  // needs nothing: its count is on every belt; AEGIS SPIKE pays DMG for each SHIELD you hold (a WARD BELL on the gun, the one source of
+  // SHIELD a deck holds, decks(): its first SHIELD comes at 8 s, so the fight is LONG); GRUDGE ROD and TROPHY CHAIN count the run's
+  // hearts lost and wins, which the fight is given (RUN_LOST, RUN_WINS)
+  cindermail: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "plated" },
+  rotgauge: {},
+  leechcoil: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "leeched" },
+  aegisspike: { seconds: LONG },
+  grudgerod: { lost: RUN_LOST },
+  trophychain: { wins: RUN_WINS },
   // FLIP-X2 (REQ-BFG-069, the sustain switch on): the 3 sustain pieces join the audit. MEND PRESS stamps plain slugs down
   // its belt, so the default fight's offence shows it. WARD BELL and MENDING LOOM change nothing the deck deals: as RIVETER,
   // each is judged on the hull the deck keeps against an armed foe (the hull damage it takes), with its own act as the
@@ -393,6 +439,39 @@ function useful(id: string, hero: HeroId): ((m: Metrics) => number) | undefined 
 // FLIP-X2 (REVIEW-NUM3 answer 2): NUM-3's NUM3_INERT {sifter} and its tripwire are gone: SIFTER is dormant
 // (races/data.ts DORMANT_ITEMS), so it left buyableModules, and its row with it.
 
+/**
+ * BUMP-1E: one row of the audit, the body of each `it` below (it was written inline there): `d` bought into `hero`'s start deck
+ * (decks()) changes a battle metric of scenario `sc`, against the scenario's foe on its seeds, with the part's own act counted where
+ * the scenario names a proof; `sc` also says the run the fight is on (its wins, its hearts lost). The 0.9.11 block below reads the
+ * two reworked pieces' old rows through it as well.
+ */
+function audit(hero: HeroId, d: ItemDef, sc: Scenario): void {
+  const [before, after] = decks(hero, d);
+  expect(validateBuild(before, 10).errors, `${hero} ${d.id} before`).toEqual([]);
+  expect(validateBuild(after, 10).errors, `${hero} ${d.id} after`).toEqual([]);
+  const foe = (sc.foe ?? quietFoe)(hero);
+  expect(validateBuild(foe, 10).errors, `${hero} ${d.id} foe`).toEqual([]);
+  const seconds = sc.seconds ?? SECONDS;
+  let chosen: { seed: number; base: Metrics; bought: Metrics; changed: (keyof Metrics)[] } | undefined;
+  let last: { base: Metrics; bought: Metrics } | undefined;
+  const sum = { base: 0, bought: 0 };
+  for (const seed of sc.seeds ?? [SEED]) {
+    const base = run(before, foe, seed, seconds, sc), bought = run(after, foe, seed, seconds, sc); // BUMP-1E: the run's wins and hearts lost (sc)
+    last = { base, bought };
+    if (sc.more) { sum.base += base[sc.more]; sum.bought += bought[sc.more]; }
+    const changed = delta(base, bought, sc.metrics ?? offense);
+    if (!chosen && changed.length && (!sc.proof || bought[sc.proof] > 0)) chosen = { seed, base, bought, changed };
+    if (chosen && !sc.more) break;
+  }
+  expect(chosen, `${hero} ${d.id}: no battle metric changed ${JSON.stringify(last)}`).toBeDefined();
+  if (sc.proof) expect(chosen!.base[sc.proof], `${hero} ${d.id}: ${sc.proof} without the part`).toBe(0);
+  if (sc.more) expect(sum.bought, `${hero} ${d.id}: ${sc.more} over ${sc.seeds!.length} seeds`).toBeGreaterThan(sum.base);
+  const gain = useful(d.id, hero);
+  if (gain) expect(gain(chosen!.bought), `${hero} ${d.id}: useful damage`).toBeGreaterThan(gain(chosen!.base));
+  if (auditFile) appendFileSync(auditFile, `${JSON.stringify({ id: d.id, hero, ...chosen, ...(sc.more ? { sum } : {}) })}\n`);
+  if (process.env.BB_POOL_AUDIT) console.log(`AUDIT ${d.id} ${hero} ${JSON.stringify(chosen)}`);
+}
+
 describe("REQ-BFG-021: every buyable module changes a battle metric for every hero", () => {
   const rows = buyableModules();
   it("audits exactly the sold, priced, non-supply catalogue", () => {
@@ -403,34 +482,40 @@ describe("REQ-BFG-021: every buyable module changes a battle metric for every he
     expect(priced.filter((id) => !rows.some((d) => d.id === id))).toEqual([...DORMANT_ITEMS]);
     expect(rows.map((d) => d.id).sort()).toEqual(priced.filter((id) => !DORMANT_ITEMS.has(id)).sort());
     expect(rows.length).toBeGreaterThanOrEqual(58); // 0.6.2: wave 2 and the nine missing wave-1 rigs joined the audit
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), so the seven new rigs (scale.ts SCALE_IDS) are sold: each is a row
+    // below, and each has a scenario of its own in SCENARIOS (CROWD PRESS's is the default fight: its count is on every belt)
+    expect(SCALE_RIGS).toBe(true);
+    for (const id of SCALE_IDS) expect(rows.some((d) => d.id === id), `${id} is audited`).toBe(true);
   });
   for (const d of rows) for (const hero of HARNESS_HEROES) {
-    it(`${d.id} changes ${hero}'s battle`, () => {
-      const [before, after] = decks(hero, d);
-      expect(validateBuild(before, 10).errors, `${hero} ${d.id} before`).toEqual([]);
-      expect(validateBuild(after, 10).errors, `${hero} ${d.id} after`).toEqual([]);
-      const sc = SCENARIOS[d.id] ?? {};
-      const foe = (sc.foe ?? quietFoe)(hero);
-      expect(validateBuild(foe, 10).errors, `${hero} ${d.id} foe`).toEqual([]);
-      const seconds = sc.seconds ?? SECONDS;
-      let chosen: { seed: number; base: Metrics; bought: Metrics; changed: (keyof Metrics)[] } | undefined;
-      let last: { base: Metrics; bought: Metrics } | undefined;
-      const sum = { base: 0, bought: 0 };
-      for (const seed of sc.seeds ?? [SEED]) {
-        const base = run(before, foe, seed, seconds), bought = run(after, foe, seed, seconds);
-        last = { base, bought };
-        if (sc.more) { sum.base += base[sc.more]; sum.bought += bought[sc.more]; }
-        const changed = delta(base, bought, sc.metrics ?? offense);
-        if (!chosen && changed.length && (!sc.proof || bought[sc.proof] > 0)) chosen = { seed, base, bought, changed };
-        if (chosen && !sc.more) break;
-      }
-      expect(chosen, `${hero} ${d.id}: no battle metric changed ${JSON.stringify(last)}`).toBeDefined();
-      if (sc.proof) expect(chosen!.base[sc.proof], `${hero} ${d.id}: ${sc.proof} without the part`).toBe(0);
-      if (sc.more) expect(sum.bought, `${hero} ${d.id}: ${sc.more} over ${sc.seeds!.length} seeds`).toBeGreaterThan(sum.base);
-      const gain = useful(d.id, hero);
-      if (gain) expect(gain(chosen!.bought), `${hero} ${d.id}: useful damage`).toBeGreaterThan(gain(chosen!.base));
-      if (auditFile) appendFileSync(auditFile, `${JSON.stringify({ id: d.id, hero, ...chosen, ...(sc.more ? { sum } : {}) })}\n`);
-      if (process.env.BB_POOL_AUDIT) console.log(`AUDIT ${d.id} ${hero} ${JSON.stringify(chosen)}`);
-    });
+    it(`${d.id} changes ${hero}'s battle`, () => { audit(hero, d, SCENARIOS[d.id] ?? {}); });
+  }
+});
+
+/**
+ * BUMP-1E: the 0.9.11 world's rows of the two reworked pieces that were audited by what they stored (the shipped readers' rows are
+ * SCENARIOS' above): IRON WALL plated the hull (judged on the defence numbers against an armed foe, the plating it rolled as the
+ * proof) and SPALL CATCHER stored a charge from the damage the hull took (its largest charge as the proof). Read with the scaling switch
+ * off (withScaleRigs(fn, false), synchronously), where ITEMS holds those two pieces as the old-rules fights are played.
+ */
+const OLD_WORLD: Record<string, Scenario> = {
+  shieldwall: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: defense, proof: "plated" },
+  spallcatcher: { foe: shockFoe, seconds: LONG, seeds: SEEDS, metrics: both, proof: "spall" },
+};
+
+describe("REQ-BFG-021, the 0.9.11 world (the scaling switch off): the old IRON WALL and SPALL CATCHER change a battle metric for every hero", () => {
+  const old = withScaleRigs(() => buyableModules().filter((d) => Object.keys(OLD_WORLD).includes(d.id)), false); // the 0.9.11 defs
+  it("the switch ships on, where both are readers; with it off they are the 0.9.11 pieces (IRON WALL plates, SPALL CATCHER stores a charge)", () => {
+    expect(SCALE_RIGS).toBe(true);
+    expect(old.map((d) => d.id)).toEqual(Object.keys(OLD_WORLD));
+    expect([ITEMS.shieldwall.gate!.plate, ITEMS.shieldwall.gate!.reads?.count], "shipped IRON WALL").toEqual([undefined, "ownPlate"]);
+    expect([ITEMS.spallcatcher.mod!.spall, ITEMS.spallcatcher.mod!.reads?.count], "shipped SPALL CATCHER").toEqual([undefined, "hitsTaken"]);
+    withScaleRigs(() => {
+      expect([ITEMS.shieldwall.gate!.plate !== undefined, ITEMS.shieldwall.gate!.reads], "0.9.11 IRON WALL").toEqual([true, undefined]);
+      expect([ITEMS.spallcatcher.mod!.spall !== undefined, ITEMS.spallcatcher.mod!.reads], "0.9.11 SPALL CATCHER").toEqual([true, undefined]);
+    }, false);
+  });
+  for (const d of old) for (const hero of HARNESS_HEROES) {
+    it(`${d.id} changes ${hero}'s battle (0.9.11, the scaling switch off)`, () => { withScaleRigs(() => audit(hero, d, OLD_WORLD[d.id]), false); });
   }
 });

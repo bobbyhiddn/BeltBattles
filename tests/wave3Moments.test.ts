@@ -24,6 +24,7 @@ import {
 } from "../src/render/wave3Moments";
 import { plated } from "../src/screens/battleHud";
 import { C } from "../src/render/palette";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the 0.9.11 world, read under withScaleRigs(fn, false)
 import { K, SEED, barge, furnaceBench, item, latchDeck, twoPress, withItem, withMod } from "./wave3.helpers";
 
 installRaster();
@@ -253,19 +254,26 @@ describe("A1's battle moments on the rigs, fed from P1's sim state (REPORT-A1 5.
     }
   });
 
+  // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where SHIELD WALL (IRON WALL) is a reader: +3 / +6 / +17 DMG for each whole 10
+  // PLATE you have, no plating of its own and no 12-plating step (scale.ts SCALE_DEFS: no `plated`), so its boss glow, the 0.9.11 piece's, is
+  // read with the switch off, synchronously (withScaleRigs(fn, false)); as shipped it has no moment (rigMoment below)
   it("SHIELD WALL: its boss glows once the hull holds 12 plating (E1's pool), not before", () => {
-    const b = withItem(furnaceBench(), item(30, "shieldwall", 3, 3, 0));
-    const MIN = ITEMS.shieldwall.gate!.plated!.min; // NUM-1: the wall's threshold, 120 plating (x10 of 12)
-    let before: Wave3RigState | null = null;
-    const a = play(b, barge(), (x) => {
-      const pl = x.b.sides[0].plate.plate;
-      if (pl > 0 && pl < MIN && !hot(x, 30)) before = momentOf(x, 30);
-      return pl >= MIN && !hot(x, 30);
-    }, 60);
-    expect(a.b.sides[0].plate.plate).toBeGreaterThanOrEqual(MIN);
-    expect(before).toEqual({});
-    expect(momentOf(a, 30)).toEqual({ plated: true });
-    drawsState(a, 30, { plated: true }, "wall at 12 plating");
+    expect(SCALE_RIGS).toBe(true);
+    expect([ITEMS.shieldwall.gate!.plated, ITEMS.shieldwall.gate!.plate], "as shipped IRON WALL is a reader").toEqual([undefined, undefined]);
+    withScaleRigs(() => {
+      const b = withItem(furnaceBench(), item(30, "shieldwall", 3, 3, 0));
+      const MIN = ITEMS.shieldwall.gate!.plated!.min; // NUM-1: the wall's threshold, 120 plating (x10 of 12)
+      let before: Wave3RigState | null = null;
+      const a = play(b, barge(), (x) => {
+        const pl = x.b.sides[0].plate.plate;
+        if (pl > 0 && pl < MIN && !hot(x, 30)) before = momentOf(x, 30);
+        return pl >= MIN && !hot(x, 30);
+      }, 60);
+      expect(a.b.sides[0].plate.plate).toBeGreaterThanOrEqual(MIN);
+      expect(before).toEqual({});
+      expect(momentOf(a, 30)).toEqual({ plated: true });
+      drawsState(a, 30, { plated: true }, "wall at 12 plating");
+    }, false);
   });
 });
 
@@ -409,27 +417,34 @@ describe("A1's battle moments on the guns", () => {
   // Y7b2 (the flip; DESIGN-Y row 47): SPALL CATCHER has no cap, so its face reads its charge over the gauge's full mark,
   // SPALL_GAUGE_ADDS x add (80 at ★1, where the cap was), and stays full past it (wave3Moments.ts gearMoment). Was "...
   // (TurretState.spall / its cap) ..."
+  // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where SPALL CATCHER is a reader (+1 / +2 / +7 DMG at its gun's shot for each enemy
+  // hit on your ship) and stores no charge (scale.ts SCALE_DEFS: no `spall`, no TurretState.spallCharge), so its face heating with the
+  // charge, the 0.9.11 piece's, is read with the switch off, synchronously (withScaleRigs(fn, false))
   it("SPALL CATCHER: its face heats with its charge (TurretState.spall / its gauge's full mark), against a gun shooting at us", () => {
-    // FURNACE's heavy gun with no belt (it never fires, so it never spends the charge), under the shooter's fire
-    const b: Build = { hero: "furnace", items: [{ uid: 1, def: "kiln", x: 0, y: 8 }], routes: [], mods: [{ uid: 50, def: "spallcatcher", turret: 0 }], beltCap: 30, hullBonus: 5000 };
-    const faces = new Set<string>();
-    const a = play(b, shooter(), (x) => {
-      // Y7b2 (the flip): was (tu.spallCharge ?? 0) / tu.spall!.max (the cap; no max now)
-      const tu = turret(x, 0), q = Math.min(1, (tu.spallCharge ?? 0) / (SPALL_GAUGE_ADDS * tu.spall!.add));
-      const st = gearMoment("spallcatcher", 0, tu, x.sfx[0].w3);
-      expect(st).toEqual({ charge: q }); // in battle always its charge (0: the cold face, as the build view's {})
-      expect(wave3GearFace("spallcatcher", { charge: 0 })).toEqual(wave3GearFace("spallcatcher"));
-      const face = faceAt(draw(view(x)), b, 0);
-      expect(face).toEqual(wave3GearFace("spallcatcher", st));
-      faces.add(face.join());
-      return q >= 1;
-    }, 120);
-    // Y7b2 (the flip): the charge on the tick the face first reads full, measured 92.5 (past the full mark, 80: no cap; was
-    // spall.max, the cap, 80, where the charge stopped)
-    expect(turret(a, 0).spallCharge).toBe(92.5);
-    expect(faces.size, "the face heats through its steps").toBeGreaterThanOrEqual(4);
-    // the build view (no sim) shows the cold face
-    expect(gearMoment("spallcatcher", 0, undefined, undefined)).toEqual({});
+    expect(SCALE_RIGS).toBe(true);
+    expect(ITEMS.spallcatcher.mod!.spall, "as shipped SPALL CATCHER is a reader: no charge").toBeUndefined();
+    withScaleRigs(() => {
+      // FURNACE's heavy gun with no belt (it never fires, so it never spends the charge), under the shooter's fire
+      const b: Build = { hero: "furnace", items: [{ uid: 1, def: "kiln", x: 0, y: 8 }], routes: [], mods: [{ uid: 50, def: "spallcatcher", turret: 0 }], beltCap: 30, hullBonus: 5000 };
+      const faces = new Set<string>();
+      const a = play(b, shooter(), (x) => {
+        // Y7b2 (the flip): was (tu.spallCharge ?? 0) / tu.spall!.max (the cap; no max now)
+        const tu = turret(x, 0), q = Math.min(1, (tu.spallCharge ?? 0) / (SPALL_GAUGE_ADDS * tu.spall!.add));
+        const st = gearMoment("spallcatcher", 0, tu, x.sfx[0].w3);
+        expect(st).toEqual({ charge: q }); // in battle always its charge (0: the cold face, as the build view's {})
+        expect(wave3GearFace("spallcatcher", { charge: 0 })).toEqual(wave3GearFace("spallcatcher"));
+        const face = faceAt(draw(view(x)), b, 0);
+        expect(face).toEqual(wave3GearFace("spallcatcher", st));
+        faces.add(face.join());
+        return q >= 1;
+      }, 120);
+      // Y7b2 (the flip): the charge on the tick the face first reads full, measured 92.5 (past the full mark, 80: no cap; was
+      // spall.max, the cap, 80, where the charge stopped)
+      expect(turret(a, 0).spallCharge).toBe(92.5);
+      expect(faces.size, "the face heats through its steps").toBeGreaterThanOrEqual(4);
+      // the build view (no sim) shows the cold face
+      expect(gearMoment("spallcatcher", 0, undefined, undefined)).toEqual({});
+    }, false);
   });
 
   it("STEAM BREECH: the gauge kicks into the red while the hull is plated (TurretState.plated), white when bare", () => {
@@ -488,16 +503,24 @@ describe("STOKER's IDLE dim in battle, the plating strip, and the display-only r
   });
 
   it("any hull holding a wave-3 plating source shows its plating strip; FURNACE's and WEAVER's bare decks don't", () => {
-    for (const [b, want] of [
-      [withItem(furnaceBench(), item(30, "plateroller", 3, 3, 1)), true], [withItem(furnaceBench(), item(30, "shieldwall", 3, 3, 0)), true],
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where SHIELD WALL (IRON WALL) is a reader and plates nothing (scale.ts
+    // SCALE_DEFS), so as a plating source it is the 0.9.11 piece's: its row (the third element, `off`) is read with the switch off,
+    // synchronously (withScaleRigs(fn, false)); the other rows are the same in both worlds, read as shipped
+    expect(SCALE_RIGS).toBe(true);
+    for (const [b, want, off] of [
+      [withItem(furnaceBench(), item(30, "plateroller", 3, 3, 1)), true], [withItem(furnaceBench(), item(30, "shieldwall", 3, 3, 0)), true, true],
       [pressFurnace("armorpress"), true], [withMod(twoPress(), 50, "seamwelder", 0), true],
       [furnaceBench(), false], [heroStartBuild("weaver", 1), false], [withMod(furnaceBench(), 50, "anvil", 0), false],
       [withItem(furnaceBench(), item(30, "platebreaker", 3, 3, 0)), false],
-    ] as [Build, boolean][]) {
+    ] as [Build, boolean, boolean?][]) withScaleRigs(() => {
       expect(holdsPlating(b), b.items.map((p) => p.def).join() + b.mods.map((m) => m.def).join()).toBe(want);
       const a = new Arena(cloneBuild(b), barge(), SEED, null);
       expect(plated(a, 0)).toBe(want);
-    }
+    }, !off);
+    // BUMP-1E: as shipped (the switch on) IRON WALL plates nothing: its deck holds no plating source, so no strip (the row above, was `true`)
+    const wall = withItem(furnaceBench(), item(30, "shieldwall", 3, 3, 0));
+    expect(holdsPlating(wall)).toBe(false);
+    expect(plated(new Arena(cloneBuild(wall), barge(), SEED, null), 0)).toBe(false);
     // BASTION shows it as H1 made it; its plate is the side's own pool
     const bas = new Arena(heroStartBuild("bastion", 1), barge(), SEED, null);
     expect(plated(bas, 0)).toBe(true);

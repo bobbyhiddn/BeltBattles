@@ -4,9 +4,13 @@
 // Each rule is shown in a real battle on a deck a player could build: every deck is legal on day 10 with wave 3 in the
 // game, the test's + 5000 hull aside. The belt walk and OVERCLOCKER's doubling are also checked as functions. The switch
 // stays off: a battle reads the wave-3 parts from ITEMS whatever the switch, so only the legality checks turn wave 3 on.
+// BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where SHIELD WALL (IRON WALL) and SPALL CATCHER are readers (scale.ts
+// SCALE_DEFS): no plating of its own, no stored charge. The three rules below that pin their 0.9.11 plating and charge (C-walk-breaker's
+// SHIELD WALL entry, C-spall-burn, C-oc-plate's SHIELD WALL half) are read with the scaling switch off, withScaleRigs(fn, false),
+// synchronously; every other rule is the same in both worlds.
 import { describe, expect, it } from "vitest";
 import { Battle, type Payload } from "../src/sim/battle";
-import { WIND_START, withWave3 } from "../src/sim/content";
+import { ITEMS, WIND_START, withWave3 } from "../src/sim/content"; // BUMP-1E: ITEMS, for the shipped SPALL CATCHER def
 import {
   journeyTiles, matchedRoutes, platedDeck, rigFactoryHits, routeInfo, stokeHits, walkRoute, type Build, type Dir, type TimelineHit,
 } from "../src/sim/deck";
@@ -23,6 +27,7 @@ import { beltPanel } from "../src/screens/build/inspector";
 import { fmtDmg } from "../src/ui/statFormat"; // NUM-4 (REQ-BFG-047): the belt panel's DMG, whole, as it is
 import { K, SEED, barge, events, item, latchDeck, run, withItem, withMod } from "./wave3.helpers";
 import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's base plating where a test needs it
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the 0.9.11 world, read under withScaleRigs(fn, false)
 
 // ------------------------------------------------------------------------------------------------------------ decks
 
@@ -354,6 +359,7 @@ describe("PLATE BREAKER", () => {
   // plates its hull, but the battle pays it only on a blow that finds a whole plating, so the build screen's DMG now shows
   // both numbers there: the floor's total, then the big number's ("DMG lo-hi"); a deck that never plates shows the floor
   it("C-walk-breaker: the belt walk counts PLATE BREAKER's floor on a deck that never plates its hull, and its big number on one that does; DMG shows both on a plated deck", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on (SHIELD WALL's entry below is read with it off)
     const hit = (b: Build): TimelineHit => walkRoute(b, 0).timeline.flatMap((r) => r.hits).find((h) => h.uid === 31)!;
     const plain = walkRoute(furnace(), 0).estimate.dmg;
     for (const [s, big, floor] of NUMS) {
@@ -377,18 +383,27 @@ describe("PLATE BREAKER", () => {
         ["bastion", withItem({ ...heroStartBuild("bastion", 1), hullBonus: 5000 }, item(31, "platebreaker", 3, 2, 0, s))],
       ];
       for (const [what, b] of plated) {
-        legal(b, `${what} ★${s}`);
-        expect(platedDeck(b), what).toBe(true);
-        expect(hit(b).flat, `${what} ★${s}`).toBe(big);
-        // F1 (B1): the belt panel's DMG: the walk with every breaker at its floor, then the walk as counted
-        const lo = walkRoute(b, 0, undefined, { unplated: true }).estimate.dmg, hi = walkRoute(b, 0).estimate.dmg;
-        expect(hi - lo, `${what} ★${s}`).toBe(big - floor); // NUM-1: whole (was toBeCloseTo(big - floor, 9))
-        const rp = newRun(b.hero, 5, "b1-walk");
-        rp.build = b;
-        // NUM-4 (REQ-BFG-047): both walks' whole numbers through fmtDmg (was lo.toFixed(1)-hi.toFixed(1))
-        expect([Number.isInteger(lo), Number.isInteger(hi)], `${what} ★${s}`).toEqual([true, true]);
-        expect(beltPanel(rp, 0)!.headerOnly!.texts[2].split(",")[0], `${what} ★${s}`).toBe(`DMG ${fmtDmg(lo)}-${fmtDmg(hi)}`);
+        // BUMP-1E: SHIELD WALL (IRON WALL) is a reader as shipped and plates nothing (scale.ts SCALE_DEFS), so as a plating source it is the
+        // 0.9.11 piece's: its entry is read with the scaling switch off, synchronously (withScaleRigs(fn, false); the other four sources
+        // are the same in both worlds, read as shipped: `on`)
+        withScaleRigs(() => {
+          legal(b, `${what} ★${s}`);
+          expect(platedDeck(b), what).toBe(true);
+          expect(hit(b).flat, `${what} ★${s}`).toBe(big);
+          // F1 (B1): the belt panel's DMG: the walk with every breaker at its floor, then the walk as counted
+          const lo = walkRoute(b, 0, undefined, { unplated: true }).estimate.dmg, hi = walkRoute(b, 0).estimate.dmg;
+          expect(hi - lo, `${what} ★${s}`).toBe(big - floor); // NUM-1: whole (was toBeCloseTo(big - floor, 9))
+          const rp = newRun(b.hero, 5, "b1-walk");
+          rp.build = b;
+          // NUM-4 (REQ-BFG-047): both walks' whole numbers through fmtDmg (was lo.toFixed(1)-hi.toFixed(1))
+          expect([Number.isInteger(lo), Number.isInteger(hi)], `${what} ★${s}`).toEqual([true, true]);
+          expect(beltPanel(rp, 0)!.headerOnly!.texts[2].split(",")[0], `${what} ★${s}`).toBe(`DMG ${fmtDmg(lo)}-${fmtDmg(hi)}`);
+        }, what !== "shieldwall");
       }
+      // BUMP-1E: as shipped (the switch on) IRON WALL plates nothing: a deck with it is no plated deck, so the walk counts the breaker's floor
+      const wall = withItem(bare, item(30, "shieldwall", 3, 4));
+      legal(wall, `shieldwall ★${s} (shipped)`);
+      expect([platedDeck(wall), hit(wall).flat], `shieldwall ★${s} (shipped)`).toEqual([false, floor]);
       note(`walk-breaker | ★${s}: bare FURNACE walk +${hit(bare).flat}, DMG ${(plain + floor).toFixed(2)} (the belt panel: ${beltPanel(rn, 0)!.headerOnly!.texts[2].split(",")[0]}); with any plating source +${big}`);
     }
   });
@@ -438,38 +453,45 @@ describe("SPALL CATCHER", () => {
     // shot) plus add x (the hull's loss + twice what the plating soaked) / 40 (NUM-1: was / 4), up to its max, burn ticks
     // included.
     // Y7b2 (the flip): add x (the hull's loss + what the plating soaked) / 40, no max (was twice the soak, up to max)
-    const foe = withItem({ ...heroStartBuild("furnace", 101), hullBonus: 5000 }, rig(150, "temper", 3, 3, 1, 3));
-    legal(foe, "the foe");
-    for (const s of [1, 2, 3]) {
-      const me = withMod(withItem(furnace(), rig(30, "plateroller", 3, 4, 1, 3)), 50, "spallcatcher", 0, s);
-      legal(me, `★${s}`);
-      const sp = effectAt("spallcatcher", s).mod!.spall!;
-      const bt = new Battle(me, foe, SEED);
-      const side = bt.sides[0], tu = side.turrets[0];
-      let hp = side.hull.hp, soakedSoFar = side.plate.absorbed, charge = 0, burnTicks = 0, soakedBurnTicks = 0;
-      while (bt.t < WIND_START - 1 && !bt.over) {
-        bt.step();
-        const ev = bt.drainEvents();
-        const lost = hp - side.hull.hp, soaked = side.plate.absorbed - soakedSoFar;
-        const shot = ev.some((e) => e.type === "fire" && e.side === 0), hit = ev.some((e) => e.type === "impact" && e.side === 0);
-        const want = (shot ? 0 : charge) + (sp.add * (lost + soaked)) / sp.every; // Y7b2 (the flip): was Math.min(sp.max, ... (lost + 2 * soaked) ...)
-        expect(tu.spallCharge!, `★${s} t ${bt.t.toFixed(3)}: lost ${lost}, soaked ${soaked}, hit ${hit}`).toBeCloseTo(want, 6);
-        if (!hit && lost + soaked > 0) { // nothing landed but burn
-          burnTicks++;
-          if (soaked > 0) soakedBurnTicks++;
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where SPALL CATCHER is a reader (+1 / +2 / +7 DMG at its gun's shot for each enemy
+    // hit on your ship) and stores no charge (scale.ts SCALE_DEFS: no `spall`, no TurretState.spallCharge), so this rule, the 0.9.11 piece's
+    // charge, is read with the switch off, synchronously (withScaleRigs(fn, false)); the shipped reader's numbers are pinned in tests/scale2c.sim.test.ts
+    expect(SCALE_RIGS).toBe(true);
+    expect([ITEMS.spallcatcher.mod!.spall, ITEMS.spallcatcher.mod!.reads?.count]).toEqual([undefined, "hitsTaken"]); // as shipped: a reader, no charge
+    withScaleRigs(() => {
+      const foe = withItem({ ...heroStartBuild("furnace", 101), hullBonus: 5000 }, rig(150, "temper", 3, 3, 1, 3));
+      legal(foe, "the foe");
+      for (const s of [1, 2, 3]) {
+        const me = withMod(withItem(furnace(), rig(30, "plateroller", 3, 4, 1, 3)), 50, "spallcatcher", 0, s);
+        legal(me, `★${s}`);
+        const sp = effectAt("spallcatcher", s).mod!.spall!;
+        const bt = new Battle(me, foe, SEED);
+        const side = bt.sides[0], tu = side.turrets[0];
+        let hp = side.hull.hp, soakedSoFar = side.plate.absorbed, charge = 0, burnTicks = 0, soakedBurnTicks = 0;
+        while (bt.t < WIND_START - 1 && !bt.over) {
+          bt.step();
+          const ev = bt.drainEvents();
+          const lost = hp - side.hull.hp, soaked = side.plate.absorbed - soakedSoFar;
+          const shot = ev.some((e) => e.type === "fire" && e.side === 0), hit = ev.some((e) => e.type === "impact" && e.side === 0);
+          const want = (shot ? 0 : charge) + (sp.add * (lost + soaked)) / sp.every; // Y7b2 (the flip): was Math.min(sp.max, ... (lost + 2 * soaked) ...)
+          expect(tu.spallCharge!, `★${s} t ${bt.t.toFixed(3)}: lost ${lost}, soaked ${soaked}, hit ${hit}`).toBeCloseTo(want, 6);
+          if (!hit && lost + soaked > 0) { // nothing landed but burn
+            burnTicks++;
+            if (soaked > 0) soakedBurnTicks++;
+          }
+          hp = side.hull.hp;
+          soakedSoFar = side.plate.absorbed;
+          charge = tu.spallCharge!;
         }
-        hp = side.hull.hp;
-        soakedSoFar = side.plate.absorbed;
-        charge = tu.spallCharge!;
+        // NUM-1 (REQ-BFG-047): a Burn now lands once a second (3 whole ticks a stack's 3 s), not on every tick, so this battle
+        // has 42 burn-only ticks (16 Burn hits x 3, less the 6 due after 24 s), 8 of them soaked, where the base had 1,121 and
+        // 172. The floors keep their share of that evidence (were > 300 of 1,121 and > 30 of 172: 300 x 42 / 1121 = 11.2,
+        // 30 x 8 / 172 = 1.4)
+        expect(burnTicks, `★${s}: ticks when only burn landed`).toBeGreaterThan(11);
+        expect(soakedBurnTicks, `★${s}: ... and the plating soaked some`).toBeGreaterThan(1);
+        note(`spall-burn | ★${s}: ${Math.round(bt.t * 60)} ticks checked; burn alone landed on ${burnTicks}, the plating soaking some on ${soakedBurnTicks}`);
       }
-      // NUM-1 (REQ-BFG-047): a Burn now lands once a second (3 whole ticks a stack's 3 s), not on every tick, so this battle
-      // has 42 burn-only ticks (16 Burn hits x 3, less the 6 due after 24 s), 8 of them soaked, where the base had 1,121 and
-      // 172. The floors keep their share of that evidence (were > 300 of 1,121 and > 30 of 172: 300 x 42 / 1121 = 11.2,
-      // 30 x 8 / 172 = 1.4)
-      expect(burnTicks, `★${s}: ticks when only burn landed`).toBeGreaterThan(11);
-      expect(soakedBurnTicks, `★${s}: ... and the plating soaked some`).toBeGreaterThan(1);
-      note(`spall-burn | ★${s}: ${Math.round(bt.t * 60)} ticks checked; burn alone landed on ${burnTicks}, the plating soaking some on ${soakedBurnTicks}`);
-    }
+    }, false);
   });
 });
 
@@ -501,11 +523,18 @@ describe("OVERCLOCKER on wave 3's rigs (overclock.ts)", () => {
   });
 
   it("C-oc-plate: OVERCLOCKER can boost a plating rig (PLATE ROLLER, SHIELD WALL) and doubles the plating it rolls", () => {
-    for (const id of ["plateroller", "shieldwall"]) for (const s of [1, 2, 3]) {
+    // BUMP-1E: SHIELD WALL (IRON WALL) is a reader as shipped (the scaling rules, SCALE_RIGS, bb-0.12.0: scale.ts SCALE_DEFS) and rolls
+    // no plating, so as a plating rig it is the 0.9.11 piece's: it is read with the scaling switch off, synchronously
+    // (withScaleRigs(fn, false)); PLATE ROLLER is the same in both worlds, read as shipped (`on`). OVERCLOCKER's doubling of the
+    // shipped readers (their `each`) is pinned in the scaling tests
+    expect(SCALE_RIGS).toBe(true);
+    expect(effectAt("shieldwall", 1).gate!.plate, "as shipped IRON WALL rolls no plating").toBeUndefined();
+    const world = (id: string, fn: () => void): void => withScaleRigs(fn, id !== "shieldwall");
+    for (const id of ["plateroller", "shieldwall"]) for (const s of [1, 2, 3]) world(id, () => {
       const e = effectAt(id, s).gate!;
       expect(boostable(e), `${id} ★${s}`).toBe(true);
       expect(overclocked(e).plate, `${id} ★${s}`).toBe(2 * e.plate!);
-    }
+    });
     // in a battle: the plating rig on the Kiln belt's tile 2 is the OVERCLOCKER's next boostable rig, and each boost rolls
     // twice the plating (the hull stays under the cap in 20 s)
     // NUM-1 (REQ-BFG-047): each rig's ★1 plating read from the data, x10 (were the literals 0.5 and 1; now 5, 10)
@@ -513,7 +542,7 @@ describe("OVERCLOCKER on wave 3's rigs (overclock.ts)", () => {
     // a payload fill the hull to PLATE_CAP in 20 s (the rolls sum 240), so the cap would clip a roll; it passed before only
     // because legal()'s withWave3 wrote the base def back. GUARD's doubling is checked above (effectAt). SHIELD WALL is not
     // GUARD's: it plays the shipped world
-    for (const id of ["plateroller", "shieldwall"] as const) withGuard(() => {
+    for (const id of ["plateroller", "shieldwall"] as const) world(id, () => withGuard(() => {
       const plate = effectAt(id, 1).gate!.plate!;
       const b = withItem(oc(furnace()), rig(30, id, 3, 3, 1)); // at (3,3), facing east onto (4,3)
       legal(b, id);
@@ -523,6 +552,6 @@ describe("OVERCLOCKER on wave 3's rigs (overclock.ts)", () => {
       expect(rolls.filter((r) => r === 2 * plate).length, id).toBeGreaterThanOrEqual(3);
       expect(sum(rolls)).toBeLessThan(PLATE_CAP);
       note(`oc-plate | ${id}: rolls ${rolls.join(", ")}`);
-    }, id !== "plateroller");
+    }, id !== "plateroller"));
   });
 });
