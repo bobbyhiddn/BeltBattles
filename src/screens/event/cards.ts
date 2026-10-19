@@ -6,6 +6,8 @@ import type { Choice, Delta } from "../../game/eventDefs";
 import { gameWords } from "../../ui/gameWords"; // CARD-3 (REQ-BFG-107)
 import type { ShopBadge } from "../../game/run";
 import { ITEMS } from "../../sim/content";
+import { ENCHANT_DEFS, isEnchantId } from "../../sim/enchant"; // ENCHANT-2 (REQ-BFG-085, T3): the shrine's word chip (its icon, its name in its colour)
+import { enchantIcon } from "../../render/enchantArt"; // ENCHANT-2 (T3)
 import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): an event's hull amount on the day's hull
 import { C } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
@@ -34,8 +36,12 @@ export function deltaIcon(d: Delta): HTMLCanvasElement {
     case "sabotage": return skullIcon();
     case "reveal": case "discount": return tagIcon();
     case "reroll": return rerollIcon();
+    case "ench": return enchantIcon(d.word); // ENCHANT-2 (REQ-BFG-085, T3): the word's own icon
   }
 }
+
+/** ENCHANT-2 (REQ-BFG-085, T3): a word chip's text colour (the word's own colour, as every other face prints it), or null for any other chip. */
+export const deltaColour = (d: Delta): string | null => (d.k === "ench" && isEnchantId(d.word) ? ENCHANT_DEFS[d.word].color : null);
 
 export function itemName(def: string): string {
   return SHORT[def] ?? ITEMS[def].name;
@@ -54,28 +60,42 @@ export function deltaText(d: Delta, cost: boolean, day?: number): string {
     case "reveal": return "DUSK DECK";
     case "discount": return `PRICES -${d.n}`;
     case "reroll": return `${d.n} FREE REROLL`;
+    case "ench": return ENCHANT_DEFS[d.word as keyof typeof ENCHANT_DEFS]?.name ?? d.word.toUpperCase(); // ENCHANT-2 (REQ-BFG-085, T3): the word's name
   }
 }
 
-function chip(g: G, x: number, cy: number, d: Delta, cost: boolean, dim: boolean, right: number, day?: number): number {
+function chip(g: G, x: number, cy: number, d: Delta, cost: boolean, dim: boolean, right: number, day?: number, bare = false): number {
   const icon = deltaIcon(d);
-  let text = deltaText(d, cost, day); // HULL-1a: `day`
-  let w = icon.width + 2 + textWidth(text, "3");
+  let text = bare && d.k === "item" ? "" : deltaText(d, cost, day); // HULL-1a: `day`; ENCHANT-2 (T3): `bare`, a part's icon alone (the word keeps the room)
+  let w = text ? icon.width + 2 + textWidth(text, "3") : icon.width;
   // 0.6.1c: road items draw from the whole catalogue, so a long part name can meet a long good on a
   // narrow card; with no room for its name the part still shows its icon (the card never hides a gain)
   if (x + w > right && d.k === "item") [text, w] = ["", icon.width];
   if (x + w > right) return x;
   g.drawImage(icon, x, cy - Math.floor(icon.height / 2));
-  if (text) drawText(g, text, x + icon.width + 2, cy - 2, dim ? C.slate3 : cost ? C.red : C.lime, { font: "3" });
+  const word = deltaColour(d); // ENCHANT-2 (T3): a word is printed in its own colour
+  if (text) drawText(g, text, x + icon.width + 2, cy - 2, dim ? C.slate3 : word ?? (cost ? C.red : C.lime), { font: "3" });
   return x + w + 5;
+}
+
+/** ENCHANT-2 (REQ-BFG-085, T3): the width a chip takes (chip's own sum), so a card that gains a WORD can keep room for it. */
+function chipWidth(d: Delta, cost: boolean, day: number | undefined, bare: boolean): number {
+  const text = bare && d.k === "item" ? "" : deltaText(d, cost, day);
+  return (text ? deltaIcon(d).width + 2 + textWidth(text, "3") : deltaIcon(d).width) + 5;
 }
 
 /** "pay -> get" line centred on row cy (icons centred, 3x5 text). */
 export function exchange(g: G, x: number, cy: number, w: number, c: Choice, dim: boolean, day?: number): void {
   const right = x + w;
   let cx = x;
+  // ENCHANT-2 (REQ-BFG-085, T3): a card that gains a WORD never loses it to a long part name: when the whole line does not fit, the part is its icon alone
+  // (the card's label already says OFFER A PART). Every other card draws exactly as before.
+  const word = c.gain.some((d) => d.k === "ench");
+  const need = (bare: boolean): number =>
+    (c.cost.length ? c.cost.reduce((n, d) => n + chipWidth(d, true, day, bare), 0) : textWidth("FREE", "3") + 4) + 7 + c.gain.reduce((n, d) => n + chipWidth(d, false, day, false), 0);
+  const bare = word && need(false) > w;
   if (!c.cost.length) cx += drawText(g, "FREE", cx, cy - 2, dim ? C.slate3 : C.lime, { font: "3" }) + 4;
-  else for (const d of c.cost) cx = chip(g, cx, cy, d, true, dim, right, day);
+  else for (const d of c.cost) cx = chip(g, cx, cy, d, true, dim, right, day, bare);
   drawText(g, "→", cx, cy - 2, dim ? C.slate2 : C.slate4, { font: "3" });
   cx += 7;
   if (!c.gain.length) drawText(g, "NOTHING", cx, cy - 2, C.slate3, { font: "3" });

@@ -25,7 +25,7 @@ import { textWidth } from "../src/render/font";
 import { TAP_CSS } from "../src/ui/tap";
 import { ENCHANT, ENCHANT_DEFS, setEnchant, withEnchant, type EnchantId } from "../src/sim/enchant";
 import { newRun, rollShop, type Run } from "../src/game/run";
-import { enchantChoices, openWarlordPick, pendingEnchantPick } from "../src/game/enchanter";
+import { enchantChoices, openShrineWord, openWarlordPick, pendingEnchantPick } from "../src/game/enchanter"; // ENCHANT-2 (T3): + openShrineWord
 import { setPieceWord } from "../src/game/fuse";
 import { itemByUid, occupancy, turretSlots } from "../src/sim/deck";
 import { ITEMS } from "../src/sim/content";
@@ -800,6 +800,87 @@ describe("ENCHANT-1 step 7: the warlord pick (REFIT's strip)", () => {
       expect(JSON.stringify([run.build, run.inventory, run.gold])).toBe(before);
       frame(r);
       expect(pickView(r.screen)).toBeNull();
+    });
+  });
+});
+
+// ------------------------------------------------------------------------------------------------------------------ the ASH SHRINE's word (ENCHANT-2, T3)
+
+describe("ENCHANT-2 T3: the ASH SHRINE's word (REFIT's strip, a pick of 1)", () => {
+  function shrineRun(word: EnchantId = "fiery"): Run {
+    return on(() => {
+      const run = dayRun(["fiery", "wide"], 6);
+      delete run.shop.enchanter;
+      run.stage = "refit";
+      openShrineWord(run, word);
+      expect(pendingEnchantPick(run)).toEqual({ day: 6, no: 3, words: [word] });
+      return run;
+    });
+  }
+
+  it("one word card without a price and NO THANKS, inside the banner, on the desk and the phone (a finger's size); the tap panel is the word's, free", () => {
+    for (const view of ["desk", "phone"] as const) on(() => {
+      const run = shrineRun();
+      const r = rig(run, view);
+      frame(r);
+      const v = pickView(r.screen)!;
+      expect(v.cards.map((c) => c.id)).toEqual(["fiery"]);
+      expect(v.cards[0].price).toBeNull();
+      const b = bannerRect(r.screen.L);
+      for (const q of [...v.lay.cards, v.lay.skip]) expect(q.x >= b.x && q.y >= b.y && q.x + q.w <= b.x + b.w && q.y + q.h <= b.y + b.h, `${view}: inside the banner`).toBe(true);
+      expect(r.game.ui.regions.some((q) => q.id === "enchskip")).toBe(true);
+      if (view === "phone") {
+        const k = r.game.view.scale / r.game.view.dpr;
+        expect(v.cards[0].hit.h * k).toBeGreaterThanOrEqual(TAP_CSS);
+      }
+      tap(r, ...centre(v.cards[0].hit), view === "phone" ? "touch" : "mouse");
+      expect(r.screen.sel).toEqual({ kind: "word", pick: true, i: 0 });
+      frame(r);
+      expect(labels(r)).toEqual(["APPLY"]);
+      expect(r.screen.panelInfo()!.sub).toContain("FREE");
+    });
+  });
+
+  it("tapping the card opens APPLY; a legal part takes the word for nothing and the word's pick closes; it survives a save and a reload", () => {
+    on(() => {
+      const run = shrineRun("rising");
+      const r = rig(run, "desk");
+      frame(r);
+      tap(r, ...centre(card(r, 0, true)));
+      frame(r);
+      tap(r, ...centre(card(r, 0, true)));
+      expect(applyState(r.screen)?.word).toBe("rising");
+      expect(applyState(r.screen)?.price).toBe(0);
+      const saved = JSON.parse(JSON.stringify(run)) as Run; // the pick is in the run: a reload keeps it
+      expect(pendingEnchantPick(saved)).toEqual(pendingEnchantPick(run));
+      const gold = run.gold;
+      const fact = run.build.items.find((p) => ITEMS[p.def].kind === "factory")!;
+      const c = r.screen.tileCentre(fact.x, fact.y);
+      tap(r, Math.round(c.x), Math.round(c.y));
+      expect(itemByUid(run.build, fact.uid)!.ench).toBe("rising");
+      expect(run.gold).toBe(gold);
+      expect(run.enchShrine).toBeUndefined();
+      expect(pendingEnchantPick(run)).toBeNull();
+      expect(pickView(r.screen)).toBeNull();
+    });
+  });
+
+  it("NO THANKS closes the shrine's word and it is lost; a warlord pick still open is answered first and the shrine's word waits behind it", () => {
+    on(() => {
+      const run = shrineRun();
+      const r = rig(run, "phone");
+      const before = JSON.stringify([run.build, run.inventory, run.gold]);
+      press(r, "enchskip");
+      expect(pendingEnchantPick(run)).toBeNull();
+      expect(JSON.stringify([run.build, run.inventory, run.gold])).toBe(before);
+      const run2 = shrineRun("braced");
+      openWarlordPick(run2, { tier: "hard", id: "rival", day: 6 }, true);
+      const r2 = rig(run2, "desk");
+      frame(r2);
+      expect(pickView(r2.screen)!.cards).toHaveLength(2); // the warlord's two words first
+      press(r2, "enchskip");
+      frame(r2);
+      expect(pickView(r2.screen)!.cards.map((c) => c.id)).toEqual(["braced"]); // then the shrine's one
     });
   });
 });

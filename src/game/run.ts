@@ -219,6 +219,7 @@ export interface Run {
   enchMerge?: { uid: number; kept: EnchantFields; lost: EnchantFields }; // E4: a merge of two different words, the pick still open (fuse.ts)
   enchPick?: { day: number; no: 1 | 2; words: [string, string] }; // E5b: a warlord win's open pick of 1 of 2 words (enchanter.ts)
   enchPicks?: number[]; // E5b: which of the run's two warlord picks (1, 2) have been opened already
+  enchShrine?: { day: number; word: string }; // ENCHANT-2 (REQ-BFG-085, T3): the ASH SHRINE's open word (a free pick of 1 word, shown after any warlord pick; enchanter.ts openShrineWord). Save v8, no bump (an optional field, as enchPick)
 }
 
 export const RUN_VERSION = 8; // 0.6.1a: module merging (stars; save.ts v6to7 runs fuseAll once); NUM-1: hull x10 (save.ts v7to8, once)

@@ -8,7 +8,8 @@ import { loadGhostPool } from "../src/net/fallback";
 import { samplePoolJson } from "../tools/samplePool";
 import { randomBuild } from "../src/sim/harness/gen";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
-import { EVENTS, EVENT_IDS, SWAP_TIER, UPGRADE, salvagePool, smugglerPool, type Delta, type EventId, type EventState } from "../src/game/eventDefs";
+import { EVENTS, EVENT_IDS, SWAP_TIER, UPGRADE, eventIds, salvagePool, smugglerPool, type Delta, type EventId, type EventState } from "../src/game/eventDefs";
+import { withEnchant } from "../src/sim/enchant"; // ENCHANT-2 (REQ-BFG-085, T3): the ASH SHRINE is a road event only under ENCHANT
 import { blockReason } from "../src/game/events";
 import { MATRIARCH_GOLD, ROAD_PICKS, rewardGold, warlordDeck, warlordDeckDay, warlordReward } from "../src/game/road";
 import { newRun, pendingRune, rollShop, storePlaced, takeRune } from "../src/game/run"; // BUMP-1D: + rollShop (the price test)
@@ -514,14 +515,14 @@ describe("game bugs found on the way (REPORT.md §7)", () => {
 
 describe("the D4 guard: new road content must update the ceiling on purpose", () => {
   /** Every Delta kind any event choice holds, under a broad set of states (empty, each held part, a deck rig). */
-  function liveKinds(): Set<string> {
+  function liveKinds(ids: readonly EventId[] = EVENT_IDS): Set<string> { // ENCHANT-2 (T3): `ids`, the rules world's events (default: the ten of the ENCHANT-off world)
     const kinds = new Set<string>();
     const runs = [newRun("furnace", 7), ...buyableModules().map((d) => {
       const r = newRun("weaver", 7);
       gainModule(r, d.id);
       return r;
     })];
-    for (const e of EVENT_IDS) {
+    for (const e of ids) {
       for (const run of runs) {
         for (let j = 0; j < 32; j++) {
           const ev: EventState = { day: 1, id: e, roll: 0, pick: (j + 0.5) / 32, picked: -1 };
@@ -533,8 +534,13 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
   }
 
   it("every event, Delta kind, fork pick and warlord reward field of the live content is modelled", () => {
-    expect([...EVENT_IDS].sort()).toEqual(Object.keys(MODELLED_EVENTS).sort());
+    expect([...EVENT_IDS].sort()).toEqual(Object.keys(MODELLED_EVENTS).filter((e) => e !== "shrine").sort()); // ENCHANT off: the ten events the game had
     for (const k of liveKinds()) expect(MODELLED_DELTAS, `Delta kind "${k}"`).toContain(k);
+    withEnchant(() => { // ENCHANT-2 (T3): ENCHANT on, the ASH SHRINE is the eleventh event and "ench" a Delta kind: both reviewed
+      expect([...eventIds()].sort()).toEqual(Object.keys(MODELLED_EVENTS).sort());
+      for (const k of liveKinds(eventIds())) expect(MODELLED_DELTAS, `Delta kind "${k}" (ENCHANT on)`).toContain(k);
+      expect(liveKinds(eventIds()).has("ench")).toBe(true);
+    });
     expect([...ROAD_PICKS]).toEqual([...MODELLED_PICKS]);
     for (let d = 1; d <= RUN_DAYS; d++) {
       for (const t of DIFFICULTIES) {
