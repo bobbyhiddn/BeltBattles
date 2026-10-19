@@ -100,6 +100,18 @@ describe("every test reaches the builders through the twins", () => {
     }
     expect(found).toEqual(DIRECT.map(([f, n]) => [f, n]));
   });
+
+  // samplePoolJson(pool = generateSamplePool()) builds for real when called with no argument; pass it the twin's pool instead.
+  /** The ONLY test that calls it bare: net-pool's "reproducibly" check compares the cached pool with a pool built FRESH in this process, which doubles as a standing check that no stale entry is served. */
+  const BARE: readonly string[] = ["tests/net-pool.test.ts"];
+  it("no test file calls samplePoolJson() with no argument (it would build the pool for real) except the one listed", () => {
+    const bare: string[] = [];
+    for (const f of readdirSync(join(ROOT, "tests")).filter((n) => n.endsWith(".ts") && !n.endsWith(".d.ts") && n !== "poolCache.key.test.ts").sort()) {
+      const text = readFileSync(join(ROOT, "tests", f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`\\])\/\/[^\n]*/g, "$1");
+      if (/\bsamplePoolJson\(\s*\)/.test(text)) bare.push(`tests/${f}`);
+    }
+    expect(bare).toEqual([...BARE]);
+  });
 });
 
 describe("the key moves with everything the builders read", () => {

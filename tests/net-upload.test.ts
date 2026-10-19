@@ -6,6 +6,7 @@ import { MATRIARCH_DAY, maxGoldByDay as rivalsGold, warlordPool, DIFFICULTIES } 
 import { STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, standInPool } from "../src/sim/standInPool"; // BUMP-1D: + STAND_IN_POOL_DAYS (16)
 import { loadGhostPool } from "../src/net/fallback";
 import { samplePoolJson } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache"; // CACHE-1: the cached twin (samplePoolJson() alone would build the pool for real: its default is generateSamplePool())
 import { randomBuild } from "../src/sim/harness/gen";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { EVENTS, EVENT_IDS, SWAP_TIER, UPGRADE, salvagePool, smugglerPool, type Delta, type EventId, type EventState } from "../src/game/eventDefs";
@@ -446,7 +447,7 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
   });
 
   it("the bundled ghost pool (tools/samplePool.ts): the strict loader takes every snapshot and the player mode accepts each", () => {
-    const load = loadGhostPool(samplePoolJson());
+    const load = loadGhostPool(samplePoolJson(generateSamplePool())); // CACHE-1: was samplePoolJson() (its default argument, generateSamplePool(), run for real)
     expect(load.rejected).toEqual([]);
     expect(load.entries).toHaveLength(192); // 0.7.0a D5: 40 sample ghosts and 20 floor ghosts; 0.8.0 RC: 60 race ghosts (was 60). BUMP-1D: was 120 (days 1-10); days 1-16: 4 heroes x 16 days x 3 variants = 192
     let turrets = 0, joined = 0;
