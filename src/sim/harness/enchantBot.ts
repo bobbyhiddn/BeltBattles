@@ -571,7 +571,7 @@ function turretUid(run: Run, slot: number): number | undefined {
 export function casualWarlordPick(run: Run, rng: Rng): boolean {
   const pk = pendingEnchantPick(run);
   if (!pk) return false;
-  const i = rng.int(2), list = casualTargets(run, pk.words[i]);
+  const i = rng.int(pk.words.length), list = casualTargets(run, pk.words[i]); // ENCHANT-2 (T3): a warlord pick has 2 words (rng.int(2), as before); the ASH SHRINE's has 1
   if (!list.length) {
     skipWarlordWord(run);
     return false;

@@ -108,6 +108,7 @@ import { lastChanceWord } from "../enchantSources";
 import { botWarlordPick, buyPlan, casualWarlordPick, casualWordBuys, chooserFor, enchanterPlans, settleMergePick, wordPick, wordValue, type WordExtras, type WordPlan } from "./enchantBot";
 import { setPieceWord } from "../../game/fuse";
 import { pendingEnchantPick } from "../../game/enchanter";
+import { botShrine, type ShrineVisit } from "./shrineBot"; // ENCHANT-2 (REQ-BFG-085, T3): the bots at the ASH SHRINE
 
 // ---------------------------------------------------------------- the deck rating (what the player reads)
 
@@ -263,6 +264,7 @@ export interface PlayerRoad {
   drop: string | null; // the seeded drop (warlordDrop; null: no win, or the roll dropped nothing)
   placed: boolean; // the drop went onto the deck (a merge, a spot or the REFIT swap); false: in cargo, or no drop
   declined?: string; // a capped run's (maxStars below FUSE_MAX) seeded drop it declined: it would merge above the cap
+  shrine?: ShrineVisit; // ENCHANT-2 (REQ-BFG-085, T3): the day's event was the ASH SHRINE (ENCHANT on): the card the bot took and the word it opened (shrineBot.ts); absent otherwise
 }
 
 type Kind = "rig" | "gear" | "core" | "factory" | "plating" | "crate" | "turret" | "upgrade" | "word";
@@ -1945,7 +1947,10 @@ function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: nu
   // the day's sale loss, if the placement sold a part: what came in (the win's gold, the drop at its star, as the road
   // log counts it) minus what the deck, the purse and cargo gained
   spent.sold += before + res.gold + roadDropValue(roadLog(run.warlords.slice(logged))) - worth();
-  return { id: w.id, outcome: res.outcome, time: res.time, gold: res.gold, drop, placed, ...(declined ? { declined } : {}) };
+  // ENCHANT-2 (REQ-BFG-085, T3): the day's event after the fight, when it is the ASH SHRINE (ENCHANT on; shrineBot.ts): a card, and the word it opens on a part.
+  // After the sale loss above, so a part given up is no sale. Null on every other day, and off.
+  const shrine = enchantRules() ? botShrine(run, { casual: pol.wordBuy !== undefined, rate: rateOn, minRel: pol.minRel, extras: wordExtras(run) }) : null;
+  return { id: w.id, outcome: res.outcome, time: res.time, gold: res.gold, drop, placed, ...(declined ? { declined } : {}), ...(shrine ? { shrine } : {}) };
 }
 
 // ---------------------------------------------------------------- LC-1 (REQ-BFG-073): LAST CHANCE's cards for the bots
