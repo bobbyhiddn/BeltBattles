@@ -59,9 +59,10 @@ const KILN = heroStartBuild("furnace").items.find((p) => p.def === ITEMS.kiln.id
 /** The hand deck with its starting turret listed (uid 90) and extra fields on it. */
 const withTurret = (b: Build, f: Record<string, unknown> = {}): Build => ({ ...b, turrets: [{ slot: 0, def: "scrapcannon", uid: 90, free: true, ...f }] }) as Build;
 /** Six distinct legal pieces of the hand deck and a word that fits each: n of them hold their word. ENCHANT-1b (N1): the signature factory
- *  holds SWIFT (a factory's word) and the turret MASSIVE (a turret's); they were MASSIVE and SWIFT the other way round. */
+ *  holds SWIFT (a factory's word) and the turret MASSIVE (a turret's); they were MASSIVE and SWIFT the other way round. ENCHANT-1c (C2): the OVERDRIVE (a
+ *  speed rig: nothing in its hit to double) holds BRACED, not ECHOING, which is refused there with NOTHING TO DOUBLE (tests/enchant1.c.test.ts). */
 const SIX: { uid: number; ench: string; enchDir?: number }[] = [
-  { uid: 10, ench: "fiery" }, { uid: 11, ench: "rising" }, { uid: 12, ench: "wide", enchDir: 0 }, { uid: 13, ench: "echoing" }, { uid: KILN, ench: "swift" }, { uid: 90, ench: "massive" },
+  { uid: 10, ench: "fiery" }, { uid: 11, ench: "rising" }, { uid: 12, ench: "wide", enchDir: 0 }, { uid: 13, ench: "braced" }, { uid: KILN, ench: "swift" }, { uid: 90, ench: "massive" },
 ];
 function handWords(n: number): Build {
   const items: Record<number, { ench: string; enchDir?: number }> = {};

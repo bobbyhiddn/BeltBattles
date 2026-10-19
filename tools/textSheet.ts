@@ -185,6 +185,7 @@ function enchantSection(out: string[]): void {
     ["MASSIVE on a rig", ITEMS.whetstone, "massive"], ["SWIFT on a rig", ITEMS.whetstone, "swift"],
     ["MASSIVE on a factory", ITEMS.press, "massive"], ["SWIFT on a turret", ITEMS.scrapcannon, "swift"], // ENCHANT-1b (N1): each word has one kind
     ["FIERY on a rig that hits no slug", ITEMS.stoker, "fiery"], // ENCHANT-1b (N3): IT HITS NO SLUGS (also RISING, GROWING and ECHOING)
+    ["ECHOING on a rig with nothing to double", ITEMS.tollbooth, "echoing"], // ENCHANT-1c (C2): NOTHING TO DOUBLE (13 rigs; FIERY, RISING and GROWING stay legal there)
     ["WIDE on an X rig", first((d) => d.kind === "gate" && rigShape(d) === "X"), "wide"],
     ["a word on gear", first((d) => d.kind === "mod"), "fiery"], ["a word on a core", first((d) => d.kind === "core"), "fiery"], ["a word on a supply", first((d) => d.kind === "supply"), "fiery"],
   ];

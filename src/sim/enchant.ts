@@ -16,10 +16,13 @@
 // present, after the other keys, so a build without them is byte for byte what it was.
 //
 // Shared, pure and dependency-light (no DOM): the client, the server, the tests and the harness read the same defs. It imports
-// only ./content and ./foot (deck.ts imports this file, and re-exports its stand-in helpers for the portable loader).
+// only ./content, ./foot, ./stars and ./overclock (the last two for ENCHANT-1c's C2 rule; neither reaches this file or deck.ts, which
+// imports this file and re-exports its stand-in helpers for the portable loader).
 
-import { ITEMS, SHAPE_ARROWS, rigShape, type ItemDef } from "./content";
+import { ITEMS, SHAPE_ARROWS, rigShape, type GateEffect, type ItemDef } from "./content";
 import { footOf } from "./foot";
+import { doubles } from "./overclock"; // ENCHANT-1c (C2): does the sim's doubling change a rig's numbers (ECHOING's NOTHING TO DOUBLE)
+import { effectAt } from "./stars"; // ENCHANT-1c (C2): the rig's effect at each star
 
 /** THE switch (REQ-BFG-085): off until the release's bump turns it on (writing ENCHANT_RULES, src/net/rulesGate.ts). */
 export const ENCHANT: boolean = false;
@@ -176,13 +179,38 @@ export function rigHitsSlugs(d: ItemDef | undefined): boolean {
   return !(d && d.kind === "gate" && d.gate?.stoke);
 }
 
+const echoMemo = new WeakMap<GateEffect, boolean>();
+
+/**
+ * ENCHANT-1c (C2; cap's ruling on ENCHANT-1b's QUESTION 1): does ECHOING have anything to double on this rig def? ECHOING makes every fifth slug a
+ * rig hits take the rig's effect twice: Battle.applyHit reads the rig's effect `e` (the keys flat, burn, perPriorGate, split, plate, stun, ...) and on
+ * an echoed hit reads `overclocked(e)` instead (overclock.ts, the OVERCLOCKER's doubling; enchantFx.ts rigEchoes only decides WHICH hits). So the echo
+ * changes something exactly when doubling changes the effect's numbers (overclock.ts `doubles`): a rig whose effect is a belt's speed (GREASE WORKS,
+ * BRAKE SHOE, OVERDRIVE), a toll, a sift, a heal, a pulse, a keg, a brace, a hull bonus, an overclock cooldown, a SHOCK flag alone (GALVANIC COIL: twice
+ * is once) or a latch with no damage (TWIN LATCH) has nothing in the hit to double. At ANY star: the word stays through merges, so a def refuses only
+ * when ★1, ★2 and ★3 all have nothing. The rule reads what the def does, not a list of names (tests/enchant1.c.test.ts proves it against a real hit, with
+ * and without the echo, for EVERY rig def, and names each def it refuses). Anything that is not a rig answers true (the question is only asked of rigs).
+ */
+export function rigEchoDoubles(d: ItemDef | undefined): boolean {
+  if (!d || d.kind !== "gate") return true;
+  const known = has(ITEMS, d.id);
+  for (const s of [1, 2, 3]) {
+    const e = (known ? effectAt(d.id, s) : d).gate;
+    if (!e) continue;
+    let yes = echoMemo.get(e);
+    if (yes === undefined) echoMemo.set(e, (yes = doubles(e)));
+    if (yes) return true;
+  }
+  return false;
+}
+
 /**
  * E1: why `word` cannot go on a piece of `def`, as a short player reason, or null when it can. `piece` is the piece being
  * enchanted (WIDE on a rig reads `enchDir`, the side its arrow takes at rotation 0: it must be a free one). Reasons:
  * NOT ON GEAR / NOT ON A CORE / NOT ON A SUPPLY / NOT ON THIS PART (a kind off the allow-list), ONLY ON A TURRET (MASSIVE on a rig or a
  * factory) / ONLY ON A FACTORY (SWIFT on a rig or a turret) (ENCHANT-1b N1: a word with one kind says which), IT HITS NO SLUGS (N3: FIERY,
- * RISING, GROWING or ECHOING on a rig whose arrows hit no slug), NO FREE SIDE (WIDE on a shaped rig, an X rig, a rig with 4 arrows, or onto
- * a side that carries an arrow already).
+ * RISING, GROWING or ECHOING on a rig whose arrows hit no slug), NOTHING TO DOUBLE (ENCHANT-1c C2: ECHOING on a rig whose hit gives a slug no
+ * number to double, rigEchoDoubles), NO FREE SIDE (WIDE on a shaped rig, an X rig, a rig with 4 arrows, or onto a side that carries an arrow already).
  * It says nothing of the switch (the callers ask enchantRules()) or of a word already on the piece (REPLACES, E4).
  */
 export function enchantProblem(def: ItemDef | string | undefined, word: string, piece?: { enchDir?: number }): string | null {
@@ -194,6 +222,7 @@ export function enchantProblem(def: ItemDef | string | undefined, word: string, 
   const kinds = ENCHANT_DEFS[word].kinds;
   if (!kinds.includes(kind)) return kinds.length === 1 ? `ONLY ON A ${KIND_NAME[kinds[0]]}` : kind === "rig" ? "NOT ON A RIG" : "NOT ON THIS PART"; // ENCHANT-1b (N1)
   if (kind === "rig" && SLUG_WORDS.includes(word) && !rigHitsSlugs(d)) return "IT HITS NO SLUGS"; // ENCHANT-1b (N3)
+  if (kind === "rig" && word === "echoing" && !rigEchoDoubles(d)) return "NOTHING TO DOUBLE"; // ENCHANT-1c (C2): the STOKER keeps IT HITS NO SLUGS (above); FIERY, RISING and GROWING add their own at the hit
   if (word === "wide" && kind === "rig") {
     const free = freeSides(d);
     if (!free.length) return "NO FREE SIDE";

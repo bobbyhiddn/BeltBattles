@@ -51,7 +51,12 @@ describe("ENCHANT-1b N3: a rig that hits no slug refuses the four slug words", (
       const hits = hitsSomewhere(d.id);
       if (!hits) none.push(d.id);
       expect(rigHitsSlugs(d), `${d.id}: rigHitsSlugs`).toBe(hits);
-      for (const w of SLUG_WORDS) expect(enchantProblem(d, w), `${w} on ${d.id}`).toBe(hits ? null : "IT HITS NO SLUGS");
+      // ENCHANT-1c (C2): ECHOING has its own rule on a rig that does hit slugs (NOTHING TO DOUBLE: tests/enchant1.c.test.ts); on a rig that hits none it still says
+      // IT HITS NO SLUGS first. FIERY, RISING and GROWING add their own BURN or DMG at the hit, so they work on every rig that hits.
+      for (const w of SLUG_WORDS) {
+        if (w === "echoing" && hits) continue;
+        expect(enchantProblem(d, w), `${w} on ${d.id}`).toBe(hits ? null : "IT HITS NO SLUGS");
+      }
     }
     // Named on purpose: a rig added later whose arrows hit no belt makes this list longer and fails here, so cap chooses it (the rule above
     // already refuses its slug words; this pin makes the choice visible). BALLAST, TOLLBOOTH, RIVETER, BRACE FRAME and IRON WALL give a slug
