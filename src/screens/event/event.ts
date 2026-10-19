@@ -24,6 +24,7 @@ import { heartsWord } from "../../ui/stakes"; // RETUNE-1 run 2 (REQ-BFG-096): P
 import { heartsRun } from "../../sim/hearts"; // RETUNE-1 run 2: the run's mark
 import { deltaIcon, deltaText, drawChoiceCard, itemName, type CardView } from "./cards";
 import { drawReveal } from "./reveal";
+import { drawInfoButton, drawWordInfo, infoButton } from "./wordInfo"; // ENCHANT-2 (REQ-BFG-085, T3): a word's rows behind a tap
 import { storedFoe } from "../../game/day";
 import { eventLayout, eventScale, type EventLayout } from "./layout";
 import { duskScreen } from "../battle"; // 0.7.0a: the dusk gate (offline: 0.6.2's BattleScreen at once)
@@ -55,6 +56,8 @@ export class EventScreen implements Screen {
   word: string | undefined;
   /** SCOUT's SPY: tonight's dusk deck is shown over the scene (then REFIT / FIGHT NOW). */
   reveal = false;
+  /** ENCHANT-2 (T3): the card whose word's own card (its ON A ... rows) is open over the panel, or -1. */
+  info = -1;
   private shake = { i: -1, t: 0 };
   private flies: Fly[] = [];
   private readonly flash: Record<AnchorKind, number> = { gold: 0, lives: 0, hull: 0, belt: 0, cargo: 0 };
@@ -122,6 +125,7 @@ export class EventScreen implements Screen {
     if (this.phase !== "choose" || this.menu || this.game.transitioning) return;
     const c = this.choices[i];
     if (!c) return;
+    this.info = -1; // ENCHANT-2 (T3)
     const res = pickChoice(this.run, i);
     if (!res.ok) {
       this.shake = { i, t: 0.32 };
@@ -228,6 +232,21 @@ export class EventScreen implements Screen {
       cv.day = run.day; // HULL-1a (REQ-BFG-079): a hull amount on the day's hull
       drawChoiceCard(g, r, this.choices[i], i, cv);
       if (this.phase === "choose") ui.add({ id, r, onTap: this.onPick[i], block: true });
+      // ENCHANT-2 (REQ-BFG-085, T3): a card that offers a word has a `?` of its own (registered after the card, so it wins): the word's rows behind the tap
+      const word = this.phase === "choose" ? wordOf(this.choices[i]) : undefined;
+      if (word && isEnchantId(word)) {
+        const b = infoButton(r, this.game.view.scale / this.game.view.dpr);
+        drawInfoButton(g, b.btn, ENCHANT_DEFS[word].color, this.info === i);
+        ui.add({ id: `info${i}`, r: b.hit, onTap: () => { this.info = this.info === i ? -1 : i; }, block: true });
+      }
+    }
+    if (this.phase === "choose" && this.info >= 0) { // ENCHANT-2 (T3): the open word card, over the panel; a tap on it closes it
+      const word = wordOf(this.choices[this.info]);
+      if (word) {
+        const pr = { x: L.panel.x + 2, y: L.panel.y + 2, w: L.panel.w - 4, h: L.panel.h - 4 };
+        drawWordInfo(g, pr, word);
+        ui.add({ id: "wordinfo", r: pr, onTap: () => { this.info = -1; }, block: true });
+      }
     }
     if (this.phase === "result" && this.pt > 0.3) this.drawOutcome(g);
     drawRunBar(g, this.game, run, this.flash, this.anchors, this.onMenu);
@@ -320,7 +339,8 @@ export class EventScreen implements Screen {
   }
 
   key(k: string): void {
-    if (k === "Escape") this.menu = !this.menu;
+    if (k === "Escape" && this.info >= 0) this.info = -1; // ENCHANT-2 (T3): Escape closes a word's card first
+    else if (k === "Escape") this.menu = !this.menu;
     else if (this.menu) return;
     else if (k === "1" || k === "2" || k === "3") this.pick(Number(k) - 1);
     else if ((k === "r" || k === "R") && this.pt > 0.3) this.refit();
