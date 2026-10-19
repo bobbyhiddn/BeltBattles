@@ -47,7 +47,7 @@ export const NPC_WORDS: Readonly<Record<RivalId, readonly NpcGrant[]>> = {
     { from: D3, def: "kiln", word: "echoing" }, // the long cooker puts out an extra slug now and then
   ],
   nettle: [ // SHORT STITCH: the loom parked under the guns, fires first (weaver, tier 1)
-    { from: D1, def: "loom", word: "swift" }, // fires first: the loom works twice as often
+    { from: D1, def: "loom", word: "rising" }, // fires first: every slug the loom makes hits harder than the last (SWIFT: par 99% to 81%, T5a pass 1)
     { from: D2, def: "temper", word: "fiery" }, // she grows with burn: a temper on the short belt
     { from: D3, def: "dartgun", word: "echoing" }, // every fifth dart hits twice
   ],
@@ -57,19 +57,19 @@ export const NPC_WORDS: Readonly<Record<RivalId, readonly NpcGrant[]>> = {
     { from: D3, def: "kiln", word: "braced" }, // the gang holds the line: the cooker shrugs off the first stuns
   ],
   mothqueen: [ // FRAY STORM: split bolts, two plates, fray piles up (weaver, tier 1, elite)
-    { from: D1, def: "loom", word: "swift" }, // split bolts: many small bolts from a quick loom
-    { from: D2, def: "splitter", word: "fiery" }, // every bolt the splitter makes carries the burn
-    { from: D3, def: "dartgun", word: "rising" }, // fray piles up: her shots hit harder as the fight goes on
+    { from: D1, def: "loom", word: "braced" }, // two plates: the loom holds under stun (SWIFT on the loom: par 96% to 65%, T5a pass 1)
+    { from: D2, def: "splitter", word: "rising" }, // fray piles up: each bolt the splitter makes lands harder than the last (FIERY: par 86% to 76% on day 8, T5a pass 2)
+    { from: D3, def: "dartgun", word: "echoing" }, // a stray dart hits twice now and then
   ],
   sparkfang: [ // SHOCK TROOPER: galvanic coils stun your machines (furnace, tier 2)
-    { from: D1, def: "coil", word: "fiery" }, // the shock burns
-    { from: D2, def: "scrapcannon", word: "echoing" }, // a stunned foe takes the volley twice
-    { from: D3, def: "kiln", word: "swift" }, // more slugs through the coils
+    { from: D1, def: "scrapcannon", word: "rising" }, // the troopers' gun lands harder with each shot (FIERY on the coil from day 5, then BRACED on the kiln: par 90% to 71% on days 8-11, T5a pass 3)
+    { from: D2, def: "kiln", word: "braced" }, // the troopers hold the line under stun
+    { from: D3, def: "coil", word: "fiery" }, // the shock burns, once the troopers are in step (RISING on the old gun scored 0.9 at day 8)
   ],
   lacewing: [ // SPLITTER SWARM: splitters turn every bolt into two (weaver, tier 2)
-    { from: D1, def: "loom", word: "swift" }, // the swarm starts at the loom: twice as many bolts
-    { from: D2, def: "splitter", word: "fiery" }, // each bolt of the swarm burns
-    { from: D3, def: "dartgun", word: "echoing" }, // the swarm's darts hit twice now and then
+    { from: D1, def: "loom", word: "rising" }, // the swarm starts at the loom: each slug lands harder than the last (SWIFT: par 97% to 77%, T5a pass 1)
+    { from: D2, def: "splitter", word: "rising" }, // the swarm builds: each bolt lands harder than the last (FIERY: par 98% to 79% on day 8; BRACED scores 0 on the splitter, T5a pass 2)
+    { from: D3, def: "dartgun", word: "echoing" }, // the swarm darts hit twice now and then
   ],
   ratchet: [ // OVERCLOCK: overdrive belt, calibrated gun (furnace, tier 1)
     { from: D1, def: "scrapcannon", word: "rising" }, // calibrated: each shot lands harder than the last
@@ -78,42 +78,42 @@ export const NPC_WORDS: Readonly<Record<RivalId, readonly NpcGrant[]>> = {
   ],
   emberlyn: [ // EMBER WEAVE: a temper on every belt, every hit burns (weaver, tier 2)
     { from: D1, def: "temper", word: "fiery" }, // the weave burns: one more BURN on every temper hit
-    { from: D2, def: "loom", word: "rising" }, // the embers grow: each slug the loom makes hits harder than the last
-    { from: D3, def: "bellows", word: "fiery" }, // and the bellows blow it hotter
+    { from: D2, def: "bellows", word: "braced" }, // the bellows hold under stun (RISING on the loom: par 97% to 78% on day 8, T5a pass 2)
+    { from: D3, def: "loom", word: "rising" }, // the embers grow: each slug the loom makes hits harder than the last
   ],
   bulwark: [ // IRONCLAD: three armor plates, a braked cooker (furnace, tier 2, elite)
     { from: D1, def: "kiln", word: "braced" }, // ironclad: the cooker shrugs off the first stuns
-    { from: D2, def: "scrapcannon", word: "echoing" }, // the old gun's shot lands twice now and then
+    { from: D2, def: "scrapcannon", word: "rising" }, // the old gun hits harder with each shot (ECHOING: par 80% to 69% on days 8-11, T5a pass 1)
     { from: D3, def: "temper", word: "fiery" }, // slow, but hot
   ],
   silkshade: [ // STATIC WEB: a coil on every belt, shock after shock (weaver, tier 3)
-    { from: D1, def: "loom", word: "swift" }, // shock after shock: more slugs through the coils
-    { from: D2, def: "staticbrush", word: "fiery" }, // the web burns where it brushes
+    { from: D1, def: "loom", word: "braced" }, // shock after shock: the loom holds under stun (SWIFT on the loom took par from 92% to 17%, T5a pass 1)
+    { from: D2, def: "staticbrush", word: "rising" }, // the web tightens: each slug it brushes lands harder than the last (FIERY here: par 55% to 42% on days 8-11, T5a pass 2)
     { from: D3, def: "dartgun", word: "echoing" }, // the last dart hits twice
   ],
   longtooth: [ // RIG CHAIN: six rigs, then a long haul, huge slugs (furnace, tier 3)
     { from: D1, def: "venom", word: "wide", enchDir: 2 }, // six rigs: the chain reaches one belt more (a free side that faces the next belt)
-    { from: D2, def: "kiln", word: "echoing" }, // an extra slug now and then to ride the chain
+    { from: D2, def: "kiln", word: "braced" }, // the cooker holds under stun while the chain works (ECHOING: par 91% to 79% on day 8, T5a pass 2)
     { from: D3, def: "whetstone", word: "rising" }, // huge slugs: each slug the chain hits grows past the last
   ],
   highspire: [ // TRIPLE THREAT: burn left, split centre, haul right (weaver, tier 3)
-    { from: D1, def: "temper", word: "fiery" }, // burn left
-    { from: D2, def: "splitter", word: "fiery" }, // split centre: every bolt burns
-    { from: D3, def: "loom", word: "rising" }, // haul right: the long run of slugs climbs
+    { from: D1, def: "loom", word: "rising" }, // haul right: the long run of slugs climbs (FIERY on the temper from day 5: par 88% to 69%, T5a pass 1)
+    { from: D2, def: "splitter", word: "rising" }, // split centre: each bolt lands harder than the last (FIERY: par 90% to 78% on day 8; BRACED scores 0 on the splitter, T5a pass 2)
+    { from: D3, def: "temper", word: "fiery" }, // burn left, once the other two are working
   ],
   matriarch: [ // GRAND FOUNDRY: kiln and press, every rig, heavy armor (furnace, tier 3, the boss; fielded from day 8)
-    { from: D1, def: "kiln", word: "fiery" }, // the foundry's fire (her first word is live the day she arrives)
-    { from: D2, def: "scrapcannon", word: "echoing" }, // heavy: the big gun's shot lands twice now and then
-    { from: D3, def: "press", word: "braced" }, // heavy armor: the press holds under stun
+    { from: D1, def: "press", word: "braced" }, // heavy armor: the press holds under stun (live the day she arrives)
+    { from: D2, def: "scrapcannon", word: "rising" }, // heavy: each shot of the big gun hits harder than the last (live the day she arrives)
+    { from: D3, def: "kiln", word: "fiery" }, // the foundry fire, once she has been seen
   ],
   brasswick: [ // MATCHED POUR: mirrored belts, gauged, every pour fuses (foundry, tier 1)
-    { from: D1, def: "twinmould", word: "echoing" }, // every pour fuses: an extra slug in a fifth pour
-    { from: D2, def: "twingauge", word: "fiery" }, // the gauge's matched hit burns
-    { from: D3, def: "crucible", word: "braced" }, // the gauger's crucible holds
+    { from: D1, def: "temper", word: "fiery" }, // the matched pour runs hot (FIERY on the twin gauge: par 90% to 75% on day 6, T5a pass 2)
+    { from: D2, def: "twinmould", word: "echoing" }, // every pour fuses: an extra slug in a fifth pour
+    { from: D3, def: "crucible", word: "braced" }, // the gauger crucible holds
   ],
   voss: [ // LOCKSTEP: latched in step, every pair hits harder (foundry, tier 3)
     { from: D1, def: "twinlatch", word: "fiery" }, // the latched pair hits with fire
-    { from: D2, def: "crucible", word: "swift" }, // in step: the pour runs twice as often
+    { from: D2, def: "crucible", word: "braced" }, // in step: the pour holds under stun (SWIFT: par 93% to 78%, T5a pass 1)
     { from: D3, def: "carronade", word: "rising" }, // each shot of the pair hits harder than the last
   ],
   grimhold: [ // ANVIL WALL: thick plate makes every shot hit harder (bastion, tier 2)
@@ -122,9 +122,9 @@ export const NPC_WORDS: Readonly<Record<RivalId, readonly NpcGrant[]>> = {
     { from: D3, def: "tollbooth", word: "fiery" }, // the toll burns
   ],
   karsk: [ // IRON WALL: a wall of plate, he breaks it on you (bastion, tier 3)
-    { from: D1, def: "rampart", word: "massive" }, // the plate-breaking hammer: half as often, three times the blow
-    { from: D2, def: "wardworks", word: "braced" }, // a wall of plate holds under stun
-    { from: D3, def: "platebreaker", word: "fiery" }, // the breaker burns what it breaks
+    { from: D1, def: "wardworks", word: "braced" }, // a wall of plate holds under stun (MASSIVE on the rampart from day 5: par 64% to 46%, T5a pass 1)
+    { from: D2, def: "platebreaker", word: "braced" }, // the breaker holds under stun (MASSIVE on the rampart: par 55% to 42% on day 8 and it HELPED par from day 12, T5a pass 2)
+    { from: D3, def: "rampart", word: "rising" }, // the hammer lands harder with every blow
   ],
   lockjaw: [ // TWIN BITE: latched belts, his slugs land in pairs (furnace, tier 2, stand-in only)
     { from: D1, def: "twingauge", word: "wide", enchDir: 1 }, // twin: one more arrow on the gauge (a free side that faces the belt)

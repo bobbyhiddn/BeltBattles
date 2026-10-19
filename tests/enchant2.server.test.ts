@@ -33,19 +33,23 @@ function seedWithout(word: string, day: number): number {
 
 describe("ENCHANT-2 T2: what the pairs and the bound are", () => {
   it("npcDropPairs(day): nothing before day 5, a rival's first word from day 5, the second from day 8, the third from day 12 (the Matriarch from day 8)", () => {
+    /** The first day some rival holds the pair (def, word[/side]): the least npcGrantDay over the table's grants of it. */
+    const firstDay = (key: string): number => Math.min(...RIVAL_IDS.flatMap((id) => NPC_WORDS[id].filter((g) => `${g.def}:${g.word}${g.enchDir !== undefined ? `/${g.enchDir}` : ""}` === key).map((g) => npcGrantDay(id, g))));
     expect(npcDropPairs(4).size).toBe(0);
     expect(npcDropWords(4).size).toBe(0);
-    expect(npcDropPairs(5).has("temper:fiery")).toBe(true); // SOOTJAW, EMBERLYN, HIGHSPIRE, NETTLE (from 8) ...
-    expect(npcDropPairs(5).has("venom:wide/2")).toBe(true); // LONGTOOTH's WIDE on a rig keeps its side
-    expect(npcDropPairs(5).has("kiln:fiery")).toBe(false); // the Matriarch's first word is live from her first day, 8
-    expect(npcDropPairs(7).has("kiln:echoing")).toBe(false); // LONGTOOTH's second word: day 8
-    expect(npcDropPairs(8).has("kiln:echoing")).toBe(true);
-    expect(npcDropPairs(8).has("kiln:fiery")).toBe(true);
-    expect(npcDropPairs(11).has("whetstone:rising")).toBe(false); // LONGTOOTH's third: day 12
-    expect(npcDropPairs(12).has("whetstone:rising")).toBe(true);
+    expect(firstDay("temper:fiery")).toBe(5); // SOOTJAW, EMBERLYN, BRASSWICK ...
+    expect(firstDay("venom:wide/2")).toBe(5); // LONGTOOTH's WIDE on a rig keeps its side
+    expect(firstDay("kiln:fiery")).toBe(12); // the Matriarch's third word
+    expect(firstDay("kiln:echoing")).toBe(12); // SOOTJAW's third
+    expect(firstDay("press:braced")).toBe(8); // the Matriarch's first word is live the day she arrives, 8
+    expect(firstDay("whetstone:rising")).toBe(12); // LONGTOOTH's third
+    for (const [key, day] of [["temper:fiery", 5], ["venom:wide/2", 5], ["kiln:fiery", 12], ["kiln:echoing", 12], ["press:braced", 8], ["whetstone:rising", 12]] as const) {
+      expect(npcDropPairs(day - 1).has(key), `${key} before day ${day}`).toBe(false);
+      expect(npcDropPairs(day).has(key), `${key} on day ${day}`).toBe(true);
+    }
     for (const id of RIVAL_IDS) for (const g of NPC_WORDS[id]) expect(npcDropPairs(npcGrantDay(id, g)).has(`${g.def}:${g.word}${g.enchDir !== undefined ? `/${g.enchDir}` : ""}`), `${id} ${g.def}`).toBe(true);
     expect(npcDropWords(16).has("growing" as never), "no rival holds GROWING").toBe(false);
-    expect([...npcDropWords(16)].sort()).toEqual(["braced", "echoing", "fiery", "massive", "rising", "swift", "wide"]);
+    expect([...npcDropWords(16)].sort()).toEqual(["braced", "echoing", "fiery", "rising", "swift", "wide"]); // the table after T5a: no rival holds MASSIVE (KARSK's was cut) or GROWING
   });
 
   it("the drop bound is one a day from day 5; maxEnchantsByDay and freeEnchantsByDay take it as their extra and keep ENCHANT-1's numbers at 0", () => {
@@ -86,11 +90,11 @@ describe("ENCHANT-2 T2: forged and honest fixtures (ENCHANT on)", () => {
     expect(on(() => enchantProblems(deckOf([{ def: "venom", ench: "wide", enchDir: 0 }]), 5, { seed: w })).join(" | "), "another side").toMatch(/used up by other parts/);
   });
 
-  it("FORGED: a drop word before the day its rival holds it is refused, and passes from that day (KILN with ECHOING: LONGTOOTH's second word, day 8; another rival holds ECHOING on a TWIN MOULD from day 5, so the word is offered but the pair is not yet)", () => {
-    const s = seedWithout("echoing", 8);
+  it("FORGED: a drop word before the day its rival holds it is refused, and passes from that day (KILN with ECHOING: SOOTJAW's third word, day 12; another rival holds ECHOING on a part from an earlier day, so the word is offered but the pair is not yet)", () => {
+    const s = seedWithout("echoing", 12);
     const d = deckOf([{ def: "kiln", ench: "echoing" }]);
-    expect(on(() => enchantProblems(d, 7, { seed: s })).join(" | ")).toMatch(/holds ECHOING, but the seed's offers of it by day 7 are used up by other parts/);
-    expect(on(() => enchantProblems(d, 8, { seed: s }))).toEqual([]);
+    expect(on(() => enchantProblems(d, 11, { seed: s })).join(" | ")).toMatch(/holds ECHOING, but the seed's offers of it by day 11 are used up by other parts/);
+    expect(on(() => enchantProblems(d, 12, { seed: s }))).toEqual([]);
     // and the word itself before any rival holds it at all (day 4): not offered
     expect(on(() => enchantProblems(d, 4, { seed: seedWithout("echoing", 4) })).join(" | ")).toMatch(/holds ECHOING, which this run's seed did not offer by day 4/);
   });
