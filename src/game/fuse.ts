@@ -6,7 +6,7 @@
 // any run mutation no two fusible copies share a def and a star level below FUSE_MAX.
 
 import { ITEMS } from "../sim/content";
-import { coreFor, removeItem, removeTurret, rotField, routesOf, setTurretList, setTurretWord, turretList } from "../sim/deck";
+import { coreFor, removeItem, removeTurret, rotField, routesOf, setTurretList, setTurretWord, turretList, type Build } from "../sim/deck";
 import { enchantField, enchantRules, mergeWord, sameEnchant, type EnchantFields, type WordChooser } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085, E4)
 import { FUSE_MAX, fusible, gradeOf, outputsAt, starField, starsOf } from "../sim/stars";
 import type { InvItem, Run } from "./run";
@@ -91,10 +91,15 @@ export const KEPT_WIDE = "KEPT WIDE: ITS EXTRA BELT IS IN USE";
  * belt is taken off: APPLY refuses a replace (applyProblem) and a merge keeps WIDE (mergeWords, pickMergedWord).
  */
 export function extraBeltInUse(run: Run, uid: number): boolean {
+  return extraBeltInUseOn(run.build, uid);
+}
+
+/** BUMP-1F P2: extraBeltInUse on a build (the bots plan on builds: harness/enchantBot.ts never plans a word onto a WIDE factory whose belt is in use). */
+export function extraBeltInUseOn(b: Build, uid: number): boolean {
   if (!enchantRules()) return false;
-  const p = run.build.items.find((q) => q.uid === uid);
+  const p = b.items.find((q) => q.uid === uid);
   if (!p || p.ench !== "wide" || ITEMS[p.def]?.kind !== "factory") return false;
-  return routesOf(run.build, uid).length > (outputsAt(p.def, gradeOf(run.build, p)) || 1);
+  return routesOf(b, uid).length > (outputsAt(p.def, gradeOf(b, p)) || 1);
 }
 
 /**

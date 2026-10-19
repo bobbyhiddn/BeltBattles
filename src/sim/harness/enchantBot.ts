@@ -44,7 +44,7 @@ import { roundHalfUp } from "../pct";
 import { effectAt, gradeOf, starField, starsOf } from "../stars";
 import type { Rng } from "../../core/rng";
 import { applyProblem, buyEnchant, enchantChoices, pendingEnchantPick, skipWarlordWord, takeWarlordWord, wideSides, type EnchantTarget } from "../../game/enchanter";
-import { pickMergedWord } from "../../game/fuse";
+import { extraBeltInUseOn, pickMergedWord } from "../../game/fuse";
 import type { Run } from "../../game/run";
 
 // ---------------------------------------------------------------- the knobs of the estimates
@@ -377,6 +377,13 @@ export interface WordSpot {
   def: string;
 }
 
+/** BUMP-1F P2: a factory holding WIDE whose extra belt is in use can take no other word (game/fuse.ts extraBeltInUse: APPLY says TAKE ITS EXTRA BELT OFF
+ *  FIRST). The bots planned it anyway and buyEnchant's refusal threw out of the par player (a 16-day typical-policy run of weaver, seed 1007 in the
+ *  stand-in population, one run of 96), which would have stopped the stand-in generator. */
+function wideLocked(b: Build, p: WordPiece, word: string): boolean {
+  return word !== "wide" && p.held === "wide" && p.kind === "factory" && extraBeltInUseOn(b, p.uid);
+}
+
 /**
  * The best legal piece for `word` on the deck in `s` (a Run or a build with its day): the pair with the highest value; null when no
  * piece gains. Cargo is never a target (a piece in cargo does no damage). A piece that holds this very word is skipped; one that holds
@@ -390,6 +397,7 @@ export function bestWordFor(s: WordState, word: string, x: WordExtras = {}): Wor
   let best: WordSpot | null = null;
   for (const p of pieces) {
     if (enchantProblem(p.def, word) !== null || p.held === word) continue;
+    if (wideLocked(s.build, p, word)) continue; // BUMP-1F P2: the game refuses it (EXTRA_BELT_LEFT), so the bot never plans it
     const m = p.held ? modelOf(stripped(s.build, p), s.day) : main;
     const g = wordGain(m, p, word, 0, ex);
     const old = p.held ? wordGain(m, p, p.held, p.grow, ex).value : 0;
@@ -406,6 +414,7 @@ export function rankWords(s: WordState, word: string, x: WordExtras = {}): WordS
   const main = modelOf(s.build, s.day), out: WordSpot[] = [];
   for (const p of piecesOf(s.build)) {
     if (enchantProblem(p.def, word) !== null || p.held === word) continue;
+    if (wideLocked(s.build, p, word)) continue; // BUMP-1F P2: as bestWordFor
     const m = p.held ? modelOf(stripped(s.build, p), s.day) : main;
     const g = wordGain(m, p, word, 0, ex);
     out.push({ target: p.target, value: g.value - (p.held ? wordGain(m, p, p.held, p.grow, ex).value : 0), ...(g.dir !== undefined ? { dir: g.dir } : {}), ...(p.held ? { replaces: p.held } : {}), def: p.def });
