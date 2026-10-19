@@ -315,7 +315,7 @@ export function shapes2World(rules: unknown): boolean {
  * and the three are refused under them (gatesGateProblem). It gains no RULES_ROWS row: like SHAPES2_RULES, it is its own gate.
  * FOR THE BUMP: this literal and nothing else here changes (REPORT section 11).
  */
-export const GATES_RULES: string = "bb-0.11.0"; // the bump writes the release's RULES_VERSION here
+export const GATES_RULES: string = "bb-0.13.0"; // BUMP-1F wrote the release's RULES_VERSION here (it was bb-0.11.0, the placeholder)
 
 /** GATES-1: the converters a build carries, by name (items whose def is one of gates.ts GATES_IDS). Reads a raw (undecoded)
  *  build safely, like shapes2Features. */
@@ -357,7 +357,7 @@ export function gatesWorld(rules: unknown): boolean {
  * SHAPES_RULES and SHAPES2_RULES it is its own gate (REPORT finding 1). ENCHANT-1 also switches GROWING's `grow` on, under this
  * world only (snapshot.ts v3 reserves it for GROW-1, which stays out).
  */
-export const ENCHANT_RULES: string = "bb-0.11.0"; // the bump writes the release's RULES_VERSION here
+export const ENCHANT_RULES: string = "bb-0.13.0"; // BUMP-1F wrote the release's RULES_VERSION here (it was bb-0.11.0, the placeholder)
 
 /** ENCHANT-1: the enchantment fields a build carries (an item's or a turret's `ench`, an item's `enchDir`, a piece's `grow`).
  *  Reads a raw (undecoded) build safely, like shapes2Features. */

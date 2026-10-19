@@ -50,7 +50,11 @@ import type { FootId } from "./foot"; // SHAPES-1 (REQ-BFG-086): ItemDef.foot (a
 // LEECH COIL, CROWD PRESS, AEGIS SPIKE, GRUDGE ROD and TROPHY CHAIN new), the badges C7-C9 and the +n pop show, the content
 // the flip flagged is retuned, and every pool is regenerated once with them. The rules string is cap's call; the release lane
 // picks the label at staging. Ghosts and records made under bb-0.11.0 don't mix (they keep the base's pieces: SCALE_RULES).
-export const RULES_VERSION = "bb-0.12.0";
+// BUMP-1F (BRIEF-BUMP1F): bb-0.13.0 (was bb-0.12.0) turns on GATES (the FUSER, the SCATTER MILL and the SMELTER) and ENCHANT (the
+// ENCHANTER's eight words), fixes what 1E found inside the generators' closure and retunes the day-6 ladder, POISON against BURN and the
+// casual player's lift; every pool is regenerated once with them. Ghosts and records made under bb-0.12.0 don't mix: they keep the old
+// pieces (GATES_RULES and ENCHANT_RULES, src/net/rulesGate.ts).
+export const RULES_VERSION = "bb-0.13.0";
 /**
  * RUNES-1 (REQ-BFG-058, decision 10): the rules whose bot pools a rules release carries forward instead of regenerating
  * them: the stand-in pool (standInPoolData.ts's `rules` tag) and the seed ghosts drawn from it and from the par player
