@@ -36,7 +36,7 @@ import {
 } from "../src/sim/enchant";
 import { makeEnchantState, slugMadeFx } from "../src/sim/enchantFx";
 import {
-  ENCHANT_NOTES, enchantedTitle, nameSpans, panelText, pieceLine, slugDmg, wordFace, wordLine, wordOn,
+  ENCHANT_NOTES, enchantedTitle, nameSpans, panelText, partNotes, pieceLine, slugDmg, wordFace, wordLine, wordOn,
 } from "../src/ui/enchantFaces";
 import { carryStats, enchantNotes, factoryStats, plainRigStats, turretStats, wordRows } from "../src/ui/faces";
 import { statRow } from "../src/ui/icons";
@@ -304,7 +304,7 @@ describe("ENCHANT-1 E7: THE ROWS: the piece's own numbers, then every word's one
         expect(wordLine("rising", kind, stars), `RISING ${kind} ★${stars}`).toContain(`+${ENCHANT_NUM.risingStep * stars} {DMG} MORE THAN THE LAST`);
         expect(wordLine("growing", kind, stars), `GROWING ${kind} ★${stars}`).toContain(`+${ENCHANT_NUM.growingStep * stars} {DMG}, FOR THE RUN`);
         expect(wordLine("braced", kind, stars), `BRACED ${kind} ★${stars}`).toContain(`THE FIRST ${ENCHANT_NUM.bracedStuns * stars} {STUN}STUNS`);
-        expect(wordLine("fiery", kind, stars), `FIERY ${kind} ★${stars}`).toContain(`{BURN}+${ENCHANT_NUM.burn * stars}.`);
+        expect(wordLine("fiery", kind, stars), `FIERY ${kind} ★${stars}`).toContain(`ADDS +${ENCHANT_NUM.burn * stars} {BURN} `); // ENCHANT-2 (T4c): the card says what the panel says
       }
       expect(wordLine("rising", "rig", 1)).toBe(panelText("EACH SLUG IT HITS: +5 DMG MORE THAN THE LAST.".replace("+5", `+${ENCHANT_NUM.risingStep}`)));
       for (const id of ["echoing", "massive", "swift", "wide"] as const) for (const kind of KINDS) {
@@ -320,18 +320,18 @@ describe("ENCHANT-1 E7: THE ROWS: the piece's own numbers, then every word's one
     });
   });
 
-  it("FIERY's PIECE line says ADDS (ADDS +n [BURN] TO EACH HIT / TO ITS SLUGS / TO EACH SHOT) at every star, and the word's OWN card keeps `ITS HIT: [BURN]+n.` on its three rows (the brief's ruling: the word's card does not change)", () => {
+  it("FIERY's PIECE line says ADDS (ADDS +n [BURN] TO EACH HIT / TO ITS SLUGS / TO EACH SHOT, ON TOP OF ITS OWN STATS) at every star, and ENCHANT-2 T4c: the word's OWN card says the same words without the clause (a card shows no part's stats) on its three rows", () => {
     on(() => {
       for (const stars of [1, 2, 3]) {
         const n = ENCHANT_NUM.burn * stars;
         expect(pieceLine("fiery", "rig", stars)).toBe(`ADDS +${n} {BURN} TO EACH HIT, ON TOP OF ITS OWN STATS.`);
         expect(pieceLine("fiery", "factory", stars)).toBe(`ADDS +${n} {BURN} TO ITS SLUGS, ON TOP OF ITS OWN STATS.`);
         expect(pieceLine("fiery", "turret", stars)).toBe(`ADDS +${n} {BURN} TO EACH SHOT, ON TOP OF ITS OWN STATS.`);
-        expect(wordLine("fiery", "rig", stars)).toBe(`ITS HIT: {BURN}+${n}.`);
-        expect(wordLine("fiery", "factory", stars)).toBe(`ITS SLUGS: {BURN}+${n}.`);
-        expect(wordLine("fiery", "turret", stars)).toBe(`ITS SHOTS: {BURN}+${n}.`);
+        expect(wordLine("fiery", "rig", stars)).toBe(`ADDS +${n} {BURN} TO EACH HIT.`);
+        expect(wordLine("fiery", "factory", stars)).toBe(`ADDS +${n} {BURN} TO ITS SLUGS.`);
+        expect(wordLine("fiery", "turret", stars)).toBe(`ADDS +${n} {BURN} TO EACH SHOT.`);
       }
-      expect(wordFace("fiery").lines.map((l) => `${l.label}: ${l.text}`)).toEqual(["ON A RIG: ITS HIT: {BURN}+1.", "ON A FACTORY: ITS SLUGS: {BURN}+1.", "ON A TURRET: ITS SHOTS: {BURN}+1."]);
+      expect(wordFace("fiery").lines.map((l) => `${l.label}: ${l.text}`)).toEqual(["ON A RIG: ADDS +1 {BURN} TO EACH HIT.", "ON A FACTORY: ADDS +1 {BURN} TO ITS SLUGS.", "ON A TURRET: ADDS +1 {BURN} TO EACH SHOT."]);
       // docs/TEXT-STYLE.md's lint (tests/textRules.ts) on the piece's line
       for (const kind of KINDS) for (const stars of [1, 2, 3]) expect(banned(pieceLine("fiery", kind, stars)!), `${kind} ★${stars}`).toEqual([]);
     });
@@ -538,30 +538,47 @@ describe("ENCHANT-1 E7: THE NOTES (behind the hover or the tap) and the word car
       for (const [kind, how] of SHOWS) for (const id of WORDS(kind)) {
         const [t] = panelOf(kind, how, id), face = explainPanel(t, PIECE[kind]);
         const tag = `${id} on ${kind} ${how}`;
-        expect(texts(face.notes ?? []), tag).toEqual(expect.arrayContaining([...ENCHANT_NOTES]));
-        expect(texts(face.body).some((x) => ENCHANT_NOTES.includes(x)), `${tag}: not on the face`).toBe(false);
-        expect(face.notes!.filter((b) => ENCHANT_NOTES.includes(b.text)).every((b) => b.note === "kind" && b.role === "ability"), tag).toBe(true);
-        expect(face.words!.some((b) => ENCHANT_NOTES.includes(b.text)), `${tag}: KEYWORDS reads them`).toBe(true);
+        const mine = enchantNotes(id); // ENCHANT-2 (T4b): a PART's NOTES, line 1 by word (partNotes)
+        expect(texts(face.notes ?? []), tag).toEqual(expect.arrayContaining(mine));
+        expect(texts(face.body).some((x) => mine.includes(x)), `${tag}: not on the face`).toBe(false);
+        expect(face.notes!.filter((b) => mine.includes(b.text)).every((b) => b.note === "kind" && b.role === "ability"), tag).toBe(true);
+        expect(face.words!.some((b) => mine.includes(b.text)), `${tag}: KEYWORDS reads them`).toBe(true);
         expect(face.ench).toBe(id);
         const [p] = panelOf(kind, how, null), pf = explainPanel(p, PIECE[kind]);
-        expect(texts(pf.notes ?? []).some((x) => ENCHANT_NOTES.includes(x)), `${tag}: a plain piece's`).toBe(false);
+        expect(texts(pf.notes ?? []).some((x) => mine.includes(x)), `${tag}: a plain piece's`).toBe(false);
       }
     });
   });
 
-  it("enchantNotes(word): the four lines for one of the eight words with the switch on (ENCHANT-1c C4: the fourth says what a merge does when only one part holds a word); [] for no word, a stray id, and every word with the switch off", () => {
+  // ENCHANT-2 (REQ-BFG-085; BRIEF-ENCHANT2 T4b): the pinned NOTES are a LIST PER WORD. Line 1 of a PART's NOTES gains a second sentence, by word: where do the numbers
+  // above the word's line come from? Lines 2-4 are the same for every word (and the word CARD's four lines, ENCHANT_NOTES, are untouched).
+  const WHAT = "ENCHANTED: ONE EXTRA EFFECT ON THIS PART, SHOWN IN ITS COLOUR.";
+  const KEPT = "IT STAYS WHEN YOU MOVE THE PART AND IS LOST IF YOU SELL IT.";
+  const OWN = "THE NUMBERS ABOVE IT ARE THE PART'S OWN."; // round 3 of ENCHANT-1c's strict re-read: FULL 6 of 6 on the FIERY EMBER TROUGH
+  const CHANGED = "IN THE STATS ABOVE, THE NUMBERS IT CHANGES ARE SHOWN CHANGED, IN ITS COLOUR."; // scoped to the stat rows: WIDE on a factory also changes the header's `BELTS 0/3`, drawn in one plain colour
+  const REST = ["A PART HOLDS ONE: A NEW ONE REPLACES IT.", "A MERGE KEEPS ONE: IF BOTH PARTS HAVE ONE, YOU PICK.", "IF ONLY ONE PART HAS ONE, A MERGE KEEPS IT."];
+  const NOTES_BY_WORD: Record<EnchantId, string[]> = {
+    fiery: [`${WHAT} ${OWN} ${KEPT}`, ...REST],
+    rising: [`${WHAT} ${OWN} ${KEPT}`, ...REST],
+    echoing: [`${WHAT} ${OWN} ${KEPT}`, ...REST],
+    braced: [`${WHAT} ${OWN} ${KEPT}`, ...REST],
+    massive: [`${WHAT} ${CHANGED} ${KEPT}`, ...REST],
+    swift: [`${WHAT} ${CHANGED} ${KEPT}`, ...REST],
+    growing: [`${WHAT} ${CHANGED} ${KEPT}`, ...REST],
+    wide: [`${WHAT} ${CHANGED} ${KEPT}`, ...REST],
+  };
+
+  it("enchantNotes(word): the four lines for one of the eight words with the switch on, line 1 by word (ENCHANT-2 T4b; ENCHANT-1c C4: the fourth says what a merge does when only one part holds a word); [] for no word, a stray id, and every word with the switch off", () => {
     on(() => {
-      for (const id of ENCHANT_IDS) expect(enchantNotes(id)).toEqual([...ENCHANT_NOTES]);
+      for (const id of ENCHANT_IDS) expect(enchantNotes(id), id).toEqual(NOTES_BY_WORD[id]);
       expect(enchantNotes(undefined)).toEqual([]);
       expect(enchantNotes("keen")).toEqual([]);
     });
     off(() => { for (const id of ENCHANT_IDS) expect(enchantNotes(id)).toEqual([]); });
-    expect(ENCHANT_NOTES).toEqual([
-      "ENCHANTED: ONE EXTRA EFFECT ON THIS PART, SHOWN IN ITS COLOUR. IT STAYS WHEN YOU MOVE THE PART AND IS LOST IF YOU SELL IT.",
-      "A PART HOLDS ONE: A NEW ONE REPLACES IT.",
-      "A MERGE KEEPS ONE: IF BOTH PARTS HAVE ONE, YOU PICK.",
-      "IF ONLY ONE PART HAS ONE, A MERGE KEEPS IT.",
-    ]);
+    // the word CARD's four lines (the ENCHANTER's offer, a warlord pick, the APPLY card) are untouched: they show no part's numbers
+    expect(ENCHANT_NOTES).toEqual([`${WHAT} ${KEPT}`, ...REST]);
+    expect(ENCHANT_NOTES[0]).toBe("ENCHANTED: ONE EXTRA EFFECT ON THIS PART, SHOWN IN ITS COLOUR. IT STAYS WHEN YOU MOVE THE PART AND IS LOST IF YOU SELL IT.");
+    for (const id of ENCHANT_IDS) expect(partNotes(id), id).toEqual(NOTES_BY_WORD[id]);
   });
 
   it("the battle's inspect face (battleScout faceText) of an enchanted piece carries the word and the NOTES as the build screen's does", () => {
@@ -570,7 +587,8 @@ describe("ENCHANT-1 E7: THE NOTES (behind the hover or the tap) and the word car
       const rig = faceText(run.build, { kind: "item", uid: 9 })!, gun = faceText(run.build, { kind: "turret", index: 0 })!;
       expect(rig.ench).toBe("fiery");
       expect(rig.title).toBe("FIERY WHETSTONE");
-      expect(texts(rig.notes ?? [])).toEqual(expect.arrayContaining([...ENCHANT_NOTES]));
+      expect(texts(rig.notes ?? [])).toEqual(expect.arrayContaining(enchantNotes("fiery"))); // ENCHANT-2 (T4b): a part's NOTES, line 1 by word
+      expect(texts(gun.notes ?? [])).toEqual(expect.arrayContaining(enchantNotes("massive")));
       expect(gun.ench).toBe("massive");
       expect(gun.title).toBe("MASSIVE SCRAP CANNON");
       expect(gun.body.some((b) => b.colour === wc("massive"))).toBe(true);
@@ -643,6 +661,7 @@ describe("ENCHANT-1 E7: THE NOTES (behind the hover or the tap) and the word car
       if (t) for (const why of banned(t)) found.push(`${id} ${kind}: ${why}`);
     }
     ENCHANT_NOTES.forEach((note, i) => { for (const why of banned(note)) found.push(`note ${i + 1}: ${why.split(" (")[0]}`); });
+    for (const id of ENCHANT_IDS) partNotes(id).forEach((note, i) => { for (const why of banned(note)) found.push(`${id} part note ${i + 1}: ${why.split(" (")[0]}`); }); // ENCHANT-2 (T4b): line 1 by word
     expect([...new Set(found)].sort()).toEqual([]); // run 3 reworded the brief's `3RD` (THIRD) and `ONE PER PART` (A PART HOLDS ONE) to pass TEXT-STYLE
     for (const id of ENCHANT_IDS) {
       expect(banned(replacesText(id)), replacesText(id)).toEqual([]);
@@ -737,7 +756,7 @@ describe("ENCHANT-1 E7: every enchanted panel fits its box on the phone (402x690
         const words = explainWords(d.t, panelPiece(run, d.show)), notes = (d.t.notes ?? []).map((b) => b.text);
         const items = infoItems(infoLevels(run, sel), words, p.r.w - 10, notes);
         const pages = infoView(items, p.r, p.y - 1, p.maxY + 2, infoFree(f.L, p.r, p.column)).pages;
-        expect(pages.flat(2).map((it) => it.note).filter(Boolean), `${view} ${id} on ${kind} ${how}`).toEqual(expect.arrayContaining([...ENCHANT_NOTES]));
+        expect(pages.flat(2).map((it) => it.note).filter(Boolean), `${view} ${id} on ${kind} ${how}`).toEqual(expect.arrayContaining(enchantNotes(id))); // ENCHANT-2 (T4b): the part's NOTES, line 1 by word
         if (view === "op") worstOp = Math.max(worstOp, pages.length); else worstDesk = Math.max(worstDesk, pages.length);
         n++;
       }
@@ -833,7 +852,7 @@ describe("ENCHANT-1 E7: the faces read the sim's numbers, never their own", () =
       ENCHANT_NUM.bracedStuns = 3;
       expect(wordLine("braced", "turret", 3)).toContain("THE FIRST 9 ");
       ENCHANT_NUM.burn = 2;
-      expect(wordLine("fiery", "factory", 3)).toContain("{BURN}+6.");
+      expect(wordLine("fiery", "factory", 3)).toContain("ADDS +6 {BURN} TO ITS SLUGS."); // ENCHANT-2 (T4c): was `{BURN}+6.`
     } finally {
       Object.assign(ENCHANT_NUM, was);
     }

@@ -348,7 +348,9 @@ export function enchantLine(id: EnchantId, kind: EnchantKind): string | null {
   const what = kind === "rig" ? "SLUG IT HITS" : kind === "factory" ? "SLUG IT MAKES" : "SHOT";
   const its = kind === "rig" ? "ITS HIT" : kind === "factory" ? "ITS SLUGS" : "ITS SHOTS";
   switch (id) {
-    case "fiery": return `${its}: [BURN]+${n.burn}.`;
+    // ENCHANT-2 (REQ-BFG-085; T4c, ENCHANT-1c's QUESTION 3): the word's card and LAST CHANCE's detail say what the part's panel says, `ADDS +1 [BURN] TO EACH HIT.`
+    // (was `ITS HIT: [BURN]+1.`); the panel's own line adds `, ON TOP OF ITS OWN STATS` (enchantFaces.ts pieceLine): a card shows no part's stats
+    case "fiery": return `ADDS +${n.burn} [BURN] ${kind === "rig" ? "TO EACH HIT" : kind === "factory" ? "TO ITS SLUGS" : "TO EACH SHOT"}.`;
     case "rising": return `EACH ${what}: +${n.risingStep} DMG MORE THAN THE LAST.`;
     case "growing": return `AFTER EACH DUSK FIGHT: ${its} +${n.growingStep} DMG, FOR THE RUN.`;
     case "echoing":

@@ -10,7 +10,7 @@
 //   node tools/dist/textsheet/textSheet.js <out.md>
 import { writeFileSync } from "node:fs";
 import { HEROES, ITEMS, RULES_VERSION, SUSTAIN_IDS, buyableModules, withSustain, type ItemDef } from "../src/sim/content";
-import { fusible } from "../src/sim/stars";
+import { fusible, gradeOf, isSignatureFactory, starsOf } from "../src/sim/stars"; // ENCHANT-2 (T4): the rivals' pieces' stars and grades
 import { ICON, ICON_BASE, ICON_COLOUR, KEYWORDS, icons, textWidth } from "../src/render/font";
 import { faceLines, hasFace } from "../src/ui/faces";
 import { abilityText, cardText } from "../src/ui/abilityText";
@@ -20,7 +20,7 @@ import { levelLines, levelText } from "../src/screens/build/levels";
 import { DORMANT_RUNES, RUNE_LIST, SUSTAIN_RUNE_LIST, isSustainRune } from "../src/sim/runes"; // FLIP-X2: the dormant runes marked
 import { DORMANT_ITEMS } from "../src/sim/races/data"; // FLIP-X2: SIFTER, listed and marked
 import { runeLine, runeReminder, RUNE_TEXT } from "../src/ui/runeText";
-import { RIVALS, RIVAL_IDS } from "../src/sim/rivals";
+import { RIVALS, RIVAL_IDS, rivalBuild } from "../src/sim/rivals"; // ENCHANT-2 (T4): rivalBuild, the rivals' enchanted pieces
 import { VERSION } from "../src/version"; // TXT-096: the title's version
 import { faceBlocks } from "../src/screens/build/faceBlocks"; // WORDS-1 (REQ-BFG-081): the ⓘ KEYWORDS as the panel names them
 import { panelWords } from "../src/screens/build/keywords"; // WORDS-1
@@ -30,8 +30,9 @@ import { runeTag } from "../src/ui/runeText"; // WORDS-1: LAST STAND's tag
 import { setShapes } from "../src/sim/shapes"; // SHAPES-1: BB_SHAPES=1
 import { plainRigsRules, setPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): --plain-rigs
 import { setShapes2, shapes2Rules } from "../src/sim/shapes2"; // SHAPES-2 (REQ-BFG-114): --shapes2
-import { ENCHANT_DEFS, ENCHANT_IDS, enchantKindOf, enchantProblem, enchantRules, replacesText, sellAskText, setEnchant, type EnchantKind } from "../src/sim/enchant"; // ENCHANT-1 (REQ-BFG-085): --enchant
-import { ENCHANT_NOTES, enchantedTitle, wordFace, wordOn } from "../src/ui/enchantFaces"; // ENCHANT-1 (E7): the word cards, the notes, the pieces' words
+import { ENCHANT_DEFS, ENCHANT_IDS, enchantKindOf, enchantProblem, enchantRules, replacesText, sellAskText, setEnchant, type EnchantId, type EnchantKind } from "../src/sim/enchant"; // ENCHANT-1 (REQ-BFG-085): --enchant
+import { turretSlots } from "../src/sim/deck"; // ENCHANT-2 (T4): the rivals' installed turrets
+import { ENCHANT_NOTES, enchantedTitle, partNotes, pieceLine, wordFace, wordOn } from "../src/ui/enchantFaces"; // ENCHANT-1 (E7): the word cards, the notes, the pieces' words
 import { colourize, lineWidth, wrapRich } from "../src/ui/richText"; // ENCHANT-1 (E7): the fit measures
 import { rigShape } from "../src/sim/content"; // ENCHANT-1: the refusal reasons' example pieces
 import { EXTRA_BELT_LEFT, KEPT_WIDE } from "../src/game/fuse"; // ENCHANT-1 (run 5): WIDE's extra belt, the refusal and the merge toast
@@ -148,6 +149,10 @@ function enchantSection(out: string[]): void {
   out.push("Generated with ENCHANT on. Icons print as [NAME]. Each text's rows are the wrapped rows of the 5x7 face on the op view's 225 px text row and the desk column's 118 px; a row wider than its room, or a stat row that takes a second row on the phone, is an OVERFLOW (listed at the end). Titles are measured against the room beside the icon box (phone 208 px, desk column 101 px): the 5x7 face where it fits, else the 3x5 face, else the name is cut.", "");
   out.push("### The default rules text (NOTES, behind the hover or the tap)", "");
   for (const n of ENCHANT_NOTES) out.push(`- \`${n}\` (${fits("NOTES", n)})`);
+  // ENCHANT-2 (REQ-BFG-085; T4b): a PART's NOTES line 1 by word (enchantFaces.ts partNotes: the second sentence says where the numbers above the word's line come
+  // from); the four lines above are the word CARD's. Lines 2-4 of a part's NOTES are the four lines above.
+  out.push("", "### A part's NOTES line 1, by word (T4b; the word cards keep the lines above)", "");
+  for (const id of ENCHANT_IDS) out.push(`- ${ENCHANT_DEFS[id].name}: \`${partNotes(id)[0]}\` (${fits(`NOTES line 1 (${ENCHANT_DEFS[id].name})`, partNotes(id)[0])})`);
   out.push("", "### The word cards (the ENCHANTER's offer and each warlord pick: the icon and the price on the card; the tap panel says this)", "");
   for (const id of ENCHANT_IDS) {
     const f = wordFace(id), d = ENCHANT_DEFS[id];
@@ -177,6 +182,25 @@ function enchantSection(out: string[]): void {
           out.push(`  - ${b.pairs || (!b.brass && !b.colour && /\d/.test(plain(b.text)) && b.text.length < 40) ? "stats" : "line"}: \`${plain(b.text)}\`${b.colour ? ` (${b.colour})` : ""}${hued} (${fits(`${title}: ${plain(b.text)}`, b.text, !!b.pairs)})`);
         }
       }
+    }
+  }
+  // ENCHANT-2 (REQ-BFG-085; BRIEF-ENCHANT2 T4): the rivals' own words (npcWords.ts, T1) as the FOE's face reads them (VIEW BATTLEFIELD and the scouted foe: faceText on the
+  // foe's build). Day 12: all three words are live. Each enchanted piece of each captain's warlord deck: its title (the word first) and the word's line at THIS piece's
+  // stars (a signature factory reads its FACTORY level), each line with its rows on the phone and desk, and any OVERFLOW (counted in the summary below)
+  out.push("", "### A rival's enchanted pieces (ENCHANT-2 T4; day 12, all three words live: the foe's face in VIEW BATTLEFIELD and the scouted foe)", "");
+  for (const id of RIVAL_IDS) {
+    const b = rivalBuild(id, 12);
+    const held: { def: string; word: EnchantId; grade: number; stars: number }[] = [
+      ...b.items.filter((p) => p.ench !== undefined).map((p) => ({ def: p.def, word: p.ench as EnchantId, grade: gradeOf(b, p), stars: isSignatureFactory(p.def) ? 1 : starsOf(p) })),
+      ...turretSlots(b).filter((s) => s.turret?.ench !== undefined).map((s) => ({ def: s.turret!.def, word: s.turret!.ench as EnchantId, grade: starsOf(s.turret!), stars: starsOf(s.turret!) })),
+    ];
+    out.push(`- ${RIVALS[id].name} (${id}):${held.length ? "" : " (no word)"}`);
+    for (const h of held) {
+      const d = ITEMS[h.def], kind = enchantKindOf(d)!, title = enchantedTitle(h.word, `${d.name}${h.stars > 1 ? ` ${"★".repeat(h.stars)}` : ""}`);
+      const tw = [textWidth(title), textWidth(title, "3")];
+      const titleFit = (["phone", "desk"] as const).map((v) => (tw[0] <= TITLE_W[v] ? "5x7" : tw[1] <= TITLE_W[v] ? "3x5" : "CUT")).join("/");
+      const line = pieceLine(h.word, kind, h.grade)!;
+      out.push(`  - ${title} (${kind}; title ${tw[0]} px in 5x7, ${tw[1]} in 3x5; phone/desk: ${titleFit}): \`${plain(line)}\` (${fits(`${RIVALS[id].name}: ${title}`, line)})`);
     }
   }
   out.push("", "### The refusal reasons (a tap on a piece the word cannot go on, in APPLY)", "");
