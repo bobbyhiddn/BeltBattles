@@ -116,7 +116,11 @@ describe("H2 M1b: the near-miss rules strings (pure)", () => {
     // expected() reads the deck's join (its belt-joins branch for unreadable rules, live again; the statuses are the same). Was joinsOf toBe(0)
     expect(softPicked("foundry", DECKS.foundry.day)![0].build).toEqual(DECKS.foundry.build);
     const joinsOf = (b: GhostSnapshot["build"]) => b.routes.filter((r) => r.join !== undefined).length;
-    expect(joinsOf(DECKS.foundry.build)).toBe(1); // BUMP-1D: was toBe(0) (the 10-day table's pick "f8" held no join)
+    // BUMP-1E (R2, 2875b03: SOFT1_PICKS re-read on the regenerated stand-in pool, the pools R1-R3 under bb-0.12.0): the FOUNDRY deck is the day-1 variant 0 pick
+    // "f3:c5680d21" now (the par field's run 3; was "f10:76156a2a"), whose day-1 deck holds no join; a different pick, a legal deck all the
+    // same (the generator passes every ghost through checkSnapshot and the strict checks, tools/samplePool.ts seedGhost). expected() reads the deck's join, so the near
+    // misses' unreadable-rules branch for this deck answers the hero gate's (400 FOUNDRY not accepted) again, and every status below is unchanged
+    expect(joinsOf(DECKS.foundry.build)).toBe(0); // BUMP-1E: was toBe(1) (the regenerated pools, R2); BUMP-1D: was toBe(0) (the 10-day table's pick "f8" held no join), then 1
     expect(withFreeJoins(() => joinsOf(raceDeck("foundry", DECKS.foundry.day, 0).build), false)).toBe(0);
     // BUMP-1D run 4 (RULING-BUMP-R3 R3.4 (b)): why DECKS.turretsJoin is bounded at day 10, as a check (new): a furnace deck with both features of the pool's days
     // 11-16 (the one the pick took before the bound) is refused by the decoder under a near miss's older rules (the 10-day run: maxDayFor = MAX_DAY) at the day

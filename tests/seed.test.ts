@@ -209,7 +209,10 @@ describe.each([
     const want = bundleRecords();
     if (h.keepsUnreadable) want.set("unreadable:not a ghost", "not a ghost");
     expect(h.pool()).toEqual(want);
-    expect([...h.pool("bb-0.3.0").keys()]).toEqual([ghostId(OLD_RULES)]);
+    // BUMP-1E E.3 (6d156fa left this line as it was: its test edit was unrun, "until the pool test files run again"): the JSONL harness's pool(rules) lists a line it
+    // cannot decode under every rules (it cannot tell whose it is), so the junk line the store now keeps is in bb-0.3.0's list too, beside the one old-rules entry
+    // (was [ghostId(OLD_RULES)] on both stores); the Tigris store removed its junk object, so its list is the one entry
+    expect([...h.pool("bb-0.3.0").keys()]).toEqual(h.keepsUnreadable ? ["unreadable:not a ghost", ghostId(OLD_RULES)] : [ghostId(OLD_RULES)]);
   });
 
   it("never touches player uploads", async () => {

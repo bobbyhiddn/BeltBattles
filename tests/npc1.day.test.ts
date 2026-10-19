@@ -8,6 +8,8 @@ import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: 0.9.7's day wi
 import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: and SHAPES2 off
 import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: and PLAIN_RIGS off
 import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: and the 10-day run
+import { SCALE_IDS, SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: and the scaling rules, outermost (the seven ids are the last keys in ITEMS)
+import { ENDLESS, endlessRules, withEndless } from "../src/sim/endless"; // BUMP-1E: and ENDLESS (newRun's `endless: true` mark; 0.9.7's run has none)
 import { EVENT_IDS } from "../src/game/eventDefs";
 import { choicesFor, eventFor, makeEvent, pickChoice } from "../src/game/events";
 import { finishDay, ghostOf } from "../src/game/day";
@@ -97,22 +99,41 @@ describe("NPC-1 with the switch off: 0.9.7's day", () => {
   // no plain stat rig and none of the six more shaped rigs (the caravan's offers and so the decks would move), so the script runs
   // with those three off too (withLongRun, withPlainRigs, withShapes2 false), as the SHAPES-1 flip ran it with SHAPES off: the
   // pins stay npc1-base's and the flip's (the first three digests below holding exactly is the check that the world is restored)
-  it("a scripted three-day run reads exactly as at npc1-base (digests from tests/npc1.script.ts run at 236ac6f; the stamped rules string put back)", () => withNpcDay(() => withShapes(() => withShapes2(() => withPlainRigs(() => withLongRun(() => {
+  // BUMP-1E (the scaling rules ship on: SCALE_RIGS, bb-0.12.0): 0.9.7's day has none of the seven scaling rigs and none of the five reworks, and they are the
+  // LAST keys in ITEMS (scale.ts), so the scaling switch is the OUTERMOST call of the nest: off first, back last. Measured: without it the script's first digest read
+  // 2deb7d00:6295 (the caravan's offers drew from the catalogue with the seven in it), and the three toggles inside left SHAPES-1's three and the twelve BEHIND the
+  // seven in ITEMS for the rest of the worker (the ITEMS key-order hazard: every seeded draw after it moves). Outermost, the world is the one the pins meant.
+  // BUMP-1E: and ENDLESS ships on too (newRun marks the run `endless: true`: 15 characters in the script's final run, 6292 -> 6307), 0.9.7's day has none of it:
+  // withEndless(fn, false) inside the scaling switch (it touches no catalogue, so its place in the nest is free)
+  it("a scripted three-day run reads exactly as at npc1-base (digests from tests/npc1.script.ts run at 236ac6f; the stamped rules string put back)", () => withScaleRigs(() => withEndless(() => withNpcDay(() => withShapes(() => withShapes2(() => withPlainRigs(() => withLongRun(() => {
     withHearts(() => withOpenRunes(() => {
       expect(digest097(9701)).toBe("5865119d:6292");
       expect(digest097(4242)).toBe("6ab6cc53:6243");
       expect(digest097(31337)).toBe("8a31722d:6331");
       // AZ-BUMP: the bump, the rules string alone (was "5865119d:6292"). BUMP-1D: the bump again, the rules string alone (bb-0.11.0 is
       // as long as bb-0.10.0, so the length stays 6295; was "16c756d4:6295"): the three digests above hold exactly with it put back
-      expect(scriptDigest(9701)).toBe("70587d51:6295");
+      // BUMP-1E: the bump again, the rules string alone (bb-0.12.0 is as long as bb-0.11.0, 6295 still; was "70587d51:6295"): the three digests above
+      // hold exactly with the string put back, in the world with the scaling rules and ENDLESS off, which is what proves it is the string alone
+      expect(scriptDigest(9701)).toBe("c8f6e09a:6295");
     }, false), false);
     expect(digest097(9701)).toBe("d5cc6dfb:6287"); // HULL-ON (the flip, HEARTS): 5865119d:6292 -> d5cc6dfb:6287
     expect(digest097(4242)).toBe("6d0b1d65:6236"); // HULL-ON (the flip, HEARTS and OPEN_RUNES): 6ab6cc53:6243 -> 6d0b1d65:6236
     expect(digest097(31337)).toBe("34af6ab5:6333"); // HULL-ON (the flip, HEARTS and OPEN_RUNES): 8a31722d:6331 -> 34af6ab5:6333
     // HULL-ON (the flip, HEARTS): 16c756d4:6295 -> 4528ba60:6290. BUMP-1D: the rules string alone again (the same length, 6290): 70587d51:6295
     // under bb-0.11.0 with HEARTS off (above), 921bd9a5:6290 with it on; was "4528ba60:6290"
-    expect(scriptDigest(9701)).toBe("921bd9a5:6290");
-  }, false), false), false), false), false));
+    // BUMP-1E: the rules string alone again (bb-0.12.0, the same length, 6290; was "921bd9a5:6290"): the three digests above hold exactly with it put back
+    expect(scriptDigest(9701)).toBe("53719062:6290");
+  }, false), false), false), false), false), false), false));
+
+  // BUMP-1E: the scaling rules and ENDLESS ship on (they were off at bb-0.11.0); the test above reads 0.9.7's day with them off and puts them back
+  it("the scaling rules and ENDLESS ship on, and the 0.9.7 digests' nest puts them back (both switches are on again after it)", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: was false
+    expect(scaleRules()).toBe(true);
+    expect(ENDLESS).toBe(true); // BUMP-1E: was false
+    expect(endlessRules()).toBe(true);
+    expect(SCALE_IDS.every((id) => id in ITEMS)).toBe(true); // the seven are in the catalogue as shipped, and last in it (the ITEMS key-order hazard)
+    expect(Object.keys(ITEMS).slice(-SCALE_IDS.length)).toEqual([...SCALE_IDS]);
+  });
 
   it("the fork keeps its event stop, Hard its pick of 2, REFIT its sales, and the snapshot has no road", () => withNpcDay(() => {
     expect([...forkPicks()]).toEqual([...ROAD_PICKS]);

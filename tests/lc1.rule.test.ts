@@ -24,6 +24,7 @@ import { PATCH_UP_LIVES } from "../src/net/records";
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): LC-1's ★1 PART card, HULL_SCALE off
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): LC-1's runs start on 5 lives
 import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: LC-1's runs are 10-day runs
+import { SCALE_RIGS } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on: TROPHY CHAIN (an epic rig) is on the PART card
 import { openRunesRules, withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): the offer rule
 
 /** A fresh LC-1 run: 5 lives (HEARTS off) and the 10-day run (BUMP-1D: LONG_RUN off), both marks read by the run, as a run saved before the flips has none. */
@@ -192,13 +193,16 @@ describe("Z-PREP (REQ-BFG-073): the PART card draws rigs, turrets and gear only 
   const SEVEN = ["chamber", "hailgun", "platebreaker", "railgun", "siegegun", "sorting", "splitter"];
   // BUMP-1D: SHAPES2 ships on, and PICKAXE (src/sim/shapes2.ts: an epic gate, 8 G, QUARTERMASTER) is the one epic rig of its six: it joins
   // the PART card by the kind rule below, so the catalogue is the SEVEN and PICKAXE (8 parts; the other five shaped rigs are not epic)
-  const PARTS = [...SEVEN, "pickaxe"].sort();
+  // BUMP-1E: the scaling rules ship on (bb-0.12.0), and TROPHY CHAIN (src/sim/scale.ts SCALE_ITEMS: an epic gate, 7 G, QUARTERMASTER) is the one epic
+  // rig of the seven new ones: it joins the PART card by the same kind rule, so the catalogue is the 9 (BUMP-1E: was 8, the SEVEN and PICKAXE)
+  const PARTS = [...SEVEN, "pickaxe", "trophychain"].sort();
 
-  it("the catalogue is exactly the 8 epic rigs, turrets and gear at this tip (the 7 and SHAPES-2's PICKAXE); by kind, so the 9 left out are the factories and cores", () => {
+  it("the catalogue is exactly the 9 epic rigs, turrets and gear at this tip (the 7, SHAPES-2's PICKAXE and SCALE-2c's TROPHY CHAIN); by kind, so the 9 left out are the factories and cores", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the scaling switch ships on; TROPHY CHAIN is on the card because of it
     const parts = lastChanceParts();
     expect(parts.map((p) => p.id).sort()).toEqual(PARTS);
     // PLAIN-1F (M6, M8): PLATE BREAKER's display name is SHIELD FUEL (the cold read's pick; its key platebreaker stays, above)
-    expect(parts.map((p) => p.name).sort()).toEqual(["EXT. CHAMBER", "HAIL GUN", "PICKAXE", "RAIL GUN", "SHIELD FUEL", "SIEGE GUN", "SORTING ARM", "SPLITTER"]);
+    expect(parts.map((p) => p.name).sort()).toEqual(["EXT. CHAMBER", "HAIL GUN", "PICKAXE", "RAIL GUN", "SHIELD FUEL", "SIEGE GUN", "SORTING ARM", "SPLITTER", "TROPHY CHAIN"]); // BUMP-1E: was 8 names, without TROPHY CHAIN
     expect(LAST_CHANCE_PART_KINDS).toEqual(["gate", "turret", "mod"]);
     for (const p of parts) expect([LAST_CHANCE_PART_KINDS.includes(p.kind), p.rarity, p.price > 0, !!p.merchant]).toEqual([true, "epic", true, true]);
     // the rule is the kind: every buyable epic part of those kinds is in, whatever its id (a later one joins by itself) ...
@@ -210,7 +214,7 @@ describe("Z-PREP (REQ-BFG-073): the PART card draws rigs, turrets and gear only 
     expect(out.map((d) => d.kind).sort()).toEqual(["core", "core", "core", "core", "factory", "factory", "factory", "factory", "factory"]);
   });
 
-  it("over many seeds, days and heroes no factory or core is ever offered, and the draw covers the 8", () => {
+  it("over many seeds, days and heroes no factory or core is ever offered, and the draw covers the 9", () => { // BUMP-1E: was the 8
     const seen = new Map<string, number>();
     for (const hero of ["furnace", "weaver", "foundry", "bastion"] as HeroId[]) {
       for (let day = 1; day < RUN_DAYS; day++) {
@@ -223,7 +227,7 @@ describe("Z-PREP (REQ-BFG-073): the PART card draws rigs, turrets and gear only 
       }
     }
     expect([...seen.keys()].sort()).toEqual(PARTS);
-    for (const n of seen.values()) expect(n).toBeGreaterThan(5400 / PARTS.length / 2); // an even draw: each part near 1/8 of 5,400 (BUMP-1D: was 1/7, the SEVEN)
+    for (const n of seen.values()) expect(n).toBeGreaterThan(5400 / PARTS.length / 2); // an even draw: each part near 1/9 of 5,400 (BUMP-1E: was 1/8, TROPHY CHAIN joined; BUMP-1D: was 1/7, the SEVEN, PICKAXE joined)
   });
 
   it("still deterministic, and a PART pick still moves no other stream: the next dawn's shop and rune offer are the same seed's spent run's", () => {
