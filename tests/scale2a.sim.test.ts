@@ -1,6 +1,9 @@
 // SCALE-2a (REQ-BFG-110, REQ-BFG-098, REQ-BFG-050; BRIEF-SCALE2a step 8 (a)-(h)): the scaling release's sim hooks behind
 // SCALE_RIGS (src/sim/scale.ts). Switch on through withScaleRigs; the shipped switch stays off. No shipped def holds
 // `reads`: these tests register test-only defs (ids "s2a...") in ITEMS and take them out again.
+// BUMP-1E: the switch ships ON from bb-0.12.0 (SCALE_RIGS = true; it shipped off when this was written, and KINDLING, IRON WALL, SPALL
+// CATCHER, POWDER KEG and the seven new rigs now hold `reads` in ITEMS), so every "off" half below asks for the 0.9.11 world outright
+// with withScaleRigs(fn, false), synchronously (it was a bare Battle or a bare read); the on halves are unchanged. The test ids stay test-only.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AMMO, ITEMS, START_LIVES, type GateEffect, type ItemDef, type ReadSpec } from "../src/sim/content";
 import { Battle, simulate, type Payload, type Projectile, type SideState, type SimEvent } from "../src/sim/battle";
@@ -42,7 +45,8 @@ const TEST_DEFS: Record<string, ItemDef> = {
   s2aswap: rig("s2aswap", { count: "foeBurn", each: 8, give: "dmg" }, undefined, { flat: 20 }), // (h): a stat row + a reader
   // SCALE-2c (REQ-BFG-098): the live QUENCH TANK's def (switch off at this file's load) under a test id: with the switch on
   // `quench` is KINDLING (scale.ts SCALE_DEFS), so (c)'s live pair keeps QUENCH TANK's rule here
-  s2aquench: { ...ITEMS.quench, id: "s2aquench" },
+  // BUMP-1E: the switch is ON at this file's load now, so QUENCH TANK's def is read with it off (was bare: `{ ...ITEMS.quench, id: "s2aquench" }`)
+  s2aquench: { ...withScaleRigs(() => ITEMS.quench, false), id: "s2aquench" },
 };
 const ITEMS_RW = ITEMS as Record<string, ItemDef>;
 beforeAll(() => {
@@ -114,15 +118,20 @@ const shot = (from: 0 | 1, dmg: number): Projectile => ({
 // ---------------------------------------------------------------------------------------------- the switch
 
 describe("SCALE-2a: the switch", () => {
-  it("ships off; withScaleRigs turns it on and puts it back, even on a throw; a Battle reads it once", () => {
-    expect(SCALE_RIGS).toBe(false);
-    expect(scaleRules()).toBe(false);
+  it("ships on (BUMP-1E; was off); withScaleRigs turns it off or on and puts it back, even on a throw; a Battle reads it once", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: was toBe(false)
+    expect(scaleRules()).toBe(true); // BUMP-1E: was toBe(false)
+    expect(withScaleRigs(() => scaleRules(), false)).toBe(false); // BUMP-1E: the off world, asked for outright (was `withScaleRigs(() => scaleRules())` toBe(true))
     expect(withScaleRigs(() => scaleRules())).toBe(true);
     expect(() => withScaleRigs(() => { throw new Error("x"); })).toThrow("x");
-    expect(scaleRules()).toBe(false);
+    expect(scaleRules()).toBe(true); // BUMP-1E: was toBe(false)
+    expect(() => withScaleRigs(() => { throw new Error("x"); }, false)).toThrow("x");
+    expect(scaleRules()).toBe(true); // BUMP-1E: put back ON after an off call that throws
     const on = withScaleRigs(() => new Battle(furnaceBench(), barge(), SEED));
     expect(on.scaleRigs).toBe(true);
-    expect(new Battle(furnaceBench(), barge(), SEED).scaleRigs).toBe(false);
+    const off = withScaleRigs(() => new Battle(furnaceBench(), barge(), SEED), false);
+    expect(off.scaleRigs).toBe(false); // BUMP-1E: read after the switch is back on: a Battle reads it once (was `new Battle(...).scaleRigs` bare toBe(false))
+    expect(new Battle(furnaceBench(), barge(), SEED).scaleRigs).toBe(true); // BUMP-1E: a bare Battle reads the shipped switch
   });
 });
 
@@ -146,7 +155,7 @@ describe("SCALE-2a (b): the order of operations (REQ-BFG-110)", () => {
 
   it("steps 2 and 4: a stat row goes to p.flat and a FOR EACH add to p.each (on); off, both add to p.flat as before", () => {
     const on = full(play(() => withScaleRigs(() => new Battle(deck(), barge(), SEED)), 10).shots, 2);
-    const off = full(play(() => new Battle(deck(), barge(), SEED), 10).shots, 2);
+    const off = full(withScaleRigs(() => play(() => new Battle(deck(), barge(), SEED), 10), false).shots, 2); // BUMP-1E: the off world, asked for outright (was bare)
     expect(on.length).toBeGreaterThan(3);
     for (const s of on) expect([s.flat, s.each]).toEqual([W, LH]);
     for (const s of off) expect([s.flat, s.each]).toEqual([W + LH, undefined]);
@@ -159,7 +168,7 @@ describe("SCALE-2a (b): the order of operations (REQ-BFG-110)", () => {
     const withDrake = (): Build => withMod(deck(), 40, "drake", GUN, 1); // ★1: 25 DMG a BURN
     const c = effectAt("drake", 1).core!;
     const on = full(play(() => withScaleRigs(() => new Battle(withDrake(), barge(), SEED)), 10).shots, 2);
-    const off = full(play(() => new Battle(withDrake(), barge(), SEED), 10).shots, 2);
+    const off = full(withScaleRigs(() => play(() => new Battle(withDrake(), barge(), SEED), 10), false).shots, 2); // BUMP-1E: the off world, asked for outright (was bare)
     expect(off.length).toBeGreaterThan(3);
     expect(on.length).toBeGreaterThan(3);
     for (const s of on) {
@@ -239,7 +248,7 @@ describe("SCALE-2a (c): THE GUARD, DRAKE NOZZLE never turns FOR EACH DMG into BU
     // SCALE-2c: QUENCH TANK's def under its test id s2aquench (with the switch on `quench` is KINDLING)
     const b = withMod(withItem(withItem(furnaceBench(), east(30, "temper", 5, 3)), twin(31, "s2aquench", 3, 3)), 40, "drake", GUN, 3);
     const c = effectAt("drake", 3).core!, q = 4 * effectAt("s2aquench", 3).gate!.quench!.perBurn; // 280
-    const off = full(play(() => new Battle(b, barge(), SEED), 12).shots, 2);
+    const off = full(withScaleRigs(() => play(() => new Battle(b, barge(), SEED), 12), false).shots, 2); // BUMP-1E: the off world, asked for outright (was bare)
     const on = full(play(() => withScaleRigs(() => new Battle(b, barge(), SEED)), 12).shots, 2);
     expect(off.length).toBeGreaterThan(3);
     expect(on.length).toBe(off.length);
@@ -275,7 +284,7 @@ describe("SCALE-2a (d): a rig's own hits", () => {
     const second = runOnce();
     expect(second.adds[0]).toBe(3); // a new battle starts at 0
     expect(second.adds).toEqual(first.adds);
-    const off = play(() => new Battle(b, barge(), SEED), 12).bt;
+    const off = withScaleRigs(() => play(() => new Battle(b, barge(), SEED), 12), false).bt; // BUMP-1E: the off world, asked for outright (was bare)
     expect(off.sides[0].gates.find((g) => g.uid === 30)!.ownHits).toBeUndefined();
   });
 });
@@ -291,11 +300,13 @@ describe("SCALE-2a (e): hits taken", () => {
     priv(bt).impact(shot(1, 60)); // this one lands
     expect(s.hitsTaken).toBe(2);
     expect(bt.sides[1].hitsTaken).toBeUndefined(); // nothing hit the barge
-    const off = new Battle(furnaceBench(), barge(), SEED);
-    off.gainShield(off.sides[0], 1);
-    priv(off).impact(shot(1, 60));
-    expect(off.sides[0].hitsTaken).toBeUndefined();
-    expect(Object.keys(off.sides[0].stats)).not.toContain("hitsTaken"); // never a SideStats key (the pinned fp reads them all)
+    withScaleRigs(() => { // BUMP-1E: the off world, asked for outright (was bare)
+      const off = new Battle(furnaceBench(), barge(), SEED);
+      off.gainShield(off.sides[0], 1);
+      priv(off).impact(shot(1, 60));
+      expect(off.sides[0].hitsTaken).toBeUndefined();
+      expect(Object.keys(off.sides[0].stats)).not.toContain("hitsTaken"); // never a SideStats key (the pinned fp reads them all)
+    }, false);
   });
 });
 
@@ -316,7 +327,7 @@ describe("SCALE-2a (f): hearts lost, passed in the way wins are", () => {
       const ar = new Arena(a, b, SEED, null, undefined, undefined, undefined, [4, 1]); // the battle screen's path
       expect([ar.b.sides[0].heartsLost, ar.b.sides[1].heartsLost]).toEqual([4, 1]);
     });
-    const off = new Battle(a, b, SEED, undefined, undefined, [3, 7]);
+    const off = withScaleRigs(() => new Battle(a, b, SEED, undefined, undefined, [3, 7]), false); // BUMP-1E: the off world, asked for outright (was bare)
     expect(off.sides[0].heartsLost).toBeUndefined();
   });
 
@@ -348,8 +359,10 @@ describe("SCALE-2a (f): hearts lost, passed in the way wins are", () => {
       const r = bt.record, again = new Battle(r.builds[0], r.builds[1], r.seed, r.wins, r.day, r.lost);
       expect(again.sides[0].heartsLost).toBe(3);
     });
-    expect(new Battle(grudge, barge(), SEED, [2, 5], undefined, [3, 1]).record.lost).toBeUndefined(); // off
-    expect(battleRecordFor(grudge, barge(), SEED, [2, 5], undefined, [3, 1]).lost).toBeUndefined();
+    withScaleRigs(() => { // BUMP-1E: the off world, asked for outright (was bare); battleRecordFor reads the switch itself
+      expect(new Battle(grudge, barge(), SEED, [2, 5], undefined, [3, 1]).record.lost).toBeUndefined(); // off
+      expect(battleRecordFor(grudge, barge(), SEED, [2, 5], undefined, [3, 1]).lost).toBeUndefined();
+    }, false);
   });
 });
 
@@ -482,7 +495,7 @@ describe("SCALE-2a (g): every ReadCount reads at its moment", () => {
   it("a star raises `each` through levels; an OVERCLOCKER doubles it, and only with the switch on", () => {
     expect([1, 2, 3].map((n) => effectAt("s2akindling", n).gate!.reads!.each)).toEqual([3, 5, 8]);
     const e = effectAt("s2akeg", 1).gate!;
-    expect(boostable(e)).toBe(false); // off: `reads` is ignored, so nothing to double
+    withScaleRigs(() => expect(boostable(e)).toBe(false), false); // off: `reads` is ignored, so nothing to double (BUMP-1E: was bare; boostable reads the switch itself)
     withScaleRigs(() => {
       expect(boostable(e)).toBe(true);
       expect(overclocked(e).reads!.each).toBe(6);
@@ -495,11 +508,11 @@ describe("SCALE-2a (g): every ReadCount reads at its moment", () => {
 describe("SCALE-2a (h): the switch off ignores `reads`", () => {
   it("a deck holding a `reads` test rig fights exactly as the same deck without the field", () => {
     const b = withItem(withItem(furnaceBench(), east(30, "s2aswap", 3)), east(31, "temper", 5));
-    const fight = () => {
+    const fight = () => withScaleRigs(() => { // BUMP-1E: the off world, asked for outright (was bare: the switch shipped off)
       const log: string[] = [];
       const { bt } = play(() => new Battle(b, barge(), SEED), 40, (ev) => { log.push(JSON.stringify(ev)); });
       return { log, over: [bt.winner, bt.ticks, bt.sides[0].hull.hp, bt.sides[1].hull.hp], stats: [bt.sides[0].stats, bt.sides[1].stats] };
-    };
+    }, false);
     const withReads = fight();
     const def = ITEMS_RW.s2aswap;
     ITEMS_RW.s2aswap = { ...def, gate: { flat: 20 } };

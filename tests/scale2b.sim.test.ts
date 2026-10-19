@@ -2,6 +2,8 @@
 // through withScaleRigs; the shipped switch stays off. VENOM DRIP is POISON's one source with the switch on (scale.ts
 // SCALE_DEFS); the readers here are test-only defs (ids "s2b...", REPORT-SCALE2a section 10's forms), registered in ITEMS
 // and taken out again. The real ROT GAUGE and LEECH COIL are SCALE-2c's.
+// BUMP-1E: the switch ships ON from bb-0.12.0 (SCALE_RIGS = true; it shipped off when this was written), so every "off" half below asks
+// for the 0.9.11 world outright with withScaleRigs(fn, false), synchronously (it was a bare Battle or a bare read); the on halves are unchanged.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BURN_DPS, BURN_TIME, ITEMS, POISON_DPS, type ItemDef, type ReadSpec } from "../src/sim/content";
 import { Battle, type Payload, type Projectile, type SideState, type SimEvent, type Target, type TurretState } from "../src/sim/battle";
@@ -28,7 +30,8 @@ const TEST_DEFS: Record<string, ItemDef> = {
   s2bleech: rig("s2bleech", { count: "foePoison", each: 4, give: "heal" }), // LEECH COIL-style: HEAL 4 for each POISON on the foe
   // SCALE-2c (REQ-BFG-098): the live SPALL CATCHER's def (its charge; switch off at this file's load) under a test id: with
   // the switch on `spallcatcher` is SCALE-2c's hits-taken reader (scale.ts SCALE_DEFS)
-  s2bspall: { ...ITEMS.spallcatcher, id: "s2bspall" },
+  // BUMP-1E: the switch is ON at this file's load now, so SPALL CATCHER's charge def is read with it off (was bare: `{ ...ITEMS.spallcatcher, id: "s2bspall" }`)
+  s2bspall: { ...withScaleRigs(() => ITEMS.spallcatcher, false), id: "s2bspall" },
 };
 const ITEMS_RW = ITEMS as Record<string, ItemDef>;
 beforeAll(() => {
@@ -74,7 +77,7 @@ const pshot = (from: 0 | 1, dmg: number, poison: number, target: Target = HULL, 
 /** Two barges (neither fires): only what a test puts on a hull touches it. `day` makes the battle the day's (D, S). */
 const quiet = (on = true, day?: number): Battle => {
   const make = () => new Battle(barge(), barge(), SEED, undefined, day);
-  return on ? withScaleRigs(make) : make();
+  return withScaleRigs(make, on); // BUMP-1E: was `on ? withScaleRigs(make) : make()` (a bare Battle was the off world: the switch shipped off)
 };
 type PoisonEv = Extract<SimEvent, { type: "poison" }>;
 /** Step `bt` until `secs`, collecting its poison events with the tick count each came on. */
@@ -272,22 +275,30 @@ describe("SCALE-2b (d): HEAL and the % runes", () => {
 
 describe("SCALE-2b (e): VENOM DRIP, switch-aware through one lookup", () => {
   it("on: POISON +1/+2/+3 and no burnPlus; off: burnPlus 3/6/9, the very content.ts def; the rest of the def unchanged", () => {
-    expect(SCALE_RIGS).toBe(false);
-    const base = ITEMS.venom;
-    expect([1, 2, 3].map((n) => effectAt("venom", n).gate)).toEqual([{ burnPlus: 3 }, { burnPlus: 6 }, { burnPlus: 9 }]);
-    withScaleRigs(() => {
-      expect(scaleRules()).toBe(true);
-      const on = ITEMS.venom;
-      expect(on).not.toBe(base);
-      expect(on).toEqual(SCALE_DEFS.venom(base)); // built from the base def by the one table
-      expect([1, 2, 3].map((n) => effectAt("venom", n).gate)).toEqual([{ poison: 1 }, { poison: 2 }, { poison: 3 }]);
-      const { gate: _g, levels: _l, ...rest } = on;
-      const { gate: _bg, levels: _bl, ...baseRest } = base;
-      expect(rest).toEqual(baseRest); // rarity, price, merchant, size, desc, tags...
-      expect([on.rarity, on.price, on.merchant, on.tags]).toEqual(["rare", 4, "alchemist", ["SWARM", "FORGE"]]);
-    });
-    expect(ITEMS.venom).toBe(base); // put back: the very object
-    expect(effectAt("venom", 3).gate).toEqual({ burnPlus: 9 }); // the star cache was cleared both ways
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: was toBe(false)
+    const shipped = ITEMS.venom; // BUMP-1E: the bare def is the on def now
+    expect([1, 2, 3].map((n) => effectAt("venom", n).gate)).toEqual([{ poison: 1 }, { poison: 2 }, { poison: 3 }]); // BUMP-1E: bare is on
+    withScaleRigs(() => { // BUMP-1E: the whole old test, in the off world it was written for (was bare: the switch shipped off)
+      expect(scaleRules()).toBe(false);
+      const base = ITEMS.venom;
+      expect([1, 2, 3].map((n) => effectAt("venom", n).gate)).toEqual([{ burnPlus: 3 }, { burnPlus: 6 }, { burnPlus: 9 }]);
+      withScaleRigs(() => {
+        expect(scaleRules()).toBe(true);
+        const on = ITEMS.venom;
+        expect(on).toBe(shipped);
+        expect(on).not.toBe(base);
+        expect(on).toEqual(SCALE_DEFS.venom(base)); // built from the base def by the one table
+        expect([1, 2, 3].map((n) => effectAt("venom", n).gate)).toEqual([{ poison: 1 }, { poison: 2 }, { poison: 3 }]);
+        const { gate: _g, levels: _l, ...rest } = on;
+        const { gate: _bg, levels: _bl, ...baseRest } = base;
+        expect(rest).toEqual(baseRest); // rarity, price, merchant, size, desc, tags...
+        expect([on.rarity, on.price, on.merchant, on.tags]).toEqual(["rare", 4, "alchemist", ["SWARM", "FORGE"]]);
+      });
+      expect(ITEMS.venom).toBe(base); // put back: the very object
+      expect(effectAt("venom", 3).gate).toEqual({ burnPlus: 9 }); // the star cache was cleared both ways
+    }, false);
+    expect(ITEMS.venom).toBe(shipped); // BUMP-1E: and the shipped switch is back with the very same on def
+    expect(effectAt("venom", 3).gate).toEqual({ poison: 3 }); // BUMP-1E: the star cache was cleared both ways
   });
 
   // TEMPER ★1 (1 BURN a slug) at tile 0, VENOM DRIP ★1 at tile 2
@@ -296,10 +307,11 @@ describe("SCALE-2b (e): VENOM DRIP, switch-aware through one lookup", () => {
   it("on, a VENOM DRIP deck lands POISON and its BURN lasts BURN_TIME; off, its BURN lasts BURN_TIME + 3 and no POISON", () => {
     const longest = (on: boolean) => {
       let maxT = 0, poisonEv = 0;
-      const { bt } = play(() => (on ? withScaleRigs(() => new Battle(deck(), barge(), SEED)) : new Battle(deck(), barge(), SEED)), 15, (ev, b) => {
+      // BUMP-1E: the whole fight runs in the world asked for (was `on ? withScaleRigs(() => new Battle(...)) : new Battle(...)`: a bare Battle was the off world)
+      const { bt } = withScaleRigs(() => play(() => new Battle(deck(), barge(), SEED), 15, (ev, b) => {
         for (const x of b.sides[1].hull.burns) maxT = Math.max(maxT, x.t);
         poisonEv += ev.filter((e) => e.type === "poison").length;
-      });
+      }), on);
       return { maxT, poisonEv, poison: bt.sides[1].hull.poison };
     };
     const on = longest(true), off = longest(false);
@@ -312,14 +324,15 @@ describe("SCALE-2b (e): VENOM DRIP, switch-aware through one lookup", () => {
   });
 
   it("off, a deck holding VENOM DRIP fights exactly as before any switch flip (winner, ticks, hulls, SideStats, every event)", () => {
-    const fight = () => {
+    // BUMP-1E: the fight runs in the world asked for (was `() => {...}` run bare, the off world: the switch shipped off)
+    const fight = (switchOn: boolean) => withScaleRigs(() => {
       const log: string[] = [];
       const { bt } = play(() => new Battle(deck(), barge(), SEED), 40, (ev) => { log.push(JSON.stringify(ev)); });
       return { log, over: [bt.winner, bt.ticks, bt.sides[0].hull.hp, bt.sides[1].hull.hp], stats: [bt.sides[0].stats, bt.sides[1].stats] };
-    };
-    const before = fight();
-    const on = withScaleRigs(() => fight()); // a fight made with the switch on (inside) differs ...
-    const after = fight(); // ... and the switch put back gives the very same fight as before
+    }, switchOn);
+    const before = fight(false);
+    const on = fight(true); // a fight made with the switch on (inside) differs ... (BUMP-1E: was `withScaleRigs(() => fight())`)
+    const after = fight(false); // ... and the switch put back gives the very same fight as before
     expect(after.over).toEqual(before.over);
     expect(after.stats).toEqual(before.stats);
     expect(after.log).toEqual(before.log);
@@ -384,9 +397,11 @@ describe("SCALE-2b (f): every payload site carries POISON as it carries BURN", (
       expect(boostable(e)).toBe(true);
       expect(overclocked(e)).toEqual({ poison: 4 });
     });
-    const off = effectAt("venom", 2).gate!;
-    expect(overclocked(off)).toEqual({ burnPlus: 12 });
-    expect(boostable({ poison: 1 })).toBe(false); // a POISON line counts only with the switch on (as `reads`)
+    withScaleRigs(() => { // BUMP-1E: the off world, asked for outright (was bare)
+      const off = effectAt("venom", 2).gate!;
+      expect(overclocked(off)).toEqual({ burnPlus: 12 });
+      expect(boostable({ poison: 1 })).toBe(false); // a POISON line counts only with the switch on (as `reads`)
+    }, false);
   });
 });
 
@@ -483,9 +498,11 @@ describe("SCALE-2b step 3 (REPORT-SCALE2a F2): SIPHON's ECHO keeps stat DMG and 
     let mem: ReturnType<typeof echoOf> | null = null;
     while (bt.t < 20 && !bt.over && !mem?.each) { bt.step(); bt.drainEvents(); mem = bt.sides[1].race?.echo.mem ?? null; }
     expect(mem).toMatchObject({ flat: 20, each: 10 });
-    const off = new Battle(lh, heroStartBuild("siphon"), SEED);
-    let offMem: ReturnType<typeof echoOf> | null = null;
-    while (off.t < 20 && !off.over && !(offMem && offMem.flat >= 30)) { off.step(); off.drainEvents(); offMem = off.sides[1].race?.echo.mem ?? null; }
-    expect(offMem).toEqual({ flat: 30, burn: 0, shock: false, fray: 0 }); // off: the 20 + 10 as one stat flat, as today
+    withScaleRigs(() => { // BUMP-1E: the off world, asked for outright (was bare: the switch shipped off)
+      const off = new Battle(lh, heroStartBuild("siphon"), SEED);
+      let offMem: ReturnType<typeof echoOf> | null = null;
+      while (off.t < 20 && !off.over && !(offMem && offMem.flat >= 30)) { off.step(); off.drainEvents(); offMem = off.sides[1].race?.echo.mem ?? null; }
+      expect(offMem).toEqual({ flat: 30, burn: 0, shock: false, fray: 0 }); // off: the 20 + 10 as one stat flat, as today
+    }, false);
   });
 });

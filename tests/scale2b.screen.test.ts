@@ -2,6 +2,9 @@
 // switch on only. Each thing is checked on with SCALE_RIGS on (withScaleRigs) and absent or unchanged with it off (as
 // shipped): the drop glyph, the venom colour, the keyword (KEYWORDS, its reminder, its glossary row, its colour words),
 // first sight, VENOM DRIP's plain face (stat row, chip, NOTES, KEYWORDS), C1's POISON chip, and the tick's venom number.
+// BUMP-1E: the switch ships ON from bb-0.12.0 (SCALE_RIGS = true; it shipped off when this was written), so every "off" half below asks
+// for the 0.9.11 world outright with withScaleRigs(fn, false) (the `off` helper), synchronously (it was a bare read or a bare Battle);
+// the on halves are unchanged, and a bare read now is the shipped (on) world.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ITEMS, type ItemDef, type ReadSpec } from "../src/sim/content";
 import { Battle } from "../src/sim/battle";
@@ -37,6 +40,7 @@ beforeAll(() => { ITEMS_RW.s2bscrot = ROT; clearStarCache(); });
 afterAll(() => { delete ITEMS_RW.s2bscrot; clearStarCache(); });
 
 const on = <T>(fn: () => T): T => withScaleRigs(fn);
+const off = <T>(fn: () => T): T => withScaleRigs(fn, false); // BUMP-1E: the 0.9.11 world, asked for outright (the switch ships on; the off halves were bare)
 const SHIPPED_KEYWORDS = ["BURN", "STUN", "HEAT", "FRAY", "PLATE", "PAIR", "SHIELD", "HEAL", "REGEN"];
 
 // ---------------------------------------------------------------------------------------------- the glyph
@@ -107,9 +111,10 @@ function hue(h: string): number {
 describe("SCALE-2b screen: the venom colour", () => {
   it("a yellow-green apart from lime (HP, SWARM), HEAL's green, BURN's fire3 and the yellow; it reads on the dark board", () => {
     expect(C.venom).toBe("#C4F032");
-    expect(ICON_COLOUR[ICON.POISON]).toBeUndefined(); // off: ICON_COLOUR is the base's table
+    expect(ICON_COLOUR[ICON.POISON]).toBe(C.venom); // BUMP-1E: the shipped switch is on, so the bare table holds the drop's colour
+    off(() => expect(ICON_COLOUR[ICON.POISON]).toBeUndefined()); // off: ICON_COLOUR is the base's table (BUMP-1E: was bare, toBeUndefined)
     on(() => expect(ICON_COLOUR[ICON.POISON]).toBe(C.venom));
-    expect(ICON_COLOUR).not.toHaveProperty(ICON.POISON);
+    off(() => expect(ICON_COLOUR).not.toHaveProperty(ICON.POISON)); // BUMP-1E: was bare
     const h = hue(C.venom);
     expect(h).toBeGreaterThan(65);
     expect(h).toBeLessThan(85);
@@ -126,22 +131,25 @@ describe("SCALE-2b screen: the keyword, its reminder and its glossary row", () =
   const drawn = (): string => icons(REMINDER.POISON());
 
   it("off: KEYWORDS is the shipped 9, {*POISON} stays markup, no POISON row, colour word or sight", () => {
-    expect(SCALE_RIGS).toBe(false);
-    expect([...KEYWORDS]).toEqual(SHIPPED_KEYWORDS);
-    expect(PLAYER_WORD).not.toHaveProperty("POISON");
-    expect(icons("{*POISON}")).toBe("{*POISON}");
-    expect(glossaryEntry("POISON")).toBeUndefined();
-    expect(glossaryWordsIn("THE FOE HAS 4 POISON NOW")).toEqual([]);
-    expect(GLOSSARY.some((r) => r.kw === "POISON")).toBe(false);
-    expect(Object.keys(KEYWORD_COLOUR)).not.toContain("poison");
-    expect(colourize("POISON", C.bone)).toEqual([{ t: "POISON", c: C.bone }]);
-    expect(FIRST_SIGHT_WORDS).not.toContain("POISON");
-    expect(FIRST_SIGHT_IDS).not.toContain("kw:POISON");
-    expect(isSightWord("POISON")).toBe(false);
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: was toBe(false) (the switch ships on from bb-0.12.0)
+    off(() => { // BUMP-1E: the whole old test, in the 0.9.11 world it was written for (was bare)
+      expect(scaleRules()).toBe(false);
+      expect([...KEYWORDS]).toEqual(SHIPPED_KEYWORDS);
+      expect(PLAYER_WORD).not.toHaveProperty("POISON");
+      expect(icons("{*POISON}")).toBe("{*POISON}");
+      expect(glossaryEntry("POISON")).toBeUndefined();
+      expect(glossaryWordsIn("THE FOE HAS 4 POISON NOW")).toEqual([]);
+      expect(GLOSSARY.some((r) => r.kw === "POISON")).toBe(false);
+      expect(Object.keys(KEYWORD_COLOUR)).not.toContain("poison");
+      expect(colourize("POISON", C.bone)).toEqual([{ t: "POISON", c: C.bone }]);
+      expect(FIRST_SIGHT_WORDS).not.toContain("POISON");
+      expect(FIRST_SIGHT_IDS).not.toContain("kw:POISON");
+      expect(isSightWord("POISON")).toBe(false);
+    });
   });
 
   it("on: POISON joins KEYWORDS (the 10th), {*POISON} draws the drop then POISON in venom; off again, all as before", () => {
-    const g = GLOSSARY.length;
+    const g = off(() => GLOSSARY.length); // BUMP-1E: the off count, read with the switch off (was bare: `GLOSSARY.length`, the shipped switch was off)
     on(() => {
       expect([...KEYWORDS]).toEqual([...SHIPPED_KEYWORDS, "POISON"]);
       expect(PLAYER_WORD.POISON).toBe("POISON");
@@ -152,9 +160,15 @@ describe("SCALE-2b screen: the keyword, its reminder and its glossary row", () =
       expect(colourize("POISON", C.bone)).toEqual([{ t: "POISON", c: C.venom }]);
       expect(GLOSSARY.length).toBe(g + 1);
     });
-    expect([...KEYWORDS]).toEqual(SHIPPED_KEYWORDS);
-    expect(GLOSSARY.length).toBe(g);
-    expect(Object.keys(KEYWORD_COLOUR)).not.toContain("poison");
+    // BUMP-1E: the shipped switch is on, so after the round trip a bare read is the on world, and "off again" is read with it off (was bare)
+    expect([...KEYWORDS]).toEqual([...SHIPPED_KEYWORDS, "POISON"]);
+    expect(GLOSSARY.length).toBe(g + 1);
+    expect(Object.keys(KEYWORD_COLOUR)).toContain("poison");
+    off(() => {
+      expect([...KEYWORDS]).toEqual(SHIPPED_KEYWORDS);
+      expect(GLOSSARY.length).toBe(g);
+      expect(Object.keys(KEYWORD_COLOUR)).not.toContain("poison");
+    });
   });
 
   it("the reminder: the design's text in BURN's form, {*PLATE} drawn as SHIELD, 2 lines of 5x7 at the glossary's width", () => {
@@ -194,7 +208,8 @@ describe("SCALE-2b screen: the keyword, its reminder and its glossary row", () =
       expect(isSightWord("POISON")).toBe(true);
       expect(FIRST_SIGHT_WORDS.slice(0, 4)).toEqual(["PAIR", "FRAY", "SHIELD", "WARD"]);
     });
-    expect(FIRST_SIGHT_IDS).not.toContain("kw:POISON");
+    expect(FIRST_SIGHT_IDS).toContain("kw:POISON"); // BUMP-1E: the shipped switch is on, so the bare list holds POISON's note
+    off(() => expect(FIRST_SIGHT_IDS).not.toContain("kw:POISON")); // BUMP-1E: was bare, `expect(FIRST_SIGHT_IDS).not.toContain("kw:POISON")`
   });
 });
 
@@ -202,11 +217,14 @@ describe("SCALE-2b screen: the keyword, its reminder and its glossary row", () =
 
 describe("SCALE-2b screen: VENOM DRIP's plain face", () => {
   it("off: today's Y6 face (ITS BURN LASTS +3s), its chip {BURN}+3{SEC}; not a plain rig", () => {
-    expect(scaleRules()).toBe(false);
-    expect(faceAt("venom", 1)!.rules.map((r) => r.text)).toEqual(["HIT: ITS {*BURN} LASTS +3{SEC}."]);
-    expect(isPlainRig("venom")).toBe(false);
-    expect(plainRigStats("venom", 1)).toBeNull();
-    expect(shopChip("venom")).toBe("{BURN}+3{SEC}");
+    expect(scaleRules()).toBe(true); // BUMP-1E: was toBe(false) (the switch ships on from bb-0.12.0)
+    off(() => { // BUMP-1E: the whole old test, in the 0.9.11 world it was written for (was bare)
+      expect(scaleRules()).toBe(false);
+      expect(faceAt("venom", 1)!.rules.map((r) => r.text)).toEqual(["HIT: ITS {*BURN} LASTS +3{SEC}."]);
+      expect(isPlainRig("venom")).toBe(false);
+      expect(plainRigStats("venom", 1)).toBeNull();
+      expect(shopChip("venom")).toBe("{BURN}+3{SEC}");
+    });
   });
 
   it("on: a stat row POISON +1 / +2 / +3 (the plain-rig path), the rule kept for LEVELS, NEXT★ and the chip", () => {
@@ -245,10 +263,12 @@ describe("SCALE-2b screen: C1's POISON chip", () => {
   });
 
   it("off: never a chip, even with POISON put on a hull by hand (shownChips as today)", () => {
-    const bt = new Battle(furnaceBench(), barge(), SEED);
-    bt.sides[1].hull.poison = 4;
-    expect(chip.value(bt, 1)).toBeNull();
-    expect(shownChips(bt, 1).map((c) => c.chip.key)).toEqual([]);
+    off(() => { // BUMP-1E: the 0.9.11 world, asked for outright (was a bare Battle: the switch shipped off)
+      const bt = new Battle(furnaceBench(), barge(), SEED);
+      bt.sides[1].hull.poison = 4;
+      expect(chip.value(bt, 1)).toBeNull();
+      expect(shownChips(bt, 1).map((c) => c.chip.key)).toEqual([]);
+    });
   });
 
   it("on: the foe's POISON beside BURN; none at 0 without a reader; dimmed at 0 with a POISON reader aboard", () => {
