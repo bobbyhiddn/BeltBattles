@@ -86,12 +86,14 @@ export function lastChanceWord(seed: number, day: number, def: string): { ench: 
   return { ench };
 }
 
-/** Words a deck can hold that no merchant sold: the warlord picks the day allows, plus LAST CHANCE's part when it took the part. */
-export const freeEnchantsByDay = (day: number, lastChanceTookPart: boolean): number => warlordPicksByDay(day) + (lastChanceTookPart ? 1 : 0);
+/** Words a deck can hold that no merchant sold: the warlord picks the day allows, plus LAST CHANCE's part when it took the part.
+ *  ENCHANT-2 (REQ-BFG-085, T2/T3): `extra`, the words a warlord's drop (one a day from day 5) and the ASH SHRINE (one a bag) can have given
+ *  (net/enchantCheck.ts enchantExtraWords); 0 (the default) is ENCHANT-1's bound, every ENCHANT-1 caller unchanged. */
+export const freeEnchantsByDay = (day: number, lastChanceTookPart: boolean, extra = 0): number => warlordPicksByDay(day) + (lastChanceTookPart ? 1 : 0) + extra;
 
 /** E6.2: the most words a deck on `day` can hold: 2 for each ENCHANTER day up to `day`, plus the free ones (freeEnchantsByDay). */
-export const maxEnchantsByDay = (day: number, lastChanceTookPart: boolean): number =>
-  ENCHANTER_OFFERS * enchanterDaysUpTo(day) + freeEnchantsByDay(day, lastChanceTookPart);
+export const maxEnchantsByDay = (day: number, lastChanceTookPart: boolean, extra = 0): number =>
+  ENCHANTER_OFFERS * enchanterDaysUpTo(day) + freeEnchantsByDay(day, lastChanceTookPart, extra);
 
 /**
  * E6.3: every word a deck on `day` could have been given, re-derived from the run seed: the ENCHANTER's offers on its days up to `day`,

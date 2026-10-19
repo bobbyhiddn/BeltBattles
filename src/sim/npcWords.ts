@@ -209,14 +209,26 @@ export const npcPairKey = (p: { def: string; ench?: string; word?: string; enchD
   `${p.def}:${p.ench ?? p.word}${p.enchDir !== undefined && (p.ench ?? p.word) === "wide" ? `/${p.enchDir}` : ""}`;
 
 /** T2 (the server): the pairs some rival holds on a day from 5 up to `day` (a grant counts from the first day its rival is fielded
- *  with it: npcGrantDay), as keys. A word a warlord's drop kept can only be one of these. */
+ *  with it: npcGrantDay), as keys. A word a warlord's drop kept can only be one of these. Empty while the T5 toggle keeps the rivals' words
+ *  out (setNpcWords(false): state B, ENCHANT-1's world, whose upload tests pin the player's sources alone; the game and the server never flip it). */
 export function npcDropPairs(day: number): Set<string> {
   const out = new Set<string>();
+  if (!npcWordsOn) return out;
   for (const id of Object.keys(NPC_WORDS) as RivalId[]) {
     for (const g of NPC_WORDS[id]) if (npcGrantDay(id, g) <= day) out.add(npcPairKey(g));
   }
   return out;
 }
 
-/** T2 (the server): how many drops can carry a word by `day`: one warlord fight a day, from day NPC_WORD_DAYS[0] on. */
-export const npcDropsByDay = (day: number): number => (Number.isInteger(day) && day >= NPC_WORD_DAYS[0] ? day - NPC_WORD_DAYS[0] + 1 : 0);
+/** T2 (the server): the words in npcDropPairs(day): every word some rival holds on a day from 5 up to `day` (the offered-words set's extra). */
+export function npcDropWords(day: number): Set<EnchantId> {
+  const out = new Set<EnchantId>();
+  if (!npcWordsOn) return out;
+  for (const id of Object.keys(NPC_WORDS) as RivalId[]) {
+    for (const g of NPC_WORDS[id]) if (npcGrantDay(id, g) <= day) out.add(g.word);
+  }
+  return out;
+}
+
+/** T2 (the server): how many drops can carry a word by `day`: one warlord fight a day, from day NPC_WORD_DAYS[0] on (0 with the toggle off, like the pairs). */
+export const npcDropsByDay = (day: number): number => (npcWordsOn && Number.isInteger(day) && day >= NPC_WORD_DAYS[0] ? day - NPC_WORD_DAYS[0] + 1 : 0);

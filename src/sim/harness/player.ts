@@ -1932,7 +1932,8 @@ function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: nu
     const i = where === "cargo" ? run.inventory.findIndex((it) => it.uid === at) : -1;
     if (i >= 0 && ITEMS[drop]?.merchant) {
       const [copy] = run.inventory.splice(i, 1);
-      placed = placeFreePart(run, copy.def, new Rng(hashSeed("par-npcday-place", run.hero, run.seed, run.day)), pol, starsOf(copy)).placed;
+      // ENCHANT-2 (REQ-BFG-085, T2): the cargo copy came with the word its rival held (road.ts finishWarlord); it goes to placeFreePart as LAST CHANCE's word does
+      placed = placeFreePart(run, copy.def, new Rng(hashSeed("par-npcday-place", run.hero, run.seed, run.day)), pol, starsOf(copy), enchantRules() && copy.ench !== undefined ? enchantField(copy) : undefined).placed;
     } else placed = where !== "cargo";
   }
   // ENCHANT-1 (E5b/E8): a warlord win's pick of 1 of 2 words (it opens only on a Hard win, which par never fights: PAR_ROAD_TIER is Medium;
