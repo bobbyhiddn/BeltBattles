@@ -223,6 +223,7 @@ export function poolKey(builder: string, args: readonly unknown[], ctx: KeyCtx =
     builder,
     args: canon(a),
     helper: sha(ctx.read(join(ctx.root, HELPER)) ?? "\u0000no helper"), // this file: a change to the cache's own logic starts a new cache
+    config: sha(ctx.read(join(ctx.root, "vite.config.ts")) ?? "\u0000no config"), // the transform's and the test run's own config
     closure,
     switches: SWITCHES.map(([n, on]) => `${n}=${on() ? 1 : 0}`).join(","),
     botRunes: String(BOT_RUNES),

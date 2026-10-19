@@ -50,9 +50,8 @@ const editing = (rel: string, edit: (text: string) => string): ((abs: string) =>
   const texts = realClosure().texts;
   return (abs) => {
     const r = abs.startsWith(ROOT + "/") ? abs.slice(ROOT.length + 1) : abs;
-    const t = texts.get(r);
-    if (t !== undefined) return r === rel ? edit(t) : t;
-    return fsReader(abs);
+    const t = texts.get(r) ?? fsReader(abs);
+    return r === rel && t !== undefined ? edit(t) : t;
   };
 };
 
@@ -130,6 +129,15 @@ describe("the key moves with everything the builders read", () => {
     const grown = scanClosure(ROOT, ENTRY, editing("src/core/rng.ts", (t) => `import "../main";\n` + t));
     expect(grown.files).toContain("src/main.ts");
     expect(grown.digest).not.toBe(realClosure().digest);
+  });
+
+  it("the cache's own file and the vite config are part of the key", () => {
+    const base = key();
+    for (const [rel, part] of [["tests/helpers/poolCache.ts", "helper"], ["vite.config.ts", "config"]] as const) {
+      const k = key({ ...defaultCtx(), read: editing(rel, (t) => t + "\n// edit\n") });
+      expect(k.parts[part], rel).not.toBe(base.parts[part]);
+      expect(k.key, rel).not.toBe(base.key);
+    }
   });
 
   it("flipping any switch changes the key (and puts the switch back)", () => {
