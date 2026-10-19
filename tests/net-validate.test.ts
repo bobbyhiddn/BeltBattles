@@ -5,6 +5,7 @@ import { buildCost, maxGoldByDay, validateBuild } from "../src/net/validate";
 import { furnaceDeck, K, STRAIGHT } from "./netHelpers";
 import { incomeOn, withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip, HULL_SCALE): the day's gold
 import { LONG_RUN_MAX_DAY, withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): the day bound, both worlds
+import { ENDLESS, ENDLESS_LAST_DAY, withEndless } from "../src/sim/endless"; // BUMP-1E (ENDLESS ships on, e49b45b): the day bound asks the endless switch first
 
 const HEROES: HeroId[] = ["furnace", "weaver"];
 const errorsOf = (b: Parameters<typeof validateBuild>[0], day = 10) => validateBuild(b, day).errors.join("\n");
@@ -164,10 +165,23 @@ describe("deck validation: rejections", () => {
     // BUMP-1D (LONG_RUN ships on): the day bound follows the world (validate.ts: LONG_RUN_MAX_DAY on a long run, MAX_DAY off it), so
     // day 11 is refused in the 10-day run (withLongRun false) and is a long run's day under the shipped switch, whose bound is the
     // next one up. Was expect(validateBuild(furnaceDeck(), 11).ok).toBe(false) under the shipped (10-day) switch
-    expect(withLongRun(() => validateBuild(furnaceDeck(), 11), false).errors[0]).toMatch(/^shape: day 11 is not in 1\.\.10/);
-    expect(withLongRun(() => validateBuild(furnaceDeck(), 11).ok, false)).toBe(false);
+    // BUMP-1E: ENDLESS ships on (bb-0.12.0, e49b45b) and validateBuild's day bound asks the endless switch FIRST (validate.ts: maxDay = endlessRules() ?
+    // ENDLESS_LAST_DAY : longRunRules() ? LONG_RUN_MAX_DAY : MAX_DAY), so withLongRun(fn, false) alone is no longer the 10-day run: its day 11 passed
+    // (the red: errors[0] was undefined). The 10-day world is both switches off, the long run's own world (the shipped one before endless) is endless
+    // off alone, and the shipped world (both on) bounds the day at ENDLESS_LAST_DAY (64). Was withLongRun(fn, false) for the 10-day halves and no
+    // switch for the long run's bound
+    const tenDay = <T>(fn: () => T): T => withEndless(() => withLongRun(fn, false), false);
+    const longRunOnly = <T>(fn: () => T): T => withEndless(fn, false);
+    expect(ENDLESS).toBe(true); // BUMP-1E: the switch ships on (was off)
+    expect(tenDay(() => validateBuild(furnaceDeck(), 11)).errors[0]).toMatch(/^shape: day 11 is not in 1\.\.10/);
+    expect(tenDay(() => validateBuild(furnaceDeck(), 11).ok)).toBe(false);
     expect(validateBuild(furnaceDeck(), 11).ok).toBe(true);
     expect(validateBuild(furnaceDeck(), LONG_RUN_MAX_DAY).ok).toBe(true);
-    expect(validateBuild(furnaceDeck(), LONG_RUN_MAX_DAY + 1).errors[0]).toMatch(new RegExp(`^shape: day ${LONG_RUN_MAX_DAY + 1} is not in 1\\.\\.${LONG_RUN_MAX_DAY}`));
+    expect(longRunOnly(() => validateBuild(furnaceDeck(), LONG_RUN_MAX_DAY).ok)).toBe(true);
+    expect(longRunOnly(() => validateBuild(furnaceDeck(), LONG_RUN_MAX_DAY + 1)).errors[0]).toMatch(new RegExp(`^shape: day ${LONG_RUN_MAX_DAY + 1} is not in 1\\.\\.${LONG_RUN_MAX_DAY}`)); // BUMP-1E: the long run's bound, read with endless off (was the shipped read)
+    // BUMP-1E: the shipped world: the day past the long run's bound is a day like any other, and the bound is ENDLESS_LAST_DAY
+    expect(validateBuild(furnaceDeck(), LONG_RUN_MAX_DAY + 1).ok).toBe(true);
+    expect(validateBuild(furnaceDeck(), ENDLESS_LAST_DAY).ok).toBe(true);
+    expect(validateBuild(furnaceDeck(), ENDLESS_LAST_DAY + 1).errors[0]).toMatch(new RegExp(`^shape: day ${ENDLESS_LAST_DAY + 1} is not in 1\\.\\.${ENDLESS_LAST_DAY}`));
   });
 });

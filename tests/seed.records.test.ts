@@ -255,7 +255,10 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
   // ghosts' 2 and 10" -> 22 and 23, 2 and 10
   // BUMP-1D (the seed pool regenerated, 5e93e1e: days 1-16, SOFT_TARGET 250's picks, the floor ghosts FLOOR_PICKS' casual runs): title "the sample
   // ghosts' 22 and 23, plus the floor ghosts' 2 and 10" -> 35 and 47, 27 and 29 (64 sample ghosts and 32 floor ghosts now; counted off the committed file)
-  it("keeps its turret and join decks: the sample ghosts' 35 and 47, plus the floor ghosts' 27 and 29 (each a deck of its own)", () => {
+  // BUMP-1E (the pools regenerated under bb-0.12.0: the stand-in pool R1 19ae423, the SOFT-1 and FLOOR picks R2 2875b03 (FLOOR_PICKS furnace 9011, weaver 9007, foundry
+  // 9008, bastion 9007), the seed pool R3 04fab9a): title "the sample ghosts' 35 and 47, plus the floor ghosts' 27 and 29" -> 45 and 48, 16 and 30 (counted off the
+  // committed server/seedPoolData.ts too: its first 64 lines and the next 32; the 96 race ghosts add 53 and 32, so the whole pool is 114 and 110, as tests/net-upload.test.ts pins)
+  it("keeps its turret and join decks: the sample ghosts' 45 and 48, plus the floor ghosts' 16 and 30 (each a deck of its own)", () => {
     const carry = (ps: readonly GhostSnapshot[]) => [ps.filter((s) => (s.build.turrets ?? []).length > 0).length, ps.filter((s) => s.build.routes.some((r) => r.join !== undefined)).length];
     // BAL-2 (c5e4780, the pools changed): [3, 24] -> [4, 25]
     // Y7b2 (the pools): was [4, 25] (4d772e4, the pool regenerated on bb-0.9.3)
@@ -263,13 +266,15 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
     // S8c (the pools): was [9, 23] (P1 83c039d, the stand-in pool regenerated once with every switch on, NPC_DAY on)
     // SOFT-1 (the seed pool softened, REQ-BFG-092): was [23, 27] (S8c's sample decks)
     // BUMP-1D (the seed pool regenerated, 5e93e1e): was [22, 23] (SOFT-1's picks over days 1-10)
-    expect(carry(SAMPLE)).toEqual([35, 47]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
+    // BUMP-1E (the pools regenerated under bb-0.12.0, R1-R3): was [35, 47]
+    expect(carry(SAMPLE)).toEqual([45, 48]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
     // BAL-2 (c5e4780, the pools changed): [2, 14] -> [4, 16]
     // Y7b2 (the pools): was [4, 16] (4d772e4, the pool regenerated on bb-0.9.3)
     // Z-BUMP (the pools): was [3, 15] (2c4ba76, the stand-in pool regenerated once under bb-0.9.7)
     // S8c (the pools): was [2, 14] (P1 83c039d, the stand-in pool regenerated once with every switch on, NPC_DAY on)
     // BUMP-1D (the seed pool regenerated, 5e93e1e: the floor ghosts are FLOOR_PICKS' casual runs over days 1-16): was [2, 10]
-    expect(carry(FLOOR)).toEqual([27, 29]); // FLIP-X2: [4, 10] -> [5, 13]; REDO-X (09ce97c, the pools changed): [5, 13] -> [2, 14]
+    // BUMP-1E (the pools regenerated under bb-0.12.0, R1-R3: FLOOR_PICKS furnace 9011, weaver 9007, foundry 9008, bastion 9007): was [27, 29]
+    expect(carry(FLOOR)).toEqual([16, 30]); // FLIP-X2: [4, 10] -> [5, 13]; REDO-X (09ce97c, the pools changed): [5, 13] -> [2, 14]
     for (const f of FLOOR) {
       const same = SAMPLE.filter((s) => s.day === f.day && s.hero === f.hero).map((s) => encodeStarred(s.build));
       expect(same).toHaveLength(2);
