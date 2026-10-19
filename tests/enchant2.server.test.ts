@@ -3,7 +3,7 @@
 // from day 5 (one warlord fight a day: "bound 2 until D1's receipts", PIECES-1 4.7.3, here 1). Forged fixtures, each refused: a dropped word no rival holds;
 // a drop word before day 5 (or before the day its rival holds it); one over the bound; a pair no rival holds (the word on another part, WIDE on another side).
 // Honest fixtures pass: hand decks, and the par player's own decks (which take drops with their words) through the whole player check.
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ENCHANT, ENCHANT_IDS, setEnchant, withEnchant } from "../src/sim/enchant";
 import { enchantFreeWords, enchantExtraWords, enchantProblems } from "../src/net/enchantCheck";
 import { enchanterWords, freeEnchantsByDay, maxEnchantsByDay, possibleWords } from "../src/sim/enchantSources";
@@ -15,6 +15,8 @@ import { parRunSeed, playerRoadLog, playerRun } from "../src/sim/harness/player"
 import { validateUpload } from "../src/net/validate";
 import { RIVAL_IDS } from "../src/sim/rivals";
 import { setShrine, withShrine } from "../src/game/shrine";
+
+vi.setConfig({ testTimeout: 240_000 }); // ENCHANT-1's sweeps' rule: these play many seeded par runs; under a loaded host (24 cores shared with other lanes) the 30 s default is a time-only red
 
 afterEach(() => { setEnchant(ENCHANT); setShrine(true); }); // the shipped values (ENCHANT off; the shrine in the bag when it is on)
 // state C: the rivals' words and their drops, the ASH SHRINE out of the bag (tests/enchant2.shrine.server.test.ts is state D)

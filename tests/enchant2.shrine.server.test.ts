@@ -3,7 +3,7 @@
 // record's day, and the count gains 1 for each such bag; a visit gives ONE word (card 1 word A for hull, card 2 word B for a part), on any part.
 // Forged fixtures, each refused: a shrine word before its day; a word the shrine didn't offer; one over the count. Honest fixtures pass; and the par player's
 // own decks, which now take the shrine, pass the whole player check. With ENCHANT off there is no shrine day and nothing moves.
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { shrineBound, shrineDays, enchantExtraWords, enchantFreeWords, enchantProblems } from "../src/net/enchantCheck";
 import { validateUpload } from "../src/net/validate";
 import { RULES_VERSION } from "../src/sim/content";
@@ -17,6 +17,8 @@ import { bagIds } from "../src/game/eventDefs";
 import { eventSequence } from "../src/game/events";
 import { setShrine, withShrine } from "../src/game/shrine";
 import { longRunRules } from "../src/sim/longRun";
+
+vi.setConfig({ testTimeout: 240_000 }); // ENCHANT-1's sweeps' rule: these play many seeded par runs; under a loaded host (24 cores shared with other lanes) the 30 s default is a time-only red
 
 afterEach(() => { setEnchant(ENCHANT); setNpcWords(true); setShrine(true); });
 // state B + the shrine: the player's words and the shrine's, the rivals' words and their drops out, so the shrine's slot is the only way to some words
