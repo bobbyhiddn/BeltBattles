@@ -3,7 +3,8 @@
 //   - finishWarlord: a win's drop arrives in cargo WITH the word the rival's copy of that part held that day, at the drop's star; the roll itself
 //     (the part, the odds) is the same with ENCHANT on and off; with ENCHANT off no piece anywhere holds a word;
 //   - the Matriarch's legendary part keeps hers;
-//   - the surfaces: the inspect panel's drop list and the victory card say the word in its colour before the part's name, and fit.
+//   - the surfaces: the inspect panel's drop list and the victory card say the word in its colour before the part's name, and fit;
+//   - the T6 fix round (E2-03, words only): the victory card of a drop that arrives with a word spells its star (`STAR 2`, not the 3x5 `★2` five of six readers took for `x2`).
 import { afterEach, describe, expect, it } from "vitest";
 import { finishWarlord, pickRoad, todaysWarlord, warlordDropTable } from "../src/game/road";
 import { gainModule } from "../src/game/fuse";
@@ -205,11 +206,27 @@ describe("ENCHANT-2 T2: the drop's surfaces say the word before the part's name"
   it("the victory card's text carries the word and its colour; a plain drop's is what it was", () => {
     const part = Object.keys(ITEMS).find((d) => ITEMS[d].kind === "gate" && ITEMS[d].rarity === "common")!;
     expect(dropCardText(part, false)).toEqual({ name: itemName(part), sub: "DROP · TO CARGO · ★1" });
-    expect(dropCardText(part, false, 2, "fiery")).toEqual({ name: itemName(part), sub: "DROP · TO CARGO · ★2", word: "FIERY " });
+    expect(dropCardText(part, false, 2)).toEqual({ name: itemName(part), sub: "DROP · TO CARGO · ★2" }); // a plain Hard drop keeps its glyph (ENCHANT off draws what it drew)
+    // T6 fix round (E2-03, words only): a drop that arrives with a word SPELLS its star (the 3x5 ★ read as `x2`, two copies, to 5 of 6 readers of the strict read's round 1)
+    expect(dropCardText(part, false, 2, "fiery")).toEqual({ name: itemName(part), sub: "DROP · TO CARGO · STAR 2", word: "FIERY " });
+    expect(dropCardText(part, false, 1, "fiery")).toEqual({ name: itemName(part), sub: "DROP · TO CARGO · STAR 1", word: "FIERY " });
     expect(dropCardText(part, true, 1, "echoing")!.word).toBe("ECHOING ");
+    expect(dropCardText(part, true, 1, "echoing")!.sub).toBe("LEGENDARY · TO CARGO"); // the Matriarch's says LEGENDARY, no star, word or not
+    expect(dropCardText(part, false, 2, "not-a-word")!.sub).toBe("DROP · TO CARGO · ★2"); // a forged id is no word: the plain line
     expect(dropWord("fiery")).toEqual({ text: "FIERY ", colour: ENCHANT_DEFS.fiery.color });
     expect(dropWord(undefined)).toBeUndefined();
     expect(dropWord("not-a-word")).toBeUndefined();
+  });
+
+  it("the spelled star's sub line fits the victory card: 23 px in, 3x5, the narrowest card the game draws (W 200: panel 190, card 170) and the widest (194)", () => {
+    const part = Object.keys(ITEMS).find((d) => ITEMS[d].kind === "gate" && ITEMS[d].rarity === "common")!;
+    for (const cardW of [170, 194]) {
+      for (const stars of [1, 2, 3]) {
+        const sub = dropCardText(part, false, stars, "massive")!.sub;
+        expect(sub).toBe(`DROP · TO CARGO · STAR ${stars}`);
+        expect(23 + textWidth(sub, "3") + 4, `STAR ${stars} on a ${cardW} px card`).toBeLessThanOrEqual(cardW);
+      }
+    }
   });
 
   it("word and name fit the victory card (5x7) or the 3x5 face with the name cut with a dot, for every word and every part", () => {

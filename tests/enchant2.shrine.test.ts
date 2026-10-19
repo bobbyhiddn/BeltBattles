@@ -8,7 +8,7 @@ import { BAG_IDS, EVENTS, EVENT_IDS, WARLORD_EVENT_IDS, bagIds, eventIds, type E
 import { choicesFor, eventFor, eventSequence, makeEvent, pickChoice } from "../src/game/events";
 import { pendingEnchantPick, pieceAt, skipWarlordWord, takeWarlordWord, openWarlordPick, enchantChoices } from "../src/game/enchanter";
 import { migrateRun, newRun, type Run } from "../src/game/run";
-import { SHRINE_HULL, SHRINE_ID, SHRINE_NO_PART, shrineGive, shrineOffer } from "../src/game/shrine";
+import { SHRINE_HULL, SHRINE_ID, SHRINE_NOTE, SHRINE_NO_PART, shrineGive, shrineOffer } from "../src/game/shrine";
 import { HEROES, RUN_DAYS, type HeroId } from "../src/sim/content";
 import { ENCHANT_IDS, enchantRules, withEnchant } from "../src/sim/enchant";
 import { shrineWords } from "../src/sim/enchantSources";
@@ -181,6 +181,10 @@ describe("the shrine's words and cards", () => {
       expect(cs[2]).toMatchObject({ label: "MOVE ON", cost: [], gain: [] });
       expect(cs.every((c) => !c.blocked)).toBe(true);
       expect(EVENTS.shrine.title).toBe("ASH SHRINE");
+      // T6 fix round (E2-01, words only): both word cards say where the word goes; the Choice's label stays OFFER A PART (roadCap and events read it; the card DRAWS OFFER CARGO PART)
+      expect(SHRINE_NOTE).toBe("YOU CHOOSE WHICH PART GETS IT");
+      expect([cs[0].note, cs[1].note, cs[2].note]).toEqual([SHRINE_NOTE, SHRINE_NOTE, undefined]);
+      expect([cs[0].label, cs[1].label, cs[2].label]).toEqual(["OFFER HULL", "OFFER A PART", "MOVE ON"]);
     });
   });
 
@@ -204,10 +208,11 @@ describe("the shrine's words and cards", () => {
     });
   });
 
-  it("with nothing to offer card 2 is blocked (NOTHING TO OFFER) and cannot be picked; card 1 and MOVE ON stay open", () => {
+  it("with nothing to offer card 2 is blocked (NOTHING IN CARGO TO OFFER) and cannot be picked; card 1 and MOVE ON stay open", () => {
     withEnchant(() => {
       const run = atShrine("furnace", 4242, 6, []);
       const cs = choicesFor(run);
+      expect(SHRINE_NO_PART).toBe("NOTHING IN CARGO TO OFFER"); // T6 fix round (E2-01b, words only): it says WHAT is missing and WHERE (was NOTHING TO OFFER)
       expect(cs[1].blocked).toBe(SHRINE_NO_PART);
       expect(cs[0].blocked).toBeUndefined();
       expect(pickChoice(run, 1)).toMatchObject({ ok: false, reason: SHRINE_NO_PART });

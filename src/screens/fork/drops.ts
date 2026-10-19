@@ -135,10 +135,12 @@ export function drawDropList(g: G, game: Game, title: string, t: DropTable, onCl
  *  HULL-1b (REQ-BFG-078): `stars`, the drop's star (npcDay.ts DROP_STARS: a Hard drop says ★2). */
 export const NO_DROP = "NO DROP";
 /** ENCHANT-2 (REQ-BFG-085, T2): `word`, the word the drop arrives with (the card says it in its colour before the part's name): it rides in the result
- *  as `word` ("FIERY ", with the space); absent for a plain drop, so every ENCHANT-off card is what it was. */
+ *  as `word` ("FIERY ", with the space); absent for a plain drop, so every ENCHANT-off card is what it was.
+ *  T6 fix round (E2-03; words only): a drop that arrives with a word spells its star, `DROP · TO CARGO · STAR 2`: the 3x5 face's ★ read as `x2` (two copies) to
+ *  five of six readers of the strict read's round 1. A plain drop keeps `★n` (ENCHANT off draws what it drew), the Matriarch's keeps `LEGENDARY · TO CARGO`. */
 export function dropCardText(drop: string | null, legendary: boolean, stars = 1, word?: string): { name: string; sub: string; word?: string } | null {
   const wd = dropWord(word);
-  return drop ? { name: itemName(drop), sub: legendary ? "LEGENDARY · TO CARGO" : `DROP · TO CARGO · ★${stars}`, ...(wd ? { word: wd.text } : {}) } : null;
+  return drop ? { name: itemName(drop), sub: legendary ? "LEGENDARY · TO CARGO" : `DROP · TO CARGO · ${wd ? "STAR " : "★"}${stars}`, ...(wd ? { word: wd.text } : {}) } : null;
 }
 
 /** The victory screen's drop: a part card (icon, name, "TO CARGO · ★1") at (x, y), w wide and 22 tall, or NO DROP. ENCHANT-2 (T2): `word`, the word it

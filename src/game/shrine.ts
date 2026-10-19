@@ -4,7 +4,7 @@
 //   1. word A for max hull (SHRINE_HULL, the DARK WIND's RIDE THROUGH form: a {k: "hull"} cost, refused by events.ts blockReason's
 //      HULL TOO WEAK below the floor);
 //   2. word B for ONE PART OF YOUR CARGO, named by the event's fixed `pick` as the TRADER's swap names its part (shrineGive); blocked
-//      with NOTHING TO OFFER when cargo holds nothing that can be offered;
+//      with NOTHING IN CARGO TO OFFER when cargo holds nothing that can be offered (its label reads OFFER CARGO PART: cards.ts CHOICE_TEXT);
 //   3. MOVE ON.
 // The two words are shrineWords(seed, day) (enchantSources.ts): two DIFFERENT words from their own stream hashSeed(seed, "ench", day,
 // "shrine"). The gain {k: "ench", word} opens ENCHANT-1's APPLY exactly as a warlord pick does (enchanter.ts openShrineWord: a free word
@@ -26,9 +26,15 @@ export const SHRINE_ID = "shrine" as const;
 /** Card 1's price in max hull (hullBonus units, as RIDE THROUGH's 100). A STARTING VALUE: T5 may set it anywhere from 60 to 150. */
 export const SHRINE_HULL = 100;
 
-/** Why card 2 is blocked with nothing to give, and why a card is blocked when no part you hold can take its word. */
-export const SHRINE_NO_PART = "NOTHING TO OFFER";
+/** Why card 2 is blocked with nothing to give, and why a card is blocked when no part you hold can take its word.
+ *  ENCHANT-2 (T6 fix round, E2-01b; words only): card 2's reason says WHAT is missing and WHERE (was `NOTHING TO OFFER`, which five of six readers of the strict
+ *  read's round 1 could not turn into "a part in my cargo"). */
+export const SHRINE_NO_PART = "NOTHING IN CARGO TO OFFER";
 export const SHRINE_NO_TAKER = "NO PART TAKES IT";
+
+/** The line under each of the shrine's cards that offers a word: where the word goes (the T6 fix round, E2-01; words only). Round 1 of the strict read had
+ *  `YOU CHOOSE THE PART`, which two readers took for the part the card hands over (card 2 takes a cargo part AND lets you pick the one that gets the word). */
+export const SHRINE_NOTE = "YOU CHOOSE WHICH PART GETS IT";
 
 /** The two words of the shrine on `day` of the run seeded `seed`: [word A (for hull), word B (for a part)]. */
 export const shrineOffer = (seed: number, day: number): [EnchantId, EnchantId] => shrineWords(seed, day);
@@ -64,10 +70,10 @@ export function shrineChoices(run: Run, ev: EventState): Choice[] {
   const done = ev.picked >= 0; // resolved (also after a reload): the cards show what was taken, and a card is never blocked for what it spent
   // a resolved second card still names the part it took (ev.gave): cargo no longer holds it
   const give: ShrineGive | undefined = done && ev.picked === 1 && ev.gave ? { uid: -1, def: ev.gave, stars: 1 } : shrineGive(run, ev.pick);
-  const hull: Choice = { label: "OFFER HULL", cost: [{ k: "hull", n: SHRINE_HULL }], gain: [{ k: "ench", word: a }], note: "YOU CHOOSE THE PART" };
+  const hull: Choice = { label: "OFFER HULL", cost: [{ k: "hull", n: SHRINE_HULL }], gain: [{ k: "ench", word: a }], note: SHRINE_NOTE };
   if (!done && !someoneTakes(run, a)) hull.blocked = SHRINE_NO_TAKER;
   const part: Choice = give
-    ? { label: "OFFER A PART", cost: [{ k: "item", def: give.def, uid: give.uid, from: "cargo" }], gain: [{ k: "ench", word: b }], note: "YOU CHOOSE THE PART" }
+    ? { label: "OFFER A PART", cost: [{ k: "item", def: give.def, uid: give.uid, from: "cargo" }], gain: [{ k: "ench", word: b }], note: SHRINE_NOTE }
     : { label: "OFFER A PART", cost: [], gain: [], blocked: SHRINE_NO_PART };
   if (!done && give && !someoneTakes(run, b)) part.blocked = SHRINE_NO_TAKER;
   return [hull, part, { label: "MOVE ON", cost: [], gain: [] }];
