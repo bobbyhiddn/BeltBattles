@@ -12,9 +12,10 @@ import { Arena } from "../game/arena";
 import { asideBox, loadRunGuarded as loadRun, saveProblem } from "../game/saveGuard"; // BUMP-1E P6 E.2: a save naming a part, rune or hero this build does not know is no CONTINUE (loadRun, guarded)
 import { REFUND_DAY } from "../game/day"; // 0.6.2 TUNE-M: RULE EARLY-LOSS REFUND in the rules card
 import { startingBuild, warlordBuild } from "../sim/ai";
-import { HEROES, type HeroId } from "../sim/content";
+import { HEROES, RULES_VERSION, type HeroId } from "../sim/content";
 import { WIN_GOAL, longRun, longRunRules } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D7): the rules card and the continue card of a long run
-import { endlessOffered, inEndless, type EndlessRun } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059, 3.5): an endless save's continue card
+import { ENDLESS_LIVES, endlessOffered, inEndless, type EndlessRun } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059, 3.5): an endless save's continue card; BUMP-1E P6: the rules card's endless sentence
+import { endlessFor } from "../net/rulesGate"; // BUMP-1E P6 (R3.5): the rules card's endless sentence follows endlessFor, as day.ts takes it for a new run
 import { endlessContinueSub, wonContinueSub } from "./endlessText";
 import { SummaryScreen } from "./summary"; // ENDLESS-1 (3.2): CONTINUE on a won run whose offer was open opens its RUN WON card again
 import { dayText } from "./runDay";
@@ -80,7 +81,10 @@ export function helpLines(): string[] {
   // RUN-1 (REQ-BFG-059, D7): with LONG_RUN on (a new run has no mark yet, so the switch decides: a card for the run the
   // player is about to start) line 1 names the win and line 2 the hearts rule's words ending in the run's end; off, neither moves
   const long = longRunRules();
-  const lines = HELP.map((ln, i) => (i === 0 && long ? HELP_LONG_1 : i === 1 && heartsRules() ? (long ? HELP_LONG_2 : HELP_HEARTS_2) : i === 2 ? helpLine3() : ln));
+  // BUMP-1E P6 (RULING-BUMP1E-R3 R3.5; ENDLESS-1 question 2): with endless in the game (endlessFor under this build's rules, as day.ts
+  // takes it for a new run) line 2 ends with HELP_ENDLESS, one sentence; it is the only line that moves, so SHOPCARD-1's lines 3-6 keep their numbers and words
+  const endless = endlessFor(RULES_VERSION);
+  const lines = HELP.map((ln, i) => (i === 0 && long ? HELP_LONG_1 : i === 1 && heartsRules() ? (long ? (endless ? `${HELP_LONG_2} ${HELP_ENDLESS}` : HELP_LONG_2) : HELP_HEARTS_2) : i === 2 ? helpLine3() : ln));
   return lines.every((ln, i) => ln === HELP[i]) ? HELP : lines;
 }
 
@@ -121,6 +125,10 @@ export const HELP_HEARTS_2 = `2  YOU HAVE ${HEARTS_START} HEARTS. A DUSK LOSS CO
  *  "YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS)." The hearts rule's numbers don't change. */
 export const HELP_LONG_1 = `1  WIN ${WIN_GOAL} DUSK FIGHTS. EACH DAY IS THE CARAVAN AT DAWN, THE ROAD, THEN A DUSK FIGHT AGAINST A GHOST: ANOTHER CAPTAIN'S SAVED CRUISER.`;
 export const HELP_LONG_2 = `2  YOU HAVE ${HEARTS_START} HEARTS. A DUSK LOSS COSTS ${heartCostWords()}, A DRAW NONE. THE RUN IS WON AT ${WIN_GOAL} WINS AND LOST WHEN YOUR HEARTS RUN OUT. THERE IS NO DAY LIMIT. ${WIN_GOAL}-0 IS FLAWLESS.`;
+/** BUMP-1E P6 (RULING-BUMP1E-R3 R3.5; ENDLESS-1 question 2): what the rules card says of endless, one sentence that follows HELP_LONG_2 on
+ *  line 2 while endless is in the game (helpLines). The 3 is ENDLESS_LIVES (endless.ts: an endless starts with 3 hearts) and the score is
+ *  the run's endless wins (summary.ts ENDLESS OVER; src/screens/endlessText.ts ENDLESS_OFFER_LINES). */
+export const HELP_ENDLESS = `AFTER A WIN YOU CAN PLAY ON IN ENDLESS: ${ENDLESS_LIVES} FRESH HEARTS, AND YOUR SCORE IS YOUR ENDLESS WINS.`;
 
 /** RUN-1 (REQ-BFG-059, D7): the CONTINUE button's second line for a saved run: "DAY 3/10 · FURNACE · 3-8" for a 10-day run, exactly as
  *  before; "WINS 3/10 · DAY 12 · FURNACE · 3-8" for a long run's save (its mark, Run.longRun; never "/N" on the day). */

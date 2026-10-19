@@ -436,11 +436,13 @@ game.start();
    * ENDLESS-1 (REQ-BFG-059, 3.5) tooling, for the shots and the checks only: turns ENDLESS on (or off) for this page (endless.ts
    * setEndless; withEndless is the scoped form the tests use). It changes nothing but the runs made after it: newRun marks each one
    * (Run.endless), so the RUN WON of a marked run offers CONTINUE ENDLESS. Call it before bb.openEnd / bb.openPlayed / bb.open, which
-   * make the run. ENDLESS ships OFF, so the setter is NOT dev-only here (a shot is taken on the built page, as RUN-1's bb.longRun was
-   * before BUMP-1D); the release bump that turns ENDLESS on guards it with import.meta.env.DEV as bb.longRun is now. Returns the switch.
+   * make the run. ENDLESS shipped OFF, so the setter was NOT dev-only (a shot is taken on the built page, as RUN-1's bb.longRun was
+   * before BUMP-1D).
+   * BUMP-1E (RULING-BUMP1E-R3 R3.5; ENDLESS-1 finding 10): ENDLESS ships ON now, so the setter is dev-only (import.meta.env.DEV) as
+   * bb.longRun's is: on a production page this only reports the switch, so no hook can turn endless off there. Returns the switch.
    */
   endless(on = true): boolean {
-    setEndless(on);
+    if (import.meta.env.DEV) setEndless(on);
     return endlessRules();
   },
   /**

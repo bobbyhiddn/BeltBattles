@@ -468,13 +468,13 @@ export function heartsLostCapFor(rules: unknown, cap: number): number {
 // request belongs to (a run, or an endless after a won run), so the snapshot's endless fields (snapshot.ts), the record model
 // (records.ts), the day bounds (snapshot.ts endlessMaxDay), the storage (server/tigrisStore.ts) and the match request read it by
 // its own rules.
-import { RULES_VERSION } from "../sim/content"; // ENDLESS-1: ENDLESS_RULES reads it until the release bump writes the literal
 import { endlessRules } from "../sim/endless"; // ENDLESS-1: the ENDLESS switch (src/sim/endless.ts)
 
-/** ENDLESS-1: the first rules version with endless after a won run: ENDLESS' row. It READS RULES_VERSION until the release bump that
- *  turns ENDLESS on writes that version here as a literal (as LONG_RUN_RULES did before BUMP-1D wrote "bb-0.11.0"); from then on
- *  every older record keeps the run that ends at its win, whatever the switch. */
-export const ENDLESS_RULES: string = RULES_VERSION;
+/** ENDLESS-1: the first rules version with endless after a won run: ENDLESS' row. It READ RULES_VERSION until the release bump that
+ *  turned ENDLESS on wrote that version here as a literal (as LONG_RUN_RULES did before BUMP-1D wrote "bb-0.11.0", and SCALE_RULES
+ *  before it): BUMP-1E (RULING-BUMP1E-R3 R3.5) wrote "bb-0.12.0" (it read RULES_VERSION, bb-0.12.0 there; RULES_VERSION is no
+ *  longer imported here); from now on every older record keeps the run that ends at its win, whatever the switch. */
+export const ENDLESS_RULES: string = "bb-0.12.0";
 
 /** Does endless hold for a record, snapshot or match request under `rules`? The switch on AND `rules` a readable version at or
  *  after ENDLESS_RULES. False with the switch off, whatever the rules (every record then reads the run that ends at its win,

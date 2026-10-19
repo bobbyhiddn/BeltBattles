@@ -22,8 +22,9 @@
 
 import { LONG_RUN_MAX_DAY, WIN_GOAL } from "./longRun";
 
-/** THE switch (REQ-BFG-059, ENDLESS-1): off. The release bump that ships endless turns it on and writes rulesGate.ts ENDLESS_RULES. */
-export const ENDLESS: boolean = false;
+/** THE switch (REQ-BFG-059, ENDLESS-1): ON since BUMP-1E (bb-0.12.0; RULING-BUMP1E-R3 R3.5 turned it on and wrote rulesGate.ts
+ *  ENDLESS_RULES as a literal). It was off in 0.9.11 and 0.9.12. */
+export const ENDLESS: boolean = true;
 
 let enOn = false;
 
