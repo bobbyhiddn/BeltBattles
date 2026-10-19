@@ -103,6 +103,13 @@ import { finishWarlord, pickRoad, todaysWarlord, warlordDrop, warlordSeed } from
 import { simulate } from "../battle";
 import { roadDropValue, roadLog, withNpcDay, type RoadEntry } from "../npcDay";
 import type { RivalId } from "../rivals";
+// ENCHANT-1 (REQ-BFG-085, E8): the bots' words (enchantBot.ts), the switch, LAST CHANCE's word, the game's own merge-pick and ENCHANTER actions
+import { enchantField, enchantRules, mergeWord, wideSlots, type EnchantFields } from "../enchant";
+import { turretList } from "../deck";
+import { lastChanceWord } from "../enchantSources";
+import { botWarlordPick, buyPlan, casualWarlordPick, casualWordBuys, chooserFor, enchanterPlans, settleMergePick, wordPick, wordValue, type WordExtras, type WordPlan } from "./enchantBot";
+import { setPieceWord } from "../../game/fuse";
+import { pendingEnchantPick } from "../../game/enchanter";
 
 // ---------------------------------------------------------------- the deck rating (what the player reads)
 
@@ -155,6 +162,10 @@ export interface PolicyKnobs {
   // never takes: the caravan still rolls them and candidates() still judges them (the same RNG draws), but no merge,
   // pick, whim, fill or crate buy takes one, and the change is never counted as spendable on one; the gold goes elsewhere.
   forbid?: string;
+  // ENCHANT-1 (REQ-BFG-085, E8): optional, set by no par policy. With ENCHANT on, a player with `wordBuy` is a CASUAL buyer of the ENCHANTER's
+  // words (enchantBot.ts casualWordBuys: each affordable offer with this chance, on a seeded legal piece with no word, no rating read); a
+  // player without it values every offer by the rating (enchantBot.ts bestWordFor) and buys the best pair as it buys a part. Off: never read.
+  wordBuy?: number;
 }
 
 export interface PlayerOpts {
@@ -215,7 +226,8 @@ export interface PlayerBuy {
   price: number;
   stars: number; // the copy's stars after any merge
   merged: boolean;
-  why: "merge" | "best" | "whim" | "impulse" | "fill" | "crate" | "greedy"; // bb-0.8.6: "greedy", M3's pack policies
+  why: "merge" | "best" | "whim" | "impulse" | "fill" | "crate" | "greedy" | "word"; // bb-0.8.6: "greedy", M3's pack policies; ENCHANT-1: "word", a casual buy at the ENCHANTER
+  word?: { id: string; on: string; slot: number; value: number; replaced?: string }; // ENCHANT-1 (E8): an ENCHANTER buy: the word, the piece's def, its slot or uid, the rating gain the bot read (0: casual), the word it replaced
   grew?: number; // a belt crate: the tiles the belt it lengthened grew by (absent: none)
   replaced?: string; // an upgrade: the def of the fitted gear or core it replaced (sold); a turret: the one it displaced
   slot?: number; // CAND-A: a turret: the slot it went into
@@ -243,6 +255,9 @@ export interface PlayerDay {
   roadGold?: number;
   roadDrops?: number;
   cargo?: number;
+  // ENCHANT-1 (REQ-BFG-085, E8): with ENCHANT on and a word bought: the gold spent at the ENCHANTER on days 1..day (E6.4: it joins the
+  // deck's cost, so boughtCost(build) + rerollGold + gold + soldLoss + wordGold (+ cargo) = budget); absent otherwise
+  wordGold?: number;
 }
 
 /** PAR-AZ (REQ-BFG-078, REQ-BFG-077): one day's road stop of the par player with NPC_DAY on (parNpcDay). */
@@ -256,7 +271,7 @@ export interface PlayerRoad {
   declined?: string; // a capped run's (maxStars below FUSE_MAX) seeded drop it declined: it would merge above the cap
 }
 
-type Kind = "rig" | "gear" | "core" | "factory" | "plating" | "crate" | "turret" | "upgrade" | "converter"; // GATES-1 (REQ-BFG-052, G6): "converter", a gate on a belt tile
+type Kind = "rig" | "gear" | "core" | "factory" | "plating" | "crate" | "turret" | "upgrade" | "word" | "converter"; // GATES-1 (REQ-BFG-052, G6): "converter", a gate on a belt tile; ENCHANT-1 (E8): "word" (BUMP-1F: both)
 
 /** A new factory's belt: its cells, and the belt tile it joins (absent: it ends on a free intake). */
 interface Line { cells: number[]; join?: number }
@@ -295,6 +310,7 @@ interface Cand {
   // spendable change as usual, refused only at the moment it would be taken (pickOffer, fillPick, the packs)
   forbid?: boolean;
   pair?: string; // SCALE-2d (REQ-BFG-098 098.6): a feeder valued as the pair with this reader on offer (readerRule)
+  plan?: WordPlan; // ENCHANT-1 (E8): an ENCHANTER offer's best (word, piece) pair (wagon -3, slot the offer's index in run.shop.enchanter)
 }
 
 /** TUNE-M (T1): the defs pol.forbid names (none for both policies). */
@@ -695,7 +711,7 @@ function moreBelt(b: Build, day: number, rng: Rng, base: number, keep?: (after: 
   let best: { build: Build; rel: number } | null = null;
   for (const p of b.items) {
     // bb-0.8.3 (REQ-BFG-044 D7'): at its grade (the hero factory's FACTORY level opens slots like a star does)
-    if (ITEMS[p.def]?.kind !== "factory" || routesOf(b, p.uid).length >= botSlots(p.def, gradeOf(b, p), b.hero, policy)) continue;
+    if (ITEMS[p.def]?.kind !== "factory" || routesOf(b, p.uid).length >= botSlots(p.def, gradeOf(b, p), b.hero, policy) + wideSlots(p)) continue; // ENCHANT-1 (REQ-BFG-085): WIDE is +1 belt slot (0 off)
     const cols = policy === "reach" ? reachCols(b, p.uid) : freeConnectors(b);
     const bl = blockedCells(b), starts = startCellsFor(cellsOf(p), bl);
     for (const col of cols) {
@@ -1290,9 +1306,62 @@ function candidates(run: Run, maxStars: number, rng: Rng, pol: PolicyKnobs): Can
   }));
   out.push(...upgradeCands(run, base, banned));
   out.push(...packCands(run, base, banned)); // bb-0.8.6 (REQ-BFG-051 P6)
+  if (enchantRules() && pol.wordBuy === undefined && run.shop.enchanter) out.push(...wordCands(run)); // ENCHANT-1 (REQ-BFG-085, E8): the ENCHANTER's offers, valued by the rating
   if (sus) sustainRule(b, out); // BOTS-X (SUS-C): rules 2-4 and 6, only while the switch is on
   if (scaleRules()) readerRule(run, out, base, pol); // SCALE-2d (REQ-BFG-098 098.6): SCALE_RIGS on only
   return out;
+}
+
+// ---------------------------------------------------------------- ENCHANT-1 (REQ-BFG-085, E8): the bots' words
+
+/** E8: what the valuation reads from this player for WIDE on a factory: the belt it would lay into the new slot (moreBelt on the fixed seed
+ *  the factory level's slot is judged with, moreSlotRel), as a fraction of the deck's rating (-Infinity: none fits). */
+const wordExtras = (run: Run): WordExtras => ({ wideFactory: (after, base) => moreSlotRel(after, run.day, base) });
+
+/** E8: the ENCHANTER's offers as candidates: each unsold offer the purse affords with the best piece for its word (enchantBot.ts
+ *  enchanterPlans: the rating's gain, a held word netted out), judged and picked like a part by gain for the gold (pickOffer: above
+ *  PolicyKnobs.minRel is helpful, the best gain per gold is the pick). Outside the shop: wagon -3, the slot is the offer's index. */
+function wordCands(run: Run): Cand[] {
+  return enchanterPlans(run, wordExtras(run)).map(({ slot, price, plan }) => ({ wagon: -3, slot, def: `ench:${plan.word}`, price, kind: "word" as const, merge: false, rel: plan.spot.value, plan }));
+}
+
+/** E8: buy a word candidate through the game's buyEnchant (applied, then paid), then the follow-up WIDE needs: a factory's new belt (the one
+ *  it was judged with) or a turret's gear from cargo (the best-rated). */
+function buyWordCand(run: Run, c: Cand, why: PlayerBuy["why"], rolls: number, buys: PlayerBuy[]): void {
+  const plan = c.plan!, spot = plan.spot;
+  buyPlan(run, c.slot, plan);
+  buys.push({
+    day: run.day, roll: rolls, def: c.def, price: c.price, stars: 1, merged: false, why,
+    word: { id: plan.word, on: spot.def, slot: spot.target.kind === "turret" ? spot.target.slot : spot.target.uid, value: spot.value, ...(spot.replaces ? { replaced: spot.replaces } : {}) },
+  });
+  if (plan.word !== "wide") return;
+  if (spot.target.kind === "item" && ITEMS[spot.def].kind === "factory") {
+    const mb = moreBelt(run.build, run.day, new Rng(hashSeed(run.day, "upgrade-belt")), rateOn(run.build, run.day), syncKeeper(run.build));
+    if (mb && mb.rel > 0) {
+      run.build.items = mb.build.items;
+      run.build.routes = mb.build.routes;
+    }
+  } else if (spot.target.kind === "turret") {
+    const slot = spot.target.slot, base = rateOn(run.build, run.day);
+    let best: { uid: number; rel: number } | undefined;
+    for (const it of [...run.inventory].sort((x, y) => x.uid - y.uid)) {
+      if (ITEMS[it.def]?.kind !== "mod" || !canFitGear(run.build, slot, it.def).ok) continue;
+      const after = cloneBuild(run.build);
+      after.mods.push({ uid: it.uid, def: it.def, turret: slot, ...(starsOf(it) > 1 ? { stars: starsOf(it) } : {}) });
+      const rel = relOf(after, base, run.day);
+      if (rel > 0 && (!best || rel > best.rel)) best = { uid: it.uid, rel };
+    }
+    if (best) refitTo(run, { uid: best.uid, turret: slot, core: false });
+  }
+}
+
+/** E8, the casual rule at the dawn: each affordable ENCHANTER offer is bought with chance pol.wordBuy, on a seeded legal piece with no word
+ *  (enchantBot.ts casualWordBuys, its own seeded stream). The gold joins the day's cost (spent.word). */
+function casualWords(run: Run, pol: PolicyKnobs, spent: { word?: number }, rolls: number, buys: PlayerBuy[]): void {
+  for (const w of casualWordBuys(run, pol.wordBuy!, new Rng(hashSeed("casual-ench", run.hero, run.seed, run.day)))) {
+    spent.word = (spent.word ?? 0) + w.price;
+    buys.push({ day: run.day, roll: rolls, def: `ench:${w.word}`, price: w.price, stars: 1, merged: false, why: "word", word: { id: w.word, on: w.on, slot: w.target.kind === "turret" ? w.target.slot : w.target.uid, value: 0 } });
+  }
 }
 
 /**
@@ -1572,7 +1641,7 @@ function pickAs(cands: Cand[], gold: number, keep: number, pol: PolicyKnobs, rng
  *  slot, the plan's belts (the free redraw), gear and cores refitted, the rest sold. Returns the gold the sale lost. */
 function buyTurret(run: Run, c: Cand): number {
   const p = c.turret!;
-  const res = buyOffer(run, c.wagon, c.slot);
+  const res = buyOffer(run, c.wagon, c.slot, undefined, wordPick(run)); // ENCHANT-1 (E4/E8): the bots' word pick on a merge (undefined off)
   if (!res.ok || !res.gain || res.gain.where !== "cargo" || res.gain.survivor !== p.copy) throw new Error(`par player: buyOffer ${c.def} did not land in cargo as planned`);
   const r = installFromCargo(run, p.copy, p.slot);
   if (!r.ok) throw new Error(`par player: installFromCargo ${c.def} -> slot ${p.slot}: ${r.reason}`);
@@ -1600,6 +1669,7 @@ function buyTurret(run: Run, c: Cand): number {
 function buy(run: Run, c: Cand, why: PlayerBuy["why"], rolls: number, buys: PlayerBuy[], trace?: PlayerOpts["trace"]): number {
   if (c.track) { buyUpgradeCand(run, c, why, rolls, buys); return 0; } // bb-0.8.3 (D7'): no offer, no trace, no refund
   if (c.pack) { buyPackCand(run, c, why, rolls, buys); return 0; } // bb-0.8.6 (REQ-BFG-051 P6): a fixed pack, no offer
+  if (c.plan) { buyWordCand(run, c, why, rolls, buys); return 0; } // ENCHANT-1 (REQ-BFG-085, E8): an ENCHANTER word: buyEnchant, no refund
   trace?.(run, c.wagon, c.slot);
   if (c.turret) {
     const lost = buyTurret(run, c);
@@ -1612,7 +1682,7 @@ function buy(run: Run, c: Cand, why: PlayerBuy["why"], rolls: number, buys: Play
   const old = oldMod ?? oldRig;
   if (oldMod && ITEMS[oldMod.def].kind === "mod") storeMod(run, oldMod.uid);
   if (oldRig && !storePlaced(run, oldRig.uid)) throw new Error(`par player: the replaced ${oldRig.def} could not go to cargo`);
-  const res = buyOffer(run, c.wagon, c.slot, c.at);
+  const res = buyOffer(run, c.wagon, c.slot, c.at, wordPick(run)); // ENCHANT-1 (E4/E8): the bots' word pick on a merge (undefined off)
   if (!res.ok) throw new Error(`par player: buyOffer ${c.def} failed: ${res.reason}`);
   let lost = 0;
   if (old) {
@@ -1662,7 +1732,7 @@ function drawKilnBelt(run: Run, rng: Rng, tiles: number): void {
 function fillPick(cands: Cand[], pol: PolicyKnobs): Cand | null {
   // CAND-A: nobody swaps or adds a gun to fill the purse. FIX-ABE E: a forbidden part out changes the fill only when it
   // would have been the fill (the order below is fixed), so it is refused only at the moment it would be taken
-  cands = cands.filter((c) => c.kind !== "turret" && !c.banned && !c.forbid);
+  cands = cands.filter((c) => c.kind !== "turret" && c.kind !== "word" && !c.banned && !c.forbid); // ENCHANT-1: nobody buys a word to fill the purse
   let ok = cands.filter((c) => c.rel >= -pol.harmless);
   if (!ok.length) ok = cands.filter((c) => c.rel >= pol.fillFloor);
   const supply = (c: Cand) => (c.kind === "plating" || c.kind === "crate" ? 0 : 1);
@@ -1712,12 +1782,13 @@ function dawnEdits(run: Run, pol: PolicyKnobs, rng: Rng): void {
  * floor; else the purse is filled to `floor` of the day's gold with harmless offers (supplies first, each at its
  * best spot). Gold above `reserve` then goes into belt crates when the caravan sells them.
  */
-function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: { reroll: number; sold: number }, opts: PlayerOpts): { buys: PlayerBuy[]; rolls: number } {
+function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: { reroll: number; sold: number; word?: number }, opts: PlayerOpts): { buys: PlayerBuy[]; rolls: number } {
   const budget = maxGoldByDay(run.day), target = floorGold(run.day, pol.floor);
   const buys: PlayerBuy[] = [];
   let rolls = 0, roomy = false;
   dawnEdits(run, pol, rng);
   if (upgradePolicy(run.build.hero) === "greedy") greedyUpgrades(run, rolls, buys); // bb-0.8.3 (D7'): M2''s comparison
+  if (enchantRules() && pol.wordBuy !== undefined) casualWords(run, pol, spent, rolls, buys); // ENCHANT-1 (E8): a casual buyer's words, before the shop (its own seeded stream)
   for (let guard = 0; guard < 80; guard++) {
     if (pol.grow && beltFree(run.build) > 0) {
       // free belt capacity: the player lengthens the belt that rates best with it (a free redraw in the game)
@@ -1728,12 +1799,13 @@ function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: 
       }
     }
     const cands = candidates(run, maxStars, rng, pol);
-    const value = buildCost(run.build).total;
+    const value = buildCost(run.build).total + (enchantRules() ? spent.word ?? 0 : 0); // ENCHANT-1 (E6.4): the ENCHANTER's gold is part of the deck's cost
     const keep = Math.min(pol.reserve, Math.max(0, value + run.gold - target));
     const p = pickOffer(cands, run.gold, keep, pol, rng, value < target);
     opts.onDecide?.(run, cands.map((c) => ({ def: c.def, price: c.price, kind: c.kind, merge: c.merge, rel: c.rel, ...(c.turret ? { plan: `${c.turret.into} ${c.turret.slot}${c.turret.moved !== undefined ? ` moved ${c.turret.moved}` : ""}` } : {}) })), p ? p.c.def : null);
     if (p) {
       spent.sold += buy(run, p.c, p.why, rolls, buys, opts.trace);
+      if (p.c.plan) spent.word = (spent.word ?? 0) + p.c.price; // ENCHANT-1 (E8): a word bought: its gold joins the day's cost
       continue;
     }
     if (!roomy && pol.room && run.gold >= 3 && beltFree(run.build) > 0 && !new Shopper(run.build, budget, run.day, rng, "on", maxStars, "on", "on").hasRigTile()) {
@@ -1856,13 +1928,13 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   // GATES-1 (REQ-BFG-052, G6): GATES moves them (the three in the shop; the par player buys and places them), "|gates" last
   const asked =Number.isFinite(days) ? Math.floor(days) : PLAYER_DAYS;
   const depth = asked <= PLAYER_DAYS ? PLAYER_DAYS : Math.max(PLAYER_DAYS_LONG, asked);
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${depth > PLAYER_DAYS ? `|d${depth}` : ""}${longRunRules() ? "|long" : ""}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}${plainRigsRules() ? "|pr" : ""}${shapes2Rules() ? "|s2" : ""}${scaleRules() ? "|sc" : ""}${gatesRules() ? "|gates" : ""}`; // SHAPES-1: "|sh"; PLAIN-1: "|pr"; SHAPES-2: "|s2"; SCALE-2d: "|sc" (last: SCALE_RIGS on moves every par run: the catalogue, the reworks, the rating; off: the key as before) (BUMP-1E: both sides' parts); GATES-1 (REQ-BFG-052, G6): "|gates" (after "|sc"; off: the key as before) (BUMP-1F: both sides' parts, PACKET-BUMP-0130 section 4)
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${depth > PLAYER_DAYS ? `|d${depth}` : ""}${longRunRules() ? "|long" : ""}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}${plainRigsRules() ? "|pr" : ""}${shapes2Rules() ? "|s2" : ""}${scaleRules() ? "|sc" : ""}${gatesRules() ? "|gates" : ""}${enchantRules() ? "|en" : ""}`; // SHAPES-1: "|sh"; PLAIN-1: "|pr"; SHAPES-2: "|s2"; SCALE-2d: "|sc" (last: SCALE_RIGS on moves every par run: the catalogue, the reworks, the rating; off: the key as before) (BUMP-1E: both sides' parts); GATES-1 (REQ-BFG-052, G6): "|gates" (after "|sc"; off: the key as before) (BUMP-1F: both sides' parts, PACKET-BUMP-0130 section 4); ENCHANT-1 (REQ-BFG-085): "|en" (the words move every par run; after "|gates"; off: the key as before) (BUMP-1F: every switch appended in order, PACKET-BUMP-0130 section 4)
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);
     const rng = new Rng(hashSeed("par-player-policy", hero, seed, policy));
     const persona = personaOf(hero, seed, pol);
-    const spent = { reroll: 0, sold: 0 };
+    const spent: { reroll: number; sold: number; word?: number } = { reroll: 0, sold: 0 };
     full = [];
     if (runes) dawnRune(run); // RUNES-2a: day 1's rune first (the game's picker comes before anything at dawn)
     if (persona.beltTiles > 0) drawKilnBelt(run, rng, persona.beltTiles);
@@ -1879,6 +1951,7 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
       full.push({
         day, build: cloneBuild(run.build), value: buildCost(run.build).total, budget: budget + roadGold + roadDrops, gold: run.gold, rerolls: rolls, rerollGold: spent.reroll, soldLoss: spent.sold, buys,
         ...(road ? { road, roadGold, roadDrops, cargo: run.inventory.reduce((s, it) => s + cargoValue(it), 0) } : {}),
+        ...(spent.word ? { wordGold: spent.word } : {}), // ENCHANT-1 (E8): the gold spent at the ENCHANTER by this dusk (absent off and with no word bought)
       });
       if (traced && day >= days) break;
     }
@@ -1953,6 +2026,7 @@ function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: nu
   const uid = run.nextUid, queued = run.fuseAnim?.length ?? 0; // the drop's copy takes run.nextUid (fuse.ts gainModule)
   const res = declined ? withNpcDay(() => finishWarlord(run, winner, bt.t), false) : finishWarlord(run, winner, bt.t);
   if (!res) throw new Error(`par player: the ${PAR_ROAD_TIER} warlord of day ${run.day} has no result`);
+  if (enchantRules()) settleMergePick(run); // ENCHANT-1 (E4/E8): road.ts gains the drop with no chooser: a merge of two different words left the pick open; the bot keeps the higher-valued word
   const drop = res.took;
   let placed = false;
   if (drop) {
@@ -1966,6 +2040,12 @@ function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: nu
       const [copy] = run.inventory.splice(i, 1);
       placed = placeFreePart(run, copy.def, new Rng(hashSeed("par-npcday-place", run.hero, run.seed, run.day)), pol, starsOf(copy)).placed;
     } else placed = where !== "cargo";
+  }
+  // ENCHANT-1 (E5b/E8): a warlord win's pick of 1 of 2 words (it opens only on a Hard win, which par never fights: PAR_ROAD_TIER is Medium;
+  // the bots still answer it, so a tier change or a test that opens one is played): the casual player's seeded pick, the par player's valued one
+  if (enchantRules() && pendingEnchantPick(run)) {
+    if (pol.wordBuy !== undefined) casualWarlordPick(run, new Rng(hashSeed("casual-ench-pick", run.hero, run.seed, run.day)));
+    else botWarlordPick(run, wordExtras(run));
   }
   // the day's sale loss, if the placement sold a part: what came in (the win's gold, the drop at its star, as the road
   // log counts it) minus what the deck, the purse and cargo gained
@@ -1982,22 +2062,26 @@ function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: nu
  * caravan comes back after). A part that rates no gain anywhere goes to cargo (gainModule). `rng`: the caller's own stream
  * (never the policy's). Mutates `run`; returns the rating gain and whether it was placed.
  */
-export function placeFreePart(run: Run, def: string, rng: Rng, pol: PolicyKnobs = knobsOf("typical"), stars = 1): { rel: number; placed: boolean } {
+export function placeFreePart(run: Run, def: string, rng: Rng, pol: PolicyKnobs = knobsOf("typical"), stars = 1, word?: EnchantFields): { rel: number; placed: boolean; worth?: number } {
   const shop = run.shop, merchant = ITEMS[def]?.merchant;
   if (!merchant) throw new Error(`placeFreePart: ${def} is not a shop part`);
   // HULL-1d (REQ-BFG-073): a copy at ★2 (LAST CHANCE's PART with HULL_SCALE on, lastChance.ts lastChancePartStars) goes to
   // cargo at its star in the game (run.ts takeLastChance) and merges with a twin of that star as any copy does: where that
   // twin sits on the deck, the merge is its place
+  // ENCHANT-1 (REQ-BFG-085, E5c/E8): `word`, the word LAST CHANCE's part arrives with (enchantSources.ts lastChanceWord): gained with the copy
+  // (gainModule's `word` and the bots' chooser), or put on after a buy() (freeWord); `worth` is what it is worth where it ended
   if (stars > 1) {
     const g = gainModule(simRun(run), def, undefined, stars);
     if (g.steps.length && g.where !== "cargo") {
       const base0 = rateOn(run.build, run.day);
-      gainModule(run, def, undefined, stars);
-      return { rel: relOf(run.build, base0, run.day), placed: true };
+      const at = gainModule(run, def, undefined, stars, enchantRules() ? { ...(word ? { word } : {}), choose: chooserFor(run) } : undefined);
+      const worth = enchantRules() && word ? wordValue(run.build, run.day, run.build.items.some((p) => p.uid === at.survivor) ? { kind: "item", uid: at.survivor } : { kind: "turret", slot: turretList(run.build).find((t) => t.uid === at.survivor)?.slot ?? -1 }, word.ench ?? "", { net: false, extras: wordExtras(run) }) : undefined;
+      return { rel: relOf(run.build, base0, run.day), placed: true, ...(worth !== undefined ? { worth } : {}) };
     }
   }
   const offer = (): Run["shop"] => ({ wagons: [{ merchant, offers: [{ def, price: 0, sold: false }] }], rerolls: 0, discount: 0, free: 0 });
   run.shop = offer();
+  const free = freeMark(run); // ENCHANT-1: the copy's uid and the merges queued before it (for freeWord)
   try {
     const base = stars > 1 ? rateOn(run.build, run.day) : 0;
     let best: Cand | null = null, bestRel = -Infinity;
@@ -2022,7 +2106,7 @@ export function placeFreePart(run: Run, def: string, rng: Rng, pol: PolicyKnobs 
     if (best && bestRel > 0) {
       if (stars > 1) buyStarred(run, best, def, stars);
       else buy(run, best, "best", 0, []);
-      return { rel: bestRel, placed: true };
+      return { rel: bestRel, placed: true, ...freeWord(run, def, free, word) };
     }
     // HULL-1d: with NPC_DAY on, the REFIT before every dusk: the part swapped in for a fitted piece of its kind
     const sw = npcDayRules() ? refitSwap(run, def, rng, stars) : null;
@@ -2030,16 +2114,40 @@ export function placeFreePart(run: Run, def: string, rng: Rng, pol: PolicyKnobs 
       const oldMod = run.build.mods.find((m) => m.uid === sw.swap);
       if (oldMod ? !storeMod(run, oldMod.uid) : !storePlaced(run, sw.swap)) throw new Error(`placeFreePart: the swapped-out part ${sw.swap} could not go to cargo`);
       const had = uidsOf(run.build);
-      const res = buyOffer(run, 0, 0, sw.at);
+      const res = buyOffer(run, 0, 0, sw.at, wordPick(run)); // ENCHANT-1 (E4): the bots' word pick on a merge (undefined off)
       if (!res.ok) throw new Error(`placeFreePart: the REFIT swap of ${def} failed: ${res.reason}`);
       if (stars > 1) starFresh(run.build, had, def, stars);
-      return { rel: sw.rel, placed: true };
+      return { rel: sw.rel, placed: true, ...freeWord(run, def, free, word) };
     }
-    gainModule(run, def, undefined, stars); // HULL-1d: into cargo at its star (1: as before)
+    gainModule(run, def, undefined, stars, enchantRules() ? { ...(word ? { word } : {}), choose: chooserFor(run) } : undefined); // HULL-1d: into cargo at its star (1: as before); ENCHANT-1: and with its word
     return { rel: 0, placed: false };
   } finally {
     run.shop = shop;
   }
+}
+
+/** ENCHANT-1 (E5c/E8): the copy placeFreePart is about to gain: its uid (gainModule's run.nextUid) and the merges queued before it. */
+function freeMark(run: Run): { uid: number; queued: number } {
+  return { uid: run.nextUid, queued: run.fuseAnim?.length ?? 0 };
+}
+
+/**
+ * ENCHANT-1 (REQ-BFG-085, E5c/E8): LAST CHANCE's part arrives WITH its word (run.ts takeLastChance: gainModule's `word`); placeFreePart gains
+ * the copy through buy(), which has none, so the word goes on after, by the game's own rules: on the copy where it sits, or, when the copy
+ * merged into a twin, merged into the survivor's word (fuse.ts mergeWord: the higher-valued of two different words, the bots' chooser).
+ * Returns `worth`: what the word is worth on the piece it ended on (enchantBot.ts wordValue), for the bots' LAST CHANCE pick; {} with no word.
+ */
+function freeWord(run: Run, def: string, mark: { uid: number; queued: number }, word: EnchantFields | undefined): { worth?: number } {
+  if (!enchantRules() || !word) return {};
+  const steps = (run.fuseAnim ?? []).slice(mark.queued), last = steps[steps.length - 1];
+  const at = last ? last.survivor : mark.uid;
+  const turret = turretList(run.build).find((t) => t.uid === at);
+  const piece = turret ?? run.build.items.find((p) => p.uid === at) ?? run.inventory.find((i) => i.uid === at);
+  if (!piece) return {};
+  const { kept } = mergeWord(enchantField(piece), word, (a, b) => chooserFor(run)({ def: piece.def, stars: starsOf(piece), a, b }));
+  setPieceWord(run, at, kept);
+  const placed = turret ? { kind: "turret" as const, slot: turret.slot } : run.build.items.some((p) => p.uid === at) ? { kind: "item" as const, uid: at } : undefined;
+  return { worth: placed && kept.ench ? wordValue(run.build, run.day, placed, kept.ench, { net: false, extras: wordExtras(run) }) : 0 };
 }
 
 /** HULL-1d: every placed piece's uid (rigs and factories, gear and cores, installed turrets). */
@@ -2122,7 +2230,11 @@ function lastChanceCard(run: Run, day: number, boon: Boon, pol: PolicyKnobs, hul
   }
   const lo = lastChanceOffer(run.seed, day, run.hero, (run.build.runes ?? []).map((q) => q.id), openRunesRules()), id = lo.part; // OPEN-1: the switch
   if (!id) throw new Error(`par player: no LAST CHANCE part on day ${day}`);
-  const put = placeFreePart(run, id, new Rng(hashSeed("lastchance-place", run.hero, run.seed, day)), pol, lo.partStars ?? 1); // HULL-1d: at its star
+  // ENCHANT-1 (E5c): the part arrives with its seeded word (run.ts takeLastChance), which the harness run keeps (placeFreePart's freeWord)
+  // BUMP-1F (PACKET-BUMP-0130 section 4, SEMANTIC): lw as ENCHANT computes it, then BUMP-1E's `put` and its sale: a part that finds no
+  // spot is sold into ARMOR PACKs (its word is lost with it, as lastChance.ts rates the sale floor)
+  const lw = enchantRules() ? lastChanceWord(run.seed, day, id) : null;
+  const put = placeFreePart(run, id, new Rng(hashSeed("lastchance-place", run.hero, run.seed, day)), pol, lo.partStars ?? 1, lw ? enchantField(lw) : undefined); // HULL-1d: at its star
   if (!put.placed) run.build.hullBonus += partSaleHull(id, lo.partStars ?? 1); // BUMP-1E C2: sold into ARMOR PACKs, as the pick rated it
   run.lastChance = { day, boon, id };
 }

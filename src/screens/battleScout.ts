@@ -30,7 +30,7 @@ import { tapPx } from "../ui/tap";
 import { fmtCount, fmtDmg } from "../ui/statFormat";
 import type { Sel } from "./build/layout";
 import {
-  columnButtons, drawFamHead, drawLine, fitHead, itemPanel, planPanel, routePanel, selFamilies, turretPanel, visibleLines,
+  columnButtons, drawFamHead, drawLine, fitHead, fitTitle, itemPanel, planPanel, routePanel, selFamilies, turretPanel, visibleLines,
   explainPanel, type Block, type PanelPlan, type PanelText,
 } from "./build/inspector";
 import { slotIcon } from "./build/turretPanel";
@@ -344,7 +344,7 @@ export class BattleFaces {
     const cr = plan.column ? columnButtons(1, r, tp)[0] : plan.rects ? plan.rects[0] : null;
     const hit = cr ? tapRect(cr, tp, r, tp) : null;
     if (cr) button(ui, g, "faceclose", cr, CLOSE_LABEL, { font: "3", onTap: () => this.close(), hit: hit ?? undefined });
-    fitHead(g, t.title, r.x + 23, r.y + 4, plan.subMax, t.color, true);
+    fitTitle(g, t, r.x + 23, r.y + 4, plan.subMax); // ENCHANT-1 (REQ-BFG-085, E7): an enchanted piece's word first in its colour (= fitHead for a plain one)
     const subColor = t.subColor ?? C.slate4;
     if (plan.body.sub) fitHead(g, plan.body.sub, r.x + 23, r.y + 13, plan.subMax, plan.body.subColor ?? subColor, false);
     else if (plan.subs.length > 1) plan.subs.forEach((s, i) => fitHead(g, s, r.x + 23, r.y + 13 + i * 6, plan.subMax, subColor, false));

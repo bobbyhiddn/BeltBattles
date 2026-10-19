@@ -24,6 +24,7 @@ import { buy, selectGain, sell, type Ctx } from "./actions";
 import type { Sel } from "./layout";
 import { cargoPanel, offerPanel, type Block, type PanelText } from "./inspector"; // 0.6.2rel: the text series' panels
 import { sellTurretAt, storeTurretAt } from "./turretActions";
+import { enchantedTitle, wordOn, type WordOn } from "../../ui/enchantFaces"; // ENCHANT-1 (REQ-BFG-085, E7): the word first in an installed turret's title
 
 /** inspector.ts Spec's shape (structural): the icon, the panel's text (0.6.2rel: PanelText) and its buttons. */
 export interface TurretPanelSpec {
@@ -141,10 +142,18 @@ export function emptySlotPanel(b: Build, t: number): PanelText {
   };
 }
 
-/** An installed turret's title: its name and stars (inspector.ts turret case). */
+/** ENCHANT-1 (REQ-BFG-085, E7): the word the installed turret in slot t holds, as the faces read it (enchantFaces.ts wordOn: none with the
+ *  switch off, for no word or for a word that cannot go on a turret); undefined for an empty slot. */
+export function slotWord(b: Build, t: number): WordOn | undefined {
+  const tu = turretSlots(b)[t]?.turret;
+  return tu ? wordOn(tu, ITEMS[tu.def], starsOf(tu)) : undefined;
+}
+
+/** An installed turret's title: its name and stars (inspector.ts turret case). ENCHANT-1 (E7): the word first (`FIERY SCRAP CANNON ★★`). */
 export function slotTitle(b: Build, t: number): string {
   const tu = turretSlots(b)[t]?.turret;
-  return tu ? starred(ITEMS[tu.def].name, starsOf(tu)) : `TURRET SLOT ${t + 1}`;
+  const w = slotWord(b, t); // ENCHANT-1
+  return tu ? (w ? enchantedTitle(w.id, starred(ITEMS[tu.def].name, starsOf(tu))) : starred(ITEMS[tu.def].name, starsOf(tu))) : `TURRET SLOT ${t + 1}`;
 }
 
 /** Its colour: the turret's rarity. */

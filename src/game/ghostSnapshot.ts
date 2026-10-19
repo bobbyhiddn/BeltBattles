@@ -29,6 +29,8 @@ import { pickGateProblem } from "../net/rulesGate"; // RETUNE-1 T5: the decoder'
 import { openRunesFor } from "../net/rulesGate"; // OPEN-1 (REQ-BFG-109): the offer rule of the snapshot's rules
 import { FIRST_RUN_FIELD } from "../net/snapshot"; // FIRSTDAY-1 (REQ-BFG-004, F4): the decoder's first-run key
 import { firstRunGateProblem } from "../net/rulesGate"; // FIRSTDAY-1: the decoder's gate
+import { MAX_GROW, enchantKeysFor } from "../net/snapshot"; // ENCHANT-1 (REQ-BFG-085): the decoder's enchantment keys and GROWING's bound
+import { isEnchantId } from "../sim/enchant"; // ENCHANT-1
 
 // 0.6.1a: v2 = v1 plus an optional `stars` (an integer 1..3; absent = 1) on any build.items[i] and
 // build.mods[i]; src/net/snapshot.ts changes in the same commit (tests/snapshot.contract.test.ts).
@@ -61,6 +63,9 @@ const MAX_UID = 2 ** 31 - 1; // = src/net/snapshot.ts MAX_UID
 const MAX_BELT_CAP = 1000; // = checkBuildShape's beltCap 0..1000
 const HULL_BONUS_MIN = -10000, HULL_BONUS_MAX = 100000; // = its hullBonus -1000..10000
 const TURRET_KEYS = ["slot", "def", "uid", "stars", "free"]; // RUNES-1: a turret's `grow` is refused (off) like any unknown key
+// ENCHANT-1 (REQ-BFG-085): and so is `ench`, except under ENCHANT's rules world (snapshot.ts enchantKeysFor), where a turret may also
+// carry `ench` and, holding GROWING, `grow`; an item `ench`, `enchDir` and (GROWING) `grow`
+const TURRET_ENCH_KEYS = ["ench", "grow"];
 /** runId, playerId: anonymous, no personal data (same pattern as the async contract). */
 export const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 /** Where the anonymous player id lives (made once per device). */
@@ -127,17 +132,32 @@ function rotOk(items: unknown[], mods: unknown[], v: number): boolean {
 /** 0.6.2s TURRET SLOTS (S8): the build's `turrets`: absent, or (v2 only) an array of at most MAX_TURRETS strict
  *  entries: slot (0..MAX_SLOT), def (DEF_PATTERN), uid (0..MAX_UID), optional stars (1..MAX_STARS) and free (exactly
  *  true: false is never written); no other keys. */
-function turretsOk(q: object, v: number): boolean {
+function turretsOk(q: object, v: number, rules?: unknown): boolean {
   const list = (q as { turrets?: unknown }).turrets;
   if (list === undefined) return true; // absent (an in-memory `turrets: undefined` too: JSON drops it)
   if (v < 2 || !Array.isArray(list) || list.length > MAX_TURRETS) return false;
+  const ench = enchantKeysFor(rules); // ENCHANT-1: the word's keys under its rules world only
   return list.every((t) => {
     if (!t || typeof t !== "object" || Array.isArray(t)) return false;
     const e = t as Raw;
-    return Object.keys(e).every((k) => TURRET_KEYS.includes(k)) && inRange(e.slot, 0, MAX_SLOT)
+    return Object.keys(e).every((k) => TURRET_KEYS.includes(k) || (ench && TURRET_ENCH_KEYS.includes(k))) && inRange(e.slot, 0, MAX_SLOT)
       && typeof e.def === "string" && DEF_PATTERN.test(e.def) && inRange(e.uid, 0, MAX_UID)
-      && (!("stars" in e) || inRange(e.stars, 1, MAX_STARS)) && (!("free" in e) || e.free === true);
+      && (!("stars" in e) || inRange(e.stars, 1, MAX_STARS)) && (!("free" in e) || e.free === true)
+      && enchPieceOk(e, v, ench, false); // ENCHANT-1 (REQ-BFG-085): ench an id; grow only on a GROWING piece, 1..MAX_GROW, in v3
   });
+}
+
+/**
+ * ENCHANT-1 (REQ-BFG-085, E2), snapshot.ts enchFields and grow as a predicate: a piece's `ench` (absent, or an ENCHANT_IDS id from
+ * v2 on, only where `allowed`), its `enchDir` (items only: 0..3 and only with WIDE) and its `grow` (1..MAX_GROW, only on a piece
+ * holding GROWING, in v3, only where `allowed`). A key whose value is undefined is absent (JSON drops it).
+ */
+function enchPieceOk(e: Raw, v: number, allowed: boolean, item: boolean): boolean {
+  const word = e.ench, dir = e.enchDir, g = e[V3_PIECE_FIELD];
+  if (word !== undefined && !(allowed && v >= 2 && isEnchantId(word))) return false;
+  if (dir !== undefined && !(item && allowed && word === "wide" && inRange(dir, 0, 3))) return false;
+  if (g !== undefined && !(allowed && word === "growing" && v >= SNAPSHOT_V3 && inRange(g, 1, MAX_GROW))) return false;
+  return true;
 }
 
 /** 0.6.2j (J12): every route's `join`: absent, or (v2 only) a cell key 0..GRID*GRID-1 (a joining belt's join tile). */
@@ -166,6 +186,23 @@ const v3Ok = (field: string, v: number): boolean => v >= SNAPSHOT_V3 && !!V3_LIV
 const growOk = (list: unknown[], v: number): boolean =>
   list.every((p) => !p || typeof p !== "object" || (p as Raw)[V3_PIECE_FIELD] === undefined || v3Ok(V3_PIECE_FIELD, v));
 
+/**
+ * ENCHANT-1 (REQ-BFG-085, E2): every item's `ench` and `enchDir` (absent, or taken only under ENCHANT's rules world: the strict
+ * decoder's enchantKeysFor) and its `grow` (taken only on a piece holding GROWING in that world, else refused as growOk does).
+ * Which kind of piece may carry which word is validate.ts's.
+ */
+function itemEnchOk(items: unknown[], v: number, rules?: unknown): boolean {
+  const allowed = enchantKeysFor(rules);
+  const own = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+  return items.every((p) => {
+    if (!p || typeof p !== "object") return true;
+    const e = p as Raw;
+    if (!allowed && (own(e, "ench") || own(e, "enchDir"))) return false; // an unknown field, as the decoder says
+    if (e[V3_PIECE_FIELD] !== undefined && !(allowed && e.ench === "growing")) return v3Ok(V3_PIECE_FIELD, v); // GROW-1's own: refused while off
+    return enchPieceOk(e, v, allowed, true);
+  });
+}
+
 /** RUNES-1 (snapshot v3): the build's `runes`: absent, or (v3) a list of at most MAX_RUNES strict entries { id } (id
  *  DEF_PATTERN; the counter `n` refused while off), exactly as src/net/snapshot.ts checkBuildShape takes it; and the
  *  build's `gold` refused while off. Which ids are legal is runeProblem's (isSnapshot). */
@@ -187,8 +224,9 @@ function buildOk(b: unknown, v = SNAPSHOT_VERSION, rules?: unknown, top?: number
   const q = b as Build | null;
   return !!q && typeof q === "object" && !!HEROES[q.hero] && Array.isArray(q.items) && Array.isArray(q.routes)
     && Array.isArray(q.mods) && inRange(q.beltCap, 0, MAX_BELT_CAP) && inRange(q.hullBonus, HULL_BONUS_MIN, HULL_BONUS_MAX)
-    && starsOk(q.items, v) && starsOk(q.mods, v) && rotOk(q.items, q.mods, v) && turretsOk(q, v) && joinOk(q.routes, v)
-    && upgradesOk(q, v) && runesOk(q, v, rules, top) && growOk(q.items, v) && growOk(q.mods, v); // RUNES-1: runes, gold, grow; RUN-1: runes by the rules; ENDLESS-1: and an endless snapshot's day bound
+    && starsOk(q.items, v) && starsOk(q.mods, v) && rotOk(q.items, q.mods, v) && turretsOk(q, v, rules) && joinOk(q.routes, v)
+    && upgradesOk(q, v) && runesOk(q, v, rules, top) && itemEnchOk(q.items, v, rules) && growOk(q.mods, v) // RUNES-1: runes, gold, grow; RUN-1: runes by the rules; ENDLESS-1: and an endless snapshot's day bound (BUMP-1F: ENCHANT's turretsOk/itemEnchOk with BUMP-1E's `top`); ENCHANT-1: ench, enchDir, grow on items and turrets by the rules
+    && !q.mods.some((m) => !!m && typeof m === "object" && ("ench" in m || "enchDir" in m)); // ENCHANT-1: gear takes no enchantment (the decoder: an unknown field)
 }
 
 /** An integer in min..max (the async contract's int(): ref/async-snapshot.ts checkSnapshot). */

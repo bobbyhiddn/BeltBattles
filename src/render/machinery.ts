@@ -21,6 +21,7 @@ import { raceChuteMouth } from "./raceArt"; // 0.8.0 H1
 import { stokeFlare, wave3ChuteMouth, wave3FactoryArt, wave3GateSprite } from "./wave3Art"; // 0.8.0 A1; I1 M4: the moments
 import { factoryMoment, rigMoment, stokedNow } from "./wave3Moments"; // 0.8.0 I1 M4: A1's battle moments, from P1's sim
 import { drawLevelMarks } from "./levelMark"; // bb-0.8.3 (REQ-BFG-043 D11): the hero factory's FACTORY level
+import { drawEnchantMachinery } from "./enchantMarks"; // ENCHANT-1 (REQ-BFG-085): the words' board marks
 import type { CruiserView, RigModel } from "./cruiser";
 import { skinOf, type BeltId } from "./styles"; // CUSTOM-1 (REQ-BFG-072) hook; CUSTOM-2a: the board's belt style (its view's skin)
 import { cellsOf, type Placed, type RigArrow } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 S8)
@@ -715,4 +716,5 @@ export function drawMachinery(g: G, v: CruiserView): void {
   drawConverters(g, v); // GATES-1 (REQ-BFG-052): the gates standing on belt tiles, over the slugs at their edges (nothing with GATES off)
   drawFactories(g, v);
   drawRigs(g, v);
+  drawEnchantMachinery(g, v); // ENCHANT-1 (REQ-BFG-085): a word's spark and GROWING's counter on the rigs and factories (nothing with the switch off)
 }

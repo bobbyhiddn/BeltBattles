@@ -36,6 +36,9 @@ export { RESHAPED_IDS, shapesRules } from "./shapes";
 export { isShapes2Piece, shapes2Rules } from "./shapes2";
 export { gatesRules, isGatesPiece } from "./gates"; // GATES-1 (REQ-BFG-052): re-exported, as SHAPES2's are
 export { isConverterItem } from "./split"; // GATES-1 (REQ-BFG-057): beltside.ts imports only ./content and ./deck
+// ENCHANT-1 (REQ-BFG-085): the enchantments' switch and fields; re-exported so the portable stand-in loader (standInPool.ts) imports only ./content and ./deck
+import { enchantField, enchantRate, enchantRules, freeSides, type EnchantFields } from "./enchant";
+export { enchantCodeOf, enchantIdOfCode, enchantField, enchantRules } from "./enchant";
 
 export type Dir = 0 | 1 | 2 | 3;
 export const DX = [0, 1, 0, -1];
@@ -53,7 +56,9 @@ export interface Placed {
   // SHAPES-1 (REQ-BFG-086 R1): also a shaped factory's, in its lowest form that gives the same cells (foot.ts
   // canonicalRot: a 2x3 or I3 factory 1, a 2x2 never). (x, y) is the top-left of the turned footprint's bounding box.
   rot?: number;
-  grow?: number; // RUNES-1 (snapshot v3): GROW-1's counter; refused by both snapshot checks until GROW-1 switches it on
+  grow?: number; // RUNES-1 (snapshot v3): GROW-1's counter; refused by both snapshot checks until GROW-1 switches it on. ENCHANT-1: and taken on a piece holding GROWING (enchant.ts), under ENCHANT's rules world
+  ench?: string; // ENCHANT-1 (REQ-BFG-085): the piece's enchantment, an enchant.ts ENCHANT_IDS id; absent when none (a rig, a factory), written after the other keys
+  enchDir?: number; // ENCHANT-1: WIDE on a rig: the added arrow's side at rotation 0 (0-3, a side with no arrow); absent otherwise
 }
 
 export interface RouteDef {
@@ -102,7 +107,8 @@ export interface BuildTurret {
   uid: number;
   stars?: number; // 2 or 3 after a merge; absent = 1 (never written as 1)
   free?: boolean; // S7: true when it contains the hull's starting copy; absent = false (never written as false)
-  grow?: number; // RUNES-1 (snapshot v3): GROW-1's counter; refused until GROW-1 switches it on
+  grow?: number; // RUNES-1 (snapshot v3): GROW-1's counter; refused until GROW-1 switches it on. ENCHANT-1: and taken on a turret holding GROWING
+  ench?: string; // ENCHANT-1 (REQ-BFG-085): the turret's enchantment (an ENCHANT_IDS id); absent when none
 }
 
 /** A turret copy anywhere (a slot's or cargo's): what S7's value and selling read. */
@@ -111,6 +117,8 @@ export interface TurretCopy {
   def: string;
   stars?: number;
   free?: boolean;
+  ench?: string; // ENCHANT-1 (REQ-BFG-085): a copy keeps its word and its GROWING counter (enchantField)
+  grow?: number;
 }
 
 export const key = (x: number, y: number) => y * GRID + x;
@@ -277,9 +285,21 @@ export function rigArrows(def: string | ItemDef, rot = 0): Dir[] {
   return SHAPE_ARROWS[shape].map((d) => ((d + r) % 4) as Dir);
 }
 
-/** A placed rig's arrows (absolute deck-local directions); [] for anything that is not a rig. */
+/** A placed rig's arrows (absolute deck-local directions); [] for anything that is not a rig. ENCHANT-1: WIDE adds one more
+ *  (wideDir), after the rig's own. */
 export function arrowsOf(p: Placed): Dir[] {
-  return rigArrows(p.def, rotOf(p));
+  const a = rigArrows(p.def, rotOf(p));
+  const w = wideDir(p); // ENCHANT-1 (REQ-BFG-085)
+  return w === undefined ? a : [...a, w];
+}
+
+/** ENCHANT-1 (REQ-BFG-085, E3): the absolute side of a WIDE rig's added arrow: its enchDir (the side at rotation 0) turned with
+ *  the rig, or undefined. Only a 1-cell rig with that side free takes it (enchant.ts freeSides: not a shaped rig, an X rig or
+ *  a side that carries an arrow), and only with the switch on; a forged side adds nothing here (the validators refuse it). */
+export function wideDir(p: Placed): Dir | undefined {
+  if (p.ench !== "wide" || p.enchDir === undefined || !enchantRules()) return undefined;
+  if (!freeSides(Object.prototype.hasOwnProperty.call(ITEMS, p.def) ? ITEMS[p.def] : undefined).includes(p.enchDir)) return undefined;
+  return ((p.enchDir + rotOf(p)) % 4) as Dir;
 }
 
 /** The rot to store for a rig: undefined for 0 and for an X rig (D1: absent means 0). SHAPES-1 (R1): for any deck piece,
@@ -389,9 +409,11 @@ export function rigArrowCells(def: string | ItemDef, x: number, y: number, rot =
   return out;
 }
 
-/** SHAPES-1 (R2): a placed rig's arrows (rigArrowCells at its own cell and rot). */
+/** SHAPES-1 (R2): a placed rig's arrows (rigArrowCells at its own cell and rot). ENCHANT-1: WIDE's added arrow after them. */
 export function arrowCellsOf(p: Placed): RigArrow[] {
-  return rigArrowCells(p.def, p.x, p.y, rotOf(p));
+  const a = rigArrowCells(p.def, p.x, p.y, rotOf(p));
+  const w = wideDir(p); // ENCHANT-1 (REQ-BFG-085): a 1-cell rig only (WIDE is refused on a shaped rig)
+  return w === undefined ? a : [...a, { from: inGrid(p.x, p.y) ? key(p.x, p.y) : -1, dir: w, to: arrowCell(p.x, p.y, w) }];
 }
 
 /**
@@ -1329,10 +1351,14 @@ function resolveSlots(heroId: HeroId, list: readonly BuildTurret[], level = 1): 
     if (!t) return { slot: i, col0: s.col0, width: s.width, ...(s.start ? { start: s.start } : {}), intakes: [], gearSlots: 0 };
     const td0 = turretDefIn(s, t.def, starsOf(t));
     // bb-0.8.3 (REQ-BFG-043 D10): TURRET SPEED: a starting turret (it holds the free copy) fires at its level's share
-    const td = t.free && level > 1 ? { ...td0, speed: levelSpeed(td0.speed, level, TURRET_SPEED) } : td0; // NUM-2: whole steps
+    const td1 = t.free && level > 1 ? { ...td0, speed: levelSpeed(td0.speed, level, TURRET_SPEED) } : td0; // NUM-2: whole steps
+    // ENCHANT-1 (REQ-BFG-085, E3): MASSIVE halves and SWIFT doubles the turret's own rate (enchant.ts enchantRate), so the battle and the
+    // panel read one number; WIDE adds a gear slot. Off, or with no word: the very same objects as before
+    const live = enchantRules() && t.ench !== undefined;
+    const td = live && (t.ench === "massive" || t.ench === "swift") ? { ...td1, speed: enchantRate(t.ench, td1.speed) } : td1;
     return {
       slot: i, col0: s.col0, width: s.width, ...(s.start ? { start: s.start } : {}), turret: { ...t }, td,
-      intakes: td.connectors, gearSlots: gearSlotsOf(t.def, starsOf(t)),
+      intakes: td.connectors, gearSlots: gearSlotsOf(t.def, starsOf(t)) + (live && t.ench === "wide" ? 1 : 0), // ENCHANT-1: WIDE
     };
   });
 }
@@ -1433,7 +1459,7 @@ export function canFitGear(b: Build, t: number, def: string, exceptUid = -1): { 
 
 function normTurret(t: BuildTurret): BuildTurret {
   const s = starsOf(t);
-  return { slot: t.slot, def: t.def, uid: t.uid, ...(s > 1 ? { stars: s } : {}), ...(t.free ? { free: true } : {}) };
+  return { slot: t.slot, def: t.def, uid: t.uid, ...(s > 1 ? { stars: s } : {}), ...(t.free ? { free: true } : {}), ...enchantField(t) }; // ENCHANT-1: ench, grow
 }
 
 /** S8/S11: set the installed turrets (any order). Stored in slot order; the field is dropped when the list IS the
@@ -1459,7 +1485,7 @@ const opFail = (reason: string): TurretOpResult => ({ ok: false, reason, turrets
 
 const copyOfTurret = (t: BuildTurret): TurretCopy => {
   const s = starsOf(t);
-  return { uid: t.uid, def: t.def, ...(s > 1 ? { stars: s } : {}), ...(t.free ? { free: true } : {}) };
+  return { uid: t.uid, def: t.def, ...(s > 1 ? { stars: s } : {}), ...(t.free ? { free: true } : {}), ...enchantField(t) }; // ENCHANT-1: the word rides along
 };
 
 /** An emptied slot holds no core and no gear (S4): take them off, last placed first. */
@@ -1493,7 +1519,7 @@ export function installTurret(b: Build, c: TurretCopy, t: number): TurretOpResul
   if (list.some((x) => x.uid === c.uid)) return opFail("ALREADY INSTALLED");
   const old = list.find((x) => x.slot === t);
   const next = list.filter((x) => x.slot !== t);
-  next.push({ slot: t, def: c.def, uid: c.uid, ...(c.stars ? { stars: c.stars } : {}), ...(c.free ? { free: true } : {}) });
+  next.push({ slot: t, def: c.def, uid: c.uid, ...(c.stars ? { stars: c.stars } : {}), ...(c.free ? { free: true } : {}), ...enchantField(c) }); // ENCHANT-1: ench, grow
   setTurretList(b, next);
   return { ok: true, turrets: old ? [copyOfTurret(old)] : [], mods: trimGear(b, t) };
 }
@@ -1524,6 +1550,22 @@ export function removeTurret(b: Build, t: number): TurretOpResult {
   if (!a) return opFail("EMPTY TURRET SLOT");
   setTurretList(b, list.filter((x) => x !== a));
   return { ok: true, turrets: [copyOfTurret(a)], mods: stripSlot(b, t) };
+}
+
+/**
+ * ENCHANT-1 (REQ-BFG-085, E3/E4): put a word on the turret in slot t (`fields`: enchantField's keys, `{}` for none), replacing any
+ * it holds. WIDE gives a gear slot, so losing it (a replace, a merge's pick) sends the gear beyond the slots left back for cargo, last
+ * placed first, exactly as trimGear does for a turret that shrinks. Fails on an empty slot.
+ */
+export function setTurretWord(b: Build, t: number, fields: EnchantFields): TurretOpResult {
+  const list = turretList(b);
+  const a = list.find((x) => x.slot === t);
+  if (!a) return opFail("EMPTY TURRET SLOT");
+  delete a.ench;
+  delete a.grow;
+  Object.assign(a, enchantField(fields));
+  setTurretList(b, list);
+  return { ok: true, turrets: [], mods: trimGear(b, t) };
 }
 
 /** S2/S5: the belts whose last tile sits under slot t's columns but that no intake takes any more (dead ends that

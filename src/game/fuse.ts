@@ -6,8 +6,9 @@
 // any run mutation no two fusible copies share a def and a star level below FUSE_MAX.
 
 import { ITEMS } from "../sim/content";
-import { coreFor, removeItem, removeTurret, rotField, routesOf, setTurretList, turretList } from "../sim/deck";
-import { FUSE_MAX, fusible, starField, starsOf } from "../sim/stars";
+import { coreFor, removeItem, removeTurret, rotField, routesOf, setTurretList, setTurretWord, turretList } from "../sim/deck";
+import { enchantField, enchantRules, mergeWord, sameEnchant, type EnchantFields, type WordChooser } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085, E4)
+import { FUSE_MAX, fusible, gradeOf, outputsAt, starField, starsOf } from "../sim/stars";
 import type { InvItem, Run } from "./run";
 
 // 0.6.2s (REQ-BFG-031 S6, S7): turrets merge like every buyable module. An installed turret is a copy "slot"
@@ -41,17 +42,76 @@ export interface Gain {
   where: FuseWhere;
 }
 
-interface Copy { uid: number; def: string; stars: number; where: FuseWhere; belts: number; free?: boolean; slot?: number }
+interface Copy { uid: number; def: string; stars: number; where: FuseWhere; belts: number; free?: boolean; slot?: number; word?: EnchantFields }
+
+/** ENCHANT-1 (REQ-BFG-085, E4): a copy's word, only while the switch is on and the copy holds one (else no key at all). */
+const wordOf = (o: { ench?: string; enchDir?: number; grow?: number }): { word?: EnchantFields } =>
+  enchantRules() && o.ench !== undefined ? { word: enchantField(o) } : {};
 
 function copiesOf(run: Run, def?: string): Copy[] {
   const b = run.build;
   const out: Copy[] = [];
-  for (const p of b.items) if (!def || p.def === def) out.push({ uid: p.uid, def: p.def, stars: starsOf(p), where: "deck", belts: routesOf(b, p.uid).length });
+  for (const p of b.items) if (!def || p.def === def) out.push({ uid: p.uid, def: p.def, stars: starsOf(p), where: "deck", belts: routesOf(b, p.uid).length, ...wordOf(p) });
   for (const m of b.mods) if (!def || m.def === def) out.push({ uid: m.uid, def: m.def, stars: starsOf(m), where: "turret", belts: 0 });
   // 0.6.2s: installed turrets (the starting layout's free copies when Build.turrets is absent)
-  for (const t of turretList(b)) if (!def || t.def === def) out.push({ uid: t.uid, def: t.def, stars: starsOf(t), where: "slot", belts: 0, ...(t.free ? { free: true } : {}), slot: t.slot });
-  for (const i of run.inventory) if (!def || i.def === def) out.push({ uid: i.uid, def: i.def, stars: starsOf(i), where: "cargo", belts: 0, ...(i.free ? { free: true } : {}) });
+  for (const t of turretList(b)) if (!def || t.def === def) out.push({ uid: t.uid, def: t.def, stars: starsOf(t), where: "slot", belts: 0, ...(t.free ? { free: true } : {}), slot: t.slot, ...wordOf(t) });
+  for (const i of run.inventory) if (!def || i.def === def) out.push({ uid: i.uid, def: i.def, stars: starsOf(i), where: "cargo", belts: 0, ...(i.free ? { free: true } : {}), ...wordOf(i) });
   return out;
+}
+
+/**
+ * ENCHANT-1 (REQ-BFG-085, E4): put a word (`fields`: enchantField's keys, `{}` for none) on the copy `uid`, wherever it is (a deck
+ * rig or factory, an installed turret, a cargo piece), replacing any it holds: the old word, its side and its GROWING counter are
+ * gone. A turret that loses WIDE sends the gear it can no longer hold to cargo (deck.ts setTurretWord). Gear holds no word.
+ */
+export function setPieceWord(run: Run, uid: number, fields: EnchantFields): void {
+  const b = run.build;
+  const t = turretList(b).find((x) => x.uid === uid);
+  if (t) {
+    for (const m of setTurretWord(b, t.slot, fields).mods) run.inventory.push({ uid: m.uid, def: m.def, ...starField(starsOf(m)) });
+    return;
+  }
+  const o = b.items.find((p) => p.uid === uid) ?? run.inventory.find((i) => i.uid === uid);
+  if (!o) return;
+  delete o.ench;
+  delete o.enchDir;
+  delete o.grow;
+  Object.assign(o, enchantField(fields));
+}
+
+/** Why a factory cannot lose WIDE now (the short player reason), shown by APPLY and the merge pick. */
+export const EXTRA_BELT_LEFT = "TAKE ITS EXTRA BELT OFF FIRST";
+/** The toast a merge shows when the survivor keeps WIDE because its extra belt is in use. */
+export const KEPT_WIDE = "KEPT WIDE: ITS EXTRA BELT IS IN USE";
+
+/**
+ * ENCHANT-1 (run 5; the code reviewers' finding): does the deck factory `uid` hold WIDE and feed more belts than its own outputs, so the
+ * belt slot WIDE gives it is in use? Losing WIDE then would leave the factory with more belts than outputs and block FIGHT (routeCheck.ts,
+ * validate.ts). A turret that loses WIDE sends its extra gear to cargo (setTurretWord); a belt has no cargo, so the word stays until the
+ * belt is taken off: APPLY refuses a replace (applyProblem) and a merge keeps WIDE (mergeWords, pickMergedWord).
+ */
+export function extraBeltInUse(run: Run, uid: number): boolean {
+  if (!enchantRules()) return false;
+  const p = run.build.items.find((q) => q.uid === uid);
+  if (!p || p.ench !== "wide" || ITEMS[p.def]?.kind !== "factory") return false;
+  return routesOf(run.build, uid).length > (outputsAt(p.def, gradeOf(run.build, p)) || 1);
+}
+
+/**
+ * ENCHANT-1 (E4): the merge pick. When a merge joined two DIFFERENT words, the survivor already keeps one (the bots' valued choice, else
+ * its own) and `run.enchMerge` names the survivor, the word kept and the one lost. `takeLost` swaps them: the build screen asks the
+ * player (`FIERY OR RISING?`) and calls this; keeping the word is the default. False when no pick is open, or (run 5) when taking the
+ * other word would take WIDE off a factory whose extra belt is in use (the pick stays open: lay that belt off, then pick).
+ */
+export function pickMergedWord(run: Run, takeLost: boolean): boolean {
+  const m = run.enchMerge;
+  if (!m) return false;
+  if (takeLost && extraBeltInUse(run, m.uid)) return false; // the pick stays open; the screen says EXTRA_BELT_LEFT
+  delete run.enchMerge;
+  const now = find(run, m.uid); // the piece may have been sold or changed since: then there is nothing to pick
+  if (!now || !sameEnchant(now.word, m.kept)) return false;
+  if (takeLost) setPieceWord(run, m.uid, m.lost);
+  return true;
 }
 
 /** 0.6.2s S6: may copies x and y (same def, same stars) merge? Not two free starting copies. */
@@ -110,10 +170,10 @@ function survivorOf(a: Copy, b: Copy, arriving: number | null): Copy {
   return a.uid < b.uid ? a : b; // 4. otherwise the lower uid
 }
 
-function chain(run: Run, uid: number, arrivingFirst: boolean): FuseStep[] {
+function chain(run: Run, uid: number, arrivingFirst: boolean, choose?: WordChooser): FuseStep[] {
   const steps: FuseStep[] = [];
   let cur = find(run, uid);
-  let first = true;
+  let first = true, picked = false;
   while (cur && fusible(cur.def) && cur.stars < FUSE_MAX) {
     const c = cur;
     const twin = copiesOf(run, c.def).filter((t) => t.uid !== c.uid && t.stars === c.stars && mergeable(c, t)).sort((x, y) => x.uid - y.uid)[0];
@@ -123,12 +183,33 @@ function chain(run: Run, uid: number, arrivingFirst: boolean): FuseStep[] {
     const belts = absorb(run, lose);
     const stars = c.stars + 1;
     setStars(run, keep.uid, stars, !!lose.free); // 0.6.2s: free is kept when the starting copy merges in
+    if (keep.word || lose.word) picked = mergeWords(run, keep, lose, stars, choose) || picked; // ENCHANT-1 (REQ-BFG-085, E4): the merged piece keeps one word
     steps.push({ def: c.def, absorbed: lose.uid, survivor: keep.uid, stars, where: keep.where, ...(belts ? { belts } : {}) });
     cur = find(run, keep.uid);
     first = false;
   }
+  if (picked && run.enchMerge) { // ENCHANT-1: this chain opened a pick: it names the final survivor, while the word kept is still the one on it
+    if (!cur || !sameEnchant(cur.word, run.enchMerge.kept)) delete run.enchMerge;
+    else run.enchMerge.uid = cur.uid;
+  }
   if (steps.length) queueFx(run, steps);
   return steps;
+}
+
+/** ENCHANT-1 (REQ-BFG-085, E4): copy `lose` merged into `keep` (now at `stars`): `keep` holds one word. One word: it is kept (it moves
+ *  onto the survivor). Two different words: the chooser's, else the survivor's own, and the pick stays open (`run.enchMerge`; true). */
+function mergeWords(run: Run, keep: Copy, lose: Copy, stars: number, choose?: WordChooser): boolean {
+  let { kept, lost } = mergeWord(keep.word, lose.word, choose && ((a, b) => choose({ def: keep.def, stars, a, b })));
+  // ENCHANT-1 (run 5): a factory using WIDE's extra belt keeps WIDE (the survivor's own word); the other word is lost without a pick
+  if (lost && keep.where === "deck" && keep.word?.ench === "wide" && extraBeltInUse(run, keep.uid)) {
+    kept = keep.word;
+    lost = undefined;
+    run.fuseFx = [...(run.fuseFx ?? []), KEPT_WIDE];
+  }
+  if (!sameEnchant(keep.word, kept) || (kept.grow ?? 0) !== (keep.word?.grow ?? 0)) setPieceWord(run, keep.uid, kept);
+  if (!lost) return false;
+  run.enchMerge = { uid: keep.uid, kept, lost };
+  return true;
 }
 
 /** Cosmetic: the build screen toasts these in order ("MERGED: TEMPER ★2", "MERGED · 1 BELT REMOVED").
@@ -142,18 +223,19 @@ function queueFx(run: Run, steps: FuseStep[]): void {
 }
 
 /** The chain loop from copy `uid`: merge while a twin (same def, same stars below FUSE_MAX) exists. */
-export function fuseFrom(run: Run, uid: number): FuseStep[] {
-  return chain(run, uid, true);
+export function fuseFrom(run: Run, uid: number, choose?: WordChooser): FuseStep[] {
+  return chain(run, uid, true, choose);
 }
 
-/** Merge every pair in the run (migration of old saves, tooling). Lowest stars first, then uid. */
-export function fuseAll(run: Run): FuseStep[] {
+/** Merge every pair in the run (migration of old saves, tooling). Lowest stars first, then uid. ENCHANT-1: `choose` picks the word
+ *  a merge of two different words keeps (the bots'); without it the survivor's own. */
+export function fuseAll(run: Run, choose?: WordChooser): FuseStep[] {
   const steps: FuseStep[] = [];
   for (;;) {
     const all = copiesOf(run).filter((c) => fusible(c.def) && c.stars < FUSE_MAX).sort((x, y) => x.stars - y.stars || x.uid - y.uid);
     const c = all.find((x) => all.some((y) => y !== x && y.def === x.def && y.stars === x.stars && mergeable(x, y)));
     if (!c) return steps;
-    steps.push(...chain(run, c.uid, false));
+    steps.push(...chain(run, c.uid, false, choose));
   }
 }
 
@@ -175,14 +257,15 @@ function freeSocket(run: Run, turret: number): void {
  *  turret falls back to its signature core.
  *  HULL-1c (REQ-BFG-078; REVIEW-HULL1B N3): `stars` counts only for a copy to cargo (no `at`); a copy put on a cell or a
  *  turret (`at`) is ★1 whatever `stars` says. Its one caller with `stars`, road.ts finishWarlord, passes no `at`. */
-export function gainModule(run: Run, def: string, at?: GainAt, stars = 1): Gain {
+export function gainModule(run: Run, def: string, at?: GainAt, stars = 1, opts?: { word?: EnchantFields; choose?: WordChooser }): Gain {
   const uid = run.nextUid++;
   if (at && "turret" in at && ITEMS[def]?.kind === "core") freeSocket(run, at.turret);
   if (at && "turret" in at) run.build.mods.push({ uid, def, turret: at.turret });
   else if (at) run.build.items.push({ uid, def, x: at.x, y: at.y, ...rotField(def, at.rot ?? 0) }); // rot: rigs only, never 0
   // HULL-1b (REQ-BFG-078): `stars`, a copy above 1 star into cargo (NPC_DAY's Hard drop at ★2); 1 = as before
-  else run.inventory.push({ uid, def, ...starField(stars) });
-  const steps = fuseFrom(run, uid);
+  // ENCHANT-1 (REQ-BFG-085): `opts.word`, a copy that arrives enchanted into cargo (LAST CHANCE's part card); `opts.choose`, the bots' word pick
+  else run.inventory.push({ uid, def, ...starField(stars), ...(enchantRules() ? enchantField(opts?.word) : {}) });
+  const steps = fuseFrom(run, uid, opts?.choose);
   const fin = find(run, steps.length ? steps[steps.length - 1].survivor : uid)!;
   return { uid, steps, survivor: fin.uid, stars: fin.stars, where: fin.where };
 }
