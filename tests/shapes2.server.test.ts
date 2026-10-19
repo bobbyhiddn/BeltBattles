@@ -14,7 +14,7 @@ import { withShapes } from "../src/sim/shapes";
 import { withPlainRigs, setPlainRigs, PLAIN_RIGS } from "../src/sim/plainRigs";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { validateUpload } from "../src/net/validate";
-import { SHAPES2_RULES, longRunFor } from "../src/net/rulesGate";
+import { SHAPES2_RULES, longRunFor, rulesAtLeast } from "../src/net/rulesGate"; // BUMP-1E: + rulesAtLeast (this build's rules are at or after SHAPES2_RULES)
 import { reachableRecords } from "../src/net/records";
 import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
@@ -105,8 +105,13 @@ describe("SHAPES-2 S4: the client check and POST /v1/ghosts agree on the six, in
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("SHAPES2_RULES: the literal of this rules version; the fixtures hold each of the six", () => {
-    expect(SHAPES2_RULES).toBe(RULES_VERSION);
+  it("SHAPES2_RULES: the literal of the rules version that brought the six (this build's rules carry them); the fixtures hold each of the six", () => {
+    // BUMP-1E: was expect(SHAPES2_RULES).toBe(RULES_VERSION) (both bb-0.11.0). SHAPES2_RULES is a literal gate (the rules that brought the six) and stays
+    // bb-0.11.0; this build's rules are bb-0.12.0 (content.ts RULES_VERSION), the version after it, so the fixtures (stated under this build's rules) have the six
+    expect(SHAPES2_RULES).toBe("bb-0.11.0");
+    expect(RULES_VERSION).toBe("bb-0.12.0");
+    expect(SHAPES2_RULES).not.toBe(RULES_VERSION);
+    expect(rulesAtLeast(RULES_VERSION, SHAPES2_RULES)).toBe(true);
     const fx = fixtures();
     const held = new Set(fx.flatMap((f) => f.s.build.items.map((p) => p.def)).filter((d) => SHAPES2_IDS.includes(d)));
     expect([...held].sort()).toEqual([...SHAPES2_IDS].sort());

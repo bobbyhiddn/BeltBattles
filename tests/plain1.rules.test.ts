@@ -16,6 +16,7 @@ import { gainModule } from "../src/game/fuse";
 import { overclocked } from "../src/sim/overclock";
 import { PLAIN_DEFS, PLAIN_RIGS, PLAIN_RIG_IDS, isPlainRig, plainRigsRules, setPlainRigs, withPlainRigs } from "../src/sim/plainRigs";
 import { withShapes2 } from "../src/sim/shapes2";
+import { SCALE_IDS, SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the base's digest has the seven out too
 import { K, SEED, barge, furnaceBench, item, withItem } from "./wave3.helpers";
 import { pastTilePlain, poolDigest } from "./plain1.helpers";
 
@@ -27,8 +28,12 @@ import { pastTilePlain, poolDigest } from "./plain1.helpers";
 const BASE_POOL_DIGEST = "8fa1ab05b542bcd7";
 
 const on = <T>(fn: () => T): T => withPlainRigs(fn);
-/** BUMP-1D: both switches ship on; the world these tests measured as shipped (and the digest's world) has PLAIN_RIGS and SHAPES2 off. */
-const off = <T>(fn: () => T): T => withShapes2(() => withPlainRigs(fn, false), false);
+/** BUMP-1D: both switches ship on; the world these tests measured as shipped (and the digest's world) has PLAIN_RIGS and SHAPES2 off.
+ *  BUMP-1E: and SCALE_RIGS ships on (bb-0.12.0), its seven ids the LAST keys of ITEMS (scale.ts: after SHAPES2's six), so the scaling switch is the
+ *  OUTERMOST of the nest: it goes off first and comes back last (the ITEMS key-order rule: a lone withShapes2 / withPlainRigs off-and-on puts their ids
+ *  behind the seven, and every seeded draw after it differs). That is also the world the digest was measured in (the catalogue before the twelve AND the
+ *  seven): was withShapes2(() => withPlainRigs(fn, false), false), which left the seven in ITEMS, the pool and every stock (digest be5e26108cbff73b). */
+const off = <T>(fn: () => T): T => withScaleRigs(() => withShapes2(() => withPlainRigs(fn, false), false), false);
 /** FURNACE's bench with one more belt-side item. */
 const bench = (...more: ReturnType<typeof item>[]): Build => more.reduce((b, p) => withItem(b, p), furnaceBench());
 // PLAIN-1F (M1): `wins` is Battle's readonly [number, number] (it was already at plain1-base); undefined reads as the 0
@@ -60,8 +65,24 @@ describe("PLAIN_RIGS off (P1): nothing sees the six", () => {
 
   it("the catalogue, the pool, every merchant's stock, the per-run draw and the first caravans equal the base's", () => {
     // BUMP-1D: with PLAIN_RIGS and SHAPES2 off (the base's world, which had neither); the shipped world's digest is another
+    // BUMP-1E: and with the scaling switch off (the base's world had none of the seven: `off` takes it off first)
     expect(off(() => poolDigest())).toBe(BASE_POOL_DIGEST);
     expect(poolDigest()).not.toBe(BASE_POOL_DIGEST);
+  });
+
+  // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0), so the digest's world is read with it off beside PLAIN_RIGS and SHAPES2; the switch alone moves the digest
+  it("the scaling switch ships ON, so the base's digest is read with it off too: PLAIN_RIGS and SHAPES2 off alone would leave the seven in the pool", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the shipped value (the 0.9.11 world had it off)
+    expect(scaleRules()).toBe(true);
+    expect(SCALE_IDS.every((id) => id in ITEMS)).toBe(true);
+    off(() => {
+      expect(scaleRules()).toBe(false);
+      expect(SCALE_IDS.some((id) => id in ITEMS)).toBe(false);
+    });
+    // the cause of the old red, kept as a guard: the same world with the seven back in (the scaling switch on inside the nest) is not the base's
+    expect(off(() => withScaleRigs(() => poolDigest(), true))).not.toBe(BASE_POOL_DIGEST);
+    expect(scaleRules()).toBe(true); // put back, and (outermost) the seven last in ITEMS again
+    expect(Object.keys(ITEMS).slice(-SCALE_IDS.length)).toEqual([...SCALE_IDS]);
   });
 
   it("a switch put back after a throw (withPlainRigs) leaves the catalogue as it was", () => {

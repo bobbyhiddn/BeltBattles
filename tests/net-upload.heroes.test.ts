@@ -40,6 +40,7 @@ import { withDawnRunes } from "./runeFill";
 import { START_LIVES } from "../src/sim/content"; // HULL-ON (the flip, HEARTS): an older-rules snapshot's 5-lives scale
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): this build's uploads carry hearts
 import { MAX_RUN_DRAWS } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN): the draws an upload may carry
+import { SCALE_RIGS, setScaleRigs, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; it is the outermost of an older-rules check (oldRules), and off round the old world's awaits
 
 const NEW: readonly HeroId[] = ["foundry", "bastion"];
 const OLD: readonly HeroId[] = ["furnace", "weaver"];
@@ -47,6 +48,12 @@ const OLD_RULES = "bb-0.6.2"; // 0.8.0 RC: 0.7.0's rules (RULES_VERSION until th
 const DAYS = Array.from({ length: 10 }, (_, i) => i + 1);
 const why = (rules: string, hero: string, list = "FURNACE, WEAVER") => `rules ${rules} accept only ${list}, not ${hero.toUpperCase()}`;
 const clone = (b: Build): Build => JSON.parse(JSON.stringify(b)) as Build;
+/** BUMP-1E: validateUpload under OLDER rules (bb-0.8.0, bb-0.6.2) runs in their world, and validate.ts nests inShapesWorld, inShapes2World and inScaleWorld with the
+ *  scaling switch INNERMOST: with SCALE_RIGS on the seven leave ITEMS last and come back first, so after one call SHAPES-1's three and SHAPES2's six stand behind the
+ *  seven for the rest of the worker and every seeded draw after it differs (the seed pool test below: 'SOFT-1: stale: the pick f3:c5680d21 for foundry day 1 no
+ *  longer matches its deck'). The scaling switch OUTERMOST (off first, back last: the ITEMS key-order rule, as tests/net-upload.test.ts's catalogueOff) keeps the
+ *  order; the verdict is the same, an older rules' world has the switch off anyway. Synchronous only. */
+const oldRules = <T>(fn: () => T): T => withScaleRigs(fn, false);
 
 /** FLIP-X2: a deck holding runes travels as v3 (build.runes is v3 only, as tools/samplePool.ts seedGhost writes them); a
  *  rune-less one stays v2 as before. */
@@ -126,16 +133,26 @@ describe("the upload check (validateUpload, the player mode)", () => {
         // FLIP-X2: under HEROES_RULES the hero gate takes FOUNDRY and BASTION (no "rules:" error), and the one error left is
         // the exact rune count (was { ok: true, errors: [] }): a bb-0.8.0 deck holds no runes, and with its day's runes
         // the rules gate refuses it (runes need bb-0.8.7), so no upload passes under bb-0.8.0 any more
-        expect(validateUpload(b, day, HEROES_RULES), `${hero} ${name} d${day}`).toEqual({ ok: false, errors: [`rune: runes: 0 held on day ${day}, one a dawn (${day})`] });
-        expect(validateUpload(withDawnRunes(b, day), day, HEROES_RULES), `${hero} ${name} d${day} with runes`).toEqual({ ok: false, errors: ["rules: rules bb-0.8.0 predate bb-0.8.7: runes (build.runes) need bb-0.8.7 or later"] });
+        // BUMP-1E: the older-rules checks run under oldRules (the scaling switch outermost: the ITEMS key order stays); the same verdicts
+        expect(oldRules(() => validateUpload(b, day, HEROES_RULES)), `${hero} ${name} d${day}`).toEqual({ ok: false, errors: [`rune: runes: 0 held on day ${day}, one a dawn (${day})`] });
+        expect(oldRules(() => validateUpload(withDawnRunes(b, day), day, HEROES_RULES)), `${hero} ${name} d${day} with runes`).toEqual({ ok: false, errors: ["rules: rules bb-0.8.0 predate bb-0.8.7: runes (build.runes) need bb-0.8.7 or later"] });
         expect(validateBuild(b, day).ok, `${hero} ${name} d${day} (strict)`).toBe(true);
-        expect(validateUpload(b, day, OLD_RULES), `${hero} ${name} d${day}`).toEqual({ ok: false, errors: [`rules: ${why(OLD_RULES, hero)}`] });
+        expect(oldRules(() => validateUpload(b, day, OLD_RULES)), `${hero} ${name} d${day}`).toEqual({ ok: false, errors: [`rules: ${why(OLD_RULES, hero)}`] });
         // 0.8.0 RC: the default rules are this build's, bb-0.8.0 = HEROES_RULES (before the bump: refused like bb-0.6.2);
         // since BELTS bb-0.8.3, after HEROES_RULES, so the same answer. FLIP-X2: the deck holds its day's runes
         expect(validateUpload(withDawnRunes(b, day), day), `${hero} ${name} d${day} (default rules)`).toEqual({ ok: true, errors: [] });
       }
     }
     for (const hero of OLD) for (const day of DAYS) expect(validateUpload(refUp(hero, day), day).ok, `${hero} d${day}`).toBe(true); // FLIP-X2: with its runes
+  });
+
+  // BUMP-1E: the ITEMS key-order rule (see oldRules): an older-rules check taken with the scaling switch outermost leaves the catalogue's key order as it was
+  it("an older-rules check under oldRules leaves ITEMS' key order as it was (the seven scaling ids stay last)", () => {
+    expect(SCALE_RIGS).toBe(true);
+    const keys = Object.keys(ITEMS).join(",");
+    oldRules(() => validateUpload(heroRefBuild("foundry", 3), 3, HEROES_RULES)); // bb-0.8.0's world
+    oldRules(() => validateUpload(heroRefBuild("furnace", 3), 3, OLD_RULES)); // bb-0.6.2's world
+    expect(Object.keys(ITEMS).join(",")).toBe(keys);
   });
 
   it("honest mid-run decks from the upload driver (turrets, joins, stars, cores): every one accepted under the next rules version", () => {
@@ -236,12 +253,19 @@ describe("the server and the client, both ways", () => {
       // FLIP-X2: a ghost served under this build's rules holds its day's runes (v3), as every upload it passed did; the
       // bb-0.6.2 one stays rune-less (was rune-less under both)
       const build = rules === RULES_VERSION ? refUp(hero, 4) : heroRefBuild(hero, 4);
-      s.end(JSON.stringify({ id: `g-${hero}-${rules}`, snapshot: { ...snap(hero, 4, rules, build), wins: 0, playerId: `served-${hero}` } }));
+      // BUMP-1E: SCALE_RIGS ships on, so the client takes a served ghost only on a record a run carries into its dusk (ghostClient.ts problem; records.ts
+      // isReachable, SCALE-2d D5). snap()'s 0W 5 lives is none at day 4 (a hearts run has 7 to 10 there with no win), so the ghost was refused on its record
+      // ("server returned a ghost whose record (0W 5 lives) no run carries into dusk 4") instead of being fought. A ghost under this build's rules is served
+      // as upNow writes an upload, 0W with every heart (HEARTS_START) and no loss, to a request with the best record (D1 takes a ghost no better than the
+      // requester's; the request's lives were 5). The bb-0.6.2 ghost keeps snap's 5 lives (the decoder's bound for its rules). "wins=3" serves the old fixture,
+      // snap()'s 0W 5 lives (what every ghost served under this build's rules carried before)
+      const record = rules === RULES_VERSION && !u.includes("wins=3") ? { lives: HEARTS_START, losses: 0 } : {};
+      s.end(JSON.stringify({ id: `g-${hero}-${rules}`, snapshot: { ...snap(hero, 4, rules, build), wins: 0, ...record, playerId: `served-${hero}` } }));
     });
     await new Promise<void>((r) => srv.listen(0, "127.0.0.1", () => r()));
     const a = srv.address();
     const url = `http://127.0.0.1:${typeof a === "object" && a ? a.port : 0}`;
-    const req = (wins: number): GhostRequest => ({ rules: RULES_VERSION, day: 4, wins, lives: 5, playerId: "me", seen: [], hero: "furnace", seed: 7, runs: 9 });
+    const req = (wins: number): GhostRequest => ({ rules: RULES_VERSION, day: 4, wins, lives: HEARTS_START, playerId: "me", seen: [], hero: "furnace", seed: 7, runs: 9 }); // BUMP-1E: lives HEARTS_START (was 5)
     try {
       expect(await fetchGhost(url, req(0), 2000)).toMatchObject({ source: "server", id: `g-furnace-${RULES_VERSION}` });
       const off = await fetchGhost(url, req(1), 2000);
@@ -249,6 +273,18 @@ describe("the server and the client, both ways", () => {
       expect(off.error).toBe(`bad snapshot: snapshot.hero: ${why(OLD_RULES, "foundry")}`);
       expect(["furnace", "weaver"]).toContain(off.snapshot.hero); // the stand-in a 0.7.0-era fallback would fight
       expect(await fetchGhost(url, req(2), 2000)).toMatchObject({ source: "server", id: `g-foundry-${RULES_VERSION}` });
+      // BUMP-1E: the old fixture (a FURNACE ghost on 0W 5 lives): refused on its record with the scaling rules on (shipped); fought with the switch off, as this test
+      // read every ghost before the flip (set round the awaits: withScaleRigs' finally would put it back before they ran)
+      expect(SCALE_RIGS).toBe(true);
+      const unreachable = await fetchGhost(url, req(3), 2000);
+      expect(unreachable.source).toBe("fallback");
+      expect(unreachable.error).toBe("server returned a ghost whose record (0W 5 lives) no run carries into dusk 4");
+      setScaleRigs(false);
+      try {
+        expect(await fetchGhost(url, req(3), 2000)).toMatchObject({ source: "server", id: `g-furnace-${RULES_VERSION}` });
+      } finally {
+        setScaleRigs(SCALE_RIGS);
+      }
     } finally {
       srv.closeAllConnections();
       await new Promise<void>((r) => srv.close(() => r()));

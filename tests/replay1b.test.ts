@@ -28,6 +28,7 @@ import { gainModule } from "../src/game/fuse";
 import { simulate } from "../src/sim/battle";
 import { DROP_STARS, npcDayRules, withNpcDay } from "../src/sim/npcDay";
 import { RUN_DAYS } from "../src/sim/content";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the first view's dusk is also read with it off
 import { UI, type Rect } from "../src/ui/ui";
 import { isPhone, tapPx } from "../src/ui/tap";
 import type { G } from "../src/render/pixel";
@@ -379,7 +380,10 @@ function cardDraw(game: FakeGame, run: Run, kind: Kind, hit: number): { digest: 
 const DRAW_PINS: Record<string, string> = {
   // BUMP-1D: the dusk card of the first view reads "453cc4992673a68c" (was "537cc93f2777a454" at replay1-accepted; REPLAY1B_PINS=print with the final pools,
   // bb-0.11.0: the offline dusk's foe and hearts card moved); the other nineteen pins are unchanged
-  "402x690@3 dusk": "453cc4992673a68c", "402x690@3 warlord": "90125b5a27c241db",
+  // BUMP-1E: the dusk card of the first view reads "679ef2b17c8b52b3" (was "453cc4992673a68c"): the day-8 fight against LONGTOOTH, whose VENOM DRIP puts POISON on
+  // with the scaling rules and lengthens no BURN, so the card's foe BURN 2392 -> 1495 and foe damage 10540 -> 10099 (the test below reads the old digest back with
+  // the switch off); the other nineteen pins are unchanged again (the later dusks meet the run's own saved ghost, a kiln-only deck)
+  "402x690@3 dusk": "679ef2b17c8b52b3", "402x690@3 warlord": "90125b5a27c241db",
   "390x844@3 dusk": "a9e4673a34f2d29c", "390x844@3 warlord": "deb11fdf6d15c600",
   "430x932@3 dusk": "b70c1e1846ca0070", "430x932@3 warlord": "d5c3a8adf2883978",
   "360x780@3 dusk": "1b833baef9910d3b", "360x780@3 warlord": "8732239750bb1762",
@@ -452,6 +456,30 @@ describe("REPLAY-1b (b): the card's primary has a finger's target on a phone, it
     }
     expect(got).toEqual(DRAW_PINS);
     console.log(`REPLAY-1b (b) the card's drawing, as at replay1-accepted:\n${lines.join("\n")}`);
+  });
+
+  // BUMP-1E: the first view's dusk pin moved with the flip (was "453cc4992673a68c"). The first fight of a fresh localStorage on this day is against the
+  // stand-in LONGTOOTH (rivalBuilds.ts); a later fight on the same store meets the run's own saved ghost, which is why the other nineteen pins did not move.
+  // His road deck holds a VENOM DRIP, and with the scaling rules it puts POISON on instead of lengthening BURN (scale.ts SCALE_DEFS.venom: no burnPlus), so
+  // the two foe numbers on the card (its BURN and its damage, resultRows) moved and nothing else did: this reads the same fight in both worlds
+  it("the first view's dusk card is the day-8 fight against LONGTOOTH: with the scaling rules only the foe's BURN and damage numbers move (his VENOM DRIP); with the switch off it is the old drawing", () => {
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on
+    const first = (scaling: boolean) => withScaleRigs(() => {
+      store = new MapStore();
+      vi.stubGlobal("localStorage", store); // a fresh localStorage: the day's first fight, as the drawing test's first view has it
+      const { game, s, run } = make("dusk", LATER);
+      toCard(s);
+      return { digest: cardDraw(game, run, "dusk", 0).digest, r: run.history[run.history.length - 1], venom: s.arena.b.sides[1].build.items.some((p) => p.def === "venom") };
+    }, scaling);
+    const was = first(false), now = first(true);
+    expect(was.digest).toBe("453cc4992673a68c"); // the pin before the flip, read in its own world
+    expect(now.digest).toBe(DRAW_PINS["402x690@3 dusk"]);
+    expect(now.digest).not.toBe(was.digest);
+    for (const x of [was, now]) expect([x.r.foe, x.r.ghost, x.r.outcome, x.venom], x.digest).toEqual(["LONGTOOTH", false, "loss", true]);
+    // the same fight to the tick, your side's numbers the same; the foe's BURN (VENOM DRIP's lengthening gone) and its damage are the card's two that differ
+    expect([now.r.time, now.r.player]).toEqual([was.r.time, was.r.player]);
+    expect([was.r.enemy.burnDealt, was.r.enemy.damage]).toEqual([2392, 10540]);
+    expect([now.r.enemy.burnDealt, now.r.enemy.damage]).toEqual([1495, 10099]); // BUMP-1E: was 2392 and 10540
   });
 
   it("primaryTap: down first (the card's margin, then over resultbg), then up into the gap, never over VIEW BATTLEFIELD's floor nor off the screen; the button itself where it is tall enough", () => {

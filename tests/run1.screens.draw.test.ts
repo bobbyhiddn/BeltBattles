@@ -26,6 +26,7 @@ import { viewWithSub } from "../src/game/viewGrid";
 import { setupRun } from "../src/tooling";
 import { setLongRun, withLongRun } from "../src/sim/longRun";
 import { withHearts } from "../src/sim/hearts";
+import { ENDLESS, withEndless } from "../src/sim/endless"; // BUMP-1E: ENDLESS ships on: a marked run's RUN WON card is the offer; the old card is read with it off
 import { RIVAL_IDS } from "../src/sim/rivals";
 import type { Game, Screen } from "../src/game/game";
 import type { G } from "../src/render/pixel";
@@ -122,7 +123,27 @@ describe("RUN-1 T4: the run summary's draw", () => {
     expect(t.join("|")).not.toMatch(/DAYS SURVIVED/);
     expect(t).toContain("7 HEARTS LEFT · WINS 10/10");
     for (const d of ["11", "12", "13"]) expect(t, `the history's day ${d}`).toContain(d);
-    expect(t).toContain("NEW RUN");
+    // BUMP-1E: ENDLESS ships on (bb-0.12.0; sim/endless.ts), so this run carries the endless mark and its RUN WON card is the OFFER (summary.ts draw, ENDLESS-1):
+    // CONTINUE ENDLESS and END RUN take the foot where NEW RUN was (was expect(t).toContain("NEW RUN")); NEW RUN and TITLE are what END RUN leads to
+    expect(ENDLESS).toBe(true);
+    expect(run.endless).toBe(true);
+    expect(t).toContain("CONTINUE ENDLESS");
+    expect(t).toContain("END RUN");
+    expect(t).not.toContain("NEW RUN");
+    const declined = new SummaryScreen(fakeGame(run));
+    declined.endRun(); // the card as a won run's always was: the same words, then NEW RUN and TITLE at the foot
+    drawn.length = 0;
+    declined.draw(recCanvas().getContext());
+    const after = [...drawn];
+    for (const w of ["RUN WON", "FURNACE WON 10 OF 13 DUSKS, ON DAY 13", "7 HEARTS LEFT · WINS 10/10", "NEW RUN", "TITLE"]) expect(after, `after END RUN: ${w}`).toContain(w);
+    expect(after).not.toContain("CONTINUE ENDLESS");
+    // the 0.9.x world, read with endless off (a run made then carries no mark): the old assertions, NEW RUN at once and no offer
+    const plain = play(withEndless(() => runOf(true), false), "LLL" + "WWWWWWWWWW" + "WWW");
+    expect(plain.over).toBe("won");
+    expect(plain.endless).toBeUndefined();
+    const u = drawSummary(plain);
+    for (const w of ["RUN WON", "FURNACE WON 10 OF 13 DUSKS, ON DAY 13", "7 HEARTS LEFT · WINS 10/10", "NEW RUN", "TITLE"]) expect(u, `no endless mark: ${w}`).toContain(w);
+    expect(u.join("|")).not.toMatch(/ENDLESS|END RUN/);
   });
 
   it("a long run lost on day 12 draws RUN LOST, THE DARK WIND CATCHES YOU and ON DAY 12 · FURNACE · W-L 5-7", () => {

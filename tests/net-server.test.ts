@@ -8,6 +8,8 @@ import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS):
 import { LONG_RUN_MAX_DAY, longRunRules, setLongRun, withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): both worlds, the day bound (BUMP-1D run 4: + withLongRun, the 10-day ghosts' build)
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { NEW_PLAYER_RUNS, noBetterRecord } from "../src/net/matchmaking";
+import { floorRecord } from "../src/net/records"; // BUMP-1E: a served ghost's record is checked first (SCALE_RIGS on): the supply fault rides day 4's floor record
+import { SCALE_RIGS, setScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the old world (no record check) is read with it off round the awaits
 import { KEY_HEADER, SIG_HEADER, type Identity } from "../src/net/identity";
 import { encodeSnapshot, ghostId, type GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, servedSnapshot, type GhostServer } from "../server/app"; // SOFT-1: + servedSnapshot (FIX-6)
@@ -348,18 +350,42 @@ describe("ghost client fallback", () => {
     // FLIP-X2: the invalid ghost snap() -> upSnap() (v1 rune-less -> v3 holding day 4's four neutral runes): the client
     // checks a served deck with validateUpload, whose exact rune count comes first, so the rune-less ghost was refused on
     // the count ('rune: runes: 0 held on day 4') instead of the supply fault under test (hullBonus 999, unchanged)
-    const g4 = upSnap({ day: 4, wins: 0 });
+    // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0), so the client checks a served ghost's RECORD before its deck (ghostClient.ts problem; records.ts isReachable, SCALE-2d
+    // D5): the fixture's record, snap()'s 0W 3 lives, is no record a run carries into dusk 4 (it has 7 to 10 hearts there), and the ghost was refused on that
+    // ("server returned a ghost whose record (0W 3 lives) no run carries into dusk 4") instead of the supply fault under test. The supply fault is served on a
+    // reachable record now: day 4's floor record (floorRecord: no wins, the fewest hearts a run has there), to a request with the best record (D1 takes a ghost no
+    // better than the requester's, as the match walk above asks); the old fixture (0W 3 lives) is read both ways below (shipped: refused on its record; with the
+    // scaling switch off: no record check, the deck's supply fault, the test's old assertion)
+    const g4 = upSnap({ day: 4, wins: 0 }); // the old fixture, 0W 3 lives
+    const floor = floorRecord(4), g4ok = upSnap({ day: 4, wins: floor.wins, lives: floor.lives });
+    const withSupplyFault = (g: GhostSnapshot) => JSON.stringify({ id: "gx", snapshot: { ...g, build: { ...g.build, hullBonus: 999 } } });
     const junk = createServer((q, s) => {
       s.setHeader("content-type", "application/json");
-      s.end(q.url?.includes("day=4") ? JSON.stringify({ id: "gx", snapshot: { ...g4, build: { ...g4.build, hullBonus: 999 } } }) : "");
+      // the request's own lives tell the two apart: 3 (req's default) gets the old fixture, the best record (HEARTS_START) the floor record's ghost
+      s.end(q.url?.includes("day=4") ? withSupplyFault(new URL(q.url, "http://x").searchParams.get("lives") === "3" ? g4 : g4ok) : "");
     });
     await new Promise<void>((r) => junk.listen(0, "127.0.0.1", () => r()));
     const addr = junk.address();
     const jb = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}`;
     expect(await fetchGhost(jb, req({ day: 2 }), 1000)).toMatchObject({ source: "fallback", error: "empty answer" });
-    const inv = await fetchGhost(jb, req({ day: 4 }), 1000);
+    expect(SCALE_RIGS).toBe(true); // BUMP-1E: the shipped switch is on
+    expect(floor.wins).toBe(0);
+    expect(floor.lives).toBeGreaterThan(3); // 3 lives is no record a run carries into dusk 4 (was: nothing checked it)
+    const inv = await fetchGhost(jb, req({ day: 4, wins: 3, lives: HEARTS_START }), 1000); // BUMP-1E: was req({ day: 4 }) and g4
     expect(inv.source).toBe("fallback");
     expect(inv.error).toMatch(/deck invalid: supply/);
+    const unreachable = await fetchGhost(jb, req({ day: 4 }), 1000); // BUMP-1E: the old fixture's record, refused first
+    expect(unreachable.source).toBe("fallback");
+    expect(unreachable.error).toBe("server returned a ghost whose record (0W 3 lives) no run carries into dusk 4");
+    // the old world: the same answer with the scaling switch off (set round the awaits: withScaleRigs' finally would put it back before they ran), as the test read it
+    setScaleRigs(false);
+    try {
+      const old = await fetchGhost(jb, req({ day: 4 }), 1000);
+      expect(old.source).toBe("fallback");
+      expect(old.error).toMatch(/deck invalid: supply/);
+    } finally {
+      setScaleRigs(SCALE_RIGS);
+    }
     junk.closeAllConnections();
     await new Promise<void>((r) => junk.close(() => r()));
   });

@@ -13,6 +13,7 @@ import { G, fresh, installRaster } from "./raster.helpers";
 import { C } from "../src/render/palette";
 import { textWidth } from "../src/render/font";
 import { ITEMS, withSustain } from "../src/sim/content";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on (POISON is a keyword); the 0.9.11 world's map is read with it off
 import { RUNES, runeList, type RuneDef } from "../src/sim/runes";
 import { KEYWORD_COLOUR, colourize } from "../src/ui/richText";
 import { KEYWORD_WORD, RUNE_KEYWORD_COLOUR, runeKeyword } from "../src/ui/runeText";
@@ -38,7 +39,12 @@ describe("FLIP-X2 step 1b: FROST is a round's name, not a keyword (REVIEW-FLIPX1
   it("KEYWORD_COLOUR has no freeze, and FREEZE, FREEZES, FROZEN and FROST draw in the text's own colour", () => {
     // Y7b2 (the flip): no poison either (KEYWORD_COLOUR.poison left with POISON; was ["burn", "faster", "poison", "shock",
     // "slower"])
-    expect(Object.keys(KEYWORD_COLOUR).sort()).toEqual(["burn", "faster", "shock", "slower"]);
+    // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0) and POISON is a keyword again with it (SCALE-2b: richText.ts onSetScaleRigs adds
+    // KEYWORD_COLOUR.poison, the venom lime, while the switch is on), so the map's keys are the five, "poison" among them (was the
+    // four); the 0.9.11 world's four are read with the switch off, synchronously. FREEZE and its kin stay out of the map either way
+    expect(SCALE_RIGS).toBe(true);
+    expect(Object.keys(KEYWORD_COLOUR).sort()).toEqual(["burn", "faster", "poison", "shock", "slower"]); // BUMP-1E: was ["burn", "faster", "shock", "slower"]
+    withScaleRigs(() => expect(Object.keys(KEYWORD_COLOUR).sort()).toEqual(["burn", "faster", "shock", "slower"]), false); // the 0.9.11 world: no poison
     for (const w of ["FREEZE", "FREEZES", "FROZEN", "FROST"]) expect(colourize(w, C.bone), w).toEqual([{ t: w, c: C.bone }]);
     expect(colourize("SHOCK", C.bone)).toEqual([{ t: "SHOCK", c: KEYWORD_COLOUR.shock }]); // the others keep theirs
   });
