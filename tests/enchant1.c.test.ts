@@ -62,10 +62,10 @@ const spots = new Map<string, ReturnType<typeof place>>();
  * ONE hit of rig `def` at `stars` on a real deck (tests/arsenal.bench.ts: the KILN's belt up column 4, the rig beside it, a second working rig WHETSTONE on
  * the other side of the same tile for PINCER's crossfire), with the word ECHOING on the rig and its count one short of the echo (so this slug is the
  * ECHOING's fifth: Battle.applyHit's `doubled`) or with no word. Battle.applyHit runs on a fresh slug in a rich state (the ship's pool holds plating, a foe
- * part is stalled, a SORTING ARM is one short of its copy, a TWIN GAUGE's belt is matched). Returns everything the hit changed as one string (the slug, the
- * copies it made, the ship's plating, hull, heals and shield, the rig's own counter), or null when the rig has no arrow on the belt (the STOKER).
+ * part is stalled, a SORTING ARM is one short of its copy, a TWIN GAUGE's belt is matched). Returns everything the hit changed, as two strings: the slug side (the slug, the
+ * copies it made, the rig's own counter) and the ship side (the ship's plating, hull, heals and shield), or null when the rig has no arrow on the belt (the STOKER).
  */
-function oneHit(def: string, stars: number, echo: boolean): string | null {
+function oneHit(def: string, stars: number, echo: boolean): { slug: string; ship: string } | null {
   return on(() => {
     if (!spots.has(def)) spots.set(def, place(def));
     const at = spots.get(def);
@@ -91,17 +91,21 @@ function oneHit(def: string, stars: number, echo: boolean): string | null {
     if (e.gauge) hit.matched = true; // a TWIN GAUGE pays its matched number on a matched belt
     const a: BeltAmmo = { p: slug(), s: 30, processed: 2, blocked: false };
     const copies: BeltAmmo[] = (bt as unknown as { applyHit(s: unknown, a: BeltAmmo, h: unknown): BeltAmmo[] }).applyHit(s, a, hit);
-    return JSON.stringify({ p: a.p, copies: copies.map((c) => c.p), plate: s.plate, hull: s.hull.hp, heals: s.heals ?? null, shield: s.shield ?? null, sorted: g.sorted });
+    return {
+      slug: JSON.stringify({ p: a.p, copies: copies.map((c) => c.p), sorted: g.sorted }),
+      ship: JSON.stringify({ plate: s.plate, hull: s.hull.hp, heals: s.heals ?? null, shield: s.shield ?? null }),
+    };
   });
 }
 
-interface Proof { id: string; name: string; star: { stars: number; hit: boolean; changes: boolean; rule: boolean }[]; hit: boolean; changesAtAnyStar: boolean; rigEchoDoubles: boolean }
+interface Proof { id: string; name: string; star: { stars: number; hit: boolean; changes: boolean; slugChanges: boolean; rule: boolean }[]; hit: boolean; changesAtAnyStar: boolean; rigEchoDoubles: boolean }
 let memo: Proof[] | undefined;
 /** What the rule says for every rig def, and what the real hit shows (the echo changes the hit at which stars; hit false = the rig has no arrow on the belt). Run once. */
 const proofOf = (): Proof[] => (memo ??= rigs.map((d) => {
   const star = [1, 2, 3].map((s) => {
     const plain = oneHit(d.id, s, false), echoed = oneHit(d.id, s, true);
-    return { stars: s, hit: plain !== null, changes: plain !== null && echoed !== plain, rule: doubles(effectAt(d.id, s).gate!) };
+    const slugChanges = !!plain && !!echoed && echoed.slug !== plain.slug, shipChanges = !!plain && !!echoed && echoed.ship !== plain.ship;
+    return { stars: s, hit: plain !== null, changes: slugChanges || shipChanges, slugChanges, rule: doubles(effectAt(d.id, s).gate!) };
   });
   return { id: d.id, name: d.name, star, hit: star.every((x) => x.hit), changesAtAnyStar: star.some((x) => x.changes), rigEchoDoubles: rigEchoDoubles(d) };
 }));
@@ -119,7 +123,7 @@ describe("ENCHANT-1c C2: ECHOING refuses a rig with nothing to double (NOTHING T
   it("(opt-in) writes the proof table for the REPORT when C2_PROOF_OUT is set", () => {
     const out = process.env.C2_PROOF_OUT;
     if (!out) return;
-    const rows = proofOf().map((p) => `${p.id.padEnd(14)} ${p.name.padEnd(18)} hit=${p.hit ? "yes" : "NO "}  echo changes the hit at ★1/★2/★3: ${p.star.map((x) => (x.changes ? "yes" : "no ")).join("/")}  rule(doubles)=${p.star.map((x) => (x.rule ? "yes" : "no ")).join("/")}  enchantProblem(echoing)=${enchantProblem(ITEMS[p.id], "echoing") ?? "null (allowed)"}`);
+    const rows = proofOf().map((p) => `${p.id.padEnd(14)} ${p.name.padEnd(18)} hit=${p.hit ? "yes" : "NO "}  echo changes the hit at ★1/★2/★3: ${p.star.map((x) => (x.changes ? "yes" : "no ")).join("/")}  (the slug itself: ${p.star.map((x) => (x.slugChanges ? "yes" : "no ")).join("/")})  rule(doubles)=${p.star.map((x) => (x.rule ? "yes" : "no ")).join("/")}  enchantProblem(echoing)=${enchantProblem(ITEMS[p.id], "echoing") ?? "null (allowed)"}`);
     writeFileSync(out, `${rows.length} rig defs\n${rows.join("\n")}\nrefused (NOTHING TO DOUBLE): ${refusedOf().length}: ${refusedOf().join(", ")}\n`);
   });
 
@@ -143,6 +147,12 @@ describe("ENCHANT-1c C2: ECHOING refuses a rig with nothing to double (NOTHING T
       } else expect(why, `${p.id}: the echo changes nothing`).toBe("NOTHING TO DOUBLE");
     }
     expect(allowed).toBe(32);
+  });
+
+  it("the one allowed rig whose echo leaves the slug alone: PLATE ROLLER gives your ship its plating, and the echo doubles that (the ship changes, the slug does not): counted as something to double", () => {
+    const shipOnly = proofOf().filter((p) => p.hit && p.changesAtAnyStar && p.star.every((x) => !x.slugChanges)).map((p) => p.id);
+    expect(shipOnly).toEqual(["plateroller"]);
+    expect(enchantProblem("plateroller", "echoing")).toBeNull();
   });
 
   it("the refused defs, named on purpose (a rig added later whose hit has nothing to double makes this list longer and fails here, so cap chooses): 13 of the 46", () => {
@@ -185,6 +195,7 @@ describe("ENCHANT-1c C2: ECHOING refuses a rig with nothing to double (NOTHING T
 
   it("the reason is plain text that fits: no digit, no icon, in the house words (TEXT-STYLE), 17 characters", () => {
     expect("NOTHING TO DOUBLE").toMatch(/^[A-Z ]+$/);
+    expect(banned("NOTHING TO DOUBLE")).toEqual([]); // docs/TEXT-STYLE.md's lint (tests/textRules.ts)
     expect(enchantProblem("tollbooth", "echoing")).toBe("NOTHING TO DOUBLE");
   });
 
