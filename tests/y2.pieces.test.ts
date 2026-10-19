@@ -20,6 +20,7 @@ import { glossaryText } from "../src/ui/glossary";
 import { fmtSec } from "../src/ui/statFormat"; // CARD-2 (REQ-BFG-081, K3 g): SABOT's STUN seconds on its second line
 import { barge, bench } from "./arsenal.bench";
 import { withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): OVERDRIVE's face with the switch off
+import { flatOf } from "../src/sim/scale"; // BUMP-1E: a slug's whole flat bonus (the stat rows' flat plus the FOR EACH each)
 
 export const BAND = 225; // TEXT-STYLE 11.1-11.2: one line of 5x7 on the op view's band (NEXT_LINE_W, GLOSSARY_WRAP_W)
 const STARS = [1, 2, 3] as const;
@@ -307,7 +308,10 @@ describe("Y2 row 14: MANTLET guards its gun and its belts' last 1/2/3 tiles from
 // --------------------------------------------------------------------------------------------- row 15: LODESTONE
 describe("Y2 row 15: LODESTONE pays for each STUN on the foe, tiles too, wrecks not, no floor or cap", () => {
   /** The flat a slug carries past side 0's LODESTONE (★1, tile 2 of the bench's belt) while side 1 holds STUNs on belt
-   *  tiles `tiles` and its factory, and (`wreck`) its WHETSTONE wrecked; read off a slug that passed it after it came online. */
+   *  tiles `tiles` and its factory, and (`wreck`) its WHETSTONE wrecked; read off a slug that passed it after it came online.
+   *  BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where a FOR EACH add (LODESTONE's 10 a STUN) rides the slug's own
+   *  `each` accumulator (battle.ts forEach, REQ-BFG-110 step 4) and p.flat stays the stat rows' alone (0 here), so the DMG the
+   *  hit adds is the sum the shot reads, flatOf(p); was `a.p.flat` (the same number: off, `each` is never set) */
   const flat = (tiles: number[], wreck: boolean): number => {
     const bt = new Battle(bench([["lodestone", 4, 3, 1]]), bench([["whetstone", 4, 3, 1]]), 8), foe = bt.sides[1];
     for (const ci of tiles) foe.routes[0].cellDisrupt[ci] = 50;
@@ -317,7 +321,7 @@ describe("Y2 row 15: LODESTONE pays for each STUN on the foe, tiles too, wrecks 
       bt.step();
       bt.events.length = 0;
       const a = bt.t > 2.5 ? bt.sides[0].routes[0].ammo.find((x) => x.processed >= 2) : undefined;
-      if (a) return a.p.flat;
+      if (a) return flatOf(a.p); // BUMP-1E: was a.p.flat
     }
     throw new Error("no slug passed the LODESTONE");
   };
@@ -334,7 +338,7 @@ describe("Y2 row 15: LODESTONE pays for each STUN on the foe, tiles too, wrecks 
         bt.step();
         bt.events.length = 0;
         const a = bt.t > 2.5 ? bt.sides[0].routes[0].ammo.find((x) => x.processed >= 2) : undefined;
-        if (a) return a.p.flat;
+        if (a) return flatOf(a.p); // BUMP-1E: was a.p.flat (see flat above)
       }
       return -1;
     })()).toBe(0);

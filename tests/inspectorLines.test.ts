@@ -25,6 +25,7 @@ import { DISRUPT_TIME, WINDOW_TIME } from "../src/sim/content"; // NUM-3 step 2:
 import { stripIcons } from "../src/render/font"; // Y1: COIL's one line, read as text
 import { RIDE_KEEP, withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): OVERDRIVE's ride-keep words, and off
 import { isShapes2Piece } from "../src/sim/shapes2"; // BUMP-1D: SHAPES2's six more shaped rigs (no SHAPED_HITS row)
+import { SCALE_IDS, SCALE_RIGS, isScalePiece, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on: seven new rigs, PRESSURE BREECH uncapped
 
 // 0.6.1r (review-061 F5, N2, N4) and after: the inspector's ability, next-star, merge-progress and MERGES WITH lines.
 // 0.6.2t (REQ-BFG-032): they read as whole sentences from the glossary (src/ui/abilityText.ts): "NEXT STAR: ADDS 4 BURN.",
@@ -91,7 +92,13 @@ describe("U2e step 1 (was N2 / T5): no panel draws merge progress", () => {
     // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL (src/sim/shapes.ts SHAPES_ITEMS) are in ITEMS with SHAPES on,
     // fusible as any rig: 89 -> 92
     // BUMP-1D: the six plain stat rigs (PLAIN_RIGS) and the six more shaped rigs (SHAPES2) are in ITEMS, fusible as any rig: 92 -> 104
-    expect(fus).toHaveLength(104);
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0): the seven new scaling rigs (SCALE_IDS: CINDER MAIL, ROT GAUGE, LEECH
+    // COIL, CROWD PRESS, AEGIS SPIKE, GRUDGE ROD, TROPHY CHAIN, each a one-cell gate) are in ITEMS, fusible as any rig: 104 -> 111; the
+    // 104 are the same ones (the off world's keys, read with the switch off, still count 104)
+    expect(SCALE_RIGS).toBe(true);
+    expect(fus).toHaveLength(111); // BUMP-1E: was 104
+    expect(fus.filter(isScalePiece)).toEqual([...SCALE_IDS]); // the +7
+    expect(withScaleRigs(() => Object.keys(ITEMS).filter(fusible), false)).toEqual(fus.filter((d) => !isScalePiece(d))); // the 104, as before
     let panels = 0, lines = 0;
     for (const def of fus) {
       const d = ITEMS[def];
@@ -137,7 +144,10 @@ describe("N4: a turret core's lines show that star's numbers at the hero's class
     expect(nextLine(holding("pressure", [1]), "pressure", 1)).toBe(`NEXT ★2: ${per(2)}`);
     expect(mergeLine(holding("pressure", [1]), "pressure")).toBe(`MERGES INTO ★2: ${per(2)}.`);
     // NUM-1 (REQ-BFG-047): x10, the ★2 perQueued through fmtDmg ("26"; was the literal "2.6")
-    expect(abilityText("pressure", 2).sentences[0]).toBe(`SHOTS DEAL ${fmtDmg(effectAt("pressure", 2).core!.perQueued!)} MORE DAMAGE FOR EACH PAYLOAD WAITING, UP TO 5 PAYLOADS.`);
+    // BUMP-1E: the scaling rules ship on: PRESSURE BREECH's MAX 5 is dropped (SCALE_DEFS pressure: no maxCount, uncapped), so its sentence
+    // ends at WAITING; was `... WAITING, UP TO 5 PAYLOADS.`, which is the switch-off world's, read with it off
+    expect(abilityText("pressure", 2).sentences[0]).toBe(`SHOTS DEAL ${fmtDmg(effectAt("pressure", 2).core!.perQueued!)} MORE DAMAGE FOR EACH PAYLOAD WAITING.`);
+    withScaleRigs(() => expect(abilityText("pressure", 2).sentences[0]).toBe(`SHOTS DEAL ${fmtDmg(effectAt("pressure", 2).core!.perQueued!)} MORE DAMAGE FOR EACH PAYLOAD WAITING, UP TO 5 PAYLOADS.`), false);
     expect(nextLine(holding("pressure", [2]), "pressure", 2)).toBe(`NEXT ★3: ${per(3)}`);
     expect(mergeLine(holding("pressure", [2, 1]), "pressure")).toBe(`MERGES INTO ★3: ${per(3)}.`);
   });
@@ -160,7 +170,10 @@ describe("N4: a turret core's lines show that star's numbers at the hero's class
     run.build.mods.push({ uid: 950, def: "pressure", turret: 0, stars: 2 });
     // NUM-1 (REQ-BFG-047): ★2 perQueued x10 (26) and whole at install (cores.ts scaleCore: kp = round(100 x 0.55) = 55,
     // roundHalfUp(26 x 55 / 100) = roundHalfUp(14.3) = 14); was toBeCloseTo(1.43, 6)
-    expect(resolveCore(run.build, 0).spec.perQueued).toBe(14);
+    // BUMP-1E: the scaling rules ship on: PRESSURE BREECH's ★2 perQueued is 13 (SCALE_DEFS pressure: 5 / 13 / 42; was 26), so at install
+    // roundHalfUp(13 x 55 / 100) = roundHalfUp(7.15) = 7; the 14 is the switch-off world's, read with it off
+    expect(resolveCore(run.build, 0).spec.perQueued).toBe(7); // BUMP-1E: was toBe(14)
+    withScaleRigs(() => expect(resolveCore(run.build, 0).spec.perQueued).toBe(14), false);
   });
 
   // Y7b2 (the flip): retitled, was "ROTARY BREECH: its stars make the turret fire faster, then never jam (the perk named
@@ -439,9 +452,12 @@ describe("P11: a rig's panel order, and the phone band", () => {
     const rigs = buyableModules().filter((d) => d.kind === "gate").map((d) => d.id);
     // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH and SPIKE RAIL with SHAPES on, 30 -> 33
     // BUMP-1D: + the six plain stat rigs and the six more shaped rigs, 33 -> 45
-    expect(rigs).toHaveLength(45); // 0.8.0 I1 M2 (REPORT-P1 section 13): + wave 3's 8 rigs (was 23); FLIP-X2: SIFTER dormant, 31 -> 30
+    // BUMP-1E: the scaling rules ship on (SCALE_RIGS): + the seven new scaling rigs (SCALE_IDS, each a one-cell gate on sale), 45 -> 52
+    expect(rigs).toHaveLength(52); // BUMP-1E: was 45. 0.8.0 I1 M2 (REPORT-P1 section 13): + wave 3's 8 rigs (was 23); FLIP-X2: SIFTER dormant, 31 -> 30
+    expect(rigs.filter(isScalePiece)).toEqual([...SCALE_IDS]); // BUMP-1E: the +7
+    expect(withScaleRigs(() => buyableModules().filter((d) => d.kind === "gate").map((d) => d.id), false)).toEqual(rigs.filter((d) => !isScalePiece(d))); // the 45, as before
     const band = buildLayout(167, 394, true, 5).info; // PACKS Q5: the 161 x 69 band (0.8.5's 167 x 361 plus the pack row)
-    let cases = 0, nextCases = 0;
+    let cases = 0, nextCases = 0, scaleCases = 0; // BUMP-1E: scaleCases, the seven new rigs' own
     for (const def of rigs) {
       for (const s of [1, 2, 3]) for (const [lay, x, y, rot, want, extra] of layouts(def)) for (const spare of [0, 1]) {
         const id = `${def} ★${s} ${lay} spare${spare}`;
@@ -459,6 +475,7 @@ describe("P11: a rig's panel order, and the phone band", () => {
         const drawn = new Set(visibleLines(plan).map((v) => v.line));
         const whole = plan.body.shown.filter((l) => l.b.keep).every((l) => l.lines.every((ln) => drawn.has(ln)));
         cases++;
+        if (isScalePiece(def)) scaleCases++; // BUMP-1E
         if (rp.body.some((b) => b.role === "next")) nextCases++;
         if (KNOWN_PHONE_CUTS.has(id)) continue;
         expect([plan.body.fits, whole], `${id} (variant ${plan.body.variant})`).toEqual([true, true]);
@@ -471,7 +488,11 @@ describe("P11: a rig's panel order, and the phone band", () => {
     // 1hit, 2hit, idle) 18, 3 stars x 2 spares each layout: 522 + 42 = 564, none with a next-star line
     // BUMP-1D, measured: the twelve plain stat rigs' cases join, 180 (12 x 15): 564 + 180 = 744, none with a next-star line, every
     // case fits (the phone-fit asserts above)
-    expect([cases, nextCases]).toEqual([744, 0]); // FLIP-X2: SIFTER dormant, its 12 rig cases leave (was 534)
+    // BUMP-1E, measured: the seven new scaling rigs' cases join: four rare ones (II: 1hit, 2hit, idle: 18 each), two common (I: 1hit, idle:
+    // 12 each) and TROPHY CHAIN (epic, T: 1hit, 2hit, 3hit, idle: 24) = 4 x 18 + 2 x 12 + 24 = 120: 744 + 120 = 864, none with a next-star
+    // line, every case fits (the phone-fit asserts above)
+    expect([cases, nextCases]).toEqual([864, 0]); // BUMP-1E: was [744, 0]. FLIP-X2: SIFTER dormant, its 12 rig cases leave (was 534)
+    expect([cases - scaleCases, scaleCases]).toEqual([744, 120]); // BUMP-1E: the 45 rigs' 744 stand; the +120 are the seven's
   });
 
   it("the desktop column keeps the full text in the 5x7 face: the laptop's column (1366x768: text 109 px)", () => {
