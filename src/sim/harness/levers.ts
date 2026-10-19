@@ -370,7 +370,10 @@ function aimAt(b: Build, p: Placed, tile: number, bad: (h: WouldHit) => boolean)
  *  SHAPES-1 (REQ-BFG-086 S7.1, flip fix): a multi-cell flat rig (NAIL STRIP, SPIKE RAIL) on a 1-cell rig's anchor covers
  *  more cells than the one it was given: a swap that leaves either rig on a cell it may not hold (fitsTurned: off the
  *  deck, on a piece, a belt or an intake) is undone and the route stays as it was (nothing illegal is ever kept). Two
- *  1-cell rigs swap exactly as before, so a deck without a shaped rig (SHAPES off) sorts byte for byte as it did. */
+ *  1-cell rigs swap exactly as before, so a deck without a shaped rig (SHAPES off) sorts byte for byte as it did.
+ *  BUMP-1F (F3, BUMP-1E REPORT section 11): and a swap that leaves a rig IDLE that was working before is undone too, not only a fitsTurned failure:
+ *  the harness's own invariant is that a rig is never left idle. aimAt finds no rotation that reaches the other's tile for some pairs (bastion d7 #3
+ *  of tests/beltside.merge061rel's P16: SPLITTER 105 swapped with ELBOW GUARD 107, both idle, the splitter idle through every later lever). */
 function sortRoute(b: Build, ri: number): boolean {
   let moved = false;
   for (let guard = 0; guard < 8; guard++) {
@@ -382,10 +385,12 @@ function sortRoute(b: Build, ri: number): boolean {
     const S = itemByUid(b, seq[si].uid)!, F = itemByUid(b, seq[fi].uid)!;
     const sTile = b.routes[ri].cells[seq[si].ci], fTile = b.routes[ri].cells[seq[fi].ci];
     const was = [{ ...S }, { ...F }]; // SHAPES-1: to undo a swap a shaped rig can't take
+    const workedBefore = [hitsOfRig(b, S.uid).length > 0, hitsOfRig(b, F.uid).length > 0]; // BUMP-1F (F3): a rig that works now must still work after
     [S.x, S.y, F.x, F.y] = [F.x, F.y, S.x, S.y];
     aimAt(b, S, fTile, (h) => h.route === ri && h.tile < seq[fi].ci);
     aimAt(b, F, sTile, (h) => h.route === ri && h.tile > seq[si].ci);
-    if (!fitsTurned(b, S, rotOf(S)) || !fitsTurned(b, F, rotOf(F))) {
+    const idleNow = (p: Placed, k: number): boolean => workedBefore[k] && hitsOfRig(b, p.uid).length === 0; // BUMP-1F (F3): the swap idled it
+    if (!fitsTurned(b, S, rotOf(S)) || !fitsTurned(b, F, rotOf(F)) || idleNow(S, 0) || idleNow(F, 1)) {
       for (const [p, w] of [[S, was[0]], [F, was[1]]] as const) { p.x = w.x; p.y = w.y; setRot(p, rotOf(w)); }
       return moved;
     }

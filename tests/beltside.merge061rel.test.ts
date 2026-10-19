@@ -395,8 +395,10 @@ describe("P15: stand-in pool v2 loads through the loader's D3 boundary (decodeSt
 
 // ---------------------------------------------------------------- P16: one harness
 
-/** BUMP-1E (REPORT F3): the one rig of P16's 281 builds that the harness's `order` lever leaves idle (see the comment in the test): `${at}: ${def} ${uid}`. */
-const KNOWN_IDLE = new Set(["bastion d7 #3: splitter 105"]);
+/** BUMP-1E (REPORT F3): the one rig of P16's 281 builds that the harness's `order` lever left idle (`${at}: ${def} ${uid}`). BUMP-1F (F3): the lever is fixed
+ *  (levers.ts sortRoute undoes a swap that idles a working rig; tests/harness.idle.test.ts), so the exception is gone: was
+ *  new Set(["bastion d7 #3: splitter 105"]). */
+const KNOWN_IDLE = new Set<string>();
 
 describe("P16: one harness (harness v2's buying and merging, H2's placement)", () => {
   it("stars-on harness builds put no machinery on a belt tile and no rig idle (BUMP-1E: but the one KNOWN_IDLE rig, REPORT F3); some carry merged rigs", () => {
