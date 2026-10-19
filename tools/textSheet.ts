@@ -31,7 +31,7 @@ import { setShapes } from "../src/sim/shapes"; // SHAPES-1: BB_SHAPES=1
 import { plainRigsRules, setPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): --plain-rigs
 import { setShapes2, shapes2Rules } from "../src/sim/shapes2"; // SHAPES-2 (REQ-BFG-114): --shapes2
 import { ENCHANT_DEFS, ENCHANT_IDS, enchantKindOf, enchantProblem, enchantRules, replacesText, sellAskText, setEnchant, type EnchantKind } from "../src/sim/enchant"; // ENCHANT-1 (REQ-BFG-085): --enchant
-import { ENCHANT_NOTES, enchantedTitle, wordFace, wordOn } from "../src/ui/enchantFaces"; // ENCHANT-1 (E7): the word cards, the notes, the pieces' words
+import { ENCHANT_NOTES, enchantedTitle, partNotes, wordFace, wordOn } from "../src/ui/enchantFaces"; // ENCHANT-1 (E7): the word cards, the notes, the pieces' words
 import { colourize, lineWidth, wrapRich } from "../src/ui/richText"; // ENCHANT-1 (E7): the fit measures
 import { rigShape } from "../src/sim/content"; // ENCHANT-1: the refusal reasons' example pieces
 import { EXTRA_BELT_LEFT, KEPT_WIDE } from "../src/game/fuse"; // ENCHANT-1 (run 5): WIDE's extra belt, the refusal and the merge toast
@@ -148,6 +148,10 @@ function enchantSection(out: string[]): void {
   out.push("Generated with ENCHANT on. Icons print as [NAME]. Each text's rows are the wrapped rows of the 5x7 face on the op view's 225 px text row and the desk column's 118 px; a row wider than its room, or a stat row that takes a second row on the phone, is an OVERFLOW (listed at the end). Titles are measured against the room beside the icon box (phone 208 px, desk column 101 px): the 5x7 face where it fits, else the 3x5 face, else the name is cut.", "");
   out.push("### The default rules text (NOTES, behind the hover or the tap)", "");
   for (const n of ENCHANT_NOTES) out.push(`- \`${n}\` (${fits("NOTES", n)})`);
+  // ENCHANT-2 (REQ-BFG-085; T4b): a PART's NOTES line 1 by word (enchantFaces.ts partNotes: the second sentence says where the numbers above the word's line come
+  // from); the four lines above are the word CARD's. Lines 2-4 of a part's NOTES are the four lines above.
+  out.push("", "### A part's NOTES line 1, by word (T4b; the word cards keep the lines above)", "");
+  for (const id of ENCHANT_IDS) out.push(`- ${ENCHANT_DEFS[id].name}: \`${partNotes(id)[0]}\` (${fits(`NOTES line 1 (${ENCHANT_DEFS[id].name})`, partNotes(id)[0])})`);
   out.push("", "### The word cards (the ENCHANTER's offer and each warlord pick: the icon and the price on the card; the tap panel says this)", "");
   for (const id of ENCHANT_IDS) {
     const f = wordFace(id), d = ENCHANT_DEFS[id];

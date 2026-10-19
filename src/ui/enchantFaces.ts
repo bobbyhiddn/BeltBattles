@@ -23,15 +23,48 @@ import {
 import { pct, roundHalfUp } from "../sim/pct";
 import type { Span } from "./richText";
 
-/** The default rules text, behind the hover or the tap (E7; REQ-BFG-087's spacing, docs/TEXT-STYLE.md): what an enchantment is. */
+/** ENCHANT-2 (REQ-BFG-085; T4b): NOTES line 1 is two sentences, kept apart so a PART's panel can put a third between them (partNotes below). */
+const NOTE_WHAT = "ENCHANTED: ONE EXTRA EFFECT ON THIS PART, SHOWN IN ITS COLOUR.";
+const NOTE_KEPT = "IT STAYS WHEN YOU MOVE THE PART AND IS LOST IF YOU SELL IT.";
+
+/** The default rules text, behind the hover or the tap (E7; REQ-BFG-087's spacing, docs/TEXT-STYLE.md): what an enchantment is. A WORD's own card
+ *  (the ENCHANTER's offer, a warlord pick, the APPLY card) shows these four lines as they are: it shows no part's numbers. A PART's panel reads
+ *  partNotes(word) (faces.ts enchantNotes), whose line 1 also says where the numbers above the word's line come from (ENCHANT-2, T4b). */
 export const ENCHANT_NOTES: readonly string[] = [
-  "ENCHANTED: ONE EXTRA EFFECT ON THIS PART, SHOWN IN ITS COLOUR. IT STAYS WHEN YOU MOVE THE PART AND IS LOST IF YOU SELL IT.",
+  `${NOTE_WHAT} ${NOTE_KEPT}`,
   "A PART HOLDS ONE: A NEW ONE REPLACES IT.", // TEXT-STYLE bans PER (a rate word): the brief's `ONE PER PART` is reworded (run 3)
   "A MERGE KEEPS ONE: IF BOTH PARTS HAVE ONE, YOU PICK.", // run 5, E10's fix round: no reader could tell from a face what a merge does
   // ENCHANT-1c (C4): 4 of 6 readers (ENCHANT-1b round 1) asked what a merge does when only ONE of the two parts holds a word. The code keeps it: fuse.ts:186
   // calls mergeWords (:201) when either copy has a word, and enchant.ts mergeWord (:288) returns the one copy's word as it is (`fa.ench === undefined` -> fb, `fb.ench === undefined` -> fa)
   "IF ONLY ONE PART HAS ONE, A MERGE KEEPS IT.",
 ];
+
+/**
+ * ENCHANT-2 (REQ-BFG-085; BRIEF-ENCHANT2 T4b): the sentence a PART's NOTES line 1 gains, by word, answering "is this number the part's, or the word's?".
+ * ENCHANT-1c's strict re-read of a FIERY EMBER TROUGH (its own `[BURN]+1` in the row, FIERY's line under it) read FULL 2 of 6: each doubter asked whether
+ * the row's +1 already includes FIERY's. One NOTES sentence, `THE NUMBERS ABOVE IT ARE THE PART'S OWN.`, read 6 of 6 (round 3, on a copy). It is true for the
+ * words whose stat rows hold ONLY the part's own numbers, and false for the words that change a number in the rows, so it is word-specific:
+ *  - FIERY, RISING, ECHOING, BRACED: their rows are the plain piece's, number for number, on every kind, at every star (the line under the rows is the word's:
+ *    tests/enchant2.notes.test.ts audits every part on both views of it, placed and in cargo);
+ *  - MASSIVE, SWIFT, GROWING, WIDE: they change a number IN THE STAT ROWS (MASSIVE's and SWIFT's RATE and SWIFT's DMG, GROWING's DMG once it has grown, WIDE's
+ *    belt or gear slots) and the rows show the changed number in the word's colour. The sentence says so about THE STATS: WIDE on a factory also changes the
+ *    belt count in the header's sub line (`FACTORY · BELTS 0/3`), which is drawn in one plain colour, so `THE NUMBERS IT CHANGES ARE SHOWN CHANGED, IN ITS
+ *    COLOUR` alone would be false of that one number; scoped to the stats it is true on every face (the audit pins the sub line's one exception).
+ * A COLOUR RULE for numbers (1c's QUESTION 1 candidate) is NOT written: the panel draws a number inside a word's own line in the plain colour.
+ * A word's own card (wordFace) shows no part's numbers and keeps ENCHANT_NOTES.
+ */
+const NUMBERS_OWN = "THE NUMBERS ABOVE IT ARE THE PART'S OWN.";
+const NUMBERS_CHANGED = "IN THE STATS ABOVE, THE NUMBERS IT CHANGES ARE SHOWN CHANGED, IN ITS COLOUR.";
+export const NOTE_NUMBERS: Readonly<Record<EnchantId, string>> = {
+  fiery: NUMBERS_OWN, rising: NUMBERS_OWN, echoing: NUMBERS_OWN, braced: NUMBERS_OWN,
+  growing: NUMBERS_CHANGED, massive: NUMBERS_CHANGED, swift: NUMBERS_CHANGED, wide: NUMBERS_CHANGED,
+};
+
+/** A PART's NOTES holding the word `id` (faces.ts enchantNotes): ENCHANT_NOTES with line 1's second sentence the word's own (NOTE_NUMBERS), between
+ *  what an enchantment is and that it stays when the part moves. Lines 2-4 are ENCHANT_NOTES'. */
+export function partNotes(id: EnchantId): string[] {
+  return [`${NOTE_WHAT} ${NOTE_NUMBERS[id]} ${NOTE_KEPT}`, ...ENCHANT_NOTES.slice(1)];
+}
 
 /** A line as the panel draws it: enchant.ts writes an icon as [NAME] (the brief's form); the panels' markup is {NAME}, and the word DMG is
  *  its icon (TEXT-STYLE 8.4: `+2 {DMG}`, never DMG as a word). A `{*NAME}` or `{NAME}` already in it is left as it is. */
