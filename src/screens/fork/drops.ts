@@ -73,6 +73,10 @@ export function drawDropIcons(g: G, t: DropTable, x: number, y: number, w: numbe
   return n;
 }
 
+/** ENCHANT-2 (REQ-BFG-085, T4): the full list's header line, as drawDropList draws it under the title ("DROP 75% ON A WIN · TO CARGO AT ★2"). One place for the string:
+ *  the text sheet (tools/textSheet.ts) reads it from here. HULL-1b: the table's star. */
+export const dropListHeader = (t: DropTable): string => `${dropLine(t)} ON A WIN · TO CARGO AT ★${t.stars ?? 1}`;
+
 /** The ⓘ glyph in its 11 px box (lastChancePicker.ts drawInfo's form: a dot over a stem on a foot). */
 export function drawInfoBox(g: G, r: Rect, on: boolean): void {
   rect(g, r.x, r.y, r.w, r.h, C.ink);
@@ -106,7 +110,7 @@ export function drawDropList(g: G, game: Game, title: string, t: DropTable, onCl
   panel(g, { x, y, w, h }, "raised");
   ui.add({ id: "droplist", r: { x: 0, y: 0, w: W, h: H }, onTap: onClose, block: true });
   drawText(g, title, x + 6, y + 5, C.yellow, { outline: C.ink });
-  drawText(g, `${dropLine(t)} ON A WIN · TO CARGO AT ★${t.stars ?? 1}`, x + 6, y + 17, C.lime, { font: "3" }); // HULL-1b: the table's star
+  drawText(g, dropListHeader(t), x + 6, y + 17, C.lime, { font: "3" }); // HULL-1b: the table's star (ENCHANT-2: the string is dropListHeader's, one place for the sheet)
   let yy = y + 28;
   if (!rows) drawText(g, "NOTHING IN THIS DECK DROPS", x + 6, yy + 4, C.slate4, { font: "3" });
   for (const l of t.lines) {
