@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import { assemblyLines, Battle, makeTurret, type Payload, type SideState, type TileHit, type TurretState } from "../src/sim/battle";
 import { CELL, COMMISSION_BASE, ITEMS, classFactor } from "../src/sim/content";
 import { pressureBonus, ROUTINES, scaleCore } from "../src/sim/cores";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the capped rule is read with it off
 import { setTurretList, turretSlots, type Build } from "../src/sim/deck";
 import { effectAt, starField } from "../src/sim/stars";
 import { newRun } from "../src/game/run";
@@ -149,13 +150,26 @@ describe("TXT-096 (a): the changed faces say the sim's rules (REQ-BFG-070, REQ-B
   });
 
   // ----------------------------------------------------------------------------------------------- PRESSURE BREECH
-  it("PRESSURE BREECH: MAX n is pressureBonus's own cap, the waiting loads it counts at most (its SHOT tap's UP TO n)", () => {
+  // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0) and PRESSURE BREECH's MAX 5 is dropped (scale.ts SCALE_DEFS: its own perQueued term, uncapped), so the
+  // capped rule is the 0.9.11 world's, read with the switch off (withScaleRigs(fn, false), synchronous); with it on there is no cap and no MAX clause
+  it("PRESSURE BREECH: MAX n is pressureBonus's own cap, the waiting loads it counts at most (its SHOT tap's UP TO n)", () => withScaleRigs(() => {
     for (const s of STARS) for (const k of KS) {
       const c = core("pressure", s, k);
       const counts = Array.from({ length: 30 }, (_, q) => pressureBonus(c, q) / c.perQueued!);
       const cap = Math.max(...counts);
       expect(counts.indexOf(cap), `★${s} k${k}`).toBe(cap); // it grows by one load at a time up to the cap, then stays
       expect(rule("pressure", s, k), `★${s} k${k}`).toBe(`SHOT: +${fmtDmg(c.perQueued!)} {DMG} FOR EACH {SLUG} WAITING, MAX ${fmtCount(cap)} {SLUG}.`);
+    }
+  }, false));
+
+  it("BUMP-1E: PRESSURE BREECH with the switch on (it ships on): no cap, every waiting load counts (pressureBonus's own, uncapped); the rule has no MAX clause", () => {
+    expect(SCALE_RIGS).toBe(true);
+    for (const s of STARS) for (const k of KS) {
+      const c = core("pressure", s, k);
+      expect(c.maxCount, `★${s} k${k}`).toBeUndefined();
+      const counts = Array.from({ length: 30 }, (_, q) => pressureBonus(c, q) / c.perQueued!);
+      expect(counts, `★${s} k${k}`).toEqual(Array.from({ length: 30 }, (_, q) => q)); // one more perQueued for each load waiting, to 29 (was: up to the cap, then stays)
+      expect(rule("pressure", s, k), `★${s} k${k}`).toBe(`SHOT: +${fmtDmg(c.perQueued!)} {DMG} FOR EACH {SLUG} WAITING.`);
     }
   });
 

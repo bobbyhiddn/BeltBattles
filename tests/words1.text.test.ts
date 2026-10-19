@@ -15,6 +15,7 @@ import { newRun, type Run } from "../src/game/run";
 import { ITEMS, MERCHANTS, buyableModules } from "../src/sim/content";
 import { gearSlotsOf } from "../src/sim/deck";
 import { effectAt, fusible } from "../src/sim/stars";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; POWDER KEG's EVERY tap is read with it off
 import { RUNE_LIST, SUSTAIN_RUNE_LIST } from "../src/sim/runes";
 import { computeView, type View } from "../src/core/io";
 import { ICON, icons, stripIcons, textWidth } from "../src/render/font";
@@ -212,7 +213,11 @@ describe("WORDS-1: tap reach (TEXT-STYLE 7.4 as ruled 2026-10-10)", () => {
       expect(ws.find((w) => w.word === "SPEED")?.text, d).toBe(glossaryEntry("SPEED")!.def);
     }
     // POWDER KEG's EVERY tap says its whole belts; DRAKE NOZZLE's SHOT tap says scrap and fuses count, HEAT never
-    expect(panelWords(faceBlocks("keg", 1, {})!, { def: "keg", stars: 1, o: {} }).find((w) => w.word === "EVERY")?.text).toMatch(/EACH SLUG ON ITS BELTS GETS IT/);
+    // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0) and POWDER KEG is reworked (HIT: +2 DMG FOR EACH OF ITS HITS: no fuse, so no EVERY on its face and
+    // TAP_NOTES.keg says ""), so its EVERY tap is the 0.9.11 world's, read with the switch off (synchronous); on, its panel names HIT alone
+    withScaleRigs(() => expect(panelWords(faceBlocks("keg", 1, {})!, { def: "keg", stars: 1, o: {} }).find((w) => w.word === "EVERY")?.text).toMatch(/EACH SLUG ON ITS BELTS GETS IT/), false);
+    expect(SCALE_RIGS).toBe(true);
+    expect(panelWords(faceBlocks("keg", 1, {})!, { def: "keg", stars: 1, o: {} }).map((w) => w.word)).toEqual(["HIT"]); // BUMP-1E: was the EVERY tap's text, above
     expect(panelWords(faceBlocks("drake", 1, { k: 1 })!, { def: "drake", stars: 1, o: { k: 1 } }).find((w) => w.word === "SHOT")?.text).toMatch(/NEVER DOES/);
   });
 

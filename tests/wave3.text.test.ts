@@ -16,6 +16,7 @@ import { faceLines } from "../src/ui/faces"; // Y7b2 (the flip): PINCER's face
 import { stripIcons } from "../src/render/font"; // Y7b2 (the flip): its line, read as text
 import { fmtDmg } from "../src/ui/statFormat"; // Y7b2 (the flip): its number through the face's formatter
 import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's base row beside the shipped one
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; IRON WALL's plated row is read with it off
 
 // 0.8.0 P1 (REQ-BFG-032): wave 3's text in the game's panels, with wave 3 turned on (withWave3): T6's phone fit and the
 // desk column for every wave-3 module at every star (placed, in cargo, fitted and on offer), the flavour (none kept), T2
@@ -268,7 +269,12 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
     expect(h("plateroller", 2, { plate: 33 })).toBe("PLATE ROLLER +33 SHIELD");
     expect(withGuard(() => h("plateroller", 2, { plate: 11 }), false)).toBe("PLATE ROLLER +11 SHIELD");
     // SUS-B (cap's answer 3 to SUSTAIN-1): SHIELD WALL is IRON WALL (the name; the id and the row stay)
-    expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("IRON WALL +10 SHIELD, +30 DAMAGE AT 120 SHIELD");
+    // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0) and IRON WALL is reworked into a reader (+n DMG for each 10 SHIELD you have: its def holds no `plate` and
+    // no `plated`, only `reads`), which the day-1 walk can't count: its row is its name, whatever the hit it is handed (hitRow reads the def's own
+    // fields). The row with its plating and its +30 at 120 is the 0.9.11 world's, read with the switch off (withScaleRigs(fn, false), synchronous)
+    expect(SCALE_RIGS).toBe(true);
+    expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("IRON WALL"); // BUMP-1E: was "IRON WALL +10 SHIELD, +30 DAMAGE AT 120 SHIELD"
+    withScaleRigs(() => expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("IRON WALL +10 SHIELD, +30 DAMAGE AT 120 SHIELD"), false);
     // Y7b2 (the flip): TWIN GAUGE's floor left, so the walk gives an unmatched belt flat 0 and its row says it does nothing
     // there (was the hit { flat: 10, matched: false } and "TWIN GAUGE +10 DAMAGE")
     expect([h("twingauge", 1, { flat: 30, matched: true }), h("twingauge", 1, { flat: 0, matched: false })])

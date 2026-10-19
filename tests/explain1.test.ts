@@ -48,7 +48,8 @@ import {
   explainWords, iconTipItems, iconTipRect, infoItems, infoLevels, keywordState, keywordsPressed, panelPiece, panelWords, questionRect,
 } from "../src/screens/build/keywords";
 import { PLAIN_RIGS, RIG_SENTENCE, faceLines, hasFace, plainRigStats, turretPlainOf } from "../src/ui/faces";
-import { SHAPED_PLAIN_RIGS, isPlainRig, shapeLines } from "../src/ui/faces"; // SHAPES-1 flip: the shaped plain rigs (E9's path)
+import { SCALE_PLAIN_RIGS, SHAPED_PLAIN_RIGS, isPlainRig, shapeLines } from "../src/ui/faces"; // SHAPES-1 flip: the shaped plain rigs (E9's path); BUMP-1E: SCALE_PLAIN_RIGS (VENOM DRIP's POISON row)
+import { SCALE_IDS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the seven new rigs; the old world is read with it off
 import { BALLAST_LINE, CARRY_LINE, plainNotes, plainSlugRig } from "../src/ui/faces"; // PLAIN-1F (M3): the six's NOTES lead
 import { PLAIN_RIG_IDS, withPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1F (M3): the six, PLAIN_RIGS on
 import { SHAPES2_IDS, withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: SHAPES2 ships on (bb-0.11.0): the six more shaped rigs, and NAIL STRIP's and SPIKE RAIL's patch
@@ -173,7 +174,9 @@ describe("EXPLAIN-1 (a, b): the default faces, and nothing lost", () => {
     // star a cargo panel and 3 placed ones): 899 + 39 = 938; GANTRY PRESS's and ASSEMBLY LINE's 7 each are reshaped, not added
     // BUMP-1D: PLAIN_RIGS and SHAPES2 ship on (bb-0.11.0): the six plain rigs and the six more shaped rigs join the buyable
     // modules too, 13 panels each (a rig: an offer, and at each of 3 stars a cargo panel and 3 placed ones): 938 + 12 x 13 = 1094
-    expect(all.length).toBe(1094);
+    // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0): the seven new scaling rigs (SCALE_IDS) join the buyable modules, 13 panels each: 1094 + 7 x 13 = 1185
+    expect(all.length).toBe(1185); // BUMP-1E: was 1094
+    expect(all.length - 1094).toBe(SCALE_IDS.length * 13); // BUMP-1E: the growth is the seven new rigs' panels and nothing else (7 x 13 = 91)
     const bad: string[] = [];
     let n = 0, inner = 0, hidden = 0;
     for (const [name, w, h, dpr] of VIEWS) for (const runes of [1, 0]) {
@@ -605,6 +608,10 @@ describe("EXPLAIN-1 (e): the band", () => {
     // by this test on the tree of the bump (the phoneBand90 lines it prints), every width still at or under its pin (the pins are
     // layout.ts phoneBand90's, unchanged), 92.23% fit at W 246-247 the least, 92.41% at W 250, 93.78% at W 258-340, 94.97-95.80%
     // at W 186-245 (the 90th is 53 at W 186-241, 51 at W 245, 45 from W 246 up)
+    // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0), so the panels are 1185 (the 1094 and the seven new rigs' 7 x 13): measured by this test on the tree
+    // of the bump, every width still at or under its pin (layout.ts phoneBand90's, unchanged), 91.98% fit at W 250 the
+    // least, 92.57% at W 246-247, 93.50% at W 248-249 and 258, 94.26% at W 315-340, 95.36-96.12% at W 186-245 (the 90th is 53 at W 186-241, 51 at
+    // W 245, 45 at W 246-258, 41 at W 315-340): the floor below (90%) and `moved` stay as they were
     const on: string[] = [], moved: Record<number, string> = {};
     for (const W of widths) {
       const { pin, p90, fit, share } = measure(all, W);
@@ -614,7 +621,8 @@ describe("EXPLAIN-1 (e): the band", () => {
     }
     rows.push(...on);
     console.log(`EXPLAIN-1 phoneBand90, tips done (SHAPES on, as shipped): ${rows.join(" | ")}`);
-    expect(all.length).toBe(1094); // BUMP-1D: was 938 (PLAIN_RIGS' six and SHAPES2's six: 12 x 13 more panels)
+    expect(all.length).toBe(1185); // BUMP-1E: was 1094 (the seven new scaling rigs, SCALE_RIGS on: 7 x 13 more panels); BUMP-1D: was 938 (PLAIN_RIGS' six and SHAPES2's six: 12 x 13 more panels)
+    expect(all.length - 1094).toBe(SCALE_IDS.length * 13); // BUMP-1E: the growth is the seven new rigs' panels and nothing else
     // SC-0912 (PACKET-SHOPCARD1 item 3): SHOPCARD-1b-1d's `moved` pin here ({250: "822 of 938, 90th 48", 258: "834 of 938, 90th 48",
     // 315: "843 of 938, 90th 48", 340: "843 of 938, 90th 48"}: measured before PLAIN-1F, when the band was over its pin from W 250) is
     // dropped, as PLAIN-1F's side drops it: PLAIN-1F's hits-on-one-line is back to 90% at every width, so on this merged tree
@@ -762,11 +770,16 @@ describe("EXPLAIN-1 (f): E9, plain faces for WHETSTONE, TEMPER and BARBED SPOOL 
     // BUMP-1D: and as shipped (both on): the plain rigs among the buyable rigs are the base's three, SHAPES-1's three, PLAIN-1's
     // six and SHAPES2's six (18); the NOTES lead is the rig sentence, SCALE GUARD's and ELBOW GUARD's carry their {*PLATE} to the
     // gun (CARRY_LINE after it), BALLAST's is its own line (its stat is the ship's, so no HIT); every other rig has none
-    const plain = [...PLAIN_RIGS, ...SHAPED_PLAIN_RIGS, ...PLAIN_RIG_IDS, ...SHAPES2_IDS];
+    // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0), and VENOM DRIP is a plain rig with it (faces.ts SCALE_PLAIN_RIGS: its stat row is POISON +1/+2/+3,
+    // no HIT: line, SCALE-2b): the plain rigs are the 18 and VENOM DRIP, 19 (was 18); with the switch off (the 0.9.11 world) they are the 18 as before
+    const plain18 = [...PLAIN_RIGS, ...SHAPED_PLAIN_RIGS, ...PLAIN_RIG_IDS, ...SHAPES2_IDS];
+    const plain = [...plain18, ...SCALE_PLAIN_RIGS];
     const carry = ["scaleguard", "elbowguard"];
     const rigs = buyableModules().filter((x) => x.kind === "gate");
-    expect(plain.length).toBe(18);
+    expect(plain18.length).toBe(18);
+    expect([plain.length, SCALE_PLAIN_RIGS]).toEqual([19, ["venom"]]); // BUMP-1E: was 18
     expect(rigs.filter((d) => isPlainRig(d.id)).map((d) => d.id).sort()).toEqual([...plain].sort());
+    withScaleRigs(() => expect(buyableModules().filter((x) => x.kind === "gate" && isPlainRig(x.id)).map((x) => x.id).sort()).toEqual([...plain18].sort()), false); // BUMP-1E: the old world's 18
     for (const d of rigs) {
       const lead = d.id === "ballast" ? [BALLAST_LINE] : carry.includes(d.id) ? [RIG_SENTENCE, CARRY_LINE] : plain.includes(d.id) ? [RIG_SENTENCE] : [];
       expect(plainNotes(d.id), d.id).toEqual(lead);

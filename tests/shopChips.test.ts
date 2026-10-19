@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { G, fresh, installRaster } from "./raster.helpers";
 import { ITEMS, buyableModules } from "../src/sim/content";
+import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; VENOM DRIP's old chip is read with it off
 import { effectAt } from "../src/sim/stars";
 import { scaleCore } from "../src/sim/cores";
 import { ICON, icons, stripIcons, textWidth } from "../src/render/font";
@@ -97,7 +98,7 @@ describe("U2d F2 (cap's answer to U2c question 3): the chip rule, a chip's icon 
   it("WORDS-1: the plain chips are READ-1 6.3's 15 chipless pieces, none read as damage, a rate or another card's number", () => {
     const fifteen = ["venom", "tollbooth", "braceframe", "grease", "brake", "overdrive", "sorting", "overclocker", "twinlatch", "drake", "rotary", "grapnel", "spotter", "mantlet", "flak"];
     expect(Object.keys(PLAIN_CHIPS).sort()).toEqual([...fifteen].sort());
-    for (const def of fifteen) {
+    const plainChip = (def: string): void => {
       const f = faceAt(def, 1, { k })!, chip = shopChip(def, { k })!;
       expect(chip, def).toBe(PLAIN_CHIPS[def](f));
       expect(chip, def).not.toMatch(/\{RATE\}/); // never a rate (9.3)
@@ -105,9 +106,18 @@ describe("U2d F2 (cap's answer to U2c question 3): the chip rule, a chip's icon 
       // a number is one the face printed (its keyed rule number), never a literal
       const n = /\d+%?/.exec(chip)?.[0];
       if (n) expect(f.nums.some(([, v]) => v.includes(n)), `${def}: ${chip}`).toBe(true);
-    }
-    // the chip that names a number gives its unit: VENOM DRIP's BURN lasts +3 SEC; SPOTTER's 1 MORE AIM
-    expect(shopChip("venom")).toMatch(/^\{BURN\}\+\d+\{SEC\}$/);
+    };
+    // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0) and VENOM DRIP is a POISON stat rig with it (its face is HIT: +1 POISON, the number keyed `poison`):
+    // the chip RULE gives it a chip, {POISON}+1, so with the switch on it is no chipless piece and its PLAIN_CHIPS row (the {BURN}+3{SEC} of its old
+    // burnPlus, which the table keeps) is the 0.9.11 world's, read with the switch off; the other 14 are read as they were, on
+    expect(SCALE_RIGS).toBe(true);
+    for (const def of fifteen) if (def !== "venom") plainChip(def);
+    withScaleRigs(() => plainChip("venom"), false);
+    // the chip that names a number gives its unit: VENOM DRIP's BURN lasts +3 SEC (the switch off; on, its chip is the POISON count the face prints); SPOTTER's 1 MORE AIM
+    withScaleRigs(() => expect(shopChip("venom")).toMatch(/^\{BURN\}\+\d+\{SEC\}$/), false);
+    const venom = captureFormats(() => shopChip("venom", { k }));
+    expect(venom.value).toBe("{POISON}+1"); // BUMP-1E: was {BURN}+3{SEC} (the rule's chip, not a PLAIN_CHIPS row, now)
+    expect(venom.records.map((r) => r.printed.replace(/^\+/, ""))).toContain("1"); // its number is one the face printed through a formatter
     expect(shopChip("spotter")).toMatch(/^AIM\+\d+$/);
   });
 

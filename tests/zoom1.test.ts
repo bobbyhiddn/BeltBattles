@@ -10,6 +10,7 @@ import { setTipsForTests } from "../src/ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5)
 import { installRaster, fresh, G } from "./raster.helpers";
 import { newRun, type Run } from "../src/game/run";
 import { buyableModules } from "../src/sim/content";
+import { SCALE_IDS } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the seven new rigs
 import { itemByUid, key as K, rotField, setTurretList, turretSlots, type Placed } from "../src/sim/deck";
 import { fusible } from "../src/sim/stars";
 import { UI, type Rect } from "../src/ui/ui";
@@ -279,7 +280,10 @@ describe("ZOOM-1: the band sized for 90% of the panels (REQ-BFG-080 acceptance 2
     // SHAPES-1 flip: NAIL STRIP, EMBER TROUGH and SPIKE RAIL join the buyable modules, 13 panels each (an offer, and at each
     // star a cargo panel and 3 placed ones): 899 + 39 = 938; GANTRY PRESS's and ASSEMBLY LINE's 7 each are reshaped, not added
     // BUMP-1D: the six plain stat rigs and the six more shaped rigs join the buyable modules, 13 panels each: 938 + 12 x 13 = 1094
-    expect(all.length).toBe(1094);
+    // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0): the seven new scaling rigs (SCALE_IDS) join the buyable modules, 13 panels each (an offer, and
+    // at each of 3 stars a cargo panel and 3 placed ones): 1094 + 7 x 13 = 1185
+    expect(all.length).toBe(1185); // BUMP-1E: was 1094
+    expect(all.length - 1094).toBe(SCALE_IDS.length * 13); // BUMP-1E: the growth is the seven new rigs' panels and nothing else (7 x 13 = 91)
     // SPACE-1 (REQ-BFG-087, D6): the re-pinned table's steps (238, 240, 246, 248, 250) and either side of each; was 186, 235,
     // 236, 237, 238, 241, 245, 246, 247, 248, 258, 315, 340
     const widths = [186, 235, 236, 237, 238, 239, 240, 241, 245, 246, 247, 248, 249, 250, 258, 315, 340], rows: string[] = [];

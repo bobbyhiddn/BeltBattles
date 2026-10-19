@@ -18,6 +18,7 @@ import { PLATE_COLOUR, SHIELD_COLOUR } from "../src/game/arenaReact";
 import { REMINDER, faceAt, hasFace, heroPlaystyle } from "../src/ui/faces";
 import { BALLAST_LINE, CARRY_LINE, cardEffect, plainNotes } from "../src/ui/faces"; // PLAIN-1F (M3): (r) for the six
 import { PLAIN_RIG_IDS, withPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1F (M3)
+import { SCALE_IDS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the seven new rigs (SCALE_IDS)
 import { abilityText, cardText, gist, hasAbilityText, heroTrick, nextStarText } from "../src/ui/abilityText";
 import { flavour } from "../src/screens/build/flavour";
 import { GLOSSARY, RUNE_NOTE, RUNE_REMINDER, glossaryEntry, glossaryText, keywordRow } from "../src/ui/glossary";
@@ -98,7 +99,11 @@ afterEach(() => { delete g.localStorage; setTipsForTests("reload"); });
 
 describe("CARD-3 (r): SHIELD and WARD (REQ-BFG-107)", () => {
   it("the player's words: SHIELD on the soak layer's icon and colour, WARD on the block's; every other keyword its name", () => {
-    expect(PLAYER_WORD).toEqual({ BURN: "BURN", STUN: "STUN", HEAT: "HEAT", FRAY: "FRAY", PLATE: "SHIELD", PAIR: "PAIR", SHIELD: "WARD", HEAL: "HEAL", REGEN: "REGEN" });
+    // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0), and POISON is a keyword with it (font.ts's SCALE-2b hook adds its word, its own name): the
+    // map is the 9 below and POISON, was the 9 alone. The shipped 9 (the 0.9.11 world) are read with the switch off, synchronously
+    expect(SCALE_RIGS).toBe(true);
+    expect(PLAYER_WORD).toEqual({ BURN: "BURN", STUN: "STUN", HEAT: "HEAT", FRAY: "FRAY", PLATE: "SHIELD", PAIR: "PAIR", SHIELD: "WARD", HEAL: "HEAL", REGEN: "REGEN", POISON: "POISON" }); // BUMP-1E: was without POISON
+    expect(withScaleRigs(() => ({ ...PLAYER_WORD }), false)).toEqual({ BURN: "BURN", STUN: "STUN", HEAT: "HEAT", FRAY: "FRAY", PLATE: "SHIELD", PAIR: "PAIR", SHIELD: "WARD", HEAL: "HEAL", REGEN: "REGEN" }); // the old world's 9, with the switch off
     expect([icons("{*PLATE}"), icons("{*SHIELD}"), icons("{PLATE}"), icons("{SHIELD}")]).toEqual([`${ICON.PLATE}SHIELD`, `${ICON.SHIELD}WARD`, ICON.PLATE, ICON.SHIELD]);
     expect([keywordOfWord("SHIELD"), keywordOfWord("WARD"), keywordOfWord("PLATE")]).toEqual(["PLATE", "SHIELD", undefined]);
     // the colours stay with their mechanics (ICON_COLOUR unchanged): SHIELD plate3, WARD rune3; the HUD's and pops' too
@@ -402,13 +407,17 @@ describe("CARD-3 (a): the phone shop card's gist for cores, gear and five rigs (
     "twingauge", "barbed", "twinlatch", "dartgun", "spikegun", "hailgun"];
   // CARD-5: the 13 rows A whose digit is the face's own number (an EVERY, a HOLD, a batch, a pour, BELT, pellets, a shot;
   // card5.test.ts checks each digit against its face); every other row A stays in words
-  const FACE_NUMBER_A = ["shottower", "doublestamp", "armorpress", "mendpress", "gantry", "twinmould", "keg", "surge", "overclocker",
+  // BUMP-1E: "keg" left this list (it was after "twinmould"): SCALE_RIGS ships on and POWDER KEG is reworked (HIT: +2 DMG FOR EACH OF ITS
+  // HITS), so its gist is SCALE_GISTS' "ITS HITS" over its chip, no digit in row A (its old row A, EVERY 12s, is CARD-5's: card5.test.ts
+  // pins it with the switch off)
+  const FACE_NUMBER_A = ["shottower", "doublestamp", "armorpress", "mendpress", "gantry", "twinmould", "surge", "overclocker",
     "twinlatch", "wardbell", "scatter", "chamber"];
-  it("every core and piece of gear shows a gist, and so do the five rigs and CARD-5's 37 pieces; the other turrets and rigs keep their chips", () => {
+  it("every core and piece of gear shows a gist, and so do the five rigs and CARD-5's 37 pieces (and the seven new scaling rigs); the other turrets and rigs keep their chips", () => {
     const rows: string[] = [];
     for (const d of buyableModules()) {
       const o = d.kind === "core" ? { k: 1 } : {}, gst = phoneGist(d.id, o), chip = shopChip(d.id, o);
-      const wants = d.kind === "core" || d.kind === "mod" || FIVE.includes(d.id) || CARD5.includes(d.id);
+      // BUMP-1E: + the seven new scaling rigs (SCALE_IDS), each with a SCALE_GISTS row: "PER FOE {BURN}", "PER FOE {POISON}", ... (the flip adds them)
+      const wants = d.kind === "core" || d.kind === "mod" || FIVE.includes(d.id) || CARD5.includes(d.id) || SCALE_IDS.includes(d.id);
       expect(!!gst, `${d.id} (${d.kind})`).toBe(wants);
       if (!gst) continue;
       const [a, b] = gst, aw = textWidth(icons(a), "3"), bw = textWidth(icons(b, "alone"), "3");
@@ -418,7 +427,9 @@ describe("CARD-3 (a): the phone shop card's gist for cores, gear and five rigs (
       expect(bw, `${d.id} row B ${b} (room ${room})`).toBeLessThanOrEqual(room);
       rows.push(`${d.id} | ${d.kind} | ${plain(chip ?? "-")} | ${plain(a)} / ${plain(b)} | ${cardText(d.id, o)} | A ${aw} px of ${CARD_W - 2 * CARD_MARK_X - 1}, B ${bw} of ${room}`);
     }
-    expect(Object.keys(PHONE_GISTS).length).toBe(rows.length);
+    // BUMP-1E: PHONE_GISTS holds CARD-5's 70 rows (the five reworks' read before them while the switch is on: SCALE_GISTS); the seven
+    // new rigs' rows are SCALE_GISTS' alone, so the rows are the 70 and the 7 (was the 70)
+    expect(Object.keys(PHONE_GISTS).length + SCALE_IDS.length).toBe(rows.length);
     console.log(`CARD3 (a) gists, ${rows.length}:\n${rows.join("\n")}`);
   });
 
@@ -529,7 +540,11 @@ describe("CARD-3 (b, c): the phone band (REQ-BFG-080) and the first-run band (RE
     // 720 floor and the 5-point rule below keep their point; run 6's measured counts: REPORT-SHAPES1 "Run 6")
     // BUMP-1D: the six plain stat rigs and the six more shaped rigs join the buyable modules, 13 panels each (an offer, and at each
     // star a cargo panel and 3 placed ones): 938 + 12 x 13 = 1094
-    expect(all.length).toBe(1094);
+    // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0): the seven new scaling rigs (SCALE_IDS) join the buyable modules, 13 panels each (an offer,
+    // and at each of 3 stars a cargo panel and 3 placed ones): 1094 + 7 x 13 = 1185 (their count is the whole of the growth: the five
+    // reworks and VENOM DRIP change a panel's text, never the number of panels)
+    expect(all.length).toBe(1185); // BUMP-1E: was 1094
+    expect(all.length - 1094).toBe(SCALE_IDS.length * 13); // BUMP-1E: the growth is the seven new rigs' panels and nothing else (7 x 13 = 91)
     const counts: Record<string, number> = {};
     for (const mode of ["done", "new"] as const) {
       setTipsForTests(mode);
