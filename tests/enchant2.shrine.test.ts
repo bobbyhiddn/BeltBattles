@@ -12,7 +12,9 @@ import { SHRINE_HULL, SHRINE_ID, SHRINE_NO_PART, shrineGive, shrineOffer } from 
 import { HEROES, RUN_DAYS, type HeroId } from "../src/sim/content";
 import { ENCHANT_IDS, enchantRules, withEnchant } from "../src/sim/enchant";
 import { shrineWords } from "../src/sim/enchantSources";
-import { MODELLED_EVENTS, MODELLED_DELTAS, checkRoadModel, resetRoadCapMemo, roadCap, roadMixesFor, roadOptions, bagsFor } from "../src/net/roadCap";
+import { MODELLED_EVENTS, MODELLED_DELTAS, checkRoadModel, playerFits, resetRoadCapMemo, roadCap, roadMixesFor, roadOptions, bagsFor } from "../src/net/roadCap";
+import { buildCost, offeredEvents } from "../src/net/validate";
+import { startingBuild } from "../src/sim/ai";
 import { withLongRun } from "../src/sim/longRun";
 
 const OLD_IDS: EventId[] = ["wreck", "cache", "trader", "dice", "dock", "herald", "sappers", "scout", "storm", "smuggler"];
@@ -356,5 +358,39 @@ describe("the road-cap model (src/net/roadCap.ts)", () => {
         expect(bagsFor(23)).toBe(3);
       });
     });
+  });
+});
+
+describe("honest decks that took the shrine's hull card (the player ceiling, both switch states)", () => {
+  const fit = (hull: number, day: number, offered?: ReturnType<typeof offeredEvents>) => {
+    const b = { ...startingBuild("furnace", 1), hullBonus: hull };
+    return playerFits(b, day, buildCost(b), offered);
+  };
+  const keys = (hull: number, day: number, offered?: ReturnType<typeof offeredEvents>): string[] => fit(hull, day, offered).fits.map((f) => f.mix.key);
+  const firstSeed = (want: (seq: EventId[]) => boolean, days: number): number => {
+    for (let seed = 1; seed < 5000; seed++) if (want(eventSequence(seed, days, true))) return seed;
+    throw new Error("no such seed");
+  };
+
+  it("ENCHANT on: one plating less the shrine's 100 hull is explained by the shrine when the seed offered it (and by no other event), refused when it did not", () => {
+    withEnchant(() => {
+      const yes = firstSeed((q) => q.includes(SHRINE_ID) && !q.includes("storm"), 6); // the shrine offered, the DARK WIND (also -100) not
+      const no = firstSeed((q) => !q.includes(SHRINE_ID) && !q.includes("storm"), 6);
+      const hull = 250 - SHRINE_HULL;
+      expect(keys(hull, 6, offeredEvents(yes, 6))).toContain(`shrine(-${SHRINE_HULL},0)`);
+      expect(fit(hull, 6, offeredEvents(yes, 6)).hullOk).toBe(true);
+      expect(fit(hull, 6, offeredEvents(no, 6)).hullOk).toBe(false); // neither event on this road: nothing explains a hull of 150
+      expect(fit(hull, 6, offeredEvents(no, 6)).unofferedHull?.some((l) => l.includes("shrine"))).toBe(true);
+      // seed-blind (a served ghost, a stand-in): the shrine's mix is among the honest ones
+      expect(keys(hull, 6)).toContain(`shrine(-${SHRINE_HULL},0)`);
+      // and with its dock plating, the shrine and the dark wind together: 200 + 250 - 100 - 100 = 250 + 0
+      expect(fit(400 - 2 * SHRINE_HULL + 50, 8).hullOk).toBe(true);
+    });
+  });
+
+  it("ENCHANT off: a hull of 150 is the DARK WIND's as ever, and the model knows no shrine key", () => {
+    expect(keys(250 - 100, 6).some((k) => k.startsWith("storm("))).toBe(true);
+    expect(keys(250 - 100, 6).some((k) => k.includes("shrine"))).toBe(false);
+    expect(fit(250 - 100, 6).hullOk).toBe(true);
   });
 });
