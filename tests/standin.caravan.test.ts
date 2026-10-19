@@ -33,8 +33,13 @@ import { npcDayRules, roadDropValue, setNpcDay, withNpcDay } from "../src/sim/np
 import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the faked deck's par deck, with the switch off
 import { setOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): M5's caravan pool, with the switch off
 import { SHAPES, setShapes } from "../src/sim/shapes"; // MERGE-099F: M5's caravan pool, with SHAPES off too
+import { poolRaw } from "./beltside.helpers"; // BUMP-1E: the stored deck as written (the sale-gain pick's replay)
 
 const HEROES = ["furnace", "weaver"] as const;
+
+/** BUMP-1E (the regenerated pool, bb-0.12.0): the committed pool's stored picks whose deck holds MORE than their gold spent and their road's drops: the run books a negative sale loss
+ *  (player.ts parNpcDay), so spent + drops + the gain = cost exactly. hero|day|position -> the gain in gold. One pick of 192: the loose run of seed 1003 (furnace #3). */
+const SALE_GAIN: Record<string, number> = { "furnace|4|2": 6 };
 
 describe("M2: the caravan population (src/sim/harness/caravan.ts)", () => {
   it("a fixed mix of 1/2 typical, 1/4 sharp, 1/4 loose at every population size; loose is typical with impulse 1", () => {
@@ -82,6 +87,7 @@ describe("M2: the caravan population (src/sim/harness/caravan.ts)", () => {
 
   it("every candidate is legal, fused, within budget and at most 2 stars; its gold adds up; the spend floor counts rerolls and sale losses", () => {
     let n = 0, met = 0, withTurrets = 0;
+    const gains: string[] = []; // BUMP-1E: the candidate-days that book a negative sale loss (see the bound below)
     const policies = new Set<string>();
     for (const hero of HEROES) {
       for (let idx = 0; idx < 12; idx++) {
@@ -104,7 +110,14 @@ describe("M2: the caravan population (src/sim/harness/caravan.ts)", () => {
           // (npcDay.ts roadDropValue of the run's road log, CaravanMeta.log); both 0 with the switch off
           const road = d.meta.road ?? 0, drops = roadDropValue(d.meta.log);
           expect(d.value, at).toBe(boughtCost(d.build));
-          expect(d.value, at).toBeLessThanOrEqual(maxGoldByDay(day) + grant.gold + road); // AZ-BUMP: + the road's (writtenProblems)
+          // BUMP-1E (bb-0.12.0, the catalogue of the regenerated pool): ONE candidate's run books a NEGATIVE sale loss (meta.soldLoss < 0: player.ts parNpcDay books the day's
+          // difference between what came in and what the deck, the purse and the cargo gained as a loss, and furnace #3 (loose 1003) gained 6 more than came in at day 4: soldLoss
+          // -6 on days 4-6, -4, -2 and -2 on days 7-9). Its deck then holds that much more than the gold and the drops buy, so the bound adds exactly that gain (0 for every other
+          // candidate, so their bound is the line as it was) and the gains are pinned below to the exact six candidate-days. The identity two lines down still holds for all 240.
+          // Was: toBeLessThanOrEqual(maxGoldByDay(day) + grant.gold + road) (furnace #3 (loose 1003) d5: 93 of 91).
+          const gain = Math.max(0, -d.meta.soldLoss);
+          if (gain) gains.push(`${at}: ${gain}`);
+          expect(d.value, at).toBeLessThanOrEqual(maxGoldByDay(day) + grant.gold + road + gain); // AZ-BUMP: + the road's (writtenProblems)
           expect(maxStarsOf(d.build), at).toBeLessThanOrEqual(STANDIN_MAX_STARS);
           // AZ-BUMP (the flip, NPC_DAY): the gold adds up with the road's (caravan.ts caravanDeck): cargoGold is the value left
           // in cargo at dusk (drops that found no place, parts the REFIT swap took off; 0 with the switch off, as before), so
@@ -130,6 +143,8 @@ describe("M2: the caravan population (src/sim/harness/caravan.ts)", () => {
       }
     }
     expect(n).toBe(240);
+    // BUMP-1E: the exact candidate-days whose run books a negative sale loss, measured on this tree over the 240 (furnace #3, the loose run of seed 1003, days 4-9)
+    expect(gains).toEqual([4, 5, 6, 7, 8, 9].map((day, k) => `furnace #3 (loose 1003) d${day}: ${[6, 6, 6, 4, 2, 2][k]}`));
     expect(policies).toEqual(new Set(["typical", "sharp", "loose"]));
     expect(met).toBeGreaterThan(n / 2);
     // at this base a turret offer that merges into the hull's starting turret is bought, so some decks carry
@@ -530,7 +545,12 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
           // drops sit on its deck at their value, unpaid (spent + drops = deck + rerolls + sale losses + cargo, as the M5 test
           // above names it), so spent alone can be under the deck's cost (furnace d1: spent 8, cost 11); the bound counts the
           // pick's road log's drops (0 without a road log: exactly as before). Was: e.spent >= e.cost
-          expect(e.spent + (e.road ? roadDropValue(e.road) : 0), `${hero} d${day} #${i}: spent + its road's drops`).toBeGreaterThanOrEqual(e.cost);
+          // BUMP-1E (the regenerated pool, R1 19ae423): ONE stored pick holds 6 more than its spent gold and its road's drops cover: furnace d4 #2 (cost 71, spent 48, drops 17) is the
+          // pick of candidate #3, the loose run of seed 1003, whose sale loss is -6 from day 4 on (the M5 test above, the bound in the first test: 240 candidates, six candidate-days).
+          // It is pinned EXACTLY: spent + drops + 6 = cost for that pick, and every other pick's bound is the line as it was. Was: the bound for all 192, no exception.
+          const saleGain = SALE_GAIN[`${hero}|${day}|${i}`] ?? 0;
+          if (saleGain) expect(e.spent + (e.road ? roadDropValue(e.road) : 0) + saleGain, `${hero} d${day} #${i}: its sale gain makes it exact`).toBe(e.cost);
+          expect(e.spent + (e.road ? roadDropValue(e.road) : 0) + saleGain, `${hero} d${day} #${i}: spent + its road's drops`).toBeGreaterThanOrEqual(e.cost);
           // FLIP-X2: a pick's gold spent includes the gold its runes paid, so the bound is the day's gold plus its runes'
           // dawn gold (was maxGoldByDay(day): 54 <= 50)
           // S8c (a48010b / the pools: P1 83c039d is road-fed): a road-fed pick's run also spent the road's gold, so its bound
@@ -542,6 +562,15 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
       }
     }
     expect(n).toBe(192); // BUMP-1D: 2 heroes x 16 days x 6 decks (was 120: 10 days)
+  });
+
+  it("BUMP-1E: the committed pool's one sale-gain pick is the loose run of seed 1003 (furnace d4 #2 = candidate #3 at day 4): its meta books the gain, to the gold", () => {
+    const e = standInPool("furnace", 4)[2], d = caravanCandidate("furnace", 4, 1, 3, STANDIN_MAX_STARS);
+    expect(caravanCand(3, d).code).toBe(encodeStarred(poolRaw("furnace", 4, 2))); // the stored pick IS this run's day-4 deck
+    expect([d.meta.policy, d.meta.seed]).toEqual(["loose", 1003]);
+    expect([e.cost, e.spent, roadDropValue(e.road)]).toEqual([71, 48, 17]);
+    expect([d.value, d.meta.spent, d.meta.soldLoss]).toEqual([71, 48, -6]);
+    expect(SALE_GAIN).toEqual({ "furnace|4|2": -d.meta.soldLoss });
   });
 
   it("the header documents the sixth element: a caravan pool's tuple line and StandInTuple; pool v2.1's lines are unchanged", () => {
