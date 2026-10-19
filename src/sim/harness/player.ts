@@ -254,6 +254,9 @@ export interface PlayerDay {
   road?: PlayerRoad;
   roadGold?: number;
   roadDrops?: number;
+  // BUMP-1F (F5, BUMP-1E REPORT section 11): the value a road placement GAINED on days 1..day (a drop that merged into a star worth more than the
+  // drop's own value, parNpcDay): booked in roadDrops (so the identity above holds with soldLoss >= 0 for every run) and named here; absent when none
+  roadGain?: number;
   cargo?: number;
   // ENCHANT-1 (REQ-BFG-085, E8): with ENCHANT on and a word bought: the gold spent at the ENCHANTER on days 1..day (E6.4: it joins the
   // deck's cost, so boughtCost(build) + rerollGold + gold + soldLoss + wordGold (+ cargo) = budget); absent otherwise
@@ -1782,7 +1785,7 @@ function dawnEdits(run: Run, pol: PolicyKnobs, rng: Rng): void {
  * floor; else the purse is filled to `floor` of the day's gold with harmless offers (supplies first, each at its
  * best spot). Gold above `reserve` then goes into belt crates when the caravan sells them.
  */
-function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: { reroll: number; sold: number; word?: number }, opts: PlayerOpts): { buys: PlayerBuy[]; rolls: number } {
+function shopDay(run: Run, pol: PolicyKnobs, maxStars: number, rng: Rng, spent: { reroll: number; sold: number; word?: number; gain?: number }, opts: PlayerOpts): { buys: PlayerBuy[]; rolls: number } {
   const budget = maxGoldByDay(run.day), target = floorGold(run.day, pol.floor);
   const buys: PlayerBuy[] = [];
   let rolls = 0, roomy = false;
@@ -1934,7 +1937,7 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
     const run = startRun(hero, seed);
     const rng = new Rng(hashSeed("par-player-policy", hero, seed, policy));
     const persona = personaOf(hero, seed, pol);
-    const spent: { reroll: number; sold: number; word?: number } = { reroll: 0, sold: 0 };
+    const spent: { reroll: number; sold: number; word?: number; gain?: number } = { reroll: 0, sold: 0 };
     full = [];
     if (runes) dawnRune(run); // RUNES-2a: day 1's rune first (the game's picker comes before anything at dawn)
     if (persona.beltTiles > 0) drawKilnBelt(run, rng, persona.beltTiles);
@@ -1947,10 +1950,11 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
       // next dawn), and the road's gold and drops in the day's budget, as validate.ts counts them
       const road = nd ? parNpcDay(run, pol, spent, maxStars) : undefined;
       const budget = maxGoldByDay(day) + runeGrants(run.build.runes, day, lastChanceRuneAt(run.lastChance)).gold;
-      const roadGold = road ? run.warlords.reduce((s, w) => s + w.gold, 0) : 0, roadDrops = road ? roadDropValue(roadLog(run.warlords)) : 0;
+      const roadGain = road ? spent.gain ?? 0 : 0; // BUMP-1F (F5): the placements' gains, in the road's drops
+      const roadGold = road ? run.warlords.reduce((s, w) => s + w.gold, 0) : 0, roadDrops = road ? roadDropValue(roadLog(run.warlords)) + roadGain : 0;
       full.push({
         day, build: cloneBuild(run.build), value: buildCost(run.build).total, budget: budget + roadGold + roadDrops, gold: run.gold, rerolls: rolls, rerollGold: spent.reroll, soldLoss: spent.sold, buys,
-        ...(road ? { road, roadGold, roadDrops, cargo: run.inventory.reduce((s, it) => s + cargoValue(it), 0) } : {}),
+        ...(road ? { road, roadGold, roadDrops, ...(roadGain ? { roadGain } : {}), cargo: run.inventory.reduce((s, it) => s + cargoValue(it), 0) } : {}),
         ...(spent.word ? { wordGold: spent.word } : {}), // ENCHANT-1 (E8): the gold spent at the ENCHANTER by this dusk (absent off and with no word bought)
       });
       if (traced && day >= days) break;
@@ -2007,7 +2011,7 @@ export function playerRoadLog(days: readonly PlayerDay[], day: number): RoadEntr
  * that one call: its only NPC_DAY reads are the drop and the sabotage flag, and a par run is never sabotaged). Par runs
  * (FUSE_MAX) never decline.
  */
-function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: number }, maxStars = FUSE_MAX): PlayerRoad {
+function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: number; gain?: number }, maxStars = FUSE_MAX): PlayerRoad {
   const worth = (): number => buildCost(run.build).total + run.gold + run.inventory.reduce((s, it) => s + cargoValue(it), 0);
   const before = worth(), logged = run.warlords.length;
   const pick = pickRoad(run, PAR_ROAD_TIER);
@@ -2049,7 +2053,12 @@ function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: nu
   }
   // the day's sale loss, if the placement sold a part: what came in (the win's gold, the drop at its star, as the road
   // log counts it) minus what the deck, the purse and cargo gained
-  spent.sold += before + res.gold + roadDropValue(roadLog(run.warlords.slice(logged))) - worth();
+  // BUMP-1F (F5): and never a NEGATIVE loss. A placement that gains value (the drop merged into a star worth more than it came in at: seed 1003's
+  // loose furnace run, soldLoss -6 on days 4-6) books the gain as a gain, a part of the road's drops (playerRun's roadDrops), so the day's gold still
+  // adds up: spent + drops = value + rerolls + soldLoss + cargo with soldLoss >= 0 for every run
+  const net = before + res.gold + roadDropValue(roadLog(run.warlords.slice(logged))) - worth();
+  if (net >= 0) spent.sold += net;
+  else spent.gain = (spent.gain ?? 0) - net;
   return { id: w.id, outcome: res.outcome, time: res.time, gold: res.gold, drop, placed, ...(declined ? { declined } : {}) };
 }
 
