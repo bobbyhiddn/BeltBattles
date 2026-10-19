@@ -207,12 +207,16 @@ describe("the key moves with everything the builders read", () => {
     expect(key().key).toBe(base.key);
   });
 
-  it("the environment: any BB_* variable, and the content of the files BB_SOFT1_PICKS_FILE names; the cache's own BB_POOL_* ones do not count", () => {
+  it("the environment: every BB_* name the closure's code mentions (BB_SOFT1_PICKS_FILE is the one the builders read) and the content of the files it names; no other variable, and not the cache's own BB_POOL_* ones", () => {
     const base = key();
     const ctx = defaultCtx();
     const env = (extra: Record<string, string>): KeyCtx => ({ ...ctx, env: { ...process.env, ...extra } });
-    expect(key(env({ BB_ANYTHING: "1" })).key).not.toBe(base.key);
-    expect(key(env({ BB_POOL_CACHE: "0", BB_POOL_CACHE_DIR: "/x", BB_POOL_CACHE_LOG: "/y" })).key).toBe(base.key);
+    const names = realClosure().envNames;
+    expect(names).toContain("BB_SOFT1_PICKS_FILE");
+    expect(names).toContain("BB_SOFT1_RULE"); // named in a message of samplePool.ts: a superset, never a miss
+    expect(names.filter((n) => n.startsWith("BB_POOL_"))).toEqual([]);
+    for (const n of names) expect(key(env({ [n]: "1" })).key, n).not.toBe(base.key);
+    expect(key(env({ BB_ANYTHING: "1", BB_KIT_LINES: "/z", BB_KIT_WAIT: "0", BB_POOL_CACHE: "0", BB_POOL_CACHE_DIR: "/x", BB_POOL_CACHE_LOG: "/y" })).key).toBe(base.key);
     const f = "/virtual/picks.json";
     let content = "{\"world\":\"111111111111\"}";
     const read = (abs: string): string | undefined => (abs === f ? content : fsReader(abs));

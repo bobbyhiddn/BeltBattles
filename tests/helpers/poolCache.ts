@@ -11,7 +11,8 @@
 //       tests/poolCache.key.test.ts holds the scan equal to TypeScript's own module graph and every non-relative import a node: built-in);
 //   (b) every switch the builders read, through the switch functions (SWITCHES), never the constants;
 //   (c) the arguments (a function argument is keyed only for raceGhosts' default deckOf and for a deckOf a test marks pureDeckOf);
-//   (d) every BB_* environment variable but the cache's own BB_POOL_* ones, and the content of the files BB_SOFT1_PICKS_FILE names;
+//   (d) the value of every BB_* name the closure's code mentions (BB_SOFT1_PICKS_FILE is the one the builders read; the others only
+//       appear in their messages), and the content of the files BB_SOFT1_PICKS_FILE names;
 //   (e) the node version (and V8, platform, vite and vitest);
 //   (f) the live catalogue: the key ORDER of ITEMS (turning SHAPES, SHAPES2 or PLAIN_RIGS off and back on while SCALE_RIGS stays on
 //       re-inserts their ids at the end, and every seeded draw after that moves: REPORT-BUMP1E 8.1 (d)), whether each entry is
@@ -98,12 +99,15 @@ export interface ClosureScan {
   missing: string[];
   /** sha256 over (path, sha256 of text) of every file, and the missing imports. */
   digest: string;
+  /** Every BB_* name the closure's code mentions (comments left out; BB_POOL_* are the cache's own): the environment variables the builders can read. */
+  envNames: string[];
 }
 
 /** The import closure of `entry` (relative to `root`) from the real files: every relative `import`, `export ... from`, `import()` and `require()`. */
 export function scanClosure(root: string, entry: string, read: Reader): ClosureScan {
   const texts = new Map<string, string>();
   const bare = new Set<string>();
+  const envNames = new Set<string>([real.SOFT1_PICKS_FILE_ENV]);
   const missing: string[] = [];
   const stack: string[] = [resolve(root, entry)];
   const seen = new Set<string>();
@@ -118,7 +122,9 @@ export function scanClosure(root: string, entry: string, read: Reader): ClosureS
       continue;
     }
     texts.set(rel, text);
-    for (const m of stripComments(text).matchAll(IMPORT_RE)) {
+    const code = stripComments(text);
+    for (const m of code.matchAll(/\bBB_[A-Z0-9_]+\b/g)) if (!m[0].startsWith("BB_POOL_")) envNames.add(m[0]);
+    for (const m of code.matchAll(IMPORT_RE)) {
       const spec = m[1] ?? m[2] ?? m[3];
       if (!spec) continue;
       if (!spec.startsWith(".")) {
@@ -133,7 +139,7 @@ export function scanClosure(root: string, entry: string, read: Reader): ClosureS
   }
   const files = [...texts.keys()].sort();
   const digest = sha(files.map((f) => `${f}\u0000${sha(texts.get(f)!)}`).join("\n") + "\n" + [...missing].sort().join("\n"));
-  return { files, texts, bare: [...bare].sort(), missing: missing.sort(), digest };
+  return { files, texts, bare: [...bare].sort(), missing: missing.sort(), digest, envNames: [...envNames].sort() };
 }
 
 const scanMemo = new Map<string, ClosureScan>();
@@ -198,9 +204,13 @@ export function defaultCtx(): KeyCtx {
   return { root: ROOT, read: fsReader, env: process.env, node: nodeMemo };
 }
 
-/** The BB_* environment the builders may read (BB_SOFT1_PICKS_FILE: its value and the content of each file it names). */
-function envPart(env: Record<string, string | undefined>, read: Reader): string {
-  const names = Object.keys(env).filter((k) => k.startsWith("BB_") && !k.startsWith("BB_POOL_")).sort();
+/**
+ * The BB_* environment the builders can read: the value of every BB_* name the closure's CODE mentions (scanClosure's envNames:
+ * BB_SOFT1_PICKS_FILE is the one the builders read; the others, BB_SOFT1_RULE and the like, appear in their messages, so a superset),
+ * and the content of each file BB_SOFT1_PICKS_FILE names. A variable no closure file mentions (a harness's BB_KIT_*, a report
+ * path) cannot reach a builder, so it is no part of the key: it would only keep a run from using another run's entries.
+ */
+function envPart(env: Record<string, string | undefined>, read: Reader, names: readonly string[]): string {
   const lines = names.map((k) => `${k}=${env[k]}`);
   for (const f of (env[real.SOFT1_PICKS_FILE_ENV] ?? "").split(",").filter(Boolean)) lines.push(`file ${f} ${sha(read(f) ?? "\u0000missing")}`);
   return lines.join("\n");
@@ -217,20 +227,20 @@ export interface PoolKey {
 export function poolKey(builder: string, args: readonly unknown[], ctx: KeyCtx = defaultCtx()): PoolKey {
   const a = [...args];
   while (a.length && a[a.length - 1] === undefined) a.pop(); // f(), f(undefined) and f({}) 's default alike
-  const closure = ctx.read === fsReader && ctx.root === ROOT ? realClosure().digest : scanClosure(ctx.root, ENTRY, ctx.read).digest;
+  const scan = ctx.read === fsReader && ctx.root === ROOT ? realClosure() : scanClosure(ctx.root, ENTRY, ctx.read);
   const names = Object.getOwnPropertyNames(ITEMS);
   const parts: Record<string, string> = {
     builder,
     args: canon(a),
     helper: sha(ctx.read(join(ctx.root, HELPER)) ?? "\u0000no helper"), // this file: a change to the cache's own logic starts a new cache
     config: sha(ctx.read(join(ctx.root, "vite.config.ts")) ?? "\u0000no config"), // the transform's and the test run's own config
-    closure,
+    closure: scan.digest,
     switches: SWITCHES.map(([n, on]) => `${n}=${on() ? 1 : 0}`).join(","),
     botRunes: String(BOT_RUNES),
     itemsOrder: sha(names.map((k) => k + (Object.getOwnPropertyDescriptor(ITEMS, k)?.enumerable ? "+" : "-")).join("|")),
     itemsContent: sha(canon(ITEMS)),
     heroes: sha(canon(HEROES)),
-    env: sha(envPart(ctx.env, ctx.read)),
+    env: sha(envPart(ctx.env, ctx.read, scan.envNames)),
     node: ctx.node,
   };
   return { key: sha(canon(parts)), parts };
