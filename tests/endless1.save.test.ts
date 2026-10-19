@@ -18,7 +18,8 @@ beforeEach(() => store.clear());
 afterAll(() => delete (globalThis as { localStorage?: unknown }).localStorage);
 
 function wonRun(endless = true): Run {
-  const run = endless ? withEndless(() => newRun("weaver", hashSeed("e1-save"), "save-run")) : newRun("weaver", hashSeed("e1-save"), "save-run");
+  // BUMP-1E: ENDLESS ships on, so the unmarked run is made with it off (was a bare newRun)
+  const run = withEndless(() => newRun("weaver", hashSeed("e1-save"), "save-run"), endless);
   while (!run.over) {
     const o = pendingRune(run);
     if (o) takeRune(run, o.ids[0]);
@@ -65,7 +66,7 @@ describe("ENDLESS-1 3.2: saves", () => {
   });
 
   it("a save without the mark loads as before: no endless key is added, the hearts clamp is the run's", () => {
-    const run = newRun("furnace", 5, "plain");
+    const run = withEndless(() => newRun("furnace", 5, "plain"), false); // BUMP-1E: a run started with ENDLESS off (it ships on now; was a bare newRun)
     saveRun(run);
     const back = reload()!;
     expect(Object.keys(back)).not.toContain("endless");

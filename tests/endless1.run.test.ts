@@ -19,7 +19,7 @@ type Winner = typeof WIN | typeof LOSS | typeof DRAW;
 /** A marked run played through the game's finishDay to its WIN_GOAL-th win (`lossesFirst` losses before, `draws` draws). */
 function wonRun(opts: { endless?: boolean; lossesFirst?: number; draws?: number; hero?: "furnace" | "weaver" } = {}): Run {
   const make = () => newRun(opts.hero ?? "furnace", 4242, "e1-run");
-  const run = opts.endless === false ? make() : withEndless(make);
+  const run = opts.endless === false ? withEndless(make, false) : withEndless(make); // BUMP-1E: ENDLESS ships on, so an unmarked run is made with it off (was make())
   const dusk = (w: Winner) => {
     const offer = pendingRune(run);
     if (offer) takeRune(run, offer.ids[0]); // the dawn's rune, as a player takes it

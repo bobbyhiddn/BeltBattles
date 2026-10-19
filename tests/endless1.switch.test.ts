@@ -11,9 +11,9 @@ import { LONG_RUN, WIN_GOAL } from "../src/sim/longRun";
 afterEach(() => setEndless(ENDLESS));
 
 describe("ENDLESS-1 3.1: the switch (src/sim/endless.ts)", () => {
-  it("ships OFF: ENDLESS is false and the module switch reads it", () => {
-    expect(ENDLESS).toBe(false);
-    expect(endlessRules()).toBe(false);
+  it("ships ON (BUMP-1E: was 'ships OFF', ENDLESS false): ENDLESS is true and the module switch reads it", () => {
+    expect(ENDLESS).toBe(true);
+    expect(endlessRules()).toBe(true);
   });
 
   it("setEndless turns it on and off; withEndless runs a call with it on (or off) and puts it back, even when the call throws", () => {
@@ -39,14 +39,18 @@ describe("ENDLESS-1 3.1: the switch (src/sim/endless.ts)", () => {
 });
 
 describe("ENDLESS-1 3.1: rulesGate.ts ENDLESS_RULES and endlessFor", () => {
-  it("ENDLESS_RULES reads RULES_VERSION until the bump that ships endless writes the literal", () => {
-    expect(ENDLESS_RULES).toBe(RULES_VERSION);
+  it("ENDLESS_RULES is the literal bb-0.12.0 (BUMP-1E wrote it; it read RULES_VERSION until the bump that ships endless), and this build's rules are it", () => {
+    expect(ENDLESS_RULES).toBe("bb-0.12.0"); // BUMP-1E: was expect(ENDLESS_RULES).toBe(RULES_VERSION)
+    expect(RULES_VERSION).toBe(ENDLESS_RULES);
   });
 
   it("endlessFor(rules) = the switch on AND rules at or after ENDLESS_RULES: off, nothing is endless whatever the rules", () => {
-    expect(endlessFor(RULES_VERSION)).toBe(false);
-    expect(endlessFor("bb-9.9.9")).toBe(false);
-    expect(endlessFor(undefined)).toBe(false);
+    // BUMP-1E: ENDLESS ships on, so the off half is read under withEndless(fn, false) (was a bare read)
+    withEndless(() => {
+      expect(endlessFor(RULES_VERSION)).toBe(false);
+      expect(endlessFor("bb-9.9.9")).toBe(false);
+      expect(endlessFor(undefined)).toBe(false);
+    }, false);
   });
 
   it("switch on: this build's rules and later are endless; older rules, unreadable rules and non-strings are not", () => {
@@ -72,7 +76,7 @@ describe("ENDLESS-1 3.1: rulesGate.ts ENDLESS_RULES and endlessFor", () => {
 
 describe("ENDLESS-1 3.1: newRun's mark (Run.endless)", () => {
   it("off: no mark, the run is exactly as before (no `endless` and no `endlessRun` key)", () => {
-    const run = newRun("furnace", 7, "x-1");
+    const run = withEndless(() => newRun("furnace", 7, "x-1"), false); // BUMP-1E: ENDLESS ships on; the off world is read under withEndless(fn, false) (was a bare newRun)
     expect(Object.keys(run)).not.toContain("endless");
     expect(Object.keys(run)).not.toContain("endlessRun");
     expect(endlessMarked(run)).toBe(false);
@@ -85,7 +89,8 @@ describe("ENDLESS-1 3.1: newRun's mark (Run.endless)", () => {
     const keys = Object.keys(marked);
     expect(keys.indexOf("endless")).toBeGreaterThan(keys.indexOf("longRun"));
     expect(endlessMarked(marked)).toBe(true);
-    expect(endlessMarked(newRun("weaver", 9, "x-3"))).toBe(false); // the switch is off again: a run never reads it after its start
+    expect(endlessMarked(withEndless(() => newRun("weaver", 9, "x-3"), false))).toBe(false); // a run started with the switch off is not marked (BUMP-1E: was a bare newRun, the switch off by default)
+    expect(endlessMarked(marked)).toBe(true); // a run never reads the switch after its start
   });
 
   it("only a MARKED, WON run with no endless state yet is offered CONTINUE ENDLESS", () => {
