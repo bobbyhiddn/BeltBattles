@@ -156,5 +156,7 @@ export const steamPlated = (ts: TurretState | undefined): boolean => !!ts?.plate
 /** 0.8.0 I1 M4: a hull that holds a source of plating besides BASTION's slugs (P1's E1: PLATE ROLLER and SHIELD WALL by
  *  their hits, ARMOR PRESS by its timer, SEAM WELDER by its gun's loads), so its plating strip shows (battleHud.ts). */
 export function holdsPlating(b: Build): boolean {
-  return b.items.some((p) => !!(ITEMS[p.def]?.gate?.plate || ITEMS[p.def]?.factory?.plate)) || b.mods.some((m) => !!ITEMS[m.def]?.mod?.seam);
+  // BUMP-1F (F4): and a reader that gives PLATE (CINDER MAIL; the reader line is the same at every star, only its `each` grows)
+  return b.items.some((p) => !!(ITEMS[p.def]?.gate?.plate || ITEMS[p.def]?.factory?.plate || ITEMS[p.def]?.gate?.reads?.give === "plate"))
+    || b.mods.some((m) => !!(ITEMS[m.def]?.mod?.seam || ITEMS[m.def]?.mod?.reads?.give === "plate"));
 }

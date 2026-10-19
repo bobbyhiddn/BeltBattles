@@ -696,14 +696,19 @@ export interface TimelineHit {
  * 0.8.0 P1: does the deck plate its hull (E1)? A BASTION (its bulwark slugs), or any wave-3 plating source: a rig or
  * factory whose effect plates (PLATE ROLLER, SHIELD WALL, ARMOR PRESS) or SEAM WELDER gear. The walk counts PLATE
  * BREAKER's big number on such a deck and its floor on any other; the rating reads it for ANVIL and STEAM BREECH.
+ * BUMP-1F (F4, BUMP-1E REPORT section 11): and a `reads` line whose give is plate (CINDER MAIL, with SCALE_RIGS on: the seven's rigs and the
+ * reworks are in ITEMS only then) plates the hull too, so a deck plated only by CINDER MAIL is plated for the walk, the inspector's estimate and the rating.
  */
 export function platedDeck(b: Build): boolean {
   if (b.hero === "bastion") return true;
   for (const p of b.items) {
     const d = ITEMS[p.def] ? effectAt(p.def, starsOf(p)) : undefined;
-    if (d?.gate?.plate || d?.factory?.plate) return true;
+    if (d?.gate?.plate || d?.factory?.plate || d?.gate?.reads?.give === "plate") return true; // BUMP-1F (F4): and a reader that gives PLATE (CINDER MAIL)
   }
-  return b.mods.some((m) => !!(ITEMS[m.def] && effectAt(m.def, starsOf(m)).mod?.seam));
+  return b.mods.some((m) => {
+    const e = ITEMS[m.def] ? effectAt(m.def, starsOf(m)).mod : undefined;
+    return !!(e?.seam || e?.reads?.give === "plate"); // BUMP-1F (F4): a gun part's reader that gives PLATE plates too
+  });
 }
 
 /** One belt tile with hits, in the walk's order; `speed` is the belt's speed state from this tile on. */
