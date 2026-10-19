@@ -8,7 +8,7 @@ import { encodeSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { readConfig } from "../server/config";
 import { seedStore } from "../server/seed";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import type { FakeS3 } from "../tools/fakeS3";
 import { snap } from "./netHelpers";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";

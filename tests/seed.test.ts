@@ -11,7 +11,7 @@ import { createGhostServer } from "../server/app";
 import { checkPool, SeedError, seedStore } from "../server/seed";
 import { encodeRecord, JsonlStore, poolRecord, type GhostStore } from "../server/store";
 import { objectKey, parseKey } from "../server/tigrisStore";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import type { FakeS3 } from "../tools/fakeS3";
 import { startFake, tigrisFor } from "./netStores";
 

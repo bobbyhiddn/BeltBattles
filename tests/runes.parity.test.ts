@@ -29,7 +29,7 @@ import { POOL_RULES, POOL_RULES_CARRIED, RULES_VERSION } from "../src/sim/conten
 import { Battle } from "../src/sim/battle";
 import type { Build } from "../src/sim/deck";
 import { standInBuild, standInGhost } from "../src/sim/rivals";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 
 interface Row {
   kind: "ring" | "standin" | "standin2";

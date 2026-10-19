@@ -6,7 +6,8 @@ import { encodeSnapshot, ghostId } from "../src/net/snapshot";
 import { validateBuild, validateUpload } from "../src/net/validate"; // S8 T1e: + validateUpload (the player mode)
 import { npcDayRules } from "../src/sim/npcDay"; // S8 T1e: the budget line is left to the player mode only while NPC_DAY is on
 import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: the 10-day world's exact-day pick, kept beside the long run's widening
-import { generateSamplePool, samplePoolJson } from "../tools/samplePool";
+import { samplePoolJson } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache"; // CACHE-1: the cached twin
 import { snap, upSnap } from "./netHelpers"; // S8 T1a: upSnap, an entry as an upload travels
 
 describe("sample pool and offline fallback", () => {

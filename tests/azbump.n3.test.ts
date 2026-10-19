@@ -20,7 +20,8 @@ import { buildCost, maxHonestSpend } from "../src/net/validate";
 import { floorRecord } from "../src/net/records";
 import { SNAPSHOT_V3, SNAPSHOT_VERSION } from "../src/net/snapshot";
 import { SeedError, checkPool } from "../server/seed";
-import { RACE_SEED_HEROES, raceDeck, raceGhosts } from "../tools/samplePool";
+import { RACE_SEED_HEROES, raceDeck } from "../tools/samplePool";
+import { raceGhosts } from "./helpers/poolCache"; // CACHE-1: the cached twin
 import type { Run } from "../src/game/run";
 
 afterEach(() => {

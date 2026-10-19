@@ -21,7 +21,7 @@ import { SCALE_RIGS } from "../src/sim/scale"; // BUMP-1E: the switch ships on; 
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import { entry } from "./netHelpers";
 import { ownedBy, testIdentity } from "./netIdentity";
 import { storeBackends } from "./netStores";

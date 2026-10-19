@@ -16,7 +16,8 @@ import { pickRules, withPick } from "../src/net/pick";
 import { bundledSeedPool, bundledSeedPoolJson, seedStore } from "../server/seed";
 import { JsonlStore } from "../server/store";
 import { SEED_POOL, SEED_POOL_RULES } from "../server/seedPoolData";
-import { SEED_POOL_MODULE, generateSamplePool, gradeMemo, samplePoolJson, seedPoolModuleText } from "../tools/samplePool";
+import { SEED_POOL_MODULE, gradeMemo, samplePoolJson, seedPoolModuleText } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache"; // CACHE-1: the cached twin
 
 describe("S8 T1b: the grades in the bundled pool (REVIEW-R3 ruling 4)", () => {
   it("the seed command loads, checks and stores the bundled pool file with no battles (nothing graded or generated)", async () => {

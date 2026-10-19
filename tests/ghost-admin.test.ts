@@ -12,7 +12,7 @@ import { runAdmin } from "../server/ghostAdmin";
 import { seedStore } from "../server/seed";
 import { encodeRecord, JsonlStore, type GhostStore } from "../server/store";
 import { objectKey, TigrisStore } from "../server/tigrisStore";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import type { FakeS3 } from "../tools/fakeS3";
 import { FAKE_CREDS, startFake, tigrisFor } from "./netStores";
 

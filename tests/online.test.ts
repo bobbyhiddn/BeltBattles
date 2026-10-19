@@ -31,7 +31,7 @@ import { validateUpload } from "../src/net/validate";
 import type { Identity } from "../src/net/identity";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import { testIdentity, TEST_NAME } from "./netIdentity";
 
 const NOSTATS = {} as SideStats;

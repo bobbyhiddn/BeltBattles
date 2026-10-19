@@ -19,7 +19,8 @@ import { isReachable } from "../src/net/records";
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import type { TigrisStore } from "../server/tigrisStore";
-import { generateSamplePool, raceDeck, softPicked } from "../tools/samplePool"; // SOFT-1 (REQ-BFG-092): + softPicked
+import { raceDeck, softPicked } from "../tools/samplePool"; // SOFT-1 (REQ-BFG-092): + softPicked
+import { generateSamplePool } from "./helpers/poolCache"; // CACHE-1: the cached twin
 import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the FOUNDRY deck's join
 import { storeBackends } from "./netStores";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";

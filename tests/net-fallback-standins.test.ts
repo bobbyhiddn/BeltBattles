@@ -5,7 +5,7 @@ import { STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES, standInPick } from "../src/si
 import { STAND_IN_HEROES, fallbackGhost, offlineGhost, rivalHero } from "../src/net/fallback";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate"; // S8c: + validateUpload (the player mode)
 import { npcDayRules, roadDropValue } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import { boughtCost } from "../src/sim/harness/standins";
 import { runeGrants } from "../src/sim/runes";
 import { pickLoss } from "./beltside.helpers";

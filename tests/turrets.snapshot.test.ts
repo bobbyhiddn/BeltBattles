@@ -12,7 +12,7 @@ import { RULES_VERSION } from "../src/sim/content";
 import { startingTurrets, turretSlots, type Build, type BuildTurret } from "../src/sim/deck";
 import { withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): the 10-day run's ghost, kept beside the long run's
 import { decodeStarred } from "../src/sim/standInPool";
-import { sampleGhosts } from "../tools/samplePool";
+import { sampleGhosts } from "./helpers/poolCache";
 import { SAMPLE_POOL_V21 } from "./fixtures/samplePool.v2.1";
 import { POOL_LEGACY } from "./standInPool.helpers";
 

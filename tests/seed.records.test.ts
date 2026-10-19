@@ -26,9 +26,10 @@ import { encodeStarred } from "../src/sim/standInPool";
 import { checkPool, SeedError, seedStore } from "../server/seed";
 import type { GhostServer } from "../server/app";
 import {
-  floorGhosts, generateSamplePool, MIN_ELIGIBLE, raceDeck, raceGhosts, reachableLabel, SAMPLE_VARIANTS, sampleGhosts, softPicked, uncoveredStates,
+  MIN_ELIGIBLE, raceDeck, reachableLabel, SAMPLE_VARIANTS, softPicked, uncoveredStates,
   type RaceDeck,
 } from "../tools/samplePool"; // SOFT-1 (REQ-BFG-092): + raceDeck, SAMPLE_VARIANTS, softPicked, RaceDeck (the race part's decks)
+import { floorGhosts, generateSamplePool, raceGhosts, sampleGhosts, softDeckOf } from "./helpers/poolCache"; // CACHE-1: the cached twins, and the generator's own deckOf (the copy below was this function)
 import { lifeAudit } from "../tools/scorecard/survival";
 import { storeBackends } from "./netStores";
 import { LAST_CHANCE_AT, LAST_CHANCE_LIVES } from "../src/sim/lastChance"; // Z-BUMP (REQ-BFG-073): the flip
@@ -42,10 +43,7 @@ const FLOOR = floorGhosts();
 // each race hero's variant 0 and 1 decks from SOFT1_PICKS (softPicked: par-field runs, each with its run's field seed and road
 // log) and variant 2 (the floor ghost) as before, so the race part is raceGhosts over those decks, as the generator's own
 // deckOf gives them (was raceGhosts(), raceDeck's decks: the pool's 40 race variant 0 and 1 decks differed)
-const softDeckOf = (h: HeroId, d: number, v: number): RaceDeck => {
-  const c = v < SAMPLE_VARIANTS ? softPicked(h, d)?.[v] : undefined;
-  return c ? { build: c.build, seed: c.seed!, ...(c.road ? { road: c.road } : {}) } : raceDeck(h, d, v);
-};
+// CACHE-1: softDeckOf is tests/helpers/poolCache.ts's now (this very function, marked pure so raceGhosts(undefined, softDeckOf) is cached and shared)
 const RACE = raceGhosts(undefined, softDeckOf); // 0.8.0 RC: FOUNDRY and BASTION's 60 (tests/rc.seedpool.test.ts)
 const NOSTATS = {} as SideStats; // finishDay only stores the dusk's stats
 

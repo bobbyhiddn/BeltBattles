@@ -52,9 +52,10 @@ import { checkPool, seedStore } from "../server/seed";
 import { JsonlStore } from "../server/store";
 import { runAdmin } from "../server/ghostAdmin";
 import {
-  FLOOR_VARIANT, RACE_SEED_HEROES, RACE_VARIANTS, floorGhosts, generateSamplePool, raceDeck, raceGhosts, sampleGhosts, samplePoolJson,
+  FLOOR_VARIANT, RACE_SEED_HEROES, RACE_VARIANTS, raceDeck, samplePoolJson,
   SAMPLE_VARIANTS, softPicked, type RaceDeck, // SOFT-1 (REQ-BFG-092): the race part's variant 0 and 1 decks
 } from "../tools/samplePool";
+import { floorGhosts, generateSamplePool, raceGhosts, sampleGhosts, softDeckOf } from "./helpers/poolCache"; // CACHE-1: the cached twins, and the generator's own deckOf (the copy below was this function)
 import type { FakeS3 } from "../tools/fakeS3";
 import { FAKE_CREDS, startFake, tigrisFor } from "./netStores";
 import { testIdentity } from "./netIdentity";
@@ -130,10 +131,8 @@ const RACE_PART_SHA256 = "d353afdfecd634a1dd1beffca6a1082c8fc9a93b0d242613768159
 /** SOFT-1 (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): a race seed deck as generateSamplePool's deckOf gives it in the
  *  shipped world: variant 0 and 1 from SOFT1_PICKS (softPicked: a par-field run's dusk deck, its field seed and road log),
  *  the floor variant (2) from raceDeck as before. */
-const softDeckOf = (h: HeroId, d: number, v: number): RaceDeck => {
-  const c = v < SAMPLE_VARIANTS ? softPicked(h, d)?.[v] : undefined;
-  return c ? { build: c.build, seed: c.seed!, ...(c.road ? { road: c.road } : {}) } : raceDeck(h, d, v);
-}; // FLIP-X2: the par player with its runes (was 94e26280... at PACKS; NUM-3 pinned b3c0ea31..., /10)
+// CACHE-1: softDeckOf is tests/helpers/poolCache.ts's now (this very function, marked pure so raceGhosts(undefined, softDeckOf) is cached and shared)
+// FLIP-X2: the par player with its runes (was 94e26280... at PACKS; NUM-3 pinned b3c0ea31..., /10)
 
 // Y7b2 (the bump, the pools): title bb-0.9.1 -> bb-0.9.3, and Y7b2's regeneration added (was "... again at REDO-X and BAL-2; ...")
 // Z-BUMP (the bump, the pools): title bb-0.9.3 -> bb-0.9.7, and Z-BUMP's regeneration added (was "... again at REDO-X, BAL-2 and Y7b2; ...")
