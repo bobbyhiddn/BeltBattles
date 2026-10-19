@@ -68,11 +68,11 @@ export function previewMerge(b: Build, uidSeed: number, def: string, cargo?: Inv
 
 /** Every fusible copy on the deck (item, mod or 0.6.1b core) below FUSE_MAX: what the "merge"
  *  lever and the star bench have to grow. */
-export interface FusibleCopy { uid: number; def: string; kind: "gate" | "factory" | "mod" | "core"; stars: number }
+export interface FusibleCopy { uid: number; def: string; kind: "gate" | "factory" | "mod" | "core" | "converter"; stars: number } // GATES-1 (REQ-BFG-052, G6): "converter", a gate on a belt tile (never a rig)
 
 export function fusibleCopies(b: Build): FusibleCopy[] {
   const out: FusibleCopy[] = [];
-  for (const p of b.items) if (fusible(p.def) && starsOf(p) < FUSE_MAX) out.push({ uid: p.uid, def: p.def, kind: ITEMS[p.def].kind as "gate" | "factory", stars: starsOf(p) });
+  for (const p of b.items) if (fusible(p.def) && starsOf(p) < FUSE_MAX) out.push({ uid: p.uid, def: p.def, kind: ITEMS[p.def].kind as "gate" | "factory" | "converter", stars: starsOf(p) });
   for (const m of b.mods) if (fusible(m.def) && starsOf(m) < FUSE_MAX) out.push({ uid: m.uid, def: m.def, kind: ITEMS[m.def].kind === "core" ? "core" : "mod", stars: starsOf(m) });
   return out;
 }

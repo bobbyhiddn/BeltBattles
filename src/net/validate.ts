@@ -22,6 +22,7 @@ import {
 } from "../sim/deck";
 import { joinProblem } from "../sim/deck"; // 0.6.2j (J12): belt joins
 import { isIntakeCell, rotOf } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 S4, S5): a piece's turn; a turret intake cell
+import { converterCellOk } from "../sim/deck"; // GATES-1 (REQ-BFG-052): the converter-cell exception of routeProblem
 import { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "../sim/foot"; // SHAPES-1 (R1): the turned footprint
 import { shapesRules, withShapes } from "../sim/shapes"; // SHAPES-1 (S1): the switch
 import { shapesGateProblem, shapesWorld } from "./rulesGate"; // SHAPES-1 (S1, S4): SHAPES_RULES' gate
@@ -29,6 +30,8 @@ import { shapes2Rules, withShapes2 } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG
 import { shapes2GateProblem, shapes2World } from "./rulesGate"; // SHAPES-2 (S1): SHAPES2_RULES' gate
 import { scaleGateProblem, scaleWorld } from "./rulesGate"; // SCALE-2d (REQ-BFG-098 098.6, D5): SCALE_RULES' gate
 import { scaleRules, withScaleRigs } from "../sim/scale"; // SCALE-2d: the scaling world of a deck's rules (inScaleWorld)
+import { gatesRules, withGates } from "../sim/gates"; // GATES-1 (REQ-BFG-052 G1): the three converters' switch
+import { gatesGateProblem, gatesWorld } from "./rulesGate"; // GATES-1 (G1): GATES_RULES' gate
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 // RUN-1 (REQ-BFG-059, REQ-BFG-116; D3, D4): the long run's world. A deck under a long run's rules (rulesGate.ts longRunFor) is
 // judged with the long-run switch on (the content past day 10, LAST CHANCE on any day, the day bound LONG_RUN_MAX_DAY); under
@@ -229,6 +232,10 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // (rulesGate.ts shapes2GateProblem); a deck under older rules is judged without them (inShapes2World)
   const s2Gate = shapes2GateProblem(rules, build);
   if (s2Gate) return { ok: false, errors: [`rules: ${s2Gate}`] };
+  // GATES-1 (REQ-BFG-052 G1): and the three gates only with GATES on and under rules that have them (rulesGate.ts
+  // gatesGateProblem); a deck under older rules is judged without them (inGatesWorld)
+  const gtGate = gatesGateProblem(rules, build);
+  if (gtGate) return { ok: false, errors: [`rules: ${gtGate}`] };
   // FIRSTDAY-1 (REQ-BFG-004, F4): a first-run flag travels only with the first-run gate on
   const frGate = ctx.firstRun ? firstRunGateProblem() : null;
   if (frGate) return { ok: false, errors: [`firstRun: ${frGate}`] };
@@ -245,7 +252,10 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // SHAPES-1 (REQ-BFG-086; cap's RUN2 note 1.2): the shapes world nests inside the rules world, so a record under rules
   // before bb-0.10.0 is judged with SHAPES off too; c099's merge keeps HULL-ON's call inside both (release lane)
   // PLAIN-1F (M1): FIRSTDAY-1's ctx.firstRun rides through to validateBuild's runeProblem in the ctx spread
-  return inRulesWorld(rules, () => inShapesWorld(rules, () => inShapes2World(rules, () => inScaleWorld(rules, () => withFreeJoins(() => validateBuild(build, day, "player", { ...ctx, openRunes: openRunesFor(rules) }), freeJoinsFor(rules)))))); // JOINS-1: by its own rules; SHAPES-1: inShapesWorld nested; SHAPES-2: inShapes2World; SCALE-2d: inScaleWorld inside them (BUMP-1E: both sides' worlds)
+  // GATES-1 (REQ-BFG-052 G1): inGatesWorld OUTSIDE the others, so the switches come back in the reverse of their order and ITEMS
+  // keeps its order (the three join ITEMS after SHAPES2's six; a with* that restores last re-adds last)
+  // BUMP-1F (PACKET-BUMP-0130 section 4): GATES outermost as GATES-1 chose, SCALE inside SHAPES2 as BUMP-1E chose
+  return inGatesWorld(rules, () => inRulesWorld(rules, () => inShapesWorld(rules, () => inShapes2World(rules, () => inScaleWorld(rules, () => withFreeJoins(() => validateBuild(build, day, "player", { ...ctx, openRunes: openRunesFor(rules) }), freeJoinsFor(rules))))))); // JOINS-1: by its own rules; SHAPES-1: inShapesWorld nested; SHAPES-2: inShapes2World; SCALE-2d: inScaleWorld inside them (BUMP-1E: both sides' worlds)
 }
 
 /** SCALE-2d (REQ-BFG-098; BRIEF-SCALE2d D5): run `fn` in the scaling world of `rules` (rulesGate.ts scaleWorld): with
@@ -276,6 +286,16 @@ export function inShapesWorld<T>(rules: unknown, fn: () => T): T {
  */
 export function inShapes2World<T>(rules: unknown, fn: () => T): T {
   return shapes2Rules() && !shapes2World(rules) ? withShapes2(fn, false) : fn();
+}
+
+/**
+ * GATES-1 (REQ-BFG-052 G1): run `fn` in the GATES world of `rules` (rulesGate.ts gatesWorld), inShapes2World's form: with
+ * GATES on and rules before GATES_RULES, with the switch off (the three are unknown pieces, and refused first by
+ * gatesGateProblem), the world the deck was made in; otherwise as the switch stands. The switch is put back after, even on
+ * a throw (withGates). With GATES off (the pins) it does nothing.
+ */
+export function inGatesWorld<T>(rules: unknown, fn: () => T): T {
+  return gatesRules() && !gatesWorld(rules) ? withGates(fn, false) : fn();
 }
 
 export interface Validation {
@@ -388,7 +408,7 @@ function routeProblem(b: Build, i: number, occ: ReturnType<typeof occupancy>): s
     if (seen.has(k)) return `revisits cell ${k} (no loops)`;
     seen.add(k);
     if (j > 0 && dirBetween(r.cells[j - 1], k) < 0) return `is broken between cells ${r.cells[j - 1]} and ${k}`;
-    if (occ[k].item >= 0) return `runs through machinery at cell ${k}`; // 0.6.2 BELTSIDE (R1): no exception for rigs
+    if (occ[k].item >= 0 && !converterCellOk(b, r, j, occ)) return `runs through machinery at cell ${k}`; // 0.6.2 BELTSIDE (R1): no exception for rigs; GATES-1 (REQ-BFG-052): but a converter on a belt tile
   }
   return routeWellFormed(b, r) ? null : "is not well formed";
 }

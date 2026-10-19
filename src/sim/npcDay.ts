@@ -103,7 +103,7 @@ const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
  */
 export function dropClass(def: string): DropClass | null {
   const d: ItemDef | undefined = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
-  if (!d || d.kind === "supply" || SIGNATURES.has(d.id) || d.rarity === "legendary") return null;
+  if (!d || d.kind === "supply" || d.kind === "converter" || SIGNATURES.has(d.id) || d.rarity === "legendary") return null; // GATES-1 (REQ-BFG-052): a GATE never drops (NPC drops are out of scope)
   if (d.kind === "turret" || d.kind === "factory") return "turret";
   if (d.rarity === "epic") return "epic";
   if (d.kind === "gate") return d.rarity === "rare" ? "rare" : "common";

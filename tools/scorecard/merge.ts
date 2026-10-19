@@ -35,7 +35,7 @@ function flatten(prefix: string, o: unknown, out: Spec): void {
 export function specAt(def: string, stars: number): Spec {
   const d: ItemDef = effectAt(def, stars);
   const out: Spec = new Map();
-  for (const k of ["gate", "factory", "mod", "core", "turret"] as const) if (d[k]) flatten(k, d[k], out);
+  for (const k of ["gate", "converter", "factory", "mod", "core", "turret"] as const) if (d[k]) flatten(k, d[k], out); // GATES-1 (REQ-BFG-052): a GATE's numbers (in, out, secs, bonus, share, burn)
   if (d.factory) {
     if (!out.has("factory.base")) out.set("factory.base", AMMO[d.factory.ammo].base); // Payload.base absent: the ammo's
     if (!out.has("factory.batch")) out.set("factory.batch", 1);

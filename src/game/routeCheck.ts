@@ -11,6 +11,7 @@ import {
   type Build, type Occ,
 } from "../sim/deck";
 import { joinProblem } from "../sim/deck"; // 0.6.2j (J12, J14 (c)): belt joins, as validateBuild checks them
+import { converterCellOk } from "../sim/deck"; // GATES-1 (REQ-BFG-052): the converter-cell exception of routeProblem
 import { gradeOf, outputsAt } from "../sim/stars";
 
 /** FIGHT's short reasons: a belt that doesn't end on a free turret connector, any other problem. */
@@ -42,7 +43,7 @@ function routeProblem(b: Build, i: number, occ: Occ[]): string | null {
     if (seen.has(k)) return `revisits cell ${k} (no loops)`;
     seen.add(k);
     if (j > 0 && dirBetween(r.cells[j - 1], k) < 0) return `is broken between cells ${r.cells[j - 1]} and ${k}`;
-    if (occ[k].item >= 0) return `runs through machinery at cell ${k}`; // 0.6.2 BELTSIDE (R1): rigs too
+    if (occ[k].item >= 0 && !converterCellOk(b, r, j, occ)) return `runs through machinery at cell ${k}`; // 0.6.2 BELTSIDE (R1): rigs too; GATES-1 (REQ-BFG-052): but a converter on a belt tile
   }
   return routeWellFormed(b, r) ? null : "is not well formed";
 }

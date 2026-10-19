@@ -42,6 +42,7 @@ import { screenRect } from "./layout"; // SHAPES-1 (S3): a cell's size on screen
 import { footBox } from "../../sim/foot"; // SHAPES-1 (REQ-BFG-086 R1): a turned footprint's box
 import { boxRect } from "../../render/frame"; // SHAPES-1: a non-square box on screen
 import { aimShaped, carriedRot, shapedPiece, snapAnchor, turnFit } from "./shapeEdit"; // SHAPES-1 (S2, S3)
+import { snapSplit } from "../../sim/split"; // GATES-1 (REQ-BFG-057): a finger's drop of a gate snaps to a legal belt tile
 
 export interface Ctx {
   game: Game;
@@ -345,6 +346,14 @@ export interface CarryTarget {
 export function carryTarget(L: BuildLayout, b: Run["build"], c: Carry, x: number, y: number): CarryTarget | null {
   const def = ITEMS[c.def];
   const ignore = c.src.from === "deck" ? c.uid : -1;
+  if (def.kind === "converter") { // GATES-1 (REQ-BFG-057): a gate goes only ON a belt tile; a finger's drop stands above the finger and snaps
+    const py = c.touch ? y - fingerLift(L, c.def, 0) : y; // to the nearest legal belt tile within 1 cell (split.ts snapSplit); a mouse's doesn't
+    const cell = dropCell(L, x, py, 1);
+    if (!cell) return null;
+    const at = (c.touch ? snapSplit(b, c.def, cell.x, cell.y, ignore) : null) ?? cell;
+    const chk = canPlaceItem(b, c.def, at.x, at.y, ignore);
+    return { ...at, rot: 0, ok: chk.ok, ...(chk.reason ? { reason: chk.reason } : {}), px: x, py };
+  }
   if (!shapedPiece(c.def)) {
     const cell = dropCell(L, x, y, def.size);
     if (!cell) return null;

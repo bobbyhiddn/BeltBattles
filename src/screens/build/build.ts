@@ -6,6 +6,7 @@ import type { Skin } from "../../render/styles"; // CUSTOM-2a
 import type { Game, Screen } from "../../game/game";
 import { reroll, saveRun, type DuskFoe, type Run } from "../../game/run";
 import { buyPack } from "../../game/run"; // bb-0.8.6 (REQ-BFG-051 P5)
+import { releaseStranded } from "../../game/run"; // GATES-1 (REQ-BFG-057): a gate whose belt is gone goes back to cargo
 import { fightRefusal } from "../../game/run"; // RUNES-2a (REQ-BFG-058): no fight while a rune pick is pending
 import type { PackId } from "../../sim/content";
 import { duskFoe, refundNotice, storedFoe } from "../../game/day";
@@ -342,6 +343,7 @@ export class BuildScreen implements Screen, EditHost {
         completeNotice("rename107");
       }
     }
+    this.releaseGates(); // GATES-1 (REQ-BFG-057): a gate stranded while this screen was away (a merge outside it took a factory and its belts)
     saveRun(this.run);
   }
 
@@ -349,7 +351,15 @@ export class BuildScreen implements Screen, EditHost {
     this.sel = s;
   }
 
+  /** GATES-1 (REQ-BFG-057): a belt that goes (rerouted, deleted, gone with its factory) strands the gates on it: back to cargo,
+   *  with a toast naming them (one gate: ITS BELT; several: THEIR BELTS). A deck without gates: nothing. */
+  private releaseGates(): void {
+    const gone = releaseStranded(this.run);
+    if (gone.length) this.game.toast(`${gone.join(" AND ")} BACK IN CARGO: ${gone.length > 1 ? "THEIR BELTS ARE" : "ITS BELT IS"} GONE`, C.yellow);
+  }
+
   touched(): void {
+    this.releaseGates();
     this.model = cruiserModel(this.run.build);
     this.view.model = this.model;
     saveRun(this.run);

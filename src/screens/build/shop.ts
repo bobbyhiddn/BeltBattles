@@ -507,7 +507,7 @@ export function describe(def: ItemDef): string {
   // 0.6.2 BELTSIDE: kind "gate" reads "RIG" (ref/DESIGN-beltside.md §1: the code keeps the kind)
   // 0.6.2s (REQ-BFG-031 S10): a turret reads its class ("RARE HEAVY TURRET")
   const kind = def.kind === "gate" ? "RIG" : def.kind === "factory" ? "FACTORY" : def.kind === "mod" ? "TURRET GEAR" : def.kind === "core" ? "TURRET CORE"
-    : def.kind === "turret" ? `${(def.turret?.class ?? "").toUpperCase()} TURRET` : "SUPPLY";
+    : def.kind === "turret" ? `${(def.turret?.class ?? "").toUpperCase()} TURRET` : def.kind === "converter" ? "GATE" : "SUPPLY"; // GATES-1 (REQ-BFG-052): the word GATE (the one SHOPCARD-1 merge hunk)
   // SHAPES-1 (REQ-BFG-086.1, S8): a shaped piece's type line names its shape ("COMMON RIG · 2 CELLS", "RARE FACTORY ·
   // 2X3"); a 1-cell rig's and a 2x2 factory's stay as they are (faces.ts shapeWord: null)
   const sw = shapeWord(def.id);

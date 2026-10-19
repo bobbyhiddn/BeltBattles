@@ -32,6 +32,8 @@ import { plainRigsRules, setPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1 
 import { setShapes2, shapes2Rules } from "../src/sim/shapes2"; // SHAPES-2 (REQ-BFG-114): --shapes2
 import { setScaleRigs } from "../src/sim/scale"; // SCALE-2c (REQ-BFG-098): BB_SCALE=1
 import { scaleNotes } from "../src/ui/faces"; // SCALE-2c (REQ-BFG-089): the readers' NOTES line (SCALE_RIGS on only)
+import { setGates } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052): --gates
+import { splitSheetLines } from "../src/sim/splitPreview"; // GATES-1b (REQ-BFG-057 B2): --gates also lists the drop-to-split tag
 
 const NAME_OF = new Map<string, string>(Object.entries(ICON).map(([k, v]) => [v as string, k]));
 /** Markup or glyphs as plain text: each private-use icon as [NAME]. */
@@ -112,7 +114,7 @@ function sheet(): string {
 
 if ((process.argv[1] ?? "").endsWith("textSheet.js")) {
   const path = process.argv[2];
-  if (!path) throw new Error("usage: node tools/dist/textsheet/textSheet.js <out.md> [--plain-rigs] [--shapes2]");
+  if (!path) throw new Error("usage: node tools/dist/textsheet/textSheet.js <out.md> [--plain-rigs] [--shapes2] [--gates]");
   // SHAPES-1 (REQ-BFG-086, S8): BB_SHAPES=1 makes the sheet with SHAPES on (the three shaped rigs, GANTRY PRESS 2x3, ASSEMBLY
   // LINE I3), as the brief's text-sheet check asks; unset, the sheet is as before
   if (process.env.BB_SHAPES === "1") setShapes(true);
@@ -120,7 +122,8 @@ if ((process.argv[1] ?? "").endsWith("textSheet.js")) {
   if (process.argv.includes("--shapes2")) setShapes2(true); // SHAPES-2 (REQ-BFG-114): the six more in ITEMS (after PLAIN-1's, when both are on)
   // SCALE-2c (REQ-BFG-098): BB_SCALE=1 makes the sheet with SCALE_RIGS on (the 12 scaling pieces); unset, as before
   if (process.env.BB_SCALE === "1") setScaleRigs(true);
-  const text = sheet();
+  if (process.argv.includes("--gates")) setGates(true); // GATES-1 (REQ-BFG-052): the three gates in ITEMS (after every other def)
+  const text = sheet() + (process.argv.includes("--gates") ? splitSheetLines().join("\n") : ""); // GATES-1b B2: the tag's words, only with --gates
   writeFileSync(path, text);
   console.log(`text sheet: ${text.split("\n").length} lines -> ${path}`);
 }

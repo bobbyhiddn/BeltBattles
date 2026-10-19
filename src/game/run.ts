@@ -19,10 +19,13 @@ import { fusible, starField, starsOf, upgradeLevel } from "../sim/stars";
 import { gainModule, mergePreview, type FuseStep, type Gain, type GainAt } from "./fuse";
 import { drawWares, unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: the per-run draw
 import { SUSTAIN_FIRST_DAY, isSustain } from "../sim/content"; // BOTS-X (REQ-BFG-069): the day-3 hold (dayPool)
+import { GATES_FIRST_DAY } from "./wares"; // GATES-1 (REQ-BFG-052): the gates' first day (dayPool)
+import { isGatesPiece } from "../sim/gates"; // GATES-1 (REQ-BFG-052): the three gates (dayPool)
 import { coreFor } from "../sim/deck"; // 0.6.1b: fitCore
 import { cellsOf, isIntakeCell, shapesRules } from "../sim/deck"; // SHAPES-1 S5b: the intake sweep
 import { canPlaceItem } from "../sim/deck"; // SHAPES-1 (R1, S2): rotateRig turns a long rig only where it fits
 import { isShaped } from "../sim/foot"; // SHAPES-1 S5b
+import { strandedConverters } from "../sim/split"; // GATES-1 (REQ-BFG-057): releaseStranded
 import { dawnGold, dawnRuneOffer, pickGold, RUNES, type RuneOffer } from "../sim/runes"; // RUNES-1 (REQ-BFG-058); FIRSTDAY-1: dawnRuneOffer
 import { FIRST_RUN_COMMONS, FIRST_RUN_DAYS, firstRunGate, seededOrder } from "../sim/firstRun"; // FIRSTDAY-1 (REQ-BFG-004): F2-F3
 import { BOONS, LAST_CHANCE_HULL, lastChanceOffer, offeredId, type Boon, type LastChance, type LastChanceOffer } from "../sim/lastChance"; // LC-1 (REQ-BFG-073)
@@ -499,7 +502,8 @@ function stockOf(run: Run, m: MerchantId, day: number): ItemDef[] {
 function dayPool(run: Run, m: MerchantId, day: number): ItemDef[] {
   // BOTS-X (REQ-BFG-069): a run without wares holds the sustain pieces to the first sustain day too (wares.ts unlockDay
   // holds them for every run with wares); switch off, itemsSoldBy lists none, so this filter keeps every part as before
-  return stockOf(run, m, day).filter((d) => (d.rarity !== "legendary" || day >= 4) && (!isSustain(d.id) || day >= SUSTAIN_FIRST_DAY));
+  // GATES-1 (REQ-BFG-052): and the three gates to GATES_FIRST_DAY (never day 1's shop); switch off, itemsSoldBy lists none either
+  return stockOf(run, m, day).filter((d) => (d.rarity !== "legendary" || day >= 4) && (!isSustain(d.id) || day >= SUSTAIN_FIRST_DAY) && (!isGatesPiece(d.id) || day >= GATES_FIRST_DAY));
 }
 
 /** ARSENAL.md §5.2 step 1: base weight, +1 per owned 1★ fusible part the merchant sells (max +3),
@@ -784,6 +788,21 @@ export function storePlaced(run: Run, uid: number): boolean {
   removeItem(run.build, uid);
   run.inventory.push({ uid, def: p.def, ...starField(starsOf(p)) }); // 0.6.1a: moving never fuses; stars ride along
   return true;
+}
+
+/**
+ * GATES-1 (REQ-BFG-057): a gate (FUSER, SCATTER MILL, SMELTER) stands ON a belt tile, so a belt that goes (rerouted, deleted,
+ * or gone with its factory) leaves it standing on nothing. Each such gate goes back to cargo, as a part stored from the deck
+ * is (storePlaced: stars kept, no refund, no fuse). Returns their names, in order; [] for every deck without a gate. The
+ * build screen calls it whenever the build changes (build.ts touched), so no saved run holds a stranded gate.
+ */
+export function releaseStranded(run: Run): string[] {
+  const names: string[] = [];
+  for (const p of strandedConverters(run.build)) {
+    const name = ITEMS[p.def].name;
+    if (storePlaced(run, p.uid)) names.push(name);
+  }
+  return names;
 }
 
 /**

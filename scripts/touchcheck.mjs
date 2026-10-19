@@ -77,7 +77,7 @@
 //         wearing it, and the reload keeps the carrier choice. --profile mixed adds carrier styles: ADMIRAL'S BLUE open and
 //         worn, IRONCLAD open and unseen, STORMCALLER and CHAMPION'S GOLD locked.
 // Usage: npm run build && node scripts/touchcheck.mjs <outDir> [--dist <dir>] [--only touch,mouse,319,names,bar,customize,
-//        newstyle,roadfork,scout,foecard,shaperotate,replay] [--tag after] [--name touchcheck] [--profile none|mixed] [--cviews phone,...,desk]
+//        newstyle,roadfork,scout,foecard,shaperotate,gatesplit,replay] [--tag after] [--name touchcheck] [--profile none|mixed] [--cviews phone,...,desk]
 //        [--views phone,phone-660,phone-land,wk-phone,wk-phone-660,wk-phone-land,wk-iphone13,wk-iphone15pm]
 // Exit 1 if a check fails. Writes <outDir>/<name>.log, <name>.json, <name>-mouse.json and the screenshots.
 
@@ -99,8 +99,8 @@ const opt = (name, fallback) => {
 const DIST = resolve(opt("dist", join(ROOT, "dist")));
 const OUT = resolve(args.find((a, i) => !a.startsWith("--") && !(i > 0 && args[i - 1].startsWith("--"))) ?? join(ROOT, "shots", "touchcheck"));
 // PACKS M2: + names; TAP-093b: + bar; CUSTOM-2b (REQ-BFG-072): + customize, newstyle, roadfork; SCOUT-1 (REQ-BFG-076): + scout;
-// SCOUT-1c (REQ-BFG-082): + foecard; SHAPES-1 (REQ-BFG-086 S3): + shaperotate; REPLAY-1 (REQ-BFG-112): + replay
-const ONLY = opt("only", "touch,mouse,319,names,bar,customize,newstyle,roadfork,scout,foecard,shaperotate,replay").split(",").map((s) => s.trim());
+// SCOUT-1c (REQ-BFG-082): + foecard; SHAPES-1 (REQ-BFG-086 S3): + shaperotate; GATES-1 (REQ-BFG-057): + gatesplit; REPLAY-1 (REQ-BFG-112): + replay
+const ONLY = opt("only", "touch,mouse,319,names,bar,customize,newstyle,roadfork,scout,foecard,shaperotate,gatesplit,replay").split(",").map((s) => s.trim());
 const TAG = opt("tag", "after");
 const NAME = opt("name", "touchcheck");
 /** CUSTOM-2b (REQ-BFG-072): --profile: the player profile (beltbattles.profile.v1) every page of the run starts with,
@@ -2454,6 +2454,137 @@ async function shapeRotateSection(browsers, origin) {
   }
 }
 
+// ------------------------------------------------------------- GATES-1: drop-to-split by touch and mouse
+/** GATES-1 (REQ-BFG-057; BRIEF-GATES1 G3, G9): FURNACE at a day-3 dawn, the KILN alone with its belt up column 4 (KILN_DECK) and a
+ *  FUSER (a gate, kind converter) in cargo; and the same with the FUSER standing on the belt's tile (4, 3). */
+const GATE_DECK = { ...KILN_DECK, inventory: [{ uid: 60, def: "fuser" }] };
+const GATE_PLACED = { ...KILN_DECK, items: [...KILN_DECK.items, { uid: 30, def: "fuser", x: 4, y: 3 }], inventory: [] };
+
+/**
+ * GATES-1 (REQ-BFG-057): drop-to-split, by real input. Needs a page with GATES on (a build made with the switch set true; a
+ * build without gates logs one line and checks nothing, as shaperotate does). On a phone (Chromium, touch): a finger's drag from
+ * cargo carries the FUSER; its ghost and drop point stand above the finger (fingerLift, 2 cells); the drop lands on the belt
+ * tile it hovered, the route's cells exactly as before (no tile lost, one route); the CATCH is measured: the drop lands on the
+ * tile for a finger within a span of the tile's column, about 60 CSS px (3 cells) where the snap reaches 1 cell, and a finger
+ * 3 cells off lands nowhere (the gate stays in cargo, `DROP IT ON A BELT`); a tap on the placed gate opens its panel (FUSER,
+ * GATE · BELT 1) with TO CARGO and SELL, each at least 44 CSS px tall and no ROTATE; SELL puts the belt whole with the
+ * gold paid. On the desk (a mouse): the drop lands on the cell under the pointer only (no snap), and a cell beside the belt is
+ * refused with its reason. A screenshot of the carried gate (the SPLITS IT tag) and of the board after the drop is kept.
+ */
+async function gateSplitView(browsers, origin, vname) {
+  const { ctx, page, cdp, errors } = await openPage(browsers, origin, vname);
+  const V = `gatesplit ${vname}`, touch = !!cdp;
+  viewNow = V;
+  const has = await page.evaluate(() => typeof window.bb.catalogue === "function" && window.bb.catalogue().some((d) => d.id === "fuser"));
+  if (!has) {
+    log(`${V}: this build has no gates (GATES off): nothing to check`);
+    await ctx.close();
+    return;
+  }
+  const state = () => page.evaluate(() => {
+    const r = window.bb.game.run, p = r.build.items.find((q) => q.def === "fuser");
+    return { at: p ? [p.x, p.y] : null, routes: r.build.routes.map((q) => q.cells.join(",")), cargo: r.inventory.map((i) => i.def), gold: r.gold };
+  });
+  const mdrag = async (a, b) => { // a mouse drag from a to b, released there
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move((a.x + b.x) / 2, (a.y + b.y) / 2, { steps: 4 });
+    await page.mouse.move(b.x, b.y, { steps: 6 });
+    await sleep(120);
+    await page.mouse.up();
+    await sleep(200);
+  };
+  await openDeck(page, GATE_DECK);
+  const kv = await kview(page);
+  const tile = await cell(page, 4, 3), tile2 = await cell(page, 4, 4), from = await slot(page, 0);
+  // a deck cell in CSS px, measured between two neighbouring cell centres (the phone's carrier is zoomed, ZOOM-1: not 12 x k)
+  const cellCss = Math.hypot(tile.x - tile2.x, tile.y - tile2.y);
+  log(`[${at()}] ${V}: a deck cell is ${cellCss.toFixed(1)} CSS px (${kv.k.toFixed(3)} CSS px per logical px before the carrier's zoom)`);
+  const base = await state();
+  const lift = touch ? 2 * cellCss : 0; // fingerLift for a 1x1: half its height plus 1.5 cells; a mouse has none
+  const into = (dx, dy = 0) => ({ x: tile.x + dx, y: tile.y + lift + dy });
+  // a logical cell of the deck (the desk's deck is turned: the belt runs along the screen's x there, so offsets go by cell, not by pixel)
+  const intoCell = async (cx, cy) => { const c = await cell(page, cx, cy); return { x: c.x, y: c.y + lift }; };
+  const drop = async (pt) => { // a fresh board, the drag from cargo to pt, released
+    await openDeck(page, GATE_DECK);
+    if (touch) await drag(cdp, [from, pt], true); else await mdrag(from, pt);
+    await nextFrame(page);
+    return state();
+  };
+  // (1) the carry: a finger's drag from cargo lifts the FUSER as a touch carry; the tile's ghost and tag are on the board
+  if (touch) {
+    await drag(cdp, [from, into(0)], false);
+    await page.waitForFunction(() => window.bb.game.screen.ed.carry?.def === "fuser", null, { timeout: 5000 }).catch(() => {});
+    await nextFrame(page);
+    const c = await page.evaluate(() => { const q = window.bb.game.screen.ed.carry; return q ? { def: q.def, touch: !!q.touch } : null; });
+    check(!!c && c.def === "fuser" && c.touch, `${V}: a finger's drag from cargo carries the FUSER (${c ? `a ${c.touch ? "finger's" : "mouse's"} carry` : "no carry"}); its ghost stands ${(2 * cellCss).toFixed(0)} CSS px above the finger`);
+    await shot(page, `${vname}-gatesplit-carry.png`);
+    await up(cdp);
+    await nextFrame(page);
+  } else {
+    await mdrag(from, tile);
+  }
+  let s = await state();
+  check(!!s.at && s.at[0] === 4 && s.at[1] === 3 && same(s.routes, base.routes) && s.cargo.length === 0,
+    `${V}: dropped on the belt tile (4, 3) the FUSER stands on it (${JSON.stringify(s.at)}); the belt is one route with the same ${s.routes[0].split(",").length} tiles as before; cargo is empty`);
+  await shot(page, `${vname}-gatesplit-dropped.png`);
+  // (2) a cell beside the belt: a mouse is refused (no snap); a finger one cell off snaps to the belt (the catch)
+  const beside = await drop(await intoCell(5, 3)); // one cell beside the belt (the belt runs up column 4)
+  if (touch) check(!!beside.at && beside.at[0] === 4 && beside.at[1] === 3, `${V}: a finger ONE cell beside the belt snaps to the nearest belt tile and the FUSER stands on (4, 3) (${JSON.stringify(beside.at)})`);
+  else check(!beside.at && beside.cargo.includes("fuser"), `${V}: a click one cell beside the belt is refused (no snap for a mouse): the FUSER stays in cargo (${JSON.stringify(beside.at)})`);
+  // (3) three cells off: nothing in reach on either input: the gate stays in cargo, with the reason
+  await openDeck(page, GATE_DECK);
+  const t0 = await page.evaluate(() => window.bb.game.toastLog.length);
+  const far = await intoCell(7, 3); // three cells beside the belt
+  if (touch) await drag(cdp, [from, far], true); else await mdrag(from, far);
+  await nextFrame(page);
+  s = await state();
+  const said = await toastsSince(page, t0);
+  check(!s.at && s.cargo.includes("fuser") && same(s.routes, base.routes), `${V}: three cells off the belt nothing is in reach: the FUSER stays in cargo, the belt untouched${said.length ? ` (toast ${JSON.stringify(said)})` : ""}`);
+  check(said.some((t) => /DROP IT ON A BELT/.test(t)) || said.length === 0, `${V}: and the reason shows when it speaks: DROP IT ON A BELT (${JSON.stringify(said)})`);
+  // (4) the catch, measured: the finger's x offsets (CSS px from the tile column's centre) at which the drop lands on the tile
+  if (touch) {
+    const landed = [];
+    for (let dx = -48; dx <= 48; dx += 3) {
+      const r = await drop(into(dx));
+      if (r.at && r.at[0] === 4 && r.at[1] === 3) landed.push(dx);
+    }
+    const lo = landed.length ? Math.min(...landed) : 0, hi = landed.length ? Math.max(...landed) : 0, width = landed.length ? hi - lo + 3 : 0;
+    log(`[${at()}] ${V}: the CATCH: the drop lands on the belt tile for a finger from ${lo} to ${hi} CSS px of its column's centre: ${width} CSS px wide (a cell is ${cellCss.toFixed(1)} CSS px; the brief's catch of about 60 assumed 20 px cells: the snap is 1 cell each side, so 3 cells)`);
+    check(Math.abs(width - 3 * cellCss) <= 3 && width >= TAP_CSS, `${V}: the catch is ${width} CSS px wide (3 cells of ${cellCss.toFixed(1)} = ${(3 * cellCss).toFixed(1)}, sampled every 3 CSS px), at least a finger's 44 CSS px`);
+  }
+  // (5) a placed gate: a tap (a click) opens its panel; TO CARGO and SELL are targets, no ROTATE; SELL puts the belt whole
+  await openDeck(page, GATE_PLACED);
+  await press(page, cdp, tile);
+  const l = await look(page);
+  check(l.sel.kind === "item" && l.sel.uid === 30 && shown(l, "FUSER") && /^GATE/.test(l.panel.sub ?? ""), `${V}: ${touch ? "a tap" : "a click"} on the placed FUSER opens its panel (${l.panel ? `${pdesc(l)} · ${l.panel.sub}; buttons ${JSON.stringify(l.panel.labels)}` : `${JSON.stringify(l.sel)}, no panel`})`);
+  const store = await region(page, "store"), sell = await region(page, "sellpart"), rot = await region(page, "rotate"); // a placed piece's touch SELL is "sellpart" (inspector.ts)
+  check(!!store && (!touch || store.h >= TAP_CSS) && !rot && (!touch || (!!sell && sell.h >= TAP_CSS)), `${V}: TO CARGO ${store ? `${store.w.toFixed(1)}x${store.h.toFixed(1)}` : "missing"}${touch ? `, SELL ${sell ? `${sell.w.toFixed(1)}x${sell.h.toFixed(1)}` : "missing"}` : ""} CSS px, no ROTATE (a gate has no arrows)`);
+  await shot(page, `${vname}-gatesplit-panel.png`);
+  const g0 = (await state()).gold;
+  const out = touch ? sell : store;
+  if (out) await press(page, cdp, centre(out));
+  await nextFrame(page);
+  s = await state();
+  check(!s.at && same(s.routes, base.routes) && (touch ? s.gold === g0 + 3 : s.cargo.includes("fuser")), `${V}: ${touch ? "SELL" : "TO CARGO"} takes the FUSER off: the belt is the same whole route (${s.routes[0].split(",").length} tiles), ${touch ? `gold ${g0} -> ${s.gold} (+3)` : "the gate is in cargo"}`);
+  check(errors.length === 0, `${V}: 0 console errors (${errors.length}${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""})`);
+  await ctx.close();
+}
+
+async function gateSplitSection(browsers, origin) {
+  log("");
+  log("## GATES-1 (REQ-BFG-057): drop-to-split by real input: a finger's carry of a FUSER (ghost above the finger, the snap to a belt tile within 1 cell, the catch measured), a refusal with its reason, the placed gate's panel and SELL; a mouse's exact drop");
+  for (const v of ["phone", "desk"]) {
+    loadLine(`gatesplit ${v}: start`);
+    try {
+      await gateSplitView(browsers, origin, v);
+    } catch (e) {
+      check(false, `gatesplit ${v}: the section stopped: ${String(e instanceof Error ? e.message : e).split("\n")[0]}`);
+    }
+    loadLine(`gatesplit ${v}: end`);
+  }
+}
+
 // ------------------------------------------------------------- REPLAY-1: the result card's REPLAY
 /** REPLAY-1 (REQ-BFG-112): a REPLAY on every post-fight result card, by real input on each view: a dusk (2X picked by a
  *  tap mid-fight: the run's kept speed; then SKIP) and a Hard warlord on the road (4X picked; NPC_DAY's card, ON TO THE
@@ -2694,6 +2825,7 @@ async function main() {
     if (ONLY.includes("scout")) await scoutSection(browsers, site.origin); // SCOUT-1 (REQ-BFG-076)
     if (ONLY.includes("foecard")) await foeCardSection(browsers, site.origin); // SCOUT-1c (REQ-BFG-082)
     if (ONLY.includes("shaperotate")) await shapeRotateSection(browsers, site.origin); // SHAPES-1 (REQ-BFG-086 S3)
+    if (ONLY.includes("gatesplit")) await gateSplitSection(browsers, site.origin); // GATES-1 (REQ-BFG-057): drop-to-split
     if (ONLY.includes("replay")) await replaySection(browsers, site.origin); // REPLAY-1 (REQ-BFG-112)
   } finally {
     for (const b of Object.values(browsers)) await b.close();

@@ -21,6 +21,12 @@ import { canonicalRot, footOf, footOffsets, footOnDeck, footprintCells } from ".
 import { shapesRules } from "./shapes";
 import "./shapes2"; // SHAPES-2 (REQ-BFG-114): loads SHAPES2's switch, so its six defs are in ITEMS whenever it is on (after SHAPES' three)
 import { scaleRules } from "./scale"; // SCALE-2d (REQ-BFG-110): the walk keeps FOR EACH DMG apart while SCALE_RIGS is on
+// BUMP-1F (PACKET-BUMP-0130 section 5): ./scale loads BEFORE ./gates, so ITEMS' key order is the base's ids, SCALE's seven, then GATES' three
+import { gatesRules } from "./gates"; // GATES-1 (REQ-BFG-052): loads GATES's switch, so its three converters are in ITEMS whenever it is on (after SHAPES2's six)
+import { isConverterItem, splitProblem } from "./split"; // GATES-1 (REQ-BFG-057): where a converter may stand (a leaf: no cycle)
+// GATES-1b (REQ-BFG-052 B3): the belt panel's walk through a gate. convert.ts imports this file too: a cycle that is safe, each side
+// reads the other only inside a function (never at load), the way battle.ts and this file already meet
+import { convertCells, convertTicks, convertWalk } from "./convert";
 // re-exported, so the portable stand-in loader and beltside.ts keep importing only ./content and ./deck
 // (tests/standInPool.gen.test.ts)
 export { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "./foot";
@@ -28,6 +34,8 @@ export { RESHAPED_IDS, shapesRules } from "./shapes";
 // SHAPES-2 (REQ-BFG-114): re-exported too, so faces.ts imports it from ../sim/deck (tests/faceText.test.ts: no string literal of faces.ts may hold a
 // digit, an import path included, and shapes2's name does)
 export { isShapes2Piece, shapes2Rules } from "./shapes2";
+export { gatesRules, isGatesPiece } from "./gates"; // GATES-1 (REQ-BFG-052): re-exported, as SHAPES2's are
+export { isConverterItem } from "./split"; // GATES-1 (REQ-BFG-057): beltside.ts imports only ./content and ./deck
 
 export type Dir = 0 | 1 | 2 | 3;
 export const DX = [0, 1, 0, -1];
@@ -211,7 +219,25 @@ export function dirBetween(a: number, b: number): number {
   return -1;
 }
 
-/** R1 (0.6.2 BELTSIDE): no belt runs through machinery of any kind; the old gate-cell exception is gone. */
+/**
+ * GATES-1 (REQ-BFG-052): the pre-0.6.2 gate-cell exception, back for kind "converter" ONLY. The belt may run through cell
+ * `i` of route `r` when the machinery there is a converter that has belt on both sides: not the route's first cell (next to
+ * its factory) or its last (the turret intake, or a joining belt's end), and no other converter on the cell before or
+ * after it. The route stays ONE RouteDef: the converter is a Placed item on one of its cells. `occ` is occupancy(b).
+ */
+export function converterCellOk(b: Build, r: RouteDef, i: number, occ: Occ[]): boolean {
+  const on = (j: number): Placed | undefined => {
+    const u = occ[r.cells[j]]?.item ?? -1;
+    return u < 0 ? undefined : itemByUid(b, u);
+  };
+  const p = on(i);
+  if (!p || !isConverterItem(p)) return false;
+  const nb = (j: number): boolean => { const q = on(j); return !!q && isConverterItem(q); };
+  return i > 0 && i < r.cells.length - 1 && !nb(i - 1) && !nb(i + 1);
+}
+
+/** R1 (0.6.2 BELTSIDE): no belt runs through machinery of any kind; the old gate-cell exception is gone (GATES-1: but for a
+ *  converter, converterCellOk). */
 export function routeWellFormed(b: Build, r: RouteDef): boolean {
   if (!r.cells.length) return false;
   const f = itemByUid(b, r.factory);
@@ -224,7 +250,7 @@ export function routeWellFormed(b: Build, r: RouteDef): boolean {
     if (k < 0 || k >= GRID * GRID || seen.has(k)) return false;
     seen.add(k);
     if (i > 0 && dirBetween(r.cells[i - 1], k) < 0) return false;
-    if (occ[k].item >= 0) return false;
+    if (occ[k].item >= 0 && !converterCellOk(b, r, i, occ)) return false; // GATES-1 (REQ-BFG-052): a converter may stand on a belt tile
   }
   return true;
 }
@@ -381,6 +407,9 @@ export function rigHits(b: Build): RigHit[][][] {
   const out: RigHit[][][] = b.routes.map((r) => r.cells.map(() => []));
   const where = new Map<number, number>(); // cell -> route * 1024 + tile (the last route wins, like occupancy)
   b.routes.forEach((r, ri) => r.cells.forEach((k, ti) => where.set(k, ri * 1024 + ti)));
+  // GATES-1 (REQ-BFG-052): a converter's tile is no belt tile for a rig's arrow: arrows aimed at it idle (R5; a shaped rig
+  // loses only that one hit). Every other tile's hits act on what the converter puts out
+  if (gatesRules()) for (const p of b.items) if (isConverterItem(p)) where.delete(key(p.x, p.y));
   for (const p of b.items) {
     const d = ITEMS[p.def];
     if (!d || d.kind !== "gate") continue;
@@ -696,7 +725,13 @@ export interface RouteWalk {
  */
 /** 0.8.0 B1 M2 (G1's F1): `unplated` walks the belt as a deck that never plates its hull would (every PLATE BREAKER at its
  *  floor), for the build screen's second DMG number. */
-export interface WalkOpts { unplated?: boolean }
+export interface WalkOpts {
+  unplated?: boolean;
+  /** GATES-1b (REQ-BFG-052 B3): walk THROUGH the gates standing on the belt (convert.ts convertWalk): the belt panel's DMG, BURN,
+   *  TIME and COPIES. Off (the default) the walk is blind to a converter, as the bots' rating and estimates read it (G6's table
+   *  prices a gate); a deck with no converter (GATES off) walks the same either way. */
+  gates?: boolean;
+}
 
 export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpts = {}): RouteWalk {
   const info = routeInfo(b, index, undefined, undefined, hits);
@@ -706,6 +741,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
   const fs = f ? effectAt(f.def, gradeOf(b, f)).factory : undefined; // 0.6.1p: at its stars (STAMP PRESS dies); bb-0.8.3: grade
   const ammo = fs ? AMMO[f?.def === "mimic" ? HEROES[b.hero].ammo : fs.ammo] : AMMO.plain;
   const base = fs?.base ?? ammo.base;
+  const gates = o.gates ? convertCells(b) : undefined; // GATES-1b (REQ-BFG-052 B3): the gates on the belt, when the panel asks (undefined: blind, as before)
+  let idle = 0; // GATES-1b B3: ticks the slug waits inside gates (no ride, no HEAT: it isn't on the belt)
   const locked = speedLocked(b.hero); // races: METRONOME belts ignore speed states
   const timeline: TimelineRow[] = [];
   // 0.6.1c SLAG: rides at its fixed speed whatever the speed gates (Battle.transport). beltside-062c (DESIGN §12
@@ -754,10 +791,10 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
   // the ride at 1x + (1 - keep) x the real ride, as Battle.transport), and the one before the last centre crossed
   let keep = 0, keepBefore = 0;
   const ticksOn = new Map<number, number>(); // ticked: the ticks the slug sits on each belt (Y3: SURGE's pulses)
-  const move = (ri: number, to: number, tol: number): void => {
+  const move = (ri: number, to: number, tol: number, clamp?: number): void => { // GATES-1b B3: `clamp` stops a move at a gate's edge (default: the leg's end)
     while (pos < to - tol) {
       const v = BELT_SPEED * (pos > past ? speed : before);
-      const ns = Math.min(pos + v * TICK, end);
+      const ns = Math.min(pos + v * TICK, clamp ?? end);
       if (!(ns > pos)) break; // no way on (a 0 speed; never on a walked belt)
       const k = pos > past ? keep : keepBefore;
       const r = k > 0 ? k * ((ns - pos) / BELT_SPEED) + (1 - k) * ((ns - pos) / v) : (ns - pos) / v;
@@ -768,9 +805,16 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       pos = ns;
     }
   };
+  // GATES-1b (REQ-BFG-052 B3): the slug through a gate (convert.ts convertWalk: the engine's own payload rules)
+  const through = (spec: Parameters<typeof convertWalk>[1]): void => {
+    // BUMP-1F (PACKET-BUMP-0130 section 5): `each` (SCALE-2a's FOR EACH DMG; 0 with SCALE_RIGS off) goes through with `flat`
+    ({ ride, mult, flat, each, burn, shock, prior, heat, heatBonus, copies } = convertWalk(
+      { ammo: (f?.def === "mimic" ? HEROES[b.hero].ammo : fs?.ammo) ?? "plain", base, ride, mult, flat, each, burn, shock, prior, heat, heatBonus, copies }, spec));
+  };
   for (let i = 0; i < n; i++) {
     const { route: ri, tile } = path[i];
     const cells = b.routes[ri].cells;
+    const gate = gates?.get(cells[tile]); // GATES-1b B3: a gate stands on this tile (only when the panel asks)
     if (i > 0 && path[i - 1].route !== ri) { // 0.6.2j: the join tile of main belt ri
       joins.push({ route: ri, tile, cell: cells[tile], row: timeline.length });
       if (fixed === undefined && !locked) { // J4, J15: from here on the main belt's speed state (slag keeps `fixed`)
@@ -787,7 +831,19 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
         // its end: a joining belt's at its join tile's side (CELL x tiles); the chain's last belt's, as routeLength
         end = path[n - 1].route === ri ? (cells.length - 1) * CELL + CELL / 2 + (info.connected ? CELL : 0) : CELL * cells.length;
       }
+      if (gate) { // GATES-1b B3: it stops at the gate's upstream edge, waits inside (no ride, no HEAT), and comes out at the downstream edge
+        move(ri, tile * CELL, 0, tile * CELL);
+        through(gate);
+        idle += convertTicks(gate);
+        pos = (tile + 1) * CELL; // the gate's own tile isn't ridden; a gate has no hits (arrows aimed at it idle)
+        if (i === n - 1 || path[i + 1].route !== ri) move(ri, end, 1e-6); // (a gate is never a leg's last tile: the editor refuses it)
+        continue;
+      }
       move(ri, tile * CELL + CELL / 2, 0); // Battle.transport: a tile's hits apply once a move reaches its centre
+    } else if (gate) { // GATES-1b B3 (the continuous walk): no half cells; the slug waits `secs` inside the gate
+      through(gate);
+      time += gate.secs;
+      continue;
     } else {
       const inHalf = CELL / 2 / (BELT_SPEED * speed);
       time += inHalf;
@@ -934,7 +990,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
     timeOn.set(ri, (timeOn.get(ri) ?? 0) + outT);
   }
   if (ticked) { // LADDER_FIX: the stamp's tick to the load's; the seconds on each belt, whole ticks
-    time = Math.max(0, moves - 1) * TICK;
+    time = (Math.max(0, moves - 1) + idle) * TICK; // GATES-1b B3: + the ticks waited inside gates (0 without)
     for (const [ri, k] of ticksOn) timeOn.set(ri, k * TICK);
   }
   // Y3 (DESIGN-Y row 28): each SURGE VALVE with an arrow on a belt the slug rides (any tile, before or after the slug's own
@@ -977,6 +1033,11 @@ export function estimateRoute(b: Build, index: number, hits = rigHits(b)): Route
 export function canPlaceItem(b: Build, defId: string, x: number, y: number, ignoreUid = -1, rot = 0): { ok: boolean; reason?: string } {
   const def = ITEMS[defId];
   if (!def) return { ok: false, reason: "UNKNOWN" };
+  if (def.kind === "converter") { // GATES-1 (REQ-BFG-057): a converter goes only ON a belt tile (split.ts splitProblem)
+    if (!footOnDeck(def, x, y, rot)) return { ok: false, reason: "OFF THE DECK" };
+    const why = splitProblem(b, defId, key(x, y), ignoreUid);
+    return why ? { ok: false, reason: why } : { ok: true };
+  }
   if (def.kind !== "gate" && def.kind !== "factory") return { ok: false, reason: "NOT DECK EQUIPMENT" };
   // SHAPES-1 (REQ-BFG-086 R1): every cell of the turned footprint on the deck (a 1-cell rig or a 2x2: 0.9.9's bounds)
   if (!footOnDeck(def, x, y, rot)) return { ok: false, reason: "OFF THE DECK" };
@@ -1098,7 +1159,11 @@ export function canExtend(b: Build, factoryUid: number, pending: number[], k: nu
   }
   const occ = occupancy(b);
   const o = occ[k];
-  if (o.item >= 0) return { ok: false, reason: "MACHINE IN THE WAY" }; // B3: every machine blocks a belt (R1)
+  // GATES-1 (REQ-BFG-057): a gate (converter) standing on ANOTHER belt's tile is part of that belt, not a machine in the way: a
+  // belt drawn into it meets BELTS CAN'T CROSS below, so the editor may join it there (canJoin), as it may join the belt's other
+  // tiles ("either order gives the same deck"). A belt redrawn through its own gate's tile is still refused as before.
+  const gateOnBelt = o.item >= 0 && o.route >= 0 && o.route !== replacing && isConverterItem(itemByUid(b, o.item) ?? { def: "" });
+  if (o.item >= 0 && !gateOnBelt) return { ok: false, reason: "MACHINE IN THE WAY" }; // B3: every machine blocks a belt (R1)
   if (o.route >= 0 && o.route !== replacing) return { ok: false, reason: "BELTS CAN'T CROSS" };
   const used = beltUsed(b, replacing) + pending.length + 1;
   if (used > b.beltCap) return { ok: false, reason: "OUT OF BELT" };

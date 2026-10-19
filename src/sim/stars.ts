@@ -84,7 +84,8 @@ export function fusible(def: string): boolean {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
   if (!d) return false;
   // 0.6.2s (REQ-BFG-031 S6): turrets merge like every buyable module
-  return (d.kind === "gate" || d.kind === "factory" || d.kind === "mod" || d.kind === "core" || d.kind === "turret") && d.price > 0;
+  // GATES-1 (REQ-BFG-052): a converter merges like every buyable module
+  return (d.kind === "gate" || d.kind === "factory" || d.kind === "mod" || d.kind === "core" || d.kind === "turret" || d.kind === "converter") && d.price > 0;
 }
 
 const cache = new Map<string, ItemDef>();
@@ -120,6 +121,7 @@ export function effectAt(def: string, stars: number): ItemDef {
     if (lv.mod) out.mod = { ...out.mod, ...lv.mod };
     if (lv.core) out.core = { ...out.core!, ...lv.core }; // 0.6.1b: a turret core's star values
     if (lv.turret) out.turret = { ...out.turret!, ...lv.turret }; // 0.6.2s: a turret's star values
+    if (lv.converter) out.converter = { ...out.converter!, ...lv.converter }; // GATES-1 (REQ-BFG-052): a converter's star values
   }
   cache.set(k, out);
   return out;
