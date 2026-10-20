@@ -225,7 +225,9 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
         least = Math.min(least, ok.length);
       }
     }
-    expect(states).toBe(823); // BUMP-1D: the long run's 823 over dusks 1-16 (the lead's BB_SEEDPOOL_SCRATCH count; was 324 over dusks 1-10). HULL-ON (the flip, HEARTS): the hearts model's 324 (h2.records; was 172). Z-BUMP: the flip (was 178: LAST CHANCE takes away six 1-life records, above)
+    // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2: the ASH SHRINE joins the road's bag, so a bag is 11 days: records.ts longStates reads bagIds().length, and the DOCK's PATCH UP comes again after day 11, 22, ...
+    // rather than 10, 20, ...): 822 reachable states over dusks 1-16 (the regenerated seed pool's count, server/seedPoolData.ts; was 823)
+    expect(states).toBe(822); // BUMP-1F: was 823. BUMP-1D: the long run's 823 over dusks 1-16 (the lead's BB_SEEDPOOL_SCRATCH count; was 324 over dusks 1-10). HULL-ON (the flip, HEARTS): the hearts model's 324 (h2.records; was 172). Z-BUMP: the flip (was 178: LAST CHANCE takes away six 1-life records, above)
     expect(least).toBe(4); // 0.8.0 RC: the race floor ghosts are eligible everywhere too (was 2)
     expect(uncoveredStates(POOL)).toEqual([]);
     // without the floor ghosts the sample ghosts leave states uncovered (why the floor ghosts exist)
@@ -256,7 +258,9 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
   // BUMP-1E (the pools regenerated under bb-0.12.0: the stand-in pool R1 19ae423, the SOFT-1 and FLOOR picks R2 2875b03 (FLOOR_PICKS furnace 9011, weaver 9007, foundry
   // 9008, bastion 9007), the seed pool R3 04fab9a): title "the sample ghosts' 35 and 47, plus the floor ghosts' 27 and 29" -> 45 and 48, 16 and 30 (counted off the
   // committed server/seedPoolData.ts too: its first 64 lines and the next 32; the 96 race ghosts add 53 and 32, so the whole pool is 114 and 110, as tests/net-upload.test.ts pins)
-  it("keeps its turret and join decks: the sample ghosts' 45 and 48, plus the floor ghosts' 16 and 30 (each a deck of its own)", () => {
+  // BUMP-1F (the pools regenerated under bb-0.13.0, RULING-BUMP1F-R5 R5.2 (2); server/seedPoolData.ts, SOFT_TARGET 150): title "the sample ghosts' 45 and 48, plus the floor ghosts' 16 and 30" -> 55 and 34, 27 and 24
+  // (measured by this test; with the race ghosts the whole pool is 145 and 101, as tests/net-upload.test.ts pins)
+  it("keeps its turret and join decks: the sample ghosts' 55 and 34, plus the floor ghosts' 27 and 24 (each a deck of its own)", () => {
     const carry = (ps: readonly GhostSnapshot[]) => [ps.filter((s) => (s.build.turrets ?? []).length > 0).length, ps.filter((s) => s.build.routes.some((r) => r.join !== undefined)).length];
     // BAL-2 (c5e4780, the pools changed): [3, 24] -> [4, 25]
     // Y7b2 (the pools): was [4, 25] (4d772e4, the pool regenerated on bb-0.9.3)
@@ -265,14 +269,16 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
     // SOFT-1 (the seed pool softened, REQ-BFG-092): was [23, 27] (S8c's sample decks)
     // BUMP-1D (the seed pool regenerated, 5e93e1e): was [22, 23] (SOFT-1's picks over days 1-10)
     // BUMP-1E (the pools regenerated under bb-0.12.0, R1-R3): was [35, 47]
-    expect(carry(SAMPLE)).toEqual([45, 48]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), the pools regenerated under bb-0.13.0: server/seedPoolData.ts, SOFT_TARGET 150, from the regenerated stand-in pool): was [45, 48]
+    expect(carry(SAMPLE)).toEqual([55, 34]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
     // BAL-2 (c5e4780, the pools changed): [2, 14] -> [4, 16]
     // Y7b2 (the pools): was [4, 16] (4d772e4, the pool regenerated on bb-0.9.3)
     // Z-BUMP (the pools): was [3, 15] (2c4ba76, the stand-in pool regenerated once under bb-0.9.7)
     // S8c (the pools): was [2, 14] (P1 83c039d, the stand-in pool regenerated once with every switch on, NPC_DAY on)
     // BUMP-1D (the seed pool regenerated, 5e93e1e: the floor ghosts are FLOOR_PICKS' casual runs over days 1-16): was [2, 10]
     // BUMP-1E (the pools regenerated under bb-0.12.0, R1-R3: FLOOR_PICKS furnace 9011, weaver 9007, foundry 9008, bastion 9007): was [27, 29]
-    expect(carry(FLOOR)).toEqual([16, 30]); // FLIP-X2: [4, 10] -> [5, 13]; REDO-X (09ce97c, the pools changed): [5, 13] -> [2, 14]
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), the pools regenerated under bb-0.13.0: FLOOR_PICKS' casual runs over the regenerated stand-in pool): was [16, 30]
+    expect(carry(FLOOR)).toEqual([27, 24]); // FLIP-X2: [4, 10] -> [5, 13]; REDO-X (09ce97c, the pools changed): [5, 13] -> [2, 14]
     for (const f of FLOOR) {
       const same = SAMPLE.filter((s) => s.day === f.day && s.hero === f.hero).map((s) => encodeStarred(s.build));
       expect(same).toHaveLength(2);
@@ -320,6 +326,6 @@ describe.each(storeBackends())("D5 end to end on the $name store: a new player g
         n++;
       }
     }
-    expect(n).toBe(823); // BUMP-1D: the long run's 823 reachable records over dusks 1-16 (was 324 over dusks 1-10). HULL-ON (the flip, HEARTS): the hearts model's 324 reachable records (was 172). Z-BUMP: the flip (was 178)
+    expect(n).toBe(822); // BUMP-1F (RULING-BUMP1F-R3.1: the 11-day bag, see the coverage test above): 822 reachable records over dusks 1-16 (was 823). BUMP-1D: the long run's 823 reachable records over dusks 1-16 (was 324 over dusks 1-10). HULL-ON (the flip, HEARTS): the hearts model's 324 reachable records (was 172). Z-BUMP: the flip (was 178)
   });
 });

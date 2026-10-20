@@ -83,8 +83,11 @@ describe("S8 T1d: checkPool passes the run seed (RULING-S8-R1 item 2)", () => {
     // road day 1 is a won medium fight with a drop, tollbooth), and the first sorted id that meets the forgery's three conditions is AEGIS SPIKE (one of the
     // seven scaling rigs, in ITEMS while SCALE_RIGS is on: "aegisspike" sorts before "anvil"); the road day 1's warlord is GRIMHOLD for this run seed. Was
     // "furnace day 3 (run seed 2913324239), road day 1 (medium): drop scrapcannon -> anvil" and "road: day 1: anvil is not in SOOTJAW's pool"
-    expect(f!.at).toBe("furnace day 1 (run seed 3081100429), road day 1 (medium): drop tollbooth -> aegisspike");
-    expect(f!.line).toBe("road: day 1: aegisspike is not in GRIMHOLD's pool");
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), the seed pool regenerated under bb-0.13.0: server/seedPoolData.ts, 192 ghosts, SOFT_TARGET 150): the file's first such forgery is furnace day 2's ghost now (its run seed
+    // 2846213763; its road day 1 is a won medium fight whose drop is a WHETSTONE), the first sorted id meeting the three conditions is still AEGIS SPIKE, and road day 1's warlord is LACEWING for this run seed
+    // (measured by this test's console line). Was "furnace day 1 (run seed 3081100429), road day 1 (medium): drop tollbooth -> aegisspike" and "road: day 1: aegisspike is not in GRIMHOLD's pool"
+    expect(f!.at).toBe("furnace day 2 (run seed 2846213763), road day 1 (medium): drop whetstone -> aegisspike");
+    expect(f!.line).toBe("road: day 1: aegisspike is not in LACEWING's pool");
     expect(refusal(withoutSeed(f!.forged))).toBeNull(); // without the seed: only the seed-blind lines run, and they pass it
     expect(refusal(f!.forged)).toContain(f!.line); // with it (T1d): refused on its road line (before T1d: passed)
   });

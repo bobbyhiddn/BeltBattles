@@ -316,6 +316,10 @@ const snapOf = (d: Dusk, over: Partial<GhostSnapshot> = {}): GhostSnapshot => ({
   v: SNAPSHOT_V3, rules: RULES_VERSION, hero: d.hero, day: d.day, wins: 0, lives: 3, build: d.build, runId: `drv-${d.seed}`, playerId: `p${d.seed}-${d.day}`,
   createdAt: 1_790_000_000_000, ...over,
 });
+/** BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): GATES, ENCHANT and the F-fixes ship on, so the driver's honest decks hold more than the log-less ceiling pays): the snapshot as the game's ghostOf writes it for a road-fed dusk,
+ *  with the run's seed and its road log (and taken LAST CHANCE), as postCheck above reads them: a road-fed deck's drops count only through its log (validate.ts roadDropValue). Was snapOf alone (no seed, no log) */
+const snapOfLog = (d: Dusk, over: Partial<GhostSnapshot> = {}): GhostSnapshot =>
+  snapOf(d, { ...(d.runSeed ? { seed: d.runSeed >>> 0 } : {}), ...(d.roadLog ? { road: d.roadLog } : {}), ...(d.lastChance ? { lastChance: d.lastChance } : {}), ...over });
 /** BUMP-1D (LONG_RUN ships on): the fewest dusks lost that the long run's record model (records.ts) carries (wins, lives) into dusk `day` with. */
 function lossesOf(day: number, wins: number, lives: number): number {
   for (let k = 0; k < day; k++) if (isReachable(day, wins, lives, { losses: k })) return k;
@@ -333,7 +337,7 @@ describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and j
     // run carries there with no wins, or 3, is mostly day - 1 losses on the first days). Was no losses
     for (const d of honest) {
       const lives = Math.max(3, floorRecord(d.day).lives);
-      const res = await submitGhost(base, ownedBy(snapOf(d, { lives, losses: lossesOf(d.day, 0, lives) }), me), me, 3000);
+      const res = await submitGhost(base, ownedBy(snapOfLog(d, { lives, losses: lossesOf(d.day, 0, lives) }), me), me, 3000); // BUMP-1F: with its seed and road log (was snapOf)
       expect(res, `${d.hero} #${d.seed} d${d.day}: ${JSON.stringify(res)}`).toMatchObject({ ok: true });
     }
     expect(app.store.size).toBe(honest.length);
@@ -358,7 +362,7 @@ describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and j
     const plain = await post(snapOf(d, { rules: "bb-0.6.1", hero: "furnace", build: furnaceDeck() }));
     expect(plain.status).toBe(422);
     expect(plain.body.error).toBe(`rules bb-0.6.1 not accepted: this server validates ${RULES_VERSION}`);
-    expect(RULES_VERSION).toBe("bb-0.12.0") /* BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.13.0") /* BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
   });
 
   it("fetchGhost fights a served ghost with turrets and joins; it falls back on an illegal one and on other rules", async () => {
@@ -377,7 +381,7 @@ describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and j
     const srv = createServer((q, s) => {
       s.setHeader("content-type", "application/json");
       const u = q.url ?? "";
-      const ghost = u.includes("wins=1") ? snapOf(d, { build: bad, ...record }) : u.includes("wins=2") ? snapOf(d, { rules: "bb-0.6.1" }) : snapOf(d, record);
+      const ghost = u.includes("wins=1") ? snapOf(d, { build: bad, ...record }) : u.includes("wins=2") ? snapOf(d, { rules: "bb-0.6.1" }) : snapOfLog(d, record); // BUMP-1F: the honest served ghost carries its seed and road log (was snapOf)
       s.end(JSON.stringify({ id: "g062m", snapshot: ghost }));
     });
     await new Promise<void>((r) => srv.listen(0, "127.0.0.1", () => r()));

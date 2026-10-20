@@ -25,6 +25,8 @@ import { Rng } from "../src/core/rng";
 import { buildCost, lastChanceProblem, offeredEvents, validateBuild, validateUpload } from "../src/net/validate";
 import { bagsFor, explainRoadCap, playerFits, roadCapFor, roadMixes, roadMixesFor } from "../src/net/roadCap";
 import { eventSequence } from "../src/game/events";
+import { bagIds } from "../src/game/eventDefs"; // BUMP-1F (RULING-BUMP1F-R3.1): the rules world's bag (11 events with ENCHANT on)
+import { withEnchant } from "../src/sim/enchant"; // BUMP-1F: the ENCHANT-off halves (the 10-day bag)
 import { entry, snap } from "./netHelpers";
 
 // BUMP-1D: LONG_RUN ships ON (bb-0.11.0). The "switch off" halves below are the 10-day world, so each test starts in it on purpose (the
@@ -337,7 +339,10 @@ describe("RUN-1 the deck check past day 10: LAST CHANCE on any day, the day boun
 describe("RUN-1 roadCap (D6): the event mask resets at each bag boundary", () => {
   it("the bags a day has reached: 1 up to day 10, then one more every 10 days (long run); always 1 with the switch off", () => {
     expect([1, 10, 11, 20, 21, 25].map(bagsFor)).toEqual([1, 1, 1, 1, 1, 1]);
-    long(() => expect([1, 10, 11, 20, 21, 25].map(bagsFor)).toEqual([1, 1, 2, 2, 3, 3]));
+    // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2: the ASH SHRINE joins the road's bag, so with ENCHANT on a bag is 11 days: bagsFor reads bagIds().length): the shipped world's bags are days 1-11, 12-22, 23-33
+    // (measured: [1, 1, 1, 2, 2, 3]); the 10-day bag of the ENCHANT-off world, the one this test pinned ([1, 1, 2, 2, 3, 3]), is read under withEnchant(.., false)
+    long(() => expect([1, 10, 11, 20, 21, 25].map(bagsFor)).toEqual([1, 1, 1, 2, 2, 3]));
+    long(() => withEnchant(() => expect([1, 10, 11, 20, 21, 25].map(bagsFor)).toEqual([1, 1, 2, 2, 3, 3]), false));
   });
 
   it("the mixes: bags = 1 are the 10-day run's list (same keys, same order); 2 bags add the plating twice (hull x2)", () => {
@@ -360,7 +365,9 @@ describe("RUN-1 roadCap (D6): the event mask resets at each bag boundary", () =>
     const taken = (rows: { day: number; event?: string }[]) => rows.filter((r) => r.event).map((r) => r.event!);
     long(() => {
       const rows = eventsOf(14);
-      const bag1 = taken(rows.filter((r) => r.day <= 10)), bag2 = taken(rows.filter((r) => r.day > 10));
+      // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2): bag 1 is days 1..bagIds().length (11 with the ASH SHRINE in the bag, 10 with ENCHANT off), so a day-11 event is bag 1's (was r.day <= 10 and r.day > 10)
+      const BAG = bagIds().length;
+      const bag1 = taken(rows.filter((r) => r.day <= BAG)), bag2 = taken(rows.filter((r) => r.day > BAG));
       expect(bag2.length).toBeGreaterThan(0); // days 11-14 meet the events again
       expect(new Set(bag1).size).toBe(bag1.length); // never twice in ONE bag
       expect(new Set(bag2).size).toBe(bag2.length);
@@ -390,8 +397,13 @@ describe("RUN-1 roadCap (D6): the event mask resets at each bag boundary", () =>
       expect(keys(400, 20)).toContain("dock(200,0)x2");
       expect(keys(400, 10)).not.toContain("dock(200,0)x2"); // day 10 is still bag 1
       expect(keys(200, 12)).toContain("dock(200,0)"); // one plating: as ever
-      expect(keys(600, 21)).toContain("dock(200,0)x3"); // three bags by day 21
-      expect(keys(600, 20)).not.toContain("dock(200,0)x3");
+      // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2: an 11-day bag): three bags by day 23 (days 1-11, 12-22, 23); day 21 is bag 2 (was keys(600, 21) toContain x3 and keys(600, 20) not: the 10-day bag)
+      expect(keys(600, 23)).toContain("dock(200,0)x3");
+      expect(keys(600, 22)).not.toContain("dock(200,0)x3");
+      withEnchant(() => { // the ENCHANT-off world's 10-day bag, as this test pinned it
+        expect(keys(600, 21)).toContain("dock(200,0)x3"); // three bags by day 21
+        expect(keys(600, 20)).not.toContain("dock(200,0)x3");
+      }, false);
       // the seed's own events: it must have offered the dock in two bags by day 12 to explain two platings
       const dockTimes = (seed: number, day: number) => eventSequence(seed, day, true).filter((e) => e === "dock").length;
       let twice = -1, once = -1;

@@ -14,7 +14,7 @@ import { RUNES, runeFits, runeList } from "../src/sim/runes";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { checkSnapshot, decodeSnapshot, encodeSnapshot, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { LAST_CHANCE_RULES, lastChanceGateProblem } from "../src/net/rulesGate";
-import { validateUpload } from "../src/net/validate";
+import { inEnchantWorld, inGatesWorld, inScaleWorld, inShapes2World, inShapesWorld, validateUpload } from "../src/net/validate"; // BUMP-1F: + the world functions (the old-rules fixtures below)
 import { isReachable, reachableRecords } from "../src/net/records";
 import { isSnapshot } from "../src/game/ghostSnapshot";
 import { submitGhost } from "../src/net/ghostClient";
@@ -36,6 +36,13 @@ const PLATE = ITEMS.plating.supply!.hull!;
 const OLD_RULES = "bb-0.9.1";
 /** The rules gate's reason for a LAST CHANCE under OLD_RULES (rulesGate.ts lastChanceGateProblem's words). */
 const OLD_GATE = `rules ${OLD_RULES} predate ${LAST_CHANCE_RULES}: LAST CHANCE (snapshot.lastChance) needs ${LAST_CHANCE_RULES} or later`;
+
+/** BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): GATES and ENCHANT ship on): run `fn` in the world OLD_RULES were played in, the worlds validate.ts nests for a stored record's deck (gates
+ *  outermost, then shapes, shapes2, scale, enchant innermost), each off for rules before its own: the par player buys no converter and takes no word there. A record stamped
+ *  OLD_RULES that held a word is "snapshot.build.items[0].ench: unknown field" to the strict decoder, which reads the deck's keys BEFORE `lastChance`, so the gate's words
+ *  these tests look for were never reached (ENCHANT-1 validates `ench` first). ITEMS comes back as it was (each world function keeps it). */
+const inOlderWorld = <T,>(fn: () => T): T =>
+  inGatesWorld(OLD_RULES, () => inShapesWorld(OLD_RULES, () => inShapes2World(OLD_RULES, () => inScaleWorld(OLD_RULES, () => inEnchantWorld(OLD_RULES, fn)))));
 
 /** An honest upload at the dusk after a LAST CHANCE on day D: the par player's deck that took card `boon` at the dawn of
  *  day D + 1, its seed and lastChance; the record of a run that lost days 1-6 (0 wins, 1 heart at dusk 7). HULL-ON (the
@@ -75,7 +82,9 @@ describe("LC-1: the decoder (snapshot.lastChance)", () => {
   it(`refuses the field under rules before LAST_CHANCE_RULES (${OLD_RULES}), with the rules gate's words, as V3_LIVE's off fields`, () => {
     // HULL-ON (the flip, OPEN_RUNES): stamped OLD_RULES, the deck's dawn runes are re-derived on those rules' closed offers
     // (openRunesFor(OLD_RULES) is false), so the deck is the par player's with OPEN_RUNES off, as such a record holds it
-    const { s } = withOpenRunes(() => honest("hull"), false);
+    // BUMP-1F (GATES and ENCHANT ship on): and made in OLD_RULES' world too (inOlderWorld), the par player holding no word and no converter there; was withOpenRunes(...) alone: its
+    // shipped-world deck holds words, and the decoder said "snapshot.build.items[0].ench: unknown field" before it reached `lastChance`
+    const { s } = inOlderWorld(() => withOpenRunes(() => honest("hull"), false));
     const old = { ...s, rules: OLD_RULES };
     expect(() => checkSnapshot(old)).toThrow(`snapshot.lastChance: ${OLD_GATE}`);
     expect(isSnapshot(old)).toBe(false);
@@ -89,7 +98,7 @@ describe("LC-1: the decoder (snapshot.lastChance)", () => {
   it("accepted under LAST_CHANCE_RULES (bb-0.9.7, a literal since Z-BUMP) and this build's later rules, refused under older rules", () => {
     const { s } = honest("hull");
     expect(LAST_CHANCE_RULES).toBe("bb-0.9.7"); // AZ-BUMP: the bump (was RULES_VERSION's value until it)
-    expect([RULES_VERSION, lastChanceGateProblem(RULES_VERSION)]).toEqual(["bb-0.12.0", null]); // AZ-BUMP: this build's rules have LAST CHANCE; BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: bb-0.11.0 (was bb-0.10.0)
+    expect([RULES_VERSION, lastChanceGateProblem(RULES_VERSION)]).toEqual(["bb-0.13.0", null]); // AZ-BUMP: this build's rules have LAST CHANCE; BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: bb-0.11.0 (was bb-0.10.0)
     expect(checkSnapshot(s).lastChance).toEqual({ day: D, boon: "hull" });
     expect(isSnapshot(s)).toBe(true);
     // written last, after the seed; a snapshot without one encodes as before
@@ -97,7 +106,8 @@ describe("LC-1: the decoder (snapshot.lastChance)", () => {
     expect(lastChanceGateProblem("bb-0.9.1")).toMatch(/^rules bb-0\.9\.1 predate bb-0\.9\.7: LAST CHANCE \(snapshot\.lastChance\) needs bb-0\.9\.7 or later$/); // Z-BUMP: the bump (LAST_CHANCE_RULES was RULES_VERSION, bb-0.9.3)
     expect(lastChanceGateProblem("bb-0.9.3")).toMatch(/^rules bb-0\.9\.3 predate bb-0\.9\.7: LAST CHANCE \(snapshot\.lastChance\) needs bb-0\.9\.7 or later$/); // Z-BUMP: release Y's rules predate LAST CHANCE
     expect(lastChanceGateProblem("nope")).toMatch(/is not a bb-MAJOR\.MINOR\.PATCH version/);
-    expect(() => checkSnapshot({ ...s, rules: "bb-0.9.1" })).toThrow(/snapshot\.(rules|lastChance)/);
+    // BUMP-1F (GATES and ENCHANT ship on): the bb-0.9.1 copy's deck is the par player's made in that world (inOlderWorld; OLD_RULES is bb-0.9.1), else its words are refused first (was ...s)
+    expect(() => checkSnapshot({ ...inOlderWorld(() => honest("hull")).s, rules: "bb-0.9.1" })).toThrow(/snapshot\.(rules|lastChance)/);
     expect(() => checkSnapshot({ ...s, v: 2 })).toThrow(/not allowed in a v2 snapshot/);
   });
 
@@ -270,7 +280,10 @@ describe("LC-1: an honest LAST CHANCE run uploads through the server, each card"
       // Z-BUMP (the flip): was "the switch off: the field is refused by the decoder (400)"; under rules before
       // LAST_CHANCE_RULES the decoder refuses it (400, before POST's own rules check), with the rules gate's words (and no `losses`:
       // the 10-day rules before the long run's keep that field reserved)
-      const old = JSON.stringify(ownedBy({ ...s, rules: OLD_RULES, runId: "lc1-old" }, me));
+      // BUMP-1F (GATES and ENCHANT ship on): the stamped record's deck is the par player's made in OLD_RULES' world (inOlderWorld), so the strict decoder's first
+      // refusal is still the LAST CHANCE gate's (was ...s, the shipped-world deck: "snapshot.build.items[0].ench: unknown field" came first)
+      const sOld = inOlderWorld(() => honest("hull", "weaver", seed).s);
+      const old = JSON.stringify(ownedBy({ ...sOld, rules: OLD_RULES, runId: "lc1-old" }, me));
       const q = await fetch(`${base}/v1/ghosts`, { method: "POST", headers: await signedHeaders(me, old), body: old });
       expect(q.status).toBe(400);
       expect(JSON.stringify(await q.json())).toContain(`snapshot.lastChance: ${OLD_GATE}`);

@@ -24,7 +24,7 @@ import { finishDay, ghostOf } from "../src/game/day";
 import { finishWarlord, leaveCaravan, onToTheRoad, pickRoad, warlordDeck } from "../src/game/road";
 import { newRun, pendingRune, takeRune, type Run } from "../src/game/run";
 import { ghostId, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
-import { inRulesWorld, validateBuild, validateUpload } from "../src/net/validate";
+import { inEnchantWorld, inGatesWorld, inRulesWorld, inScaleWorld, validateBuild, validateUpload } from "../src/net/validate"; // BUMP-1F: + the three world functions (old)
 import { NPC_DAY_RULES } from "../src/net/rulesGate";
 import { parseArgs, uploadProblems, UsageError, type StoredRecord } from "../server/ghostAdmin";
 import { encodeRecord } from "../server/store";
@@ -49,7 +49,9 @@ const stored = (s: GhostSnapshot, id = ghostId(s)): StoredRecord => ({
  *  cap's event sequence has the day-10 swap), and refuses the six shaped rigs (shapes2GateProblem: "rules bb-0.9.7 predate
  *  bb-0.11.0: shaped rigs (ELBOW GUARD, ...) need bb-0.11.0 or later"), which the par player would buy. PLAIN_RIGS has no rules
  *  gate (the validator leaves it as it stands), so it is not turned off here. */
-const old = <T>(fn: () => T): T => withNpcDay(() => withHullScale(() => withLadderFix(() => withShapes(() => withShapes2(() => withLongRun(fn, false), false), false), false), false), false);
+// BUMP-1F (GATES, SCALE and ENCHANT ship on; RULING-BUMP1F-R5 R5.2 (2)): and those three off as well, the worlds validate.ts judges a bb-0.9.7 record in (inGatesWorld, inScaleWorld, inEnchantWorld, each keeping
+// ITEMS as it found it): the par player takes no word and buys no converter there, else the record's `ench` is "snapshot.build.items[0].ench: unknown field" to the strict decoder. Was without the three
+const old = <T>(fn: () => T): T => inGatesWorld(OLD, () => inScaleWorld(OLD, () => inEnchantWorld(OLD, () => withNpcDay(() => withHullScale(() => withLadderFix(() => withShapes(() => withShapes2(() => withLongRun(fn, false), false), false), false), false), false))));
 /** `s` with `n` more plates of hull. */
 const plated = (s: GhostSnapshot, n: number): GhostSnapshot => ({ ...s, build: { ...s.build, hullBonus: s.build.hullBonus + n * PLATE } as Build });
 /** The most plates `ok` lets `s` take. */
@@ -95,7 +97,7 @@ function honest(hero: HeroId, seed: number, days: number, tier: Difficulty): Gho
 describe("AZ-BUMP S6: a stored record is judged by its own rules (validate.ts inRulesWorld)", () => {
   it("the rules gate picks the world: bb-0.10.0 and later as the switches stand, older or unreadable rules with all three off", () => {
     // BUMP-1D: the bump moves RULES_VERSION to bb-0.11.0; NPC_DAY_RULES is a literal since AZ-BUMP and stays (was ["bb-0.10.0", "bb-0.10.0"])
-    expect([RULES_VERSION, NPC_DAY_RULES]).toEqual(["bb-0.12.0", "bb-0.10.0"]); // BUMP-1E: the bump (was bb-0.11.0).
+    expect([RULES_VERSION, NPC_DAY_RULES]).toEqual(["bb-0.13.0", "bb-0.10.0"]); // BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0).
     const seen = (rules: unknown) => inRulesWorld(rules, () => [npcDayRules(), hullScaleRules(), ladderFixRules()]);
     expect(seen(RULES_VERSION)).toEqual([true, true, true]);
     expect(seen("bb-0.10.0")).toEqual([true, true, true]); // BUMP-1D: the rules the switches came on with, no longer this build's

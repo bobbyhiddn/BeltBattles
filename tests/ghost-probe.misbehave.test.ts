@@ -101,8 +101,8 @@ vi.mock("../src/net/rulesGate", async (importOriginal) => {
 });
 
 // Z-BUMP: the flip (was the nine rows, without lastchance-signed and lastchance-day3; ghost-probe.test.ts pins the same eleven)
-const NAMES = ["furnace-signed", "furnace-unsigned", "dishonest-signed", "unreachable-signed", "hero-WEAVER", "hero-FOUNDRY", "hero-BASTION", "hero-METRONOME", "hero-SIPHON", "lastchance-signed", "lastchance-day3", "npcday-signed", "npcday-forged", "longrun-signed", "longrun-nolosses", "scale-signed"]; // BUMP-1E: the bump (the scale row, last; was fifteen). BUMP-1D: the bump (the long run's two rows; was thirteen). AZ-BUMP: the bump (the NPC day's two rows; was eleven)
-const STATUSES = ["201", "401", "422", "422", "201", "201", "201", "400", "400", "201", "422", "201", "422", "201", "422", "201"]; // BUMP-1E: the bump (the scale row's 201; was fifteen). BUMP-1D: the bump (the long run's 201 and 422; was thirteen). AZ-BUMP: the bump (the NPC day's 201 and 422; was eleven). Z-BUMP: the flip (was nine, without the last 201 and 422)
+const NAMES = ["furnace-signed", "furnace-unsigned", "dishonest-signed", "unreachable-signed", "hero-WEAVER", "hero-FOUNDRY", "hero-BASTION", "hero-METRONOME", "hero-SIPHON", "lastchance-signed", "lastchance-day3", "npcday-signed", "npcday-forged", "longrun-signed", "longrun-nolosses", "scale-signed", "gates-signed"]; // BUMP-1F (the probe's 17th row, server/ghostProbe.ts gatesDusk; RULING-BUMP1F-R5 R5.2 (2)): was sixteen, scale-signed last. BUMP-1E: the bump (the scale row, last; was fifteen). BUMP-1D: the bump (the long run's two rows; was thirteen). AZ-BUMP: the bump (the NPC day's two rows; was eleven)
+const STATUSES = ["201", "401", "422", "422", "201", "201", "201", "400", "400", "201", "422", "201", "422", "201", "422", "201", "201"]; // BUMP-1F (the 17th row's 201; was sixteen). BUMP-1E: the bump (the scale row's 201; was fifteen). BUMP-1D: the bump (the long run's 201 and 422; was thirteen). AZ-BUMP: the bump (the NPC day's 201 and 422; was eleven). Z-BUMP: the flip (was nine, without the last 201 and 422)
 /** Each misbehaving server: the check switched off, the probe row it lets through, and what that POST then gets. */
 const CASES: { off: Off; row: string; status: string }[] = [
   { off: "signature", row: "furnace-unsigned", status: "200" },
@@ -147,13 +147,13 @@ const posts = (log: string[]) => log.filter((l) => / POST \/v1\/ghosts /.test(l)
 const checkLines = (lines: string[]) => lines.filter((l) => /^(PASS|FAIL) {2}/.test(l));
 
 describe("the uploads step's probe against a misbehaving server (one check switched off)", () => {
-  it("no check switched off: the same rig is the correct server, sixteen checks as expected, exit 0, eight decks stored", async () => { // BUMP-1E: the bump (was fifteen checks, seven decks). BUMP-1D: the bump (was thirteen checks, six decks). AZ-BUMP: the bump (was eleven checks, five decks). Z-BUMP: the flip (was nine checks, four decks)
+  it("no check switched off: the same rig is the correct server, seventeen checks as expected, exit 0, nine decks stored", async () => { // BUMP-1F (the 17th row): was sixteen checks, eight decks. BUMP-1E: the bump (was fifteen checks, seven decks). BUMP-1D: the bump (was thirteen checks, six decks). AZ-BUMP: the bump (was eleven checks, five decks). Z-BUMP: the flip (was nine checks, four decks)
     const { base, idFile, log } = await serve();
     const lines: string[] = [];
     expect(await probeMain([base, idFile], (l) => lines.push(l))).toBe(0);
     expect(checkLines(lines).map((l) => l.split(/\s+/).slice(0, 2).join(" "))).toEqual(NAMES.map((n) => `PASS ${n}`));
     expect(posts(log)).toEqual(STATUSES);
-    expect(lines.at(-1)).toBe(`probe: 16 of 16 checks as expected; the server stored 8 deck(s) for this player (expected 8); the player id is in ${idFile}`); // BUMP-1E: the bump (was 15 of 15, stored 7, expected 7). BUMP-1D: the bump (was 13 of 13, stored 6, expected 6). AZ-BUMP: the bump (was 11 of 11, stored 5, expected 5). Z-BUMP: the flip (was 9 of 9, stored 4, expected 4)
+    expect(lines.at(-1)).toBe(`probe: 17 of 17 checks as expected; the server stored 9 deck(s) for this player (expected 9); the player id is in ${idFile}`); // BUMP-1F (the 17th row): was 16 of 16, stored 8, expected 8. BUMP-1E: the bump (was 15 of 15, stored 7, expected 7). BUMP-1D: the bump (was 13 of 13, stored 6, expected 6). AZ-BUMP: the bump (was 11 of 11, stored 5, expected 5). Z-BUMP: the flip (was 9 of 9, stored 4, expected 4)
   }, 60_000);
 
   it.each(CASES)("a server that takes the $row row (its $off check switched off): the probe exits 1 with FAIL on exactly that row", async ({ off: which, row, status }) => {
@@ -167,7 +167,7 @@ describe("the uploads step's probe against a misbehaving server (one check switc
     // the server misbehaved as meant, and only there: that row's POST was taken, every other answered as the real server's
     expect(posts(log)).toEqual(STATUSES.map((s, i) => (NAMES[i] === row ? status : s)));
     expect(checks[NAMES.indexOf(row)]).toMatch(new RegExp(`^FAIL {2}${row} +expected: \\d{3} .+ \\| got: ${status} \\{"id":"g[0-9a-f]{14}"\\}$`));
-    expect(lines.at(-1)).toBe(`probe: 15 of 16 checks as expected; the server stored 9 deck(s) for this player (expected 8); the player id is in ${idFile}`); // BUMP-1E: the bump (was 14 of 15, stored 8, expected 7). BUMP-1D: the bump (was 12 of 13, stored 7, expected 6). AZ-BUMP: the bump (was 10 of 11, stored 6, expected 5). Z-BUMP: the flip (was 8 of 9, stored 5, expected 4)
+    expect(lines.at(-1)).toBe(`probe: 16 of 17 checks as expected; the server stored 10 deck(s) for this player (expected 9); the player id is in ${idFile}`); // BUMP-1F (the 17th row): was 15 of 16, stored 9, expected 8. BUMP-1E: the bump (was 14 of 15, stored 8, expected 7). BUMP-1D: the bump (was 12 of 13, stored 7, expected 6). AZ-BUMP: the bump (was 10 of 11, stored 6, expected 5). Z-BUMP: the flip (was 8 of 9, stored 5, expected 4)
   }, 60_000);
 
   // BUMP-1E (the bump): the scale row from the other side. A server of an older build does not know the seven new ids, so it refuses the
@@ -185,6 +185,6 @@ describe("the uploads step's probe against a misbehaving server (one check switc
     // the server answered as meant, and only there: the scale row's POST was refused, every other answered as the real server's
     expect(posts(log)).toEqual(STATUSES.map((s, i) => (NAMES[i] === "scale-signed" ? "422" : s)));
     expect(checks[NAMES.indexOf("scale-signed")]).toMatch(/^FAIL {2}scale-signed {7}expected: 201 \{"id":"g[0-9a-f]{14}"\} \| got: 422 deck failed validation: item: uid \d+ is unknown item "grudgerod"$/);
-    expect(lines.at(-1)).toBe(`probe: 15 of 16 checks as expected; the server stored 7 deck(s) for this player (expected 8); the player id is in ${idFile}`);
+    expect(lines.at(-1)).toBe(`probe: 16 of 17 checks as expected; the server stored 8 deck(s) for this player (expected 9); the player id is in ${idFile}`); // BUMP-1F (the 17th row): was 15 of 16, stored 7, expected 8
   }, 60_000);
 });

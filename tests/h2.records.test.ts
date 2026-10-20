@@ -66,6 +66,11 @@ function runeless(s: GhostSnapshot): GhostSnapshot {
   delete out.road;
   delete out.losses; // BUMP-1D (LONG_RUN ships on): and the dusks lost (v3 only: "snapshot.losses: not allowed in a v2 snapshot")
   delete out.build.runes;
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), the regenerated pool on bb-0.13.0 holds enchantments): and the words (`ench`, `enchDir`, `grow`) of ENCHANT, which no client before bb-0.13.0 sent and the strict
+  // decoder refuses under an older rules string ("snapshot.build.items[1].ench: unknown field", before the rules 422 this test reads): the copy drops them, as it drops the runes
+  const noWords = <P extends object>(list: P[] | undefined): P[] | undefined => list?.map((p) => { const { ench: _e, enchDir: _d, grow: _g, ...rest } = p as Record<string, unknown>; return rest as P; });
+  out.build.items = noWords(out.build.items)!;
+  if (out.build.turrets) out.build.turrets = noWords(out.build.turrets)!;
   return out;
 }
 // BUMP-1D (LONG_RUN ships on): an upload under this build's rules states the dusks the run lost, and the server's record error names them
