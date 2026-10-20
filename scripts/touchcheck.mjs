@@ -1865,6 +1865,11 @@ async function newStyleSection(browsers, origin) {
           await settle(page, "title");
           await page.evaluate(() => window.bb.openEnd({ hero: "furnace", seed: 12345, results: "WWWWWWWWWW" }));
           await settle(page, "summary");
+          // STAGE-0913 run 2 (scripts only; the 319 section's step, BUMP-1E P6): ENDLESS ships on, so this marked 10-0 run's card is the RUN WON
+          // offer (CONTINUE ENDLESS, END RUN: src/screens/summary.ts offered); END RUN leaves the card as every won run's always was, with its
+          // NEW STYLE lines, NEW RUN and TITLE, which is what this section measures
+          await page.evaluate(() => { const r = window.bb.game.ui.regions.filter((q) => q.id === "endrun").pop(); if (r) r.onTap(); });
+          await sleep(300);
           await regionDrawn(page, "again");
           await nextFrame(page);
           const m = await page.evaluate(() => {
