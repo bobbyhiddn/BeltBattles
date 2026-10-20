@@ -18,7 +18,8 @@
 //       RUN-1 T6/T6c: --committed reads server/seedPoolData.ts (the shipped 10-day pool) and --from <pool.json> a scratch pool
 //       (samplePoolJson's array; tools/genGhostPool.ts --long-run: days 1-16) instead of generating one.
 //   --mode bench --set S --policy par|casual:<tune> --heroes h,.. --seeds a-b --pool pool.json --out cell.json
-//       [--models 10,059] [--hearts-start n] [--refund] [--rule a,b,c]
+//       [--models 10,059] [--hearts-start n] [--refund] [--rule a,b,c[,leadShare,leadAt]]   (BUMP-1G G1: the optional last two are the lead mirror;
+//       with them every row also carries `mirror` { ahead, changed }: the fights the mirror applied to, and those where it changed the ghost met)
 //       whole runs, one row per hero, seed and run model: the policy's deck each dusk (player.ts playerRun; casual.ts
 //       casualOpts) against the dusk foe a new player meets (the set's seed pool, D1 and D2; the record pick with PICK; no
 //       ghost left: the day's stand-in captain, ghosts.ts standInFoe), the set's life rule (HEARTS: hearts.ts heartsDusk; off:
@@ -52,7 +53,7 @@ import { type Build } from "../src/sim/deck";
 import { parField } from "../src/sim/harness/par";
 import { parRunSeed, playerRun, rateOn, type PlayerOpts } from "../src/sim/harness/player";
 import { casualOpts, type Grades } from "../src/sim/harness/casual";
-import { GRADE_K, GRADE_SEEDS, matchPick, PICK_RULE, setPick, type PickRule } from "../src/net/pick"; // RETUNE-1 T5: the built pick
+import { GRADE_K, GRADE_SEEDS, lossesOf, matchPick, PICK_RULE, setPick, type PickRule } from "../src/net/pick"; // RETUNE-1 T5: the built pick; BUMP-1G G1: lossesOf, for the mirror's fight count
 import { botLastChancePick } from "../src/sim/harness/lastChance";
 import { LAST_CHANCE_AT, LAST_CHANCE_HULL, LAST_CHANCE_LIVES, lastChanceOffer, type Boon } from "../src/sim/lastChance";
 import { HEARTS_RULE, heartsDusk, type HeartsRule } from "../src/sim/hearts";
@@ -163,6 +164,9 @@ function fight(a: Build, b: Build, seed: number, day: number): 0 | 1 | -1 {
 export interface Row {
   hero: HeroId; seed: number; model: string; res: number[]; foes: string[]; recs: string[]; wins: number;
   end: "lost" | "complete" | "won" | "backstop"; endDay: number; lcDay: number; boon: string | null; left: number; captains: number;
+  /** BUMP-1G G1 (BRIEF-BUMP1G P3): only with a `--rule` lead mirror: the fights whose record was `lead.at` or more wins ahead (the mirror applied), and those among them where the ghost met was
+   *  another than the one the same pick makes without the mirror (same request, same rng). */
+  mirror?: { ahead: number; changed: number };
 }
 
 function policyOpts(p: string): PlayerOpts {
@@ -193,6 +197,7 @@ function runLedger(hero: HeroId, seed: number, model: "10" | "059" | "long", ctx
   const heartsOn = SET.hearts, cap = heartsOn ? ctx.hearts.start : START_LIVES;
   let left = cap, wins = 0, lcUsed = false, lcDay = 0, boon: string | null = null, early = false, refunded = false, captains = 0;
   let end: Row["end"] = "complete", endDay = 0;
+  const mirror = { ahead: 0, changed: 0 }; // BUMP-1G G1
   const seen: string[] = [], res: number[] = [], foes: string[] = [], recs: string[] = [];
   for (let day = 1; day <= lastDay; day++) {
     const cd = long ? day : Math.min(day, RUN_DAYS); // the 059 model's days 11+: day 10's content; the long model: the day's own
@@ -207,6 +212,14 @@ function runLedger(hero: HeroId, seed: number, model: "10" | "059" | "long", ctx
     const rng = new Rng(hashSeed("rt1-match", runSeed, day));
     // RETUNE-1 T5: PICK is the game's own pick now (pick.ts matchPick on the snapshots' grades; --rule its numbers)
     const hit = SET.pick ? matchPick(ctx.pool, req, rng, ctx.rule) : pickGhost(ctx.pool, req, rng);
+    // BUMP-1G G1: with a lead mirror, count the fights it applied to and those where it changed the ghost met (the same pick without it, from a fresh identical rng)
+    if (SET.pick && ctx.rule.lead && lossesOf(req) - wins <= -ctx.rule.lead.at) {
+      mirror.ahead++;
+      const { lead: _lead, ...noLead } = ctx.rule;
+      void _lead;
+      const alt = matchPick(ctx.pool, req, new Rng(hashSeed("rt1-match", runSeed, day)), noLead);
+      if ((alt?.id ?? null) !== (hit?.id ?? null)) mirror.changed++;
+    }
     let foe: Build;
     if (hit) {
       foe = hit.snapshot.build;
@@ -250,7 +263,7 @@ function runLedger(hero: HeroId, seed: number, model: "10" | "059" | "long", ctx
     if ((model === "059" || long) && wins >= WIN_GOAL) { end = "won"; endDay = day; break; }
     if (day >= lastDay) { end = model === "10" ? "complete" : "backstop"; endDay = day; break; }
   }
-  return { hero, seed, model, res, foes, recs, wins, end, endDay, lcDay, boon, left, captains };
+  return { hero, seed, model, res, foes, recs, wins, end, endDay, lcDay, boon, left, captains, ...(ctx.rule.lead ? { mirror } : {}) };
 }
 
 function loadPoolFile(file: string): { pool: PoolEntry[]; grades: Grades } {
@@ -279,7 +292,8 @@ function modeBench(): unknown {
   const { pool, grades } = loadPoolFile(flag("pool")!);
   if (SET.pick && !grades.size) throw new Error("PICK in the set needs a graded pool (--mode pool with PICK)");
   const rv = flag("rule")?.split(",").map(Number);
-  const rule: PickRule = rv ? { losing: rv[0], deep: rv[1], deepAt: rv[2] } : { ...PICK_RULE };
+  // BUMP-1G G1: --rule losing,deep,deepAt[,leadShare,leadAt]: the last two are the lead mirror (pick.ts PickRule.lead: a record `leadAt` or more wins ahead draws from the strongest `leadShare`)
+  const rule: PickRule = rv ? { losing: rv[0], deep: rv[1], deepAt: rv[2], ...(rv.length >= 5 ? { lead: { share: rv[3], at: rv[4] } } : {}) } : { ...PICK_RULE };
   const hearts: HeartsRule = { ...HEARTS_RULE, ...(flag("hearts-start") ? { start: Number(flag("hearts-start")) } : {}) };
   const ctx: BenchCtx = { pool, grades, rule, opts: policyOpts(pol), hearts, refund: has("refund") };
   const rows: Row[] = [];
