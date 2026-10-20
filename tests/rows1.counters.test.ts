@@ -3,8 +3,10 @@
 // {148,252,15,9} covers the chip's {153,251,7,9} (the page dump of ROWS-1 run 1, art px), so a tap at the chip's centre was a tap on the
 // badge's visible box and opened `+40 ON ITS NEXT HIT: 7 HITS SO FAR.` instead of `SLUGS ON THIS BELT: 5.`. The tap rule itself (pickGroup:
 // the chip whose box is under the point, else the nearest box centre among the targets that hold it, ties to the one drawn on top) is
-// cap's rule and was right; the layout was not: a badge kept off a gun's box (SCALE-2c) but not a belt's. Now a badge is not drawn
-// over a belt chip either (badgeOverChip), so no chip's box is under another's top-drawn badge.
+// cap's rule and was right; the layout was not: a badge kept off a gun's box (SCALE-2c) but not a belt's. Now a badge is never drawn on a
+// belt chip (badgeOverChip): where its own place would sit on one it takes the first other place beside its piece (badgeSpots) that is clear,
+// else it is left out as a gun's box has always left it out, so no chip's box is under another's top-drawn badge and the keg's count stays
+// on screen (the page sweep of run 1: at the base the badge sat on a belt chip in 764 of motion-c1 fight A's 876 frames on the 402x690 phone).
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { UI, type Rect } from "../src/ui/ui";
 import { viewWithSub } from "../src/game/viewGrid";
@@ -14,11 +16,11 @@ import type { Run } from "../src/game/run";
 import type { Arena } from "../src/game/arena";
 import type { ArenaMotion } from "../src/game/arenaMotion";
 import { setupRun } from "../src/tooling";
-import { BattleCounters, badgeOverChip, pickGroup, squareAt } from "../src/screens/battleCounters";
+import { BattleCounters, badgeOverChip, badgeSpots, pickGroup, squareAt } from "../src/screens/battleCounters";
 import { fakeCanvas, fakeDom } from "./pair1.helpers";
 import { Battle } from "../src/sim/battle";
 import { withScaleRigs } from "../src/sim/scale";
-import { overlap } from "../src/game/counters";
+import { BOX_H, overlap } from "../src/game/counters";
 import { tapPx } from "../src/ui/tap";
 import { type Build } from "../src/sim/deck";
 import { SEED, barge, furnaceBench, item, withItem } from "./wave3.helpers";
@@ -49,12 +51,27 @@ describe("ROWS-1 F11: the tap rule, on F11's boxes and targets", () => {
     // both boxes hold the point: the one drawn on top (the badge: C8 is drawn after C5) is the visible one and wins, as the rule says
     expect(pickGroup([grp(CHIP), grp(BADGE)], cx, cy)!.id).toBe(BADGE.id);
     expect(pickGroup([grp(BADGE), grp(CHIP)], cx, cy)!.id).toBe(CHIP.id); // (order is what "on top" means)
-    // the rule the layout now serves: a badge that would cover a belt chip's box is not drawn (as one that would cover a gun's never was)
+    // the rule the layout now serves: a badge that would cover a belt chip's box is not drawn there (as one that would cover a gun's never was)
     expect(badgeOverChip(BADGE.box, [], [{ r: CHIP.box }])).toBe(true);
     expect(badgeOverChip(BADGE.box, [{ r: CHIP.box }], [])).toBe(true);
     expect(badgeOverChip(BADGE.box, [], [])).toBe(false);
     expect(badgeOverChip({ ...BADGE.box, x: CHIP.box.x + CHIP.box.w }, [], [{ r: CHIP.box }])).toBe(false); // touching is not overlapping
     expect(badgeOverChip({ ...BADGE.box, y: CHIP.box.y + CHIP.box.h + 1 }, [{ r: CHIP.box }], [{ r: CHIP.box }])).toBe(false);
+  });
+
+  it("badgeSpots on F11's own frame: the tile's centre (146, 251), the badge 15 wide: the upper right is clear of the chip and of the frame's other boxes, the lower left is not", () => {
+    // the page dump's other boxes at that moment (O/logs/f11probe-base.log): SPALL CATCHER's badge, and the two gun chips of your side
+    const OTHERS: Rect[] = [{ x: 129, y: 245, w: 15, h: 9 }, { x: 129, y: 235, w: 11, h: 9 }, { x: 168, y: 235, w: 26, h: 9 }];
+    expect(BADGE.box).toEqual({ x: 146 + 2, y: 251 + 1, w: 15, h: 9 }); // its own place: the centre +2, +1
+    const spots = badgeSpots("rig", 146, 251, 15);
+    expect(spots).toEqual([[148, 241], [129, 252], [129, 241]]); // upper right, lower left, upper left (2 px off the centre)
+    const at = (s: [number, number]): Rect => ({ x: s[0], y: s[1], w: 15, h: BOX_H });
+    expect(overlap(at(spots[0]), CHIP.box)).toBe(false);
+    for (const o of OTHERS) expect(overlap(at(spots[0]), o), "the upper right is clear").toBe(false);
+    expect(overlap(at(spots[1]), OTHERS[0]), "the lower left would sit on SPALL CATCHER's badge").toBe(true);
+    expect(overlap(at(spots[2]), OTHERS[0]), "so would the upper left").toBe(true);
+    // a gun part's badge (under its gun's box): the other place is above the box
+    expect(badgeSpots("gun", 100, 100, 15, { x: 90, y: 60 })).toEqual([[90, 60 - 1 - BOX_H]]);
   });
 
   it("with the badge drawn clear of the chip (boxes apart, targets still overlapping): the chip's centre opens the chip, the badge's centre the badge, a point in both targets and neither box the nearer centre", () => {
@@ -103,11 +120,12 @@ function fakeGame(run: Run): Game {
   return g;
 }
 const stubArena = (b: Battle) => ({ b, show: [true, true], drawn: [{ facing: 0 }, { facing: 2 }], cue: null }) as unknown as Arena;
-/** The stand-in motion (tiles 12 px apart), except that `at` moves one tile (the keg's) to a chosen centre. */
-const motion = (at?: { x: number; y: number; to: [number, number] }): ArenaMotion => ({
+/** The stand-in motion (tiles 12 px apart), except that `at` moves one tile (the keg's) to a chosen centre; `wind`: boxes of wind numbers drawn this frame
+ *  (no counter box is drawn over one). */
+const motion = (at?: { x: number; y: number; to: [number, number] }, wind: Rect[] = []): ArenaMotion => ({
   tileCentre: (_a: unknown, _s: number, x: number, y: number) => (at && x === at.x && y === at.y ? at.to : [40 + x * 12, 250 + y * 12]),
   localToScreen: (_a: unknown, _s: number, lx: number, ly: number) => [20 + lx / 2, 240 + ly / 2],
-  windDrawn: [],
+  windDrawn: wind,
 }) as unknown as ArenaMotion;
 const step = (bt: Battle, secs: number): Battle => { while (bt.t < secs && !bt.over) { bt.step(); bt.drainEvents(); } return bt; };
 /** Deck b with rig `def` at (3, y), turned so it works the bench's tile 5 - y (scale2c.counters.test.ts's helper). */
@@ -124,13 +142,13 @@ describe("ROWS-1 F11: drawBoard and the tap, on a built scene (POWDER KEG beside
   const run = setupRun({ hero: "furnace", day: 6, seed: 7 }), game = fakeGame(run);
   const KEG = 30, deck = aimed(furnaceBench(), KEG, "keg", 2);
   /** Draw one frame; the keg's tile at `to` (undefined: as the stand-in places it). Returns the counters and the UI. */
-  function frame(to?: [number, number]) {
+  function frame(to?: [number, number], wind: Rect[] = []) {
     const g = fakeGame(run), bc = new BattleCounters(), bt = step(new Battle(deck, barge(), SEED), 8);
     bc.mode = "all"; // every belt shows its count (c1stills' "all")
     const rig = bt.sides[0].gates.find((q) => q.uid === KEG)!;
     g.ui.begin();
     bc.begin();
-    bc.drawBoard(fakeCanvas().getContext(), g, stubArena(bt), motion(to ? { x: rig.x, y: rig.y, to } : undefined), [], [], true);
+    bc.drawBoard(fakeCanvas().getContext(), g, stubArena(bt), motion(to ? { x: rig.x, y: rig.y, to } : undefined, wind), [], [], true);
     g.ui.end();
     return { bc, g, bt, rig };
   }
@@ -152,19 +170,37 @@ describe("ROWS-1 F11: drawBoard and the tap, on a built scene (POWDER KEG beside
     });
   });
 
-  it("F11: the keg's tile beside belt 0's chip so its badge would sit on the chip: the badge is not drawn (skipped), the chip's centre opens the chip", () => {
+  it("F11: the keg's tile beside belt 0's chip so its own place would sit on the chip: the badge takes the tile's upper right, clear of the chip; the chip's centre opens the chip, the badge's the badge", () => {
     withScaleRigs(() => {
       const f0 = frame();
       const chip = f0.bc.last.belts.find((q) => q.side === 0)!, cr = chip.r;
-      // put the keg's tile so that its badge's top-left lands 4 px left of and 1 px under the chip's top-left: the box covers the chip's centre
-      const f = frame([cr.x - 4 - 2, cr.y + 1 - 1]);
-      expect(f.bc.last.badges, "the badge that would cover the chip is not drawn").toEqual([]);
+      // put the keg's tile so that its own place's top-left lands 4 px left of and 1 px under the chip's top-left: the box covers the chip's centre
+      const tile: [number, number] = [cr.x - 4 - 2, cr.y];
+      const f = frame(tile);
+      expect(f.bc.last.badges, "the count is still on screen").toHaveLength(1);
+      const b = f.bc.last.badges[0].r, c2 = f.bc.last.belts.find((q) => q.side === 0 && q.route === chip.route)!.r;
+      expect([b.x, b.y], "the upper right of its tile").toEqual([tile[0] + 2, tile[1] - 1 - BOX_H]);
+      expect(overlap(b, c2)).toBe(false);
+      for (const q of f.bc.last.guns) expect(overlap(b, q.r)).toBe(false);
+      expect(tap(f, ...centre(c2)), "the chip's centre").toBe(`cnt:belt0:${chip.route}`);
+      f.bc.open = null;
+      expect(tap(f, ...centre(b)), "the badge's centre").toBe(`cnt:piece0:${KEG}`);
+    });
+  });
+
+  it("with no place clear (wind numbers over its other places) the badge is left out as a gun's box leaves it out, and the chip's centre still opens the chip", () => {
+    withScaleRigs(() => {
+      const f0 = frame();
+      const chip = f0.bc.last.belts.find((q) => q.side === 0)!, cr = chip.r;
+      const tile: [number, number] = [cr.x - 4 - 2, cr.y];
+      const base = frame(tile).bc.last.badges[0].r; // (the badge's width at this frame)
+      const wind: Rect[] = badgeSpots("rig", tile[0], tile[1], base.w).map(([x, y]) => ({ x, y, w: base.w, h: BOX_H }));
+      const f = frame(tile, wind);
+      expect(f.bc.last.badges, "none of its places is free").toEqual([]);
       expect(f.bc.last.skipped).toBeGreaterThan(0);
-      const [cx, cy] = centre(f.bc.last.belts.find((q) => q.side === 0 && q.route === chip.route)!.r);
-      expect(tap(f, cx, cy), "the chip's centre").toBe(`cnt:belt0:${chip.route}`);
-      // the groups: no piece group this frame
       type Priv = { groups: { id: string }[] };
       expect((f.bc as unknown as Priv).groups.some((q) => q.id.startsWith("cnt:piece0:"))).toBe(false);
+      expect(tap(f, ...centre(f.bc.last.belts.find((q) => q.side === 0 && q.route === chip.route)!.r))).toBe(`cnt:belt0:${chip.route}`);
     });
   });
 
@@ -191,25 +227,34 @@ describe("ROWS-1 F11: drawBoard and the tap, on a built scene (POWDER KEG beside
     });
   });
 
-  it("no frame of any badge position over a chip: sweep the keg's tile around the chip, a badge is drawn only where its box is clear of every chip's", () => {
+  it("a sweep of the keg's tile around the chip: a badge is never on a chip; it stays exactly where it was wherever its own place is clear; where it was not, it is at one of its places", () => {
     withScaleRigs(() => {
       const f0 = frame();
       const chip = f0.bc.last.belts.find((q) => q.side === 0)!.r;
-      let drawn = 0, skipped = 0;
+      let drawn = 0, kept = 0, moved = 0, skipped = 0;
       for (let dx = -24; dx <= 24; dx += 2) {
         for (let dy = -14; dy <= 14; dy += 2) {
-          const f = frame([chip.x + dx, chip.y + dy]);
-          if (f.bc.last.badges.length) {
-            drawn++;
-            for (const b of f.bc.last.badges) {
-              for (const q of f.bc.last.belts) expect(overlap(b.r, q.r), `keg tile at ${dx},${dy}: the badge over a belt chip`).toBe(false);
-              for (const q of f.bc.last.guns) expect(overlap(b.r, q.r), `keg tile at ${dx},${dy}: the badge over a gun chip`).toBe(false);
-            }
-          } else skipped++;
+          const tile: [number, number] = [chip.x + dx, chip.y + dy];
+          const f = frame(tile);
+          if (!f.bc.last.badges.length) { skipped++; continue; }
+          drawn++;
+          const b = f.bc.last.badges[0].r;
+          for (const q of f.bc.last.belts) expect(overlap(b, q.r), `keg tile at ${dx},${dy}: the badge over a belt chip`).toBe(false);
+          for (const q of f.bc.last.guns) expect(overlap(b, q.r), `keg tile at ${dx},${dy}: the badge over a gun chip`).toBe(false);
+          const own = { x: tile[0] + 2, y: tile[1] + 1, w: b.w, h: b.h };
+          if (!f.bc.last.belts.some((q) => overlap(own, q.r))) {
+            expect([b.x, b.y], `keg tile at ${dx},${dy}: its own place is clear, so it stays there`).toEqual([own.x, own.y]);
+            kept++;
+          } else {
+            expect(badgeSpots("rig", tile[0], tile[1], b.w).some(([x, y]) => x === b.x && y === b.y), `keg tile at ${dx},${dy}: one of its other places`).toBe(true);
+            moved++;
+          }
         }
       }
-      expect(drawn).toBeGreaterThan(50);
-      expect(skipped).toBeGreaterThan(10);
+      expect(drawn).toBeGreaterThan(100);
+      expect(kept).toBeGreaterThan(50);
+      expect(moved).toBeGreaterThan(10);
+      expect(skipped + drawn).toBe(25 * 15);
     });
   });
 });

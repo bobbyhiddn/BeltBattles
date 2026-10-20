@@ -214,13 +214,14 @@ export class BattleCounters {
     const s0 = a.b.sides[0], slots0 = this.slotsOf(a, 0), f0 = a.drawn[0], deck0 = deckOnScreen(a, m, 0);
     for (const bd of rampBadges(a.b, 0)) {
       const text = `+${fmtCount(bd.bonus)}`, w = boxW(textWidth(text, "3"));
-      let ax: number, ay: number, bx: number, by: number;
+      let ax: number, ay: number, bx: number, by: number, alts: [number, number][];
       if (bd.kind === "rig") {
         const g0 = s0.gates.find((q) => q.uid === bd.ref);
         if (!g0) continue;
         [ax, ay] = m.tileCentre(a, 0, g0.x, g0.y);
         bx = ax + 2;
         by = ay + 1;
+        alts = badgeSpots("rig", ax, ay, w);
       } else {
         const sl = slots0[bd.ref];
         if (!sl) continue;
@@ -228,12 +229,23 @@ export class BattleCounters {
         const gun = gunBoxAt(ax, ay, w, BOX_H, fwdX(f0), fwdY(f0), deck0);
         bx = gun.x;
         by = gun.y + BOX_H + 1;
+        alts = badgeSpots("gun", ax, ay, w, gun);
       }
-      const box = keepOnScreen(ax, ay, bx, by, w, BOX_H, W, H);
-      // ROWS-1 (REQ-BFG-100; F11): a badge keeps off a belt's counter box as it keeps off a gun's (badgeOverChip): drawn later, it sat on top
-      // of belt 0's second chip on the phone (op690, motion-c1 fight A at 10 s: POWDER KEG's badge over `cnt:belt0:1`), hiding its count
-      // and taking the tap meant for the chip
-      if (!box || this.covers(box, keep, m) || badgeOverChip(box, d.guns, d.belts)) { d.skipped++; continue; }
+      let box = keepOnScreen(ax, ay, bx, by, w, BOX_H, W, H);
+      if (!box || this.covers(box, keep, m) || d.guns.some((q) => overlap(box!, q.r))) { d.skipped++; continue; }
+      // ROWS-1 (REQ-BFG-100; F11): a badge is never drawn on a belt's counter box: drawn after the belts it sat on top of belt 0's second chip on
+      // the phone (op690, motion-c1 fight A at 10 s: POWDER KEG's badge over `cnt:belt0:1`, in 764 of that fight's 876 frames; the small phone 855),
+      // hiding the chip's count and taking the tap meant for the chip. Where its own place would sit on a belt chip it takes the first other place
+      // beside its piece (badgeSpots) that is clear of every chip, bar and badge drawn this frame; with none it is left out (skipped), as a gun's box
+      // has always left it out. Every other badge stays exactly where it was
+      if (badgeOverChip(box, [], d.belts)) {
+        box = null;
+        for (const [cx, cy] of alts) {
+          const c = keepOnScreen(ax, ay, cx, cy, w, BOX_H, W, H);
+          if (c && !this.covers(c, keep, m) && !badgeOverChip(c, d.guns, d.belts) && !d.badges.some((q) => overlap(c, q.r))) { box = c; break; }
+        }
+        if (!box) { d.skipped++; continue; }
+      }
       g.drawImage(this.badgeImage(text), box.x, box.y);
       d.badges.push({ kind: bd.kind, ref: bd.ref, r: box, text });
       const ref = bd.kind === "rig" ? bd.ref : 1000 + bd.ref;
@@ -514,10 +526,19 @@ function union(a: Rect, b: Rect): Rect {
 }
 
 /** ROWS-1 (REQ-BFG-100; F11): does a C8 badge's `box` cover a counter box drawn this frame: a gun's (C6: as it always kept off,
- *  SCALE-2c) or a belt's (C5: new)? Then the badge is not drawn this frame (skipped), as a gun's box has always kept it off; the
- *  chips are drawn first, so the chip keeps its place, its count and its tap. Pure (tests). */
+ *  SCALE-2c) or a belt's (C5: new)? The chips are drawn first, so a chip keeps its place, its count and its tap: a badge that
+ *  would cover one is not drawn there (drawBoard: badgeSpots, else skipped). Pure (tests). */
 export function badgeOverChip(box: Rect, guns: readonly { r: Rect }[], belts: readonly { r: Rect }[]): boolean {
   return guns.some((q) => overlap(box, q.r)) || belts.some((q) => overlap(box, q.r));
+}
+
+/** ROWS-1 (REQ-BFG-100; F11): the other places a C8 badge (w wide, BOX_H tall) may take, in order, where its own place (a rig's tile's
+ *  lower right: the centre (`ax`, `ay`) +2, +1; a gun part's: under its gun's box) would sit on a belt chip: a rig's, the tile's
+ *  upper right, lower left and upper left (2 px off the centre, as its own place is); a gun part's, above its gun's box `gun`.
+ *  drawBoard takes the first that is clear. Pure (tests). */
+export function badgeSpots(kind: "rig" | "gun", ax: number, ay: number, w: number, gun?: { x: number; y: number }): [number, number][] {
+  if (kind === "gun" && gun) return [[gun.x, gun.y - 1 - BOX_H]];
+  return [[ax + 2, ay - 1 - BOX_H], [ax - 2 - w, ay + 1], [ax - 2 - w, ay - 1 - BOX_H]];
 }
 
 /** Where finger targets overlap, the group a tap at (x, y) means: the one whose box (`anchor`) holds the point, else the
