@@ -8,7 +8,7 @@
 // address. The route does read-merge-write; a lost race between two writes of one key (two uploads in flight, or two
 // machines) is accepted, because every upload is a device's whole profile and the next one merges again.
 
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ID_PATTERN } from "../src/net/snapshot";
 import { ProfileWireError, decodeWireValue, encodeWire, type WireProfile } from "../src/net/profileWire";
@@ -27,6 +27,9 @@ export interface ProfileStore {
   get(playerId: string): Promise<StoredProfile | null>;
   /** Replace the player's record. Durable when it resolves. StorageError: storage is down. */
   put(playerId: string, record: StoredProfile): Promise<void>;
+  /** IDENT-1 (REQ-BFG-122): remove the player's record; a missing one is fine. StorageError: storage is down. The three stores
+   *  below have it. Optional only so a test double with get and put still fits the type; the identity layer skips a store without it. */
+  delete?(playerId: string): Promise<void>;
 }
 
 export const PROFILE_DIR = "profiles";
@@ -114,6 +117,15 @@ export class FileProfileStore implements ProfileStore {
       throw new StorageError(`profile write failed${errCode(e)}`);
     }
   }
+
+  async delete(playerId: string): Promise<void> {
+    const file = this.file(playerId);
+    try {
+      rmSync(file, { force: true });
+    } catch (e) {
+      throw new StorageError(`profile delete failed${errCode(e)}`);
+    }
+  }
 }
 
 /** The Tigris store: object profiles/<playerId>.json through the ghosts' own S3 client (same bucket, same credentials). A
@@ -154,6 +166,15 @@ export class TigrisProfileStore implements ProfileStore {
       throw this.fail("write", e);
     }
   }
+
+  async delete(playerId: string): Promise<void> {
+    const key = this.key(playerId);
+    try {
+      await this.s3.delete(key);
+    } catch (e) {
+      throw this.fail("delete", e);
+    }
+  }
 }
 
 /** In memory: the default for a GhostStore this file does not know (a test double), and for tests of the route. */
@@ -165,6 +186,9 @@ export class MemoryProfileStore implements ProfileStore {
   }
   async put(playerId: string, record: StoredProfile): Promise<void> {
     this.records.set(segment(playerId), encodeStored(record));
+  }
+  async delete(playerId: string): Promise<void> {
+    this.records.delete(segment(playerId));
   }
 }
 

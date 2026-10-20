@@ -14,6 +14,7 @@
 //     422 { error }  a `v` newer than this server reads, or a plausibility cap, naming the field
 //     503            storage is down (app.ts maps StorageError)
 //   200 { the merged wire profile }: read, merge (max / union / newer chosen), store.
+//     410 { error }  IDENT-1: the signer's player was deleted (server/links.ts); checked once the signature has verified
 // The request log is app.ts's, unchanged: time, method, path, status and duration. No player id, no address, no body.
 
 import { uploadHeaderError, verifyProfile } from "../src/net/identity";
@@ -30,9 +31,15 @@ export interface ProfileRequest {
   store: ProfileStore;
   /** The server's clock in ms: updatedAt's range and the record's receivedAt. */
   now(): number;
+  /**
+   * IDENT-1 (REQ-BFG-122): whose record the signer writes: its canonical player's (the player a linked key belongs to), or null
+   * when that player was deleted (410). Absent: the signer's own id, exactly as before IDENT-1 (every 0.9.13 client, and any
+   * caller that has no links).
+   */
+  owner?(signerId: string): Promise<string | null>;
 }
 
-export type ProfileReply = { status: 200; profile: WireProfile } | { status: 400 | 401 | 403 | 422; error: string };
+export type ProfileReply = { status: 200; profile: WireProfile } | { status: 400 | 401 | 403 | 410 | 422; error: string };
 
 export async function putProfile(r: ProfileRequest): Promise<ProfileReply> {
   // 1. before the body is read: nothing is parsed, validated or stored
@@ -44,6 +51,9 @@ export async function putProfile(r: ProfileRequest): Promise<ProfileReply> {
   const body = await r.readBody(MAX_PROFILE_BYTES);
   const signer = await verifyProfile(body, r.key, r.sig);
   if (!signer.ok) return { status: 401, error: signer.error };
+  // IDENT-1: the record written is the signer's canonical player's; a deleted player's keys write nothing (410)
+  const owner = r.owner ? await r.owner(signer.playerId) : signer.playerId;
+  if (owner === null) return { status: 410, error: "this player was deleted" };
   // 4. strict UTF-8 (a byte order mark stays in the text and fails the parse), then the strict decode: 400 / 422 (a newer v)
   let text: string;
   try {
@@ -62,8 +72,8 @@ export async function putProfile(r: ProfileRequest): Promise<ProfileReply> {
   }
   // 6. read, merge and store under the SIGNER's playerId (the body names none). A lost race between two writes of one key
   //    is accepted: each upload is a device's whole profile, so the next one merges again.
-  const stored = await r.store.get(signer.playerId);
+  const stored = await r.store.get(owner);
   const merged = mergeWire(stored?.profile ?? null, upload);
-  await r.store.put(signer.playerId, { profile: merged, receivedAt: r.now() });
+  await r.store.put(owner, { profile: merged, receivedAt: r.now() });
   return { status: 200, profile: merged };
 }

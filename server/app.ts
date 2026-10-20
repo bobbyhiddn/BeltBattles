@@ -31,6 +31,15 @@
 //                                   ("bb-profile-1\n" + the body bytes), merged into the signer's record -> 200 { the
 //                                   merged profile }. 403 / 401 / 413 / 400 / 422 as documented in profileRoute.ts
 //   GET|HEAD / and /index.html      the game page, when staticDir (BB_GHOST_STATIC) is set
+//
+// IDENT-1 (REQ-BFG-122): one player on every device. A key uploads under its own playerId (every 0.9.13 client) or under the
+// player it is linked to (server/links.ts); a deleted player's ids answer 410 and none of its ghosts is served. The routes below
+// are server/linkRoutes.ts's (each signed in its own domain; the replies and refusals are documented there):
+//   POST   /v1/link/code       a key of the player asks for a one-time link code
+//   POST   /v1/link/redeem     the new device's key redeems it
+//   POST   /v1/link/steam      a verified Steam ticket links a Steam account (501 while BB_STEAM_WEB_API_KEY is unset)
+//   GET    /v1/profile?at=<ms> the signed profile read: { player, profile }
+//   DELETE /v1/player          the player's online data is deleted, with a tombstone
 
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -40,7 +49,7 @@ import { RULES_VERSION } from "../src/sim/content";
 import { KEY_HEADER, SIG_HEADER, uploadHeaderError, verifyUpload } from "../src/net/identity";
 import { isNewPlayer, matchDays, matchSeed, type MatchRequest } from "../src/net/matchmaking"; // RUN-1 (D6): matchDays, the long run's widening order
 import { matchPick } from "../src/net/pick"; // RETUNE-1 T5 (REQ-BFG-092): the one pick, shared with the client's fallback
-import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, NameError, SnapshotError, maxDayFor, type GhostSnapshot } from "../src/net/snapshot";
+import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, NameError, SnapshotError, maxDayFor, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
 import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
 import { endlessRecordProblem, isReachable, lossesProblem } from "../src/net/records"; // ENDLESS-1: an endless snapshot's record
 import { validateUpload } from "../src/net/validate";
@@ -48,6 +57,10 @@ import { endlessFor, livesCapFor } from "../src/net/rulesGate"; // RETUNE-1 (REQ
 import { ENDLESS_LAST_DAY, ENDLESS_LIVES, ENDLESS_WIN_CAP } from "../src/sim/endless"; // ENDLESS-1: an endless match request's bounds
 import { putProfile } from "./profileRoute"; // PROFILE-UP (REQ-BFG-074 clause 4)
 import { profileStoreFor, type ProfileStore } from "./profileStore";
+import { Links } from "./links"; // IDENT-1 (REQ-BFG-122)
+import { linkStoreFor, type LinkStore } from "./linkStore";
+import { FailureLimiter, REDEEM_FAILS, deletePlayer, getProfile, linkCode, linkRedeem, linkSteam, type LinkRequest, type RouteReply } from "./linkRoutes";
+import { TicketCache, type SteamVerifier } from "./steamAuth";
 import { sha256Hex } from "./sigv4";
 import { JsonlStore, StorageError, type GhostStore } from "./store";
 
@@ -99,19 +112,31 @@ export interface ServerOptions {
   /** PROFILE-UP: where PUT /v1/profile keeps each player's merged profile. Default: beside the ghosts, in the same
    *  backing store (profileStore.ts profileStoreFor: <dataDir>/profiles, or Tigris profiles/<playerId>.json). */
   profileStore?: ProfileStore;
-  /** PROFILE-UP: the clock the profile route reads (updatedAt's range, the record's receivedAt). Default Date.now. */
+  /** PROFILE-UP: the clock the profile route reads (updatedAt's range, the record's receivedAt). Default Date.now. IDENT-1: and the
+   *  identity layer's (link code expiry, the `at` bound, the failed-redeem window, how old a cached lookup may be). */
   now?: () => number;
+  /** IDENT-1: where links, link codes, Steam links and tombstones are kept. Default: beside the ghosts, in the same backing store
+   *  (linkStore.ts linkStoreFor: <dataDir>/identity, or Tigris objects outside ghosts/ and profiles/). */
+  linkStore?: LinkStore;
+  /** IDENT-1: the Steam ticket verifier (steamAuth.ts). None (the default): POST /v1/link/steam answers 501. */
+  steam?: SteamVerifier | null;
+  /** IDENT-1: how many wrong link codes one client address may try, and in how long. Default 5 in 10 minutes. */
+  redeemLimit?: { windowMs: number; max: number };
+  /** IDENT-1: bytes for new link codes (tests pass fixed ones). Default crypto.getRandomValues. */
+  codeRandom?: (n: number) => Uint8Array;
 }
 
 export interface GhostServer {
   server: Server;
   store: GhostStore;
+  /** IDENT-1: the identity layer (tests and tools read it). */
+  links: Links;
   listen(port: number, host?: string): Promise<number>;
   close(): Promise<void>;
 }
 
 class HttpError extends Error {
-  constructor(readonly status: number, message: string, readonly extra: Record<string, unknown> = {}) {
+  constructor(readonly status: number, message: string, readonly extra: Record<string, unknown> = {}, readonly retryAfter?: number) {
     super(message);
   }
 }
@@ -295,10 +320,29 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   const uploads = opts.uploads ?? "open";
   const profiles = opts.profileStore ?? profileStoreFor(store, log); // PROFILE-UP
   const clock = opts.now ?? (() => Date.now()); // PROFILE-UP
+  // IDENT-1 (REQ-BFG-122): the identity layer beside the profiles, over the same backing store
+  const links = new Links(opts.linkStore ?? linkStoreFor(store), profiles, { now: clock, log, ...(opts.codeRandom ? { random: opts.codeRandom } : {}) });
+  const redeemFails = new FailureLimiter(opts.redeemLimit?.windowMs ?? REDEEM_FAILS.windowMs, opts.redeemLimit?.max ?? REDEEM_FAILS.max);
+  const steam = opts.steam ?? null;
+  const tickets = new TicketCache();
   const trustProxy = opts.trustProxy ?? "none";
   const page = opts.staticDir === undefined ? null : loadPage(opts.staticDir);
   if (page) log(`serving the game page ${page.file} (${page.body.length} bytes) at / and /index.html`);
   const started = Date.now();
+
+  /** IDENT-1: a route module's request (linkRoutes.ts) over this request. */
+  function linkRequest(req: IncomingMessage): LinkRequest {
+    return {
+      uploads, key: firstHeader(req, KEY_HEADER), sig: firstHeader(req, SIG_HEADER), readBody: (max) => readBody(req, max),
+      links, profiles, now: clock, ip: clientIp(req, trustProxy), failures: redeemFails, steam, tickets,
+    };
+  }
+
+  /** IDENT-1: a route module's reply -> the response (a refusal is an HttpError, so the request log and the 429 header are as ever). */
+  function sendReply(res: ServerResponse, r: RouteReply): void {
+    if (r.status !== 200) throw new HttpError(r.status, (r as { error: string }).error, {}, (r as { retryAfter?: number }).retryAfter);
+    send(res, 200, (r as { body: Record<string, unknown> }).body);
+  }
 
   async function route(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const method = req.method ?? "GET";
@@ -327,6 +371,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         const body = await readBody(req, MAX_BODY_BYTES);
         const signer = await verifyUpload(body, key, sig);
         if (!signer.ok) throw new HttpError(401, signer.error);
+        await links.ensureFresh(); // IDENT-1: the tombstones are loaded (503 until they are: a deleted player's upload is never taken)
         // 4. strict decode (400). PACKS M2 (REQ-BFG-063): a name the decoder refuses (names.ts nameProblem) is a 422 with
         //    its one reason, "name: too long" etc.; a name that is not a string stays a 400
         let snap: GhostSnapshot;
@@ -336,8 +381,11 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
           if (e instanceof NameError) throw new HttpError(422, e.message);
           throw e;
         }
-        // 5. a key uploads only under its own playerId: nobody can post as another player
-        if (snap.playerId !== signer.playerId) {
+        // 5. a key uploads only under its own playerId (every 0.9.13 client; no lookup), or under the player it is linked to
+        //    (IDENT-1: one cached lookup); nobody can post as another player. A deleted player's ids (its own, its linked keys')
+        //    answer 410 first: from the delete on, nothing is taken under them
+        if (links.isGone(signer.playerId) || links.isGone(snap.playerId)) throw new HttpError(410, "this player was deleted");
+        if (snap.playerId !== signer.playerId && (await links.playerOfKey(signer.playerId)) !== snap.playerId) {
           throw new HttpError(403, "snapshot.playerId is not the player id of the signing key (x-bb-key)");
         }
         // 6. rules, the deck, the record (0.8.0 H2), then the store. The stored record is the same as before;
@@ -393,16 +441,37 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         return send(res, created ? 201 : 200, { id });
       }
       case "/v1/profile": {
+        // IDENT-1: GET is the signed profile read (linkRoutes.ts getProfile; the signed text is the query `at=<ms>`)
+        if (method === "GET") return sendReply(res, await getProfile(linkRequest(req), url.search.replace(/^\?/, "")));
         // PROFILE-UP (REQ-BFG-074 clause 4): the steps are profileRoute.ts's, in POST /v1/ghosts' order (403, 401, 413, 401,
         // 400, 422, then read-merge-write; StorageError -> 503 below). The request log below stays as it is.
         only("PUT");
         const r = await putProfile({
           uploads, key: firstHeader(req, KEY_HEADER), sig: firstHeader(req, SIG_HEADER), readBody: (max) => readBody(req, max),
           store: profiles, now: clock,
+          // IDENT-1: the record written is the signer's canonical player's (its own id for a key that is linked to nobody)
+          owner: async (id) => {
+            await links.ensureFresh();
+            if (links.isGone(id)) return null;
+            const player = await links.playerOfKey(id);
+            return links.isGone(player) ? null : player;
+          },
         });
         if (r.status !== 200) throw new HttpError(r.status, r.error);
         return send(res, 200, r.profile);
       }
+      case "/v1/link/code":
+        only("POST");
+        return sendReply(res, await linkCode(linkRequest(req)));
+      case "/v1/link/redeem":
+        only("POST");
+        return sendReply(res, await linkRedeem(linkRequest(req)));
+      case "/v1/link/steam":
+        only("POST");
+        return sendReply(res, await linkSteam(linkRequest(req)));
+      case "/v1/player":
+        only("DELETE");
+        return sendReply(res, await deletePlayer(linkRequest(req)));
       case "/v1/ghosts/match": {
         only("GET");
         const m = parseMatchQuery(url.searchParams);
@@ -416,10 +485,25 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         const scope = isNewPlayer(m) ? "pool" : "all";
         const rng = new Rng(matchSeed(m, salt()));
         const days = matchDays(m);
-        let hit = matchPick(await store.bucket(m.rules, days[0], scope), m, rng);
+        // IDENT-1 (REQ-BFG-122): never a deleted player's ghost (the tombstone set, in memory; the load must have succeeded), and a
+        // player never meets their own ghost from another device: `player` is the canonical player P (or a linked key's own id,
+        // from a run that began before the link), so the player's own id and every key linked to P are skipped. The lookup is
+        // cached; if the identity store cannot answer, the match goes on without the second rule (it is a nicety, the first is not)
+        await links.ensureFresh();
+        let own: string[] = [m.playerId];
+        try {
+          own = await links.groupFor(m.playerId);
+        } catch (e) {
+          if (!(e instanceof StorageError)) throw e;
+          log(`identity store: the match went on without the own-device rule: ${e.message}`);
+        }
+        const skip = links.goneCount > 0 || own.length > 1
+          ? (bucket: readonly PoolEntry[]) => bucket.filter((e) => !links.isGone(e.snapshot.playerId) && !own.includes(e.snapshot.playerId))
+          : (bucket: readonly PoolEntry[]) => bucket;
+        let hit = matchPick(skip(await store.bucket(m.rules, days[0], scope)), m, rng);
         if (!hit && days.length > 1) {
           for (const bucket of await Promise.all(days.slice(1).map((d) => store.bucket(m.rules, d, scope)))) {
-            hit = matchPick(bucket, m, rng);
+            hit = matchPick(skip(bucket), m, rng);
             if (hit) break;
           }
         }
@@ -444,14 +528,14 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
     const allowed = origin !== "" && origins.has(origin);
     if (allowed) {
       res.setHeader("access-control-allow-origin", origin);
-      res.setHeader("access-control-allow-methods", "GET, POST, PUT, OPTIONS"); // PROFILE-UP: PUT /v1/profile
+      res.setHeader("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS"); // PROFILE-UP: PUT /v1/profile; IDENT-1: DELETE /v1/player
       res.setHeader("access-control-allow-headers", ["content-type", KEY_HEADER, SIG_HEADER].join(", "));
       res.setHeader("access-control-max-age", 600);
     }
     res.setHeader("vary", "Origin");
     const finish = (e?: unknown) => {
       if (e instanceof HttpError) {
-        if (e.status === 429) res.setHeader("retry-after", Math.ceil(limiter.windowMs / 1000));
+        if (e.status === 429) res.setHeader("retry-after", e.retryAfter ?? Math.ceil(limiter.windowMs / 1000)); // IDENT-1: a wrong-code limit names its own wait
         if (e.status === 413) res.setHeader("connection", "close");
         send(res, e.status, { error: e.message, ...e.extra });
       } else if (e instanceof SnapshotError) {
@@ -485,6 +569,10 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   return {
     server,
     store,
+    links,
+    // IDENT-1: the tombstones are read by the first request that serves or takes a ghost (links.ensureFresh), and by main.ts right
+    // after the port opens; a new server touches no storage until a request needs it (the health check and a closed-uploads 403
+    // never do). Until they are read an upload or a match answers 503 rather than risk serving a deleted player's ghost.
     listen: (port, host = "127.0.0.1") => new Promise<number>((resolve, reject) => {
       server.once("error", reject);
       server.listen(port, host, () => {

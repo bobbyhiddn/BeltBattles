@@ -23,8 +23,25 @@ export const UPLOAD_PREFIX = "bb-ghost-upload-1\n";
 /** PROFILE-UP: the signature domain of PUT /v1/profile. Neither prefix starts with the other, so no body can make a
  *  signature over one domain's message equal one over the other's. */
 export const PROFILE_PREFIX = "bb-profile-1\n";
+// IDENT-1 (REQ-BFG-122): one player on every device. Five more domains, one per request kind, so a signature made for one kind can
+// never pass for another (nor for the two above). Each ends in "\n" and contains no other, so no domain's bytes begin another's.
+// The body of each is canonical JSON with the client's clock `at` (the server refuses one more than 10 minutes off its own);
+// the profile read has no body and signs its exact query text instead (server/linkRoutes.ts).
+/** POST /v1/link/code: a key of the player asks for a one-time link code. */
+export const LINK_CODE_PREFIX = "bb-link-code-1\n";
+/** POST /v1/link/redeem: the NEW device's key redeems a link code. */
+export const LINK_REDEEM_PREFIX = "bb-link-redeem-1\n";
+/** POST /v1/link/steam: a key links a Steam account (a verified web-API ticket) to its player. */
+export const LINK_STEAM_PREFIX = "bb-link-steam-1\n";
+/** GET /v1/profile: the signed profile read (the signed text is the query, `at=<ms>`). */
+export const PROFILE_GET_PREFIX = "bb-profile-get-1\n";
+/** DELETE /v1/player: delete the player's online data. */
+export const DELETE_PREFIX = "bb-delete-1\n";
+
 /** The domains a signature may be made in (a closed set: the prefix is never caller text). */
-export type SignDomain = typeof UPLOAD_PREFIX | typeof PROFILE_PREFIX;
+export type SignDomain =
+  | typeof UPLOAD_PREFIX | typeof PROFILE_PREFIX
+  | typeof LINK_CODE_PREFIX | typeof LINK_REDEEM_PREFIX | typeof LINK_STEAM_PREFIX | typeof PROFILE_GET_PREFIX | typeof DELETE_PREFIX;
 export const KEY_HEADER = "x-bb-key";
 export const SIG_HEADER = "x-bb-sig";
 export const IDENTITY_DB = "beltbattles-identity";
@@ -110,6 +127,11 @@ function isRawKey(raw: Uint8Array): boolean {
 const PREFIX_BYTES: Record<SignDomain, Uint8Array> = {
   [UPLOAD_PREFIX]: new TextEncoder().encode(UPLOAD_PREFIX),
   [PROFILE_PREFIX]: new TextEncoder().encode(PROFILE_PREFIX),
+  [LINK_CODE_PREFIX]: new TextEncoder().encode(LINK_CODE_PREFIX),
+  [LINK_REDEEM_PREFIX]: new TextEncoder().encode(LINK_REDEEM_PREFIX),
+  [LINK_STEAM_PREFIX]: new TextEncoder().encode(LINK_STEAM_PREFIX),
+  [PROFILE_GET_PREFIX]: new TextEncoder().encode(PROFILE_GET_PREFIX),
+  [DELETE_PREFIX]: new TextEncoder().encode(DELETE_PREFIX),
 };
 
 /** The bytes a signature covers: the domain's prefix in UTF-8 (UPLOAD_PREFIX unless a domain is given), then the exact
@@ -220,6 +242,17 @@ export async function verifyProfile(
   body: Uint8Array, key: string | null | undefined, sig: string | null | undefined, subtle: MaybeSubtle = webSubtle(),
 ): Promise<VerifyResult> {
   return verifyIn(PROFILE_PREFIX, body, key, sig, subtle);
+}
+
+/**
+ * IDENT-1: check a signature made in any of the domains above: `sig` must be the signature of `key` over `domain`'s prefix + these
+ * exact body bytes. On success, the key's own ID (never a linked player: the server maps it, server/links.ts). Never throws. The
+ * ghost upload's and the profile upload's own checks (verifyUpload, verifyProfile) are unchanged.
+ */
+export async function verifyDomain(
+  domain: SignDomain, body: Uint8Array, key: string | null | undefined, sig: string | null | undefined, subtle: MaybeSubtle = webSubtle(),
+): Promise<VerifyResult> {
+  return verifyIn(domain, body, key, sig, subtle);
 }
 
 /** A KeyStore in memory, for tests and tools: the key lives as long as the process. */

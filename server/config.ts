@@ -17,10 +17,14 @@
 //   region; only newer flyctl versions set it), plus
 //   BB_GHOST_S3_ADDRESSING virtual | path (default virtual) and
 //   BB_GHOST_CACHE_TTL_S   seconds a loaded (rules, day) bucket is served before a re-list (default 60)
+//   IDENT-1 (REQ-BFG-122) Steam linking, off unless BOTH are set (POST /v1/link/steam answers 501 while off):
+//   BB_STEAM_WEB_API_KEY   the publisher Web API key (a secret: never logged, never sent to a client)
+//   BB_STEAM_APP_IDS       the App IDs whose tickets are accepted, comma-separated: the main game and the demo
 
 import { resolve } from "node:path";
 import { DEFAULT_ORIGINS } from "./app";
 import { S3Client, type Addressing, type S3Options } from "./s3";
+import { steamConfigFromEnv, type SteamConfig } from "./steamAuth";
 import { JsonlStore, type GhostStore } from "./store";
 import { TigrisStore } from "./tigrisStore";
 
@@ -51,6 +55,8 @@ export interface Config {
   trustProxy: "fly" | "none";
   staticDir?: string;
   store: StoreConfig;
+  /** IDENT-1: Steam linking (steamAuth.ts), or null while off. */
+  steam: SteamConfig | null;
 }
 
 type Env = Record<string, string | undefined>;
@@ -127,7 +133,18 @@ export function readConfig(argv: readonly string[], env: Env): Config {
     trustProxy: oneOf(env, "BB_GHOST_TRUST_PROXY", ["fly", "none"] as const, "none"),
     staticDir: staticDir ? resolve(staticDir) : undefined,
     store,
+    steam: steamFromEnv(env),
   };
+}
+
+/** IDENT-1: BB_STEAM_WEB_API_KEY and BB_STEAM_APP_IDS, or null when either is unset. A bad App ID list stops the start (ConfigError);
+ *  the key's value is never part of a message. */
+function steamFromEnv(env: Env): SteamConfig | null {
+  try {
+    return steamConfigFromEnv(env);
+  } catch (e) {
+    throw new ConfigError(e instanceof Error ? e.message : "BB_STEAM_APP_IDS is not a list of App IDs");
+  }
 }
 
 /** Open the configured store. JSON lines: read the files now. Tigris: no I/O until a request needs it. */

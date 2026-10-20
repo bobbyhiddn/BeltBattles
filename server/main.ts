@@ -10,6 +10,7 @@
 import { RULES_VERSION } from "../src/sim/content";
 import { createGhostServer, type GhostServer } from "./app";
 import { ConfigError, openStore, readConfig, type Config } from "./config";
+import { steamVerifier } from "./steamAuth"; // IDENT-1 (REQ-BFG-122)
 import { warmRoadCap } from "./warm"; // BUMP-1E P6: roadCap's warm-up at the boot
 
 const log = (line: string) => console.log(line);
@@ -37,7 +38,9 @@ function serve(): void {
     app = createGhostServer({
       store: openStore(cfg.store, log), origins: cfg.origins, rateLimit: { windowMs: 60_000, max: cfg.rate }, log,
       uploads: cfg.uploads, trustProxy: cfg.trustProxy, staticDir: cfg.staticDir,
+      steam: cfg.steam ? steamVerifier(cfg.steam) : null, // IDENT-1: Steam linking, on only with BB_STEAM_WEB_API_KEY and BB_STEAM_APP_IDS
     });
+    log(cfg.steam ? `steam linking on for App IDs ${cfg.steam.appIds.join(", ")}` : "steam linking off (BB_STEAM_WEB_API_KEY and BB_STEAM_APP_IDS not both set)");
   } catch (e) {
     fail(e, 2); // e.g. BB_GHOST_STATIC without an index.html
   }
@@ -46,6 +49,8 @@ function serve(): void {
       log(`ghost server (rules ${RULES_VERSION}, store ${app.store.kind}, uploads ${cfg.uploads}) listening on http://${cfg.host}:${p}; CORS origins: ${cfg.origins.join(" ")}; rate ${cfg.rate}/min per ${cfg.trustProxy === "fly" ? "client IP (Fly-Client-IP)" : "socket IP"}`);
       // BUMP-1E P6: roadCap's warm-up, after the port is open (a cache fill, day by day, the event loop yielded between days; server/warm.ts)
       if (cfg.uploads === "open") warmRoadCap(log).catch((e: unknown) => log(`road model warm-up failed (the first deep upload builds it instead): ${message(e)}`));
+      // IDENT-1 (REQ-BFG-122): the tombstones (deleted players) are read into memory now; a failure is retried by the first request
+      app.links.ensureFresh().catch((e: unknown) => log(`identity store: could not read the tombstones yet: ${message(e)}`));
     },
     (e: unknown) => fail(`cannot listen on ${cfg.host}:${cfg.port}: ${message(e)}`, 1),
   );
