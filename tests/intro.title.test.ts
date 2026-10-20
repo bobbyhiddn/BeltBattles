@@ -4,23 +4,31 @@ import { GAP_SHARE, arenaIn, minGap } from "../src/game/battleLayout";
 import { HULL_L, type Box } from "../src/render/frame";
 import { wrap } from "../src/render/font";
 import { HELP } from "../src/screens/title";
-import { CUSTOMIZE_MIN, TITLE_GAP_SHARE, helpCard, titleLayout, titleScale } from "../src/screens/titleLayout";
+import { CUSTOMIZE_MIN, TITLE_CLEAR_PANEL, TITLE_GAP_SHARE, TITLE_OPEN_CSS, TITLE_OPEN_SHARE, TITLE_REACH_DOWN, TITLE_REACH_FLOOR, TITLE_REACH_SIDE, TITLE_REACH_UP, helpCard, titleGap, titleLayout, titleScale } from "../src/screens/titleLayout";
 import { textWidth } from "../src/render/font"; // CUSTOM-2a: the CUSTOMIZE word fits its button
 
 // intro (BeltBattles 0.8.0, REQ-BFG-038): "The intro screen's battle also has the two carriers too close." The title
 // frames itself (src/screens/titleLayout.ts): the open floor between its two cruisers is at least the battle's GAP_SHARE
 // (17%) of the firing axis and TITLE_GAP_SHARE (20%) where there is room; desktop and landscape keep the menu scale and
 // 0350e5f's placement exactly; a portrait phone steps down one scale, its buttons k times as big so none shrinks.
+// PRESENT-1 TITLE-1 (REQ-BFG-038; BRIEF-PRESENT1 T2): "well apart" is the open water between the DRAWN carriers, which introcheck
+// measures at 14% of the firing axis and one CSS inch (96 CSS px), so the floor between the hull boxes is now titleGap's: the 20%
+// floor, or the bar plus what the two drawn carriers take of the floor (TITLE_REACH_FLOOR) and TITLE_OPEN_PAD, whichever is more.
+// Re-pinned old -> new: land 169 -> 179, desk 144 -> 161, desk2 115 -> 141, small 128 -> 132 (its 1 CSS px per px is the bar's
+// 96 CSS px: 94 at the end of the first fight before), phone and safari unchanged (127, 132). The landscape cruisers lift clear
+// of the panel by their drawn reach (up 5, down 18 px, 30 sideways) where the panel meets it (land and desk2, with a saved run),
+// and on a short screen (desk2: 360 px) the panel's bottom margin gives way, 18 -> 12 px, to the room that reach needs.
 
 /** The views of the job: the operator's iPhone (portrait), the part of it Safari shows, the iPhone on its side, the desk
- *  at 1x and 2x, and a small phone. `menu`: 0350e5f's scale (io.ts defaultScale); `scale`: the title's now. */
-const VIEWS: Record<string, { css: [number, number]; dpr: number; menu: number; scale: number }> = {
-  phone: { css: [390, 844], dpr: 3, menu: 5, scale: 4 },
-  safari: { css: [390, 660], dpr: 3, menu: 4, scale: 3 },
-  land: { css: [844, 390], dpr: 3, menu: 3, scale: 3 },
-  desk: { css: [1440, 900], dpr: 1, menu: 2, scale: 2 },
-  desk2: { css: [1440, 900], dpr: 2, menu: 5, scale: 5 },
-  small: { css: [360, 640], dpr: 2, menu: 3, scale: 2 },
+ *  at 1x and 2x, and a small phone. `menu`: 0350e5f's scale (io.ts defaultScale); `scale`: the title's now; `gap`: the floor
+ *  between the hull boxes (logical px) now (PRESENT-1), `old`: 0350e5f's and 0.9.14's (20% of the firing axis). */
+const VIEWS: Record<string, { css: [number, number]; dpr: number; menu: number; scale: number; gap: number; old: number }> = {
+  phone: { css: [390, 844], dpr: 3, menu: 5, scale: 4, gap: 127, old: 127 },
+  safari: { css: [390, 660], dpr: 3, menu: 4, scale: 3, gap: 132, old: 132 },
+  land: { css: [844, 390], dpr: 3, menu: 3, scale: 3, gap: 179, old: 169 },
+  desk: { css: [1440, 900], dpr: 1, menu: 2, scale: 2, gap: 161, old: 144 },
+  desk2: { css: [1440, 900], dpr: 2, menu: 5, scale: 5, gap: 141, old: 115 },
+  small: { css: [360, 640], dpr: 2, menu: 3, scale: 2, gap: 132, old: 128 },
 };
 
 const meets = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -31,7 +39,7 @@ function titleView(cssW: number, cssH: number, dpr: number) {
   const v = computeView(cssW, cssH, dpr, (pw, ph, p) => titleScale(pw, ph, p, dpr));
   const pw = Math.floor(cssW * dpr), ph = Math.floor(cssH * dpr);
   const menu = defaultScale(pw, ph, v.portrait);
-  return { ...v, menu, k: menu / v.scale, pw, ph };
+  return { ...v, menu, k: menu / v.scale, pw, ph, css: v.scale / dpr }; // PRESENT-1: css, the CSS px per logical px titleLayout takes now
 }
 
 /** 0350e5f's title (screens/title.ts place() and draw()) on a W x H logical screen at the menu scale. */
@@ -89,19 +97,27 @@ function oldHelp(W: number, H: number) {
 
 describe("intro: the title's two cruisers keep open floor between them (REQ-BFG-038)", () => {
   for (const [name, t] of Object.entries(VIEWS)) {
-    it(`${name} ${t.css[0]}x${t.css[1]} @${t.dpr}: scale ${t.scale} (menu ${t.menu}), floor 20% of the firing axis, clear of the title`, () => {
+    it(`${name} ${t.css[0]}x${t.css[1]} @${t.dpr}: scale ${t.scale} (menu ${t.menu}), floor ${t.gap} px (was ${t.old}), clear of the title`, () => {
       const v = titleView(t.css[0], t.css[1], t.dpr);
       expect(v.menu).toBe(t.menu);
       expect(v.scale).toBe(t.scale);
       const axis = v.portrait ? v.H : v.W, axisCss = v.portrait ? t.css[1] : t.css[0];
       for (const save of [false, true]) {
-        const L = titleLayout(v.W, v.H, v.portrait, save, v.k);
+        const L = titleLayout(v.W, v.H, v.portrait, save, v.k, v.css);
         expect(L.fits).toBe(true);
-        // the floor between the hull boxes: TITLE_GAP_SHARE of the firing axis on every view of the job
-        expect(L.gap).toBe(Math.round(axis * TITLE_GAP_SHARE));
+        // the floor between the hull boxes: titleGap's on every view of the job (TITLE_GAP_SHARE of the firing axis, or more
+        // where the drawn carriers' reach would take the open water below introcheck's bar)
+        expect(L.gap).toBe(t.gap);
+        expect(L.gap).toBe(titleGap(axis, v.portrait, v.css));
+        expect(t.gap).toBeGreaterThanOrEqual(t.old);
+        expect(t.gap).toBeGreaterThanOrEqual(Math.round(axis * TITLE_GAP_SHARE));
         const share = (L.gap * v.scale) / v.dpr / axisCss;
         expect(share).toBeGreaterThanOrEqual(GAP_SHARE);
-        expect(share).toBeLessThanOrEqual(0.2015);
+        // TITLE-1: what is left of the floor after the two drawn carriers have taken their reach (the worst of introcheck's
+        // three moments of the first fight) is at least 14% of the firing axis and one CSS inch
+        const reach = v.portrait ? TITLE_REACH_FLOOR.port : TITLE_REACH_FLOOR.land;
+        expect(((L.gap - reach) * v.scale) / v.dpr / axisCss, "open water share").toBeGreaterThanOrEqual(TITLE_OPEN_SHARE);
+        expect((L.gap - reach) * v.css, "open water CSS px").toBeGreaterThanOrEqual(TITLE_OPEN_CSS);
         const [hp, he] = L.hulls;
         expect(v.portrait ? hp.y - (he.y + he.h) : he.x - (hp.x + hp.w)).toBe(L.gap);
         // both cruisers on screen, clear of the logo band, the panel and every button, the sound button and the version
@@ -136,8 +152,13 @@ describe("intro: the title's two cruisers keep open floor between them (REQ-BFG-
     expect(meets(o.hulls[0], o.buttons.new)).toBe(true);
   });
 
-  it("the desk and landscape keep the menu scale and 0350e5f's frame; where its cruisers met the panel they lift clear", () => {
-    let checked = 0, lifted = 0;
+  // PRESENT-1 TITLE-1 (re-pinned; was "...keep 0350e5f's frame; where its cruisers met the panel they lift clear" with the cruisers
+  // exactly 0350e5f's wherever its hull boxes missed the panel): the logo band, buttons and sound button are still 0350e5f's; the
+  // panel and its buttons are 0350e5f's too, moved down by `trim` px on a short screen (the bottom margin gives way to the drawn
+  // carriers' reach, never below 8 px); the cruisers are 0350e5f's box with the floor titleGap's, and lift clear of the panel by
+  // their DRAWN reach (TITLE_REACH_UP/DOWN/SIDE), never into the logo band's reach (was: by their hull boxes, at most 4 px)
+  it("the desk and landscape keep the menu scale and 0350e5f's rects; the floor is titleGap's; the cruisers lift clear of the panel by their drawn reach", () => {
+    let checked = 0, lifted = 0, trimmed = 0;
     for (const dpr of [1, 2, 3]) {
       for (let w = 568; w <= 2560; w += 61) {
         for (let h = 320; h <= Math.min(1440, w); h += 47) {
@@ -145,30 +166,37 @@ describe("intro: the title's two cruisers keep open floor between them (REQ-BFG-
           if (v.portrait) continue;
           expect(v.scale).toBe(v.menu);
           for (const save of [false, true]) {
-            const L = titleLayout(v.W, v.H, false, save, v.k), o = oldTitle(v.W, v.H, false, save);
+            const L = titleLayout(v.W, v.H, false, save, v.k, v.css), o = oldTitle(v.W, v.H, false, save);
             expect(L.k).toBe(1);
-            // CUSTOM-2a: 0350e5f's frame with CUSTOMIZE beside HOW TO PLAY and OPTIONS (withCustomize)
-            expect({ ly: L.ly, panel: L.panel, buttons: L.buttons, sound: L.sound }).toEqual(withCustomize(o, v.W));
-            const met = o.hulls.some((hb) => meets(hb, withCustomize(o, v.W).panel)); // CUSTOM-2a: the panel as drawn now
-            if (!met) {
-              expect({ frames: L.frames, hulls: L.hulls }).toEqual({ frames: o.frames, hulls: o.hulls });
+            // CUSTOM-2a: 0350e5f's frame with CUSTOMIZE beside HOW TO PLAY and OPTIONS (withCustomize); TITLE-1: down by `trim`
+            const oldF = withCustomize(o, v.W);
+            const trim = L.panel.y - oldF.panel.y;
+            expect(trim).toBeGreaterThanOrEqual(0);
+            expect(trim).toBeLessThanOrEqual(Math.max(8, Math.round(v.H * 0.05)) - 8);
+            const down = <T extends Box | null>(b: T): T => (b ? { ...b, y: b.y + trim } : b);
+            expect({ ly: L.ly, panel: L.panel, buttons: L.buttons, sound: L.sound }).toEqual({
+              ly: oldF.ly, panel: down(oldF.panel), sound: oldF.sound,
+              buttons: { new: down(oldF.buttons.new), cont: down(oldF.buttons.cont), help: down(oldF.buttons.help), options: down(oldF.buttons.options), customize: down(oldF.buttons.customize) },
+            });
+            if (trim > 0) trimmed++;
+            // the cruisers: 0350e5f's box, the floor titleGap's (at most what the box holds), lifted by `lift` >= 0
+            const top = Math.round(v.H * 0.08) + 40;
+            const box = { x: 0, y: top, w: v.W, h: Math.max(160, v.H - top - (save ? 90 : 62) - 14) };
+            const base = arenaIn(box, false, Math.min(titleGap(v.W, false, v.css), box.w - 2 * HULL_L - 12));
+            const lift = base.hulls[0].y - L.hulls[0].y;
+            expect(lift).toBeGreaterThanOrEqual(0);
+            expect(L.hulls).toEqual(base.hulls.map((hb) => ({ ...hb, y: hb.y - lift })));
+            expect(L.frames).toEqual(base.frames.map((f) => ({ ...f, dy: f.dy - lift })));
+            const reachBox = (hb: Box): Box => ({ x: hb.x - TITLE_REACH_SIDE, y: hb.y - TITLE_REACH_UP, w: hb.w + 2 * TITLE_REACH_SIDE, h: hb.h + TITLE_REACH_UP + TITLE_REACH_DOWN + TITLE_CLEAR_PANEL });
+            if (!base.hulls.some((hb) => meets(reachBox(hb), L.panel))) {
+              expect(lift).toBe(0); // the reach missed the panel: the cruisers stay where 0350e5f's box puts them
             } else {
-              // 0350e5f's hulls met the panel: the same cruisers, lifted. At the menu scale 2 and up (a saved run on a
-              // screen 346-351 px tall) just clear of it; on a tiny screen (scale 1) as far as the logo band allows
-              const lift = o.hulls[0].y - L.hulls[0].y;
-              expect(L.hulls).toEqual(o.hulls.map((hb) => ({ ...hb, y: hb.y - lift })));
-              expect(L.frames).toEqual(o.frames.map((f) => ({ ...f, dy: f.dy - lift })));
-              expect(meets(L.hulls[0], L.logo)).toBe(false);
-              if (v.menu >= 2) {
-                expect(lift).toBeGreaterThan(0);
-                expect(lift).toBeLessThanOrEqual(4);
-                expect(L.hulls[0].y + L.hulls[0].h).toBe(L.panel.y);
-                lifted++;
-              } else {
-                expect(lift).toBeGreaterThanOrEqual(0);
-                expect(lift === 0 || L.hulls[0].y === L.logo.y + L.logo.h || L.hulls[0].y + L.hulls[0].h === L.panel.y).toBe(true);
-              }
+              // lifted until the reach clears the panel, or as far as the logo band's reach allows (none, where the cruisers already stand within it)
+              expect(!L.hulls.some((hb) => meets(reachBox(hb), L.panel)) || L.hulls[0].y - TITLE_REACH_UP <= L.logo.y + L.logo.h).toBe(true);
+              if (lift > 0 && L.hulls.some((hb) => meets(reachBox(hb), L.panel))) expect(L.hulls[0].y - TITLE_REACH_UP).toBe(L.logo.y + L.logo.h);
+              if (lift > 0) lifted++;
             }
+            expect(meets(L.hulls[0], L.logo)).toBe(false);
             if (v.menu >= 2) expect(L.fits).toBe(true);
             checked++;
           }
@@ -177,6 +205,7 @@ describe("intro: the title's two cruisers keep open floor between them (REQ-BFG-
     }
     expect(checked).toBeGreaterThan(800);
     expect(lifted).toBeGreaterThan(10);
+    expect(trimmed).toBeGreaterThan(5);
   });
 
   it("a portrait screen that keeps the menu scale keeps 0350e5f's logo, panel, buttons and sound button", () => {
@@ -187,7 +216,7 @@ describe("intro: the title's two cruisers keep open floor between them (REQ-BFG-
           const v = titleView(w, h, dpr);
           if (!v.portrait || v.scale !== v.menu) continue;
           for (const save of [false, true]) {
-            const L = titleLayout(v.W, v.H, true, save, v.k), o = oldTitle(v.W, v.H, true, save);
+            const L = titleLayout(v.W, v.H, true, save, v.k, v.css), o = oldTitle(v.W, v.H, true, save);
             // CUSTOM-2a: 0350e5f's frame with CUSTOMIZE beside HOW TO PLAY and OPTIONS (withCustomize)
             expect({ ly: L.ly, panel: L.panel, buttons: L.buttons, sound: L.sound }).toEqual(withCustomize(o, v.W));
             kept++;
@@ -208,7 +237,7 @@ describe("intro: the title's two cruisers keep open floor between them (REQ-BFG-
           const old = computeView(w, h, dpr);
           if (v.scale < v.menu) stepped++;
           for (const save of [false, true]) {
-            const L = titleLayout(v.W, v.H, v.portrait, save, v.k), o = oldTitle(old.W, old.H, old.portrait, save);
+            const L = titleLayout(v.W, v.H, v.portrait, save, v.k, v.css), o = oldTitle(old.W, old.H, old.portrait, save);
             const pairs: [Box | null, Box | null][] = [[L.buttons.new, o.buttons.new], [L.buttons.cont, o.buttons.cont], [L.buttons.help, o.buttons.help], [L.buttons.options, o.buttons.options], [L.sound, o.sound]];
             for (const [n, b] of pairs) {
               if (!n || !b) continue;
@@ -241,17 +270,17 @@ describe("intro: the title's two cruisers keep open floor between them (REQ-BFG-
           expect(v.scale).toBeLessThanOrEqual(v.menu);
           expect(v.scale).toBeGreaterThanOrEqual(least);
           // with CONTINUE showing (the taller panel), the scale picked fits, or it is the floor (nothing above it fits)
-          const L = titleLayout(v.W, v.H, v.portrait, true, v.k);
+          const L = titleLayout(v.W, v.H, v.portrait, true, v.k, v.css);
           if (L.fits) fits++;
           else {
             expect(v.scale).toBe(least);
             floorOnly++;
           }
           // the menu scale is kept wherever it fits
-          const atMenu = titleLayout(Math.floor(v.pw / v.menu), Math.floor(v.ph / v.menu), v.portrait, true, 1);
+          const atMenu = titleLayout(Math.floor(v.pw / v.menu), Math.floor(v.ph / v.menu), v.portrait, true, 1, v.menu / dpr);
           if (atMenu.fits) expect(v.scale).toBe(v.menu);
           // a larger scale than the one picked never fits (the title takes the largest that does)
-          for (let s = v.scale + 1; s <= v.menu; s++) expect(titleLayout(Math.floor(v.pw / s), Math.floor(v.ph / s), v.portrait, true, v.menu / s).fits).toBe(false);
+          for (let s = v.scale + 1; s <= v.menu; s++) expect(titleLayout(Math.floor(v.pw / s), Math.floor(v.ph / s), v.portrait, true, v.menu / s, s / dpr).fits).toBe(false);
         }
       }
     }
@@ -268,9 +297,9 @@ describe("intro: the title's two cruisers keep open floor between them (REQ-BFG-
     for (const [w, h, dpr] of [[320, 462, 3], [320, 462, 2], [409, 533, 3], [320, 320, 1]] as const) {
       const v = titleView(w, h, dpr);
       expect(v.scale).toBe(Math.min(v.menu, Math.ceil(dpr)));
-      expect(titleLayout(v.W, v.H, v.portrait, true, v.k).fits).toBe(false);
+      expect(titleLayout(v.W, v.H, v.portrait, true, v.k, v.css).fits).toBe(false);
       // one scale smaller would fit, but below one CSS px per logical px
-      if (v.scale > 1) expect(titleLayout(Math.floor(v.pw / (v.scale - 1)), Math.floor(v.ph / (v.scale - 1)), v.portrait, true, v.menu / (v.scale - 1)).fits).toBe(true);
+      if (v.scale > 1) expect(titleLayout(Math.floor(v.pw / (v.scale - 1)), Math.floor(v.ph / (v.scale - 1)), v.portrait, true, v.menu / (v.scale - 1), (v.scale - 1) / dpr).fits).toBe(true);
     }
   });
 
