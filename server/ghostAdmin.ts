@@ -11,10 +11,17 @@
 //                                                          and key; each failure listed with its reasons
 //   wipe-uploads              --rules <bb-x.y.z> [--apply] [--pool]   every upload of that rules version
 //   remove-player <playerId>  --rules <bb-x.y.z> [--apply] every upload by that player
+//   purge-tombstoned          [--rules <bb-x.y.z>] [--apply] IDENT-1 (REQ-BFG-122): every upload by a player who deleted their online
+//                                                          data (DELETE /v1/player writes tombstones/<P>.json naming the player and every
+//                                                          key linked to it; server/links.ts), in EVERY rules version unless --rules
+//                                                          names one. The server stops serving those ghosts at once; this removes them
+//                                                          for good. Run it on a schedule (deploy/RUNBOOK.md). It reads every upload's
+//                                                          body once, in every rules version, to learn whose it is (remove-player does
+//                                                          the same for one version), so it is a job for a quiet hour, not a request.
 //
 // Safety:
 //  - a dry run unless --apply: it prints exactly what --apply would delete, and deletes nothing;
-//  - --rules is required, and nothing of another rules version is read or touched;
+//  - --rules is required (purge-tombstoned: optional), and nothing of another rules version is read or touched;
 //  - the seed pool is never deleted, except by wipe-uploads given --pool (the next deploy's seed writes it back);
 //  - --apply deletes exactly the records the plan printed: by object key, or by the exact JSON line it read. A record
 //    written after the plan is never deleted;
@@ -31,13 +38,15 @@ import { parseRules, rulesGateProblem } from "../src/net/rulesGate";
 import { decodeSnapshot, ghostId, ID_PATTERN, type GhostSnapshot } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
 import { ConfigError, readStoreConfig, type StoreConfig } from "./config";
+import { decodeTombstone } from "./links";
+import { FileLinkStore, IDENTITY_DIR, TigrisLinkStore, type LinkStore } from "./linkStore";
 import { S3Client } from "./s3";
 import { POOL_FILE, STORE_FILE, type StoreKind } from "./store";
 import { parseKey } from "./tigrisStore";
 
 type Env = Record<string, string | undefined>;
 
-export const COMMANDS = ["list", "revalidate", "wipe-uploads", "remove-player"] as const;
+export const COMMANDS = ["list", "revalidate", "wipe-uploads", "remove-player", "purge-tombstoned"] as const;
 export type Command = (typeof COMMANDS)[number];
 export type RecordKind = "pool" | "upload";
 
@@ -72,6 +81,23 @@ export interface AdminStore {
   read(rules: string, bodies: boolean): Promise<Holdings>;
   /** Delete exactly these records (as read() returned them). Resolves how many were deleted. */
   remove(records: readonly StoredRecord[]): Promise<number>;
+  /** IDENT-1: every rules version that holds a record here (purge-tombstoned walks them all). Optional so a test double need not have it. */
+  rulesVersions?(): Promise<string[]>;
+  /** IDENT-1: the ids named by the tombstones (server/links.ts): every deleted player and every key that was linked to one. `skipped`:
+   *  tombstone records that could not be read. Optional so a test double need not have it. */
+  tombstoned?(): Promise<{ ids: Set<string>; skipped: number }>;
+}
+
+/** The ids every readable tombstone in `links` names, and how many records were not tombstones. */
+async function readTombstones(links: LinkStore): Promise<{ ids: Set<string>; skipped: number }> {
+  const ids = new Set<string>();
+  let skipped = 0;
+  for (const key of await links.list("tombstones/")) {
+    const t = decodeTombstone(await links.get(key));
+    if (t) for (const id of t.ids) ids.add(id);
+    else skipped++;
+  }
+  return { ids, skipped };
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -137,6 +163,27 @@ export class JsonlAdmin implements AdminStore {
       if (mine.length) n += this.rewrite(join(this.dataDir, file), mine);
     }
     return n;
+  }
+
+  async rulesVersions(): Promise<string[]> {
+    if (!existsSync(this.dataDir)) throw new ConfigError(`no ghost data directory ${this.dataDir} (BB_GHOST_DATA or --data)`);
+    const seen = new Set<string>();
+    for (const [file] of JsonlAdmin.FILES) {
+      const path = join(this.dataDir, file);
+      if (!existsSync(path)) continue;
+      for (const line of readFileSync(path, "utf8").split("\n")) {
+        if (!line.trim()) continue;
+        const rules = lenient(line).rules;
+        if (rules !== null) seen.add(rules);
+      }
+    }
+    return [...seen].sort();
+  }
+
+  /** The tombstones the server wrote beside the ghosts: <dataDir>/identity/tombstones/<player>.json. */
+  async tombstoned(): Promise<{ ids: Set<string>; skipped: number }> {
+    if (!existsSync(this.dataDir)) throw new ConfigError(`no ghost data directory ${this.dataDir} (BB_GHOST_DATA or --data)`);
+    return readTombstones(new FileLinkStore(join(this.dataDir, IDENTITY_DIR)));
   }
 
   /**
@@ -208,6 +255,21 @@ export class TigrisAdmin implements AdminStore {
       n++;
     });
     return n;
+  }
+
+  /** The distinct <rules> segments under ghosts/: one LIST pass over every ghost key (1,000 a page). */
+  async rulesVersions(): Promise<string[]> {
+    const seen = new Set<string>();
+    for (const o of await this.s3.listAll("ghosts/")) {
+      const k = parseKey(o.key);
+      if (k) seen.add(k.rules);
+    }
+    return [...seen].sort();
+  }
+
+  /** The tombstones the server wrote into the bucket: tombstones/<player>.json. */
+  tombstoned(): Promise<{ ids: Set<string>; skipped: number }> {
+    return readTombstones(new TigrisLinkStore(this.s3));
   }
 }
 
@@ -282,6 +344,7 @@ export function uploadProblems(r: StoredRecord, rules: string): string[] {
 
 export interface AdminArgs {
   command: Command;
+  /** The one rules version the command reads. IDENT-1: "" for purge-tombstoned without --rules (every rules version). */
   rules: string;
   apply: boolean;
   pool: boolean;
@@ -303,6 +366,8 @@ export const USAGE = [
   "                                      reachable-record check and the rules gate; lists each failure; --apply deletes them",
   "  wipe-uploads [--apply] [--pool]     every upload of that rules version; --pool: the seed pool too",
   "  remove-player <playerId> [--apply]  every upload by that player",
+  "  purge-tombstoned [--apply]          every upload of the players who deleted their online data (their tombstones), in every",
+  "                                      rules version; --rules <bb-x.y.z> limits it to one",
   "A dry run unless --apply. The store is the server's: BB_GHOST_STORE=jsonl (BB_GHOST_DATA, or --data <dir>) or tigris",
   "(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL_S3, BUCKET_NAME).",
 ].join("\n");
@@ -325,9 +390,10 @@ export function parseArgs(argv: readonly string[]): AdminArgs {
   const command = pos.shift();
   if (!command) throw new UsageError("no command");
   if (!(COMMANDS as readonly string[]).includes(command)) throw new UsageError(`unknown command "${command}": use ${COMMANDS.join(", ")}`);
-  if (rules === undefined) throw new UsageError("--rules <bb-x.y.z> is required: the tool only reads and deletes one rules version");
-  if (!parseRules(rules)) throw new UsageError(`--rules ${JSON.stringify(rules)} is not a rules version (bb-MAJOR.MINOR.PATCH)`);
-  const args: AdminArgs = { command: command as Command, rules, apply, pool };
+  // IDENT-1: purge-tombstoned walks every rules version unless --rules names one; every other command reads exactly one
+  if (rules === undefined && command !== "purge-tombstoned") throw new UsageError("--rules <bb-x.y.z> is required: the tool only reads and deletes one rules version");
+  if (rules !== undefined && !parseRules(rules)) throw new UsageError(`--rules ${JSON.stringify(rules)} is not a rules version (bb-MAJOR.MINOR.PATCH)`);
+  const args: AdminArgs = { command: command as Command, rules: rules ?? "", apply, pool };
   if (args.command === "remove-player") {
     const id = pos.shift();
     if (id === undefined || !ID_PATTERN.test(id)) throw new UsageError("remove-player needs a player id (1-64 of A-Z a-z 0-9 _ -)");
@@ -356,14 +422,15 @@ export interface Plan {
 
 /** The plan for revalidate, wipe-uploads or remove-player over one rules version's records. The seed pool is in it only
  *  for wipe-uploads with --pool. */
-export function makePlan(args: AdminArgs, h: Holdings): Plan {
+export function makePlan(args: AdminArgs, h: Holdings, tombstoned?: ReadonlySet<string>): Plan {
   const del: PlanEntry[] = [];
   for (const r of h.records) {
     let why: string | null = null;
     if (args.command === "wipe-uploads") why = r.kind === "upload" || args.pool ? `wipe-uploads${r.kind === "pool" ? " --pool" : ""}` : null;
-    else if (r.kind !== "upload") why = null; // revalidate and remove-player never touch the seed pool
+    else if (r.kind !== "upload") why = null; // revalidate, remove-player and purge-tombstoned never touch the seed pool
     else if (args.command === "revalidate") why = uploadProblems(r, args.rules).join(" | ") || null;
     else if (args.command === "remove-player") why = r.playerId === args.playerId ? `player ${args.playerId}` : null;
+    else if (args.command === "purge-tombstoned") why = r.playerId !== null && tombstoned?.has(r.playerId) ? `tombstoned player ${r.playerId}` : null;
     if (why) del.push({ record: r, why });
   }
   const gone = new Set(del.map((d) => d.record));
@@ -409,6 +476,53 @@ function describe(r: StoredRecord): string {
 }
 
 /**
+ * IDENT-1 (REQ-BFG-122): purge-tombstoned. The tombstoned ids (every deleted player and every key linked to one) come from the same
+ * store the ghosts do; each rules version's uploads are read (their bodies, to learn whose each is, as remove-player does) and the
+ * ones by a tombstoned id are planned for deletion, the seed pool never. Exit codes as runAdmin's: 0 done (a dry run too), 1 a
+ * storage error or an apply that deleted less than its plan.
+ */
+async function purgeTombstoned(args: AdminArgs, store: AdminStore, out: (line: string) => void): Promise<number> {
+  if (!store.tombstoned || !store.rulesVersions) throw new Error("this store cannot list tombstones or rules versions");
+  const { ids, skipped } = await store.tombstoned();
+  out(`tombstones: ${ids.size} deleted player and key id(s)${skipped ? `; ${skipped} record(s) in tombstones/ could not be read and were skipped` : ""}`);
+  // with no tombstone there is nothing to look for, so no ghost is listed or read
+  const versions = !ids.size ? [] : args.rules ? [args.rules] : await store.rulesVersions();
+  const plans: Plan[] = [];
+  let total = 0, others = 0;
+  if (ids.size) {
+    for (const rules of versions) {
+      const h = await store.read(rules, true);
+      const plan = makePlan({ ...args, rules }, h, ids);
+      plans.push(plan);
+      total += plan.delete.length;
+      others += h.other.length;
+      out(`${rules}: delete ${plan.delete.length} record(s); keep ${plan.keep.pool} seed-pool ghost(s) and ${plan.keep.uploads} upload(s)`);
+      for (const d of plan.delete) out(`  delete ${describe(d.record)}  (${d.why})`);
+    }
+  } else {
+    out("no player has deleted their online data: nothing to purge.");
+  }
+  out(`plan: delete ${total} record(s) in ${versions.length} rules version(s)`);
+  if (others) out(`  ${others} other record(s) here, never touched`);
+  if (!args.apply) {
+    out(`DRY RUN: nothing was deleted. --apply deletes exactly the ${total} record(s) above.`);
+    return 0;
+  }
+  // one removal for every version's records: a JSON-lines ref is a line number in a file the versions share, so deleting one version's
+  // lines first would move the next one's (each is checked against the bytes the plan read, and a moved one would be skipped)
+  const records = plans.flatMap((p) => p.delete.map((d) => d.record));
+  const n = records.length ? await store.remove(records) : 0;
+  out(`APPLIED: deleted ${n} of ${total} record(s).`);
+  if (n) {
+    out(store.kind === "tigris"
+      ? "  A running server serves no tombstoned player's ghost already; its bucket cache drops them at BB_GHOST_CACHE_TTL_S or a restart."
+      : "  Restart the ghost server: it holds the deleted ghosts in memory until it reloads its files.");
+  }
+  if (n < total) out(`  ${total - n} planned record(s) had already changed or gone: run again to see the store as it is now.`);
+  return n === total ? 0 : 1;
+}
+
+/**
  * The tool: parse, read the configured store, print the listing or the plan, and with --apply delete exactly the plan.
  * Resolves the exit code: 0 done (a dry run too), 1 a storage error or an apply that deleted less than its plan, 2 a usage
  * or settings error (nothing read or deleted). `open` is the store opener (tests pass their own).
@@ -425,8 +539,9 @@ export async function runAdmin(argv: readonly string[], env: Env, out: (line: st
     return 2;
   }
   const mode = args.command === "list" ? "read only" : args.apply ? "APPLY" : "DRY RUN";
-  out(`ghosts:admin ${args.command}${args.playerId ? ` ${args.playerId}` : ""} --rules ${args.rules}: ${store.kind} store, ${store.where} (${mode})`);
+  out(`ghosts:admin ${args.command}${args.playerId ? ` ${args.playerId}` : ""} ${args.rules ? `--rules ${args.rules}` : "(every rules version)"}: ${store.kind} store, ${store.where} (${mode})`);
   try {
+    if (args.command === "purge-tombstoned") return await purgeTombstoned(args, store, out);
     const h = await store.read(args.rules, args.command !== "wipe-uploads");
     if (args.command === "list") {
       const { days, total, noPlayer } = countDays(h);

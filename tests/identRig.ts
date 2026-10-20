@@ -161,3 +161,77 @@ export async function matchAs(r: Rig, player: string, over: Record<string, strin
   const q = new URLSearchParams({ rules: upSnap().rules, day: "1", wins: "0", lives: String(HEARTS_START), player, seen: "", runs: "9", ...over });
   return send(r, "GET", `/v1/ghosts/match?${q.toString()}`);
 }
+
+// ---------------------------------------------------------------------------------------------- appended by the server tests
+
+import { existsSync, readFileSync } from "node:fs";
+import { loadIdentity, memoryKeyStore } from "../src/net/identity";
+import type { SteamVerifier } from "../server/steamAuth";
+
+/** A new identity with a key of its own (the four fixed test keys are not enough for a test with many devices). */
+export async function freshIdentity(): Promise<Identity> {
+  const id = await loadIdentity(memoryKeyStore());
+  if (!id) throw new Error("loadIdentity returned null: no WebCrypto in this Node?");
+  return id;
+}
+
+/** A second server over the SAME storage as `rig` (another machine): its own memory, the rig's clock. Open it after the ghosts it
+ *  should serve exist (a jsonl server reads its files when it opens). Closed by closeRigs(). */
+export async function openSibling(rig: Rig, over: Opts = {}): Promise<Rig> {
+  const log: string[] = [];
+  const opts = { log: (l: string) => log.push(l), now: () => rig.clock.now, ...over };
+  const app = rig.kind === "jsonl" ? createGhostServer({ ...opts, dataDir: rig.dir }) : createGhostServer({ ...opts, store: tigrisFor(theFake(), rig.bucket) });
+  const sib = { kind: rig.kind, bucket: rig.bucket, dir: rig.dir, log, clock: rig.clock, app } as Rig;
+  sib.base = `http://127.0.0.1:${await app.listen(0)}`;
+  sib.restart = async () => {
+    throw new Error("a sibling does not restart");
+  };
+  sib.close = () => sib.app.close();
+  opened.push(sib);
+  return sib;
+}
+
+/** How many player uploads are stored: ghosts.jsonl lines (jsonl) or objects under a player/ prefix (tigris). */
+export function ghostCount(rig: Rig): number {
+  if (rig.kind === "tigris") return fakeKeys(rig, "ghosts/").filter((k) => k.includes("/player/")).length;
+  const f = join(rig.dir, "ghosts.jsonl");
+  return existsSync(f) ? readFileSync(f, "utf8").split("\n").filter((l) => l.trim()).length : 0;
+}
+
+/** Is there a stored profile record for this player id? */
+export function profileStored(rig: Rig, id: string): boolean {
+  return rig.kind === "tigris" ? fakeKeys(rig, "profiles/").includes(`profiles/${id}.json`) : existsSync(join(rig.dir, "profiles", `${id}.json`));
+}
+
+/** Every identity record the server holds (links, players, link codes, Steam links, tombstones), key -> text, read through its store. */
+export async function identityRecords(rig: Rig): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  const store = rig.app.links.store;
+  for (const prefix of ["links/keys/", "links/steam/", "players/", "linkcodes/", "tombstones/"]) {
+    for (const key of await store.list(prefix)) out[key] = (await store.get(key)) ?? "";
+  }
+  return out;
+}
+
+/** A code from `owner`'s player redeemed by `device`: both replies (the caller asserts them). */
+export async function linkVia(rig: Rig, owner: Identity, device: Identity): Promise<{ issued: Reply; joined: Reply }> {
+  const issued = await requestCode(rig, owner);
+  const joined = await redeemCode(rig, device, String(issued.json?.code ?? "XXXX-XXXX"));
+  return { issued, joined };
+}
+
+/** A Steam verifier that knows `accounts` (hex ticket -> steam id) and accepts `appIds`; every call is recorded. Unknown tickets are
+ *  refused; a ticket listed in `unavailable` makes Steam unreachable (once, then it answers). */
+export function fakeSteam(accounts: Record<string, string>, appIds: readonly number[] = [480, 481]): SteamVerifier & { calls: { ticket: string; identity: string; appid: number }[]; unavailable: Set<string> } {
+  const calls: { ticket: string; identity: string; appid: number }[] = [];
+  const unavailable = new Set<string>();
+  return {
+    appIds, calls, unavailable,
+    async verify(ticket, identity, appid) {
+      calls.push({ ticket, identity, appid });
+      if (unavailable.delete(ticket)) return { ok: false, error: "steam answered HTTP 503", unavailable: true };
+      const steamId = accounts[ticket];
+      return steamId ? { ok: true, steamId } : { ok: false, error: "steam refused the ticket (code 3)" };
+    },
+  };
+}

@@ -435,12 +435,13 @@ export class Links {
       await this.store.put(tombKey(player), JSON.stringify({ at: prior?.at ?? this.now(), ids }));
       for (const id of ids) this.gone.add(id); // from this moment no ghost of these ids is served
       const removals: (() => Promise<void>)[] = [];
+      const dropLink = (id: string) => async () => {
+        await this.store.delete(keyOf(id));
+        this.keyCache.delete(id);
+      };
       for (const id of ids) {
         removals.push(() => this.profiles.delete?.(id) ?? Promise.resolve());
-        if (id !== player) removals.push(async () => {
-          await this.store.delete(keyOf(id));
-          this.keyCache.delete(id);
-        });
+        if (id !== player && id !== signer) removals.push(dropLink(id));
       }
       for (const s of rec?.steam ?? []) removals.push(() => this.store.delete(steamKey(s)));
       if (rec?.code) removals.push(() => this.store.delete(codeKey(rec.code!)));
@@ -448,6 +449,8 @@ export class Links {
         await this.store.delete(playerOf(player));
         this.playerCache.delete(player);
       });
+      // the asking key's own link goes last: until it does, a retry by this key still finds its player, and with it what is left
+      if (signer !== player) removals.push(dropLink(signer));
       for (const rm of removals) await rm();
       return { player, ids: ids.length };
     });

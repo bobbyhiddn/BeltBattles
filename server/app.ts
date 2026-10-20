@@ -124,6 +124,9 @@ export interface ServerOptions {
   redeemLimit?: { windowMs: number; max: number };
   /** IDENT-1: bytes for new link codes (tests pass fixed ones). Default crypto.getRandomValues. */
   codeRandom?: (n: number) => Uint8Array;
+  /** IDENT-1: how long the in-memory set of deleted players' ids (the tombstones) is trusted before the store is read again, so a
+   *  delete made through another machine shows here. Default 60 s (links.ts). */
+  tombstoneTtlMs?: number;
 }
 
 export interface GhostServer {
@@ -321,7 +324,9 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   const profiles = opts.profileStore ?? profileStoreFor(store, log); // PROFILE-UP
   const clock = opts.now ?? (() => Date.now()); // PROFILE-UP
   // IDENT-1 (REQ-BFG-122): the identity layer beside the profiles, over the same backing store
-  const links = new Links(opts.linkStore ?? linkStoreFor(store), profiles, { now: clock, log, ...(opts.codeRandom ? { random: opts.codeRandom } : {}) });
+  const links = new Links(opts.linkStore ?? linkStoreFor(store), profiles, {
+    now: clock, log, ...(opts.codeRandom ? { random: opts.codeRandom } : {}), ...(opts.tombstoneTtlMs !== undefined ? { tombstoneTtlMs: opts.tombstoneTtlMs } : {}),
+  });
   const redeemFails = new FailureLimiter(opts.redeemLimit?.windowMs ?? REDEEM_FAILS.windowMs, opts.redeemLimit?.max ?? REDEEM_FAILS.max);
   const steam = opts.steam ?? null;
   const tickets = new TicketCache();
@@ -441,8 +446,11 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         return send(res, created ? 201 : 200, { id });
       }
       case "/v1/profile": {
-        // IDENT-1: GET is the signed profile read (linkRoutes.ts getProfile; the signed text is the query `at=<ms>`)
-        if (method === "GET") return sendReply(res, await getProfile(linkRequest(req), url.search.replace(/^\?/, "")));
+        // IDENT-1: GET is the signed profile read (linkRoutes.ts getProfile; the signed text is the query `at=<ms>`). A bare GET, with
+        // neither a signing header nor a query, is what it always was here: 405 "use PUT" (no 0.9.13 client sends one)
+        if (method === "GET" && (url.search || firstHeader(req, KEY_HEADER) || firstHeader(req, SIG_HEADER))) {
+          return sendReply(res, await getProfile(linkRequest(req), url.search.replace(/^\?/, "")));
+        }
         // PROFILE-UP (REQ-BFG-074 clause 4): the steps are profileRoute.ts's, in POST /v1/ghosts' order (403, 401, 413, 401,
         // 400, 422, then read-merge-write; StorageError -> 503 below). The request log below stays as it is.
         only("PUT");
@@ -528,7 +536,9 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
     const allowed = origin !== "" && origins.has(origin);
     if (allowed) {
       res.setHeader("access-control-allow-origin", origin);
-      res.setHeader("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS"); // PROFILE-UP: PUT /v1/profile; IDENT-1: DELETE /v1/player
+      // PROFILE-UP: PUT /v1/profile. IDENT-1: DELETE /v1/player is the one route that takes DELETE, so the preflight of that URL (a
+      // browser asks per URL) lists it; every other URL's preflight is exactly what it was
+      res.setHeader("access-control-allow-methods", url.pathname === "/v1/player" ? "DELETE, OPTIONS" : "GET, POST, PUT, OPTIONS");
       res.setHeader("access-control-allow-headers", ["content-type", KEY_HEADER, SIG_HEADER].join(", "));
       res.setHeader("access-control-max-age", 600);
     }

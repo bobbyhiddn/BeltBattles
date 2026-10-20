@@ -116,9 +116,12 @@ export class TigrisLinkStore implements LinkStore {
     return new StorageError(`identity ${op} failed: ${status}`);
   }
 
+  /** A lookup is HEAD first, and a GET only for a record that exists: nearly every lookup is a miss (a key that was never linked, a
+   *  player with no record), and a miss costs one HEAD, as a GET 404 would, while the records worth reading are cached for minutes. */
   async get(key: string): Promise<string | null> {
     checkKey(key);
     try {
+      if (!(await this.s3.head(key))) return null;
       return await this.s3.getText(key);
     } catch (e) {
       throw this.fail("read", e);
