@@ -16,6 +16,26 @@ import { isPhone, tapPx } from "../../ui/tap";
 import { itemName } from "../event/cards";
 import { DROP_CLASS_LABEL, pctText, type DropLine, type DropTable } from "../../sim/npcDay";
 import { gameWords } from "../../ui/gameWords"; // MERGE-099D (1d): the drop classes' words
+import { ENCHANT_DEFS, isEnchantId, type EnchantId } from "../../sim/enchant"; // ENCHANT-2 (REQ-BFG-085, T2): a drop keeps its rival's word, shown in its colour before the part's name
+
+/** ENCHANT-2 (T2): the word a drop line / card carries as the player reads it ("FIERY "), with its colour; undefined for none (ENCHANT off: no line has one). */
+export function dropWord(id: string | undefined): { text: string; colour: string } | undefined {
+  return id !== undefined && isEnchantId(id) ? { text: `${ENCHANT_DEFS[id].name} `, colour: ENCHANT_DEFS[id].color } : undefined;
+}
+
+/** ENCHANT-2 (T2): `name` cut with a dot to fit `room` px in `font` (inspector.ts's title cut: the name, never the word, gives way). */
+export function cutName(name: string, font: "5" | "3", room: number): string {
+  if (textWidth(name, font) <= room) return name;
+  let s = name;
+  while (s.length > 1 && textWidth(`${s}.`, font) > room) s = s.slice(0, -1);
+  return `${s}.`;
+}
+
+/** ENCHANT-2 (T2): how `WORD NAME` is drawn in `room` px (`word` carries its space): the 5x7 face where both fit, else the 3x5 face with the name cut with a dot. */
+export function fitWordName(word: string, name: string, room: number): { font: "5" | "3"; name: string } {
+  if (textWidth(word) + textWidth(name) <= room) return { font: "5", name };
+  return { font: "3", name: cutName(name, "3", room - textWidth(word, "3")) };
+}
 
 /** The short drop line: "DROP 75%", or "NO DROP" when the deck has nothing that drops. */
 export function dropLine(t: DropTable): string {
@@ -32,7 +52,7 @@ export const classText = (l: DropLine): string => (l.cls === "legendary" ? "LEGE
 
 /** The ⓘ list's rows (and the tests'): "SPLITTER · RARE RIGS AND GEAR · 12%", most likely first. */
 export function dropListText(t: DropTable): string[] {
-  return t.lines.map((l) => `${itemName(l.def)} · ${classText(l)} · ${pctText(l.odds)}`);
+  return t.lines.map((l) => `${dropWord(l.ench)?.text ?? ""}${itemName(l.def)} · ${classText(l)} · ${pctText(l.odds)}`); // ENCHANT-2 (T2): the word first
 }
 
 /** The parts as icons from (x, y), each with its odds under it, while they fit in `w`; the rest are in the ⓘ list.
@@ -52,6 +72,10 @@ export function drawDropIcons(g: G, t: DropTable, x: number, y: number, w: numbe
   }
   return n;
 }
+
+/** ENCHANT-2 (REQ-BFG-085, T4): the full list's header line, as drawDropList draws it under the title ("DROP 75% ON A WIN · TO CARGO AT ★2"). One place for the string:
+ *  the text sheet (tools/textSheet.ts) reads it from here. HULL-1b: the table's star. */
+export const dropListHeader = (t: DropTable): string => `${dropLine(t)} ON A WIN · TO CARGO AT ★${t.stars ?? 1}`;
 
 /** The ⓘ glyph in its 11 px box (lastChancePicker.ts drawInfo's form: a dot over a stem on a foot). */
 export function drawInfoBox(g: G, r: Rect, on: boolean): void {
@@ -86,7 +110,7 @@ export function drawDropList(g: G, game: Game, title: string, t: DropTable, onCl
   panel(g, { x, y, w, h }, "raised");
   ui.add({ id: "droplist", r: { x: 0, y: 0, w: W, h: H }, onTap: onClose, block: true });
   drawText(g, title, x + 6, y + 5, C.yellow, { outline: C.ink });
-  drawText(g, `${dropLine(t)} ON A WIN · TO CARGO AT ★${t.stars ?? 1}`, x + 6, y + 17, C.lime, { font: "3" }); // HULL-1b: the table's star
+  drawText(g, dropListHeader(t), x + 6, y + 17, C.lime, { font: "3" }); // HULL-1b: the table's star (ENCHANT-2: the string is dropListHeader's, one place for the sheet)
   let yy = y + 28;
   if (!rows) drawText(g, "NOTHING IN THIS DECK DROPS", x + 6, yy + 4, C.slate4, { font: "3" });
   for (const l of t.lines) {
@@ -95,7 +119,13 @@ export function drawDropList(g: G, game: Game, title: string, t: DropTable, onCl
     rect(g, x + 6, yy, 14, 14, C.ink);
     rect(g, x + 7, yy + 1, 12, 12, l.cls === "legendary" ? C.plum1 : C.slate0);
     g.drawImage(ic, x + 13 - Math.floor(ic.width / 2), yy + 7 - Math.floor(ic.height / 2));
-    drawText(g, itemName(l.def), x + 24, yy + 1, C.white, { font: "3" });
+    // ENCHANT-2 (T2): a drop that keeps its rival's word shows it in its colour before the part's name; the name is cut with a dot where the row has no room
+    const wd = dropWord(l.ench), room = w - 6 - 24 - textWidth(pctText(l.odds)) - 4 - (hasGrid(l.def) ? shapeGridSize(l.def).w + 4 : 0);
+    if (wd) {
+      const ww = textWidth(wd.text, "3");
+      drawText(g, wd.text, x + 24, yy + 1, wd.colour, { font: "3" });
+      drawText(g, cutName(itemName(l.def), "3", room - ww), x + 24 + ww, yy + 1, C.white, { font: "3" });
+    } else drawText(g, itemName(l.def), x + 24, yy + 1, C.white, { font: "3" });
     drawText(g, classText(l), x + 24, yy + 8, C.slate4, { font: "3" });
     drawText(g, pctText(l.odds), x + w - 6, yy + 4, C.bone, { align: "right" });
     // SHOPCARD-1 (G4): a shaped part's grid in its row (the 16 px pitch holds the tallest, 16), between the words and the odds
@@ -108,13 +138,19 @@ export function drawDropList(g: G, game: Game, title: string, t: DropTable, onCl
 /** What the victory screen says: no drop, NO_DROP; a drop, its name and "DROP · TO CARGO · ★1" (the Matriarch's: LEGENDARY).
  *  HULL-1b (REQ-BFG-078): `stars`, the drop's star (npcDay.ts DROP_STARS: a Hard drop says ★2). */
 export const NO_DROP = "NO DROP";
-export function dropCardText(drop: string | null, legendary: boolean, stars = 1): { name: string; sub: string } | null {
-  return drop ? { name: itemName(drop), sub: legendary ? "LEGENDARY · TO CARGO" : `DROP · TO CARGO · ★${stars}` } : null;
+/** ENCHANT-2 (REQ-BFG-085, T2): `word`, the word the drop arrives with (the card says it in its colour before the part's name): it rides in the result
+ *  as `word` ("FIERY ", with the space); absent for a plain drop, so every ENCHANT-off card is what it was.
+ *  T6 fix round (E2-03; words only): a drop that arrives with a word spells its star, `DROP · TO CARGO · STAR 2`: the 3x5 face's ★ read as `x2` (two copies) to
+ *  five of six readers of the strict read's round 1. A plain drop keeps `★n` (ENCHANT off draws what it drew), the Matriarch's keeps `LEGENDARY · TO CARGO`. */
+export function dropCardText(drop: string | null, legendary: boolean, stars = 1, word?: string): { name: string; sub: string; word?: string } | null {
+  const wd = dropWord(word);
+  return drop ? { name: itemName(drop), sub: legendary ? "LEGENDARY · TO CARGO" : `DROP · TO CARGO · ${wd ? "STAR " : "★"}${stars}`, ...(wd ? { word: wd.text } : {}) } : null;
 }
 
-/** The victory screen's drop: a part card (icon, name, "TO CARGO · ★1") at (x, y), w wide and 22 tall, or NO DROP. */
-export function drawDropCard(g: G, drop: string | null, legendary: boolean, x: number, y: number, w: number, stars = 1): void {
-  const t = dropCardText(drop, legendary, stars);
+/** The victory screen's drop: a part card (icon, name, "TO CARGO · ★1") at (x, y), w wide and 22 tall, or NO DROP. ENCHANT-2 (T2): `word`, the word it
+ *  keeps, before the name in its colour (the 5x7 face where word and name fit, else the 3x5, the name cut with a dot as the card's room ends). */
+export function drawDropCard(g: G, drop: string | null, legendary: boolean, x: number, y: number, w: number, stars = 1, word?: string): void {
+  const t = dropCardText(drop, legendary, stars, word);
   if (!drop || !t) {
     drawText(g, NO_DROP, x + w / 2, y + 7, C.slate4, { align: "center" });
     return;
@@ -125,9 +161,17 @@ export function drawDropCard(g: G, drop: string | null, legendary: boolean, x: n
   rect(g, x + 3, y + 3, 16, 16, C.ink);
   rect(g, x + 4, y + 4, 14, 14, C.slate0);
   g.drawImage(ic, x + 11 - Math.floor(ic.width / 2), y + 11 - Math.floor(ic.height / 2));
-  drawText(g, t.name, x + 23, y + 3, legendary ? C.amber : C.white, { outline: C.ink });
+  const wd = dropWord(word), room = w - 26;
+  if (wd) {
+    // ENCHANT-2 (T2): the word in its colour, then the name; the 5x7 face where both fit, else the 3x5 with the name cut with a dot
+    const fit = fitWordName(wd.text, t.name, room), big = fit.font === "5", ww = textWidth(wd.text, fit.font);
+    drawText(g, wd.text, x + 23, y + (big ? 3 : 4), wd.colour, big ? { outline: C.ink } : { font: "3" });
+    drawText(g, fit.name, x + 23 + ww, y + (big ? 3 : 4), legendary ? C.amber : C.white, big ? { outline: C.ink } : { font: "3" });
+  } else {
+    drawText(g, t.name, x + 23, y + 3, legendary ? C.amber : C.white, { outline: C.ink });
+  }
   drawText(g, t.sub, x + 23, y + 13, C.lime, { font: "3" });
-  if (textWidth(t.name) > w - 26) rect(g, x + w - 2, y + 1, 1, 20, C.ink);
+  if (!wd && textWidth(t.name) > room) rect(g, x + w - 2, y + 1, 1, 20, C.ink);
   // SHOPCARD-1 (G4): a shaped drop's grid on its ink plate at the card's right end, where the name and the sub line leave room
   // (the 22 px card holds the tallest plate, 20)
   if (hasGrid(drop)) {

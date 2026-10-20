@@ -57,8 +57,8 @@ describe("ENDLESS-1 3.3: THE GOD STAND-IN (sim/godStandIn.ts)", () => {
     expect(b.hullBonus).toBe(godBuild(14, 2).hullBonus);
   });
 
-  it("the hull step: ENDLESS_GOD_HULL_STEP (250) per endless win on top of the pool deck's own hull; none for no win; a step can be given", () => {
-    expect(ENDLESS_GOD_HULL_STEP).toBe(250);
+  it("the hull step: ENDLESS_GOD_HULL_STEP (1500) per endless win on top of the pool deck's own hull; none for no win; a step can be given", () => {
+    expect(ENDLESS_GOD_HULL_STEP).toBe(1500); // BUMP-1F (RULING-BUMP1F-R9 R9.2): was 250 (par's mean endless wins 6.81 at 250, 4.24 at 1500 on the R3' tip; band 2-6; the title said 250 too)
     const base = godEntry(13).build.hullBonus;
     expect(godBuild(13, 0).hullBonus).toBe(base);
     expect(godBuild(13, 1).hullBonus).toBe(base + ENDLESS_GOD_HULL_STEP);

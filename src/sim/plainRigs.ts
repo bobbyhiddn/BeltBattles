@@ -31,6 +31,7 @@
 
 import { ITEMS, type ItemDef } from "./content";
 import { clearStarCache } from "./stars";
+import { ITEM_RANK, addRanked, registerRanked } from "./itemsKeep"; // BUMP-1F P2 (F1): the canonical order of the ids a switch adds
 
 /** THE switch (REQ-BFG-084): on since bb-0.11.0 (BUMP-1D turned it on with SHAPES2 and LONG_RUN). */
 export const PLAIN_RIGS: boolean = true;
@@ -89,6 +90,7 @@ export const PLAIN_DEFS: Readonly<Record<string, ItemDef>> = {
 
 /** The six ids, in the order they join ITEMS. */
 export const PLAIN_RIG_IDS: readonly string[] = Object.keys(PLAIN_DEFS);
+registerRanked(ITEM_RANK.plain, PLAIN_RIG_IDS); // BUMP-1F P2 (F1)
 
 let prOn = false;
 
@@ -106,10 +108,8 @@ export function isPlainRig(id: string): boolean {
  *  cache. Setting the state it already has does nothing. */
 export function setPlainRigs(on: boolean): void {
   if (on === prOn) return;
-  for (const id of PLAIN_RIG_IDS) {
-    if (on) ITEMS[id] = PLAIN_DEFS[id];
-    else delete ITEMS[id];
-  }
+  if (on) addRanked(ITEM_RANK.plain, PLAIN_DEFS, PLAIN_RIG_IDS); // BUMP-1F P2 (F1): at its rank, not at the end
+  else for (const id of PLAIN_RIG_IDS) delete ITEMS[id];
   clearStarCache();
   prOn = on;
 }

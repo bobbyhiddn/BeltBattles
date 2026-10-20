@@ -22,6 +22,8 @@ import { footOf, footOnDeck, footprintCells, footTurns } from "../src/sim/foot";
 import { SHAPES, SHAPES_IDS, setShapes, shapesRules, withShapes } from "../src/sim/shapes";
 import { SHAPES2_IDS, withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: SHAPES2 ships on (bb-0.11.0): the SHAPES-1 world is measured with it set off
 import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: PLAIN_RIGS ships on too: the pre-0.9.9 decks of S6 are built without the six
+import { withEnchant } from "../src/sim/enchant"; // BUMP-1F (the flip, ENCHANT): the par decks of the fixtures are made with it off
+import { GATES, setGates } from "../src/sim/gates"; // BUMP-1F (the flip, GATES): this file's world is the one before the three converters too
 import { SCALE_RIGS, scaleRules, setScaleRigs } from "../src/sim/scale"; // BUMP-1E: and the scaling rules (bb-0.12.0): this file's world is the one before the seven
 import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: LONG_RUN ships on: it moves the par decks (|long in their cache key)
 import { clearMigrationLog, migrateShapedFactories, migrationLog } from "../src/sim/beltside";
@@ -56,10 +58,14 @@ const oldWorld = <T>(f: () => T): T => withLongRun(() => withPlainRigs(() => wit
 // here (off first in beforeEach, back last in afterEach): the seven are the last keys of ITEMS while it is on, so turning SHAPES off and back with it left on puts
 // the three behind them, and a par deck (cached by its switches, not by ITEMS' key order) then depends on which tests ran before it: the fixture's pin gave one error
 // in the whole file and another alone. The shipped value is put back after every test, and one test asserts that it ships on
-beforeEach(() => setScaleRigs(false));
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): and before the three converters (GATES ships on in bb-0.13.0): the par decks of S6 shop FUSER, SCATTER MILL and SMELTER now, and a
+// converter stands ON a belt tile (a route cell under machinery by design), so every test runs with GATES off too, as its pins were measured. Gates off is the OUTERMOST of all (off first in
+// beforeEach, back last in afterEach: its three are the last keys of ITEMS). Was: beforeEach(() => setScaleRigs(false)) and the afterEach below without setGates
+beforeEach(() => { setGates(false); setScaleRigs(false); });
 afterEach(() => {
   setShapes(SHAPES); // SHAPES-1 flip: the shipped value (on); a test that needs SHAPES off sets it itself
-  setScaleRigs(SCALE_RIGS); // BUMP-1E: the shipped value (on), last
+  setScaleRigs(SCALE_RIGS); // BUMP-1E: the shipped value (on)
+  setGates(GATES); // BUMP-1F: the shipped value (on), last
 });
 
 const ids = (l: { id: string }[]) => l.map((d) => d.id);
@@ -73,7 +79,10 @@ describe("SHAPES-1 R4 and S9: the pools", () => {
     expect(ids(itemsSoldBy("alchemist"))).not.toContain("nailstrip");
     withShapes(() => {
       const on = buyableModules();
-      expect(ids(on)).toEqual([...off, "nailstrip", "embertrough", "spikerail"]);
+      // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: the canonical order, BUMP-1F P2 F1, src/sim/itemsKeep.ts ITEM_RANK: shapes 2, shapes2 3): was `[...off, "nailstrip", "embertrough", "spikerail"]`; SHAPES' three
+      // go in at their rank, before SHAPES2's six (which this file's world holds, as shipped), not behind them
+      const six = (id: string): boolean => SHAPES2_IDS.includes(id);
+      expect(ids(on)).toEqual([...off.filter((id) => !six(id)), "nailstrip", "embertrough", "spikerail", ...off.filter(six)]);
       expect(on.filter((d) => SHAPES_IDS.includes(d.id)).map((d) => [d.id, d.rarity, d.kind])).toEqual([
         ["nailstrip", "common", "gate"], ["embertrough", "common", "gate"], ["spikerail", "rare", "gate"],
       ]);
@@ -150,7 +159,10 @@ describe("SHAPES-1 R4: merge, sell and price", () => {
 /** A par deck (the par player's dusk deck, SHAPES off) for the fixtures below. SHAPES-1 flip: built with SHAPES set off
  *  (it ships on), as before the flip. */
 function parDeck(hero: HeroId, day: number, seed: number): Build {
-  return withShapes(() => cloneBuild(playerRun(hero, day, seed)[day - 1].build), false);
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: ENCHANT default; the same fixture rule as tests/enchant1.upload's par(): "made with ENCHANT off: no words"): was
+  // `withShapes(() => cloneBuild(playerRun(hero, day, seed)[day - 1].build), false)`. ENCHANT ships on, so the par player's deck holds the bots' own words, and an upload of it under
+  // bb-0.10.0 (the rules of this file's checks) is refused for them ("enchantments (ench, enchDir, grow) need bb-0.13.0 or later"); this file's world is the one before them
+  return withEnchant(() => withShapes(() => cloneBuild(playerRun(hero, day, seed)[day - 1].build), false), false);
 }
 
 /** The first spot (row order, rot 0 first) where `def` fits on `b` with SHAPES as it stands, or null. */
@@ -235,7 +247,7 @@ describe("SHAPES-1 S4: the rot rule and the rules gate", () => {
   it("SHAPES_RULES is bb-0.10.0, this build's rules until the bump (RULES_VERSION is bb-0.11.0 since BUMP-1D); the three rigs travel only with the switch on and under rules that have them", () => {
     // BUMP-1D: was expect(SHAPES_RULES).toBe(RULES_VERSION) (both bb-0.10.0). SHAPES_RULES is a literal (S6's: the first rules
     // version with shaped rigs) and stays "bb-0.10.0"; RULES_VERSION is "bb-0.11.0", which is after it (the gate below passes)
-    expect([SHAPES_RULES, RULES_VERSION]).toEqual(["bb-0.10.0", "bb-0.12.0"]); // BUMP-1E: the bump (was bb-0.11.0).
+    expect([SHAPES_RULES, RULES_VERSION]).toEqual(["bb-0.10.0", "bb-0.13.0"]); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: label bb-0.12.0 -> bb-0.13.0): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0).
     const deck = { items: [{ uid: 1, def: "nailstrip", x: 0, y: 1 }] };
     withShapes(() => { // SHAPES-1 flip: the switch set off (it ships on)
       expect(shapesGateProblem(RULES_VERSION, deck)).toBe("shaped rigs (NAIL STRIP, EMBER TROUGH, SPIKE RAIL): not in this rules version yet");
@@ -442,7 +454,7 @@ describe("SHAPES-1 S6, cap's RUN2 note Q4: the load notice for a reshaped factor
 
 describe("SHAPES-1 S1/S4 after the merge of c099-pre8 (cap's RUN2 note 1.3-1.4): shapes ride under bb-0.10.0", () => {
   it("SHAPES_RULES is S6's literal; a bb-0.9.7 record holding a shaped piece is refused, a bb-0.10.0 one is judged in shapes' world", () => {
-    expect([SHAPES_RULES, RULES_VERSION]).toEqual(["bb-0.10.0", "bb-0.12.0"]); // BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: was ["bb-0.10.0", "bb-0.10.0"]: RULES_VERSION moved, the literal stays
+    expect([SHAPES_RULES, RULES_VERSION]).toEqual(["bb-0.10.0", "bb-0.13.0"]); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: label bb-0.12.0 -> bb-0.13.0): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: was ["bb-0.10.0", "bb-0.10.0"]: RULES_VERSION moved, the literal stays
     const fx = fixtures();
     const rigs = fx.find((f) => f.name === "rigs")!.s, gantry = fx.find((f) => f.name === "gantry-rot1")!.s;
     withShapes(() => {

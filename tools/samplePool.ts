@@ -96,10 +96,12 @@ import { openRunesRules } from "../src/sim/openRunes";
 import { freeJoinsRules } from "../src/sim/freeJoins";
 import { BOT_RUNES } from "../src/sim/runes";
 import { shapesRules } from "../src/sim/shapes"; // MERGE-099F: the grade memo's world reads SHAPES too (already loaded above)
+import { gatesRules } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052, G6): and GATES (already loaded above: player.ts)
 // RUN-1 T8 (REQ-BFG-059, REQ-BFG-116): the generator's depth and the draws' bounds follow the long run (src/sim/longRun.ts, already
 // loaded by snapshot.ts above, so this line, last in the list, changes no module's load order)
 import { LONG_RUN_GEN_DAYS, WIN_GOAL, longRunRules } from "../src/sim/longRun";
 import { readFileSync } from "node:fs"; // RUN-1 T8: the scratch pick rows (BB_SOFT1_PICKS_FILE)
+import { enchantRules } from "../src/sim/enchant"; // ENCHANT-1 (REQ-BFG-085, E8): a GROWING counter makes a seed ghost a v3 snapshot (seedGhost)
 
 const EPOCH = Date.UTC(2026, 8, 23, 19, 22); // fixed, so the generated file is reproducible
 const PLATE = ITEMS.plating.supply!.hull!;
@@ -267,12 +269,15 @@ export function statedLosses(day: number, rec: DuskRecord, lost: number): number
  *  player-mode check as ctx.road, as an upload's does; and the strict check's budget line is left to that check.
  *  RUN-1 T8: `losses` (long-run rules only, statedLosses; v3, after the run seed as an upload writes it): the dusks the ghost's run
  *  lost, so the record check holds it to exactly that count (isReachable's `losses`), as POST holds an honest long-run upload. */
-function seedGhost(hero: HeroId, day: number, v: number, build: Build, rec: DuskRecord, at: number, seed?: number, road?: RoadEntry[], losses?: number): GhostSnapshot {
+export function seedGhost(hero: HeroId, day: number, v: number, build: Build, rec: DuskRecord, at: number, seed?: number, road?: RoadEntry[], losses?: number): GhostSnapshot {
   const runes = (build.runes?.length ?? 0) > 0;
+  // ENCHANT-1 (REQ-BFG-085, E2/E8): GROWING's counter `grow` is a v3 field (snapshot.ts), so a deck that holds one travels as v3 (ENCHANT on only:
+  // off, no piece carries `ench` or `grow` and every snapshot is as before); `ench` and `enchDir` are v2 keys. Exported for tests/enchant1.bots.test.ts.
+  const grows = enchantRules() && [...build.items, ...(build.turrets ?? [])].some((p) => p.grow !== undefined);
   const snap = checkSnapshot({
     // v2: pool decks carry stars (the 0.6.1 flip) and rigs their `rot` (0.6.2 BELTSIDE, DESIGN-beltside D1)
     // AZ-BUMP (N3): a road log is v3 only (snapshot.ts roadField), written last
-    v: runes || road || losses !== undefined ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day, wins: rec.wins, lives: rec.lives, build,
+    v: runes || road || losses !== undefined || grows ? SNAPSHOT_V3 : SNAPSHOT_VERSION, rules: RULES_VERSION, hero, day, wins: rec.wins, lives: rec.lives, build,
     runId: `sample-run-${hero}-${v}`, playerId: `sample-${hero}-${v}`, createdAt: at,
     ...(runes && seed !== undefined ? { seed } : {}),
     ...(losses !== undefined ? { losses } : {}),
@@ -336,11 +341,13 @@ export function sampleGhosts(o: { botRunes?: boolean } = {}): GhostSnapshot[] {
  * THE WORLD: the table holds the shipped world's picks (SOFT1_WORLD: worldKey() with every switch on, and the bots' runes).
  * In any other world (a test's switch-off world) the decks are as before SOFT-1 (sampleEntry, raceDeck): those pools don't move.
  */
-export const SOFT_TARGET = 250; // BUMP-1D (RULING-BANDS1-R1 B1.1, B1.3; BANDS-1 S123): one constant, every day (was 400)
+export const SOFT_TARGET = 150; // BUMP-1F (RULING-BUMP1F-R9 R9.1; R10.1 PATH S): was 250 (BUMP-1D; RULING-BANDS1-R1 B1.1, B1.3; BANDS-1 S123: one constant, every day; 400 at 0.9.9). GATES and ENCHANT widened the gap between par and c5 to about 62 points (73.2% against 11.5%, wider than the bars allow), no PICK_RULE variant closes it (0.5,0.5,2 / 0.34,0.34,2 / 0.2,0.2,2 read c5 10.4% at K 48), so the field softens to bring the casual player back to 1E's level
 
 /** SOFT-1: the world SOFT1_PICKS were read in (worldKey(): the bots' runes, sustain, wave 3, HULL_SCALE, LADDER_FIX, NPC_DAY,
- *  GUARD, OPEN_RUNES, FREE_JOINS, HEARTS, PICK, SHAPES), with the par player's runes on. */
-export const SOFT1_WORLD = "111111111111";
+ *  GUARD, OPEN_RUNES, FREE_JOINS, HEARTS, PICK, SHAPES, and "g" last with GATES on), with the par player's runes on.
+ *  BUMP-1F run 4 (step R2; RULING-BUMP1F-R5 R5.2 (3): the regeneration's own output, no STOP AND ASK): was "111111111111": GATES is on in
+ *  bb-0.13.0, so worldKey() ends with g. */
+export const SOFT1_WORLD = "111111111111g";
 
 /** SOFT-1: the rule's 128 picks (BUMP-1D: days 1-16, SOFT_TARGET 250; 80 picks, days 1-10, before) in SOFT1_WORLD, per hero, day 1-16: [variant 0, variant 1], each "s<i>" (the i-th entry of
  *  standInPool(hero, day)) or "f<seed>" (the par field's run of that field seed), ":" the hash of its deck's code (softHash).
@@ -348,12 +355,19 @@ export const SOFT1_WORLD = "111111111111";
  *  BUMP-1E run 4 (R2): all 128 picks re-read on bb-0.12.0's content and stand-in pool (R1: src/sim/standInPoolData.ts, sha16 a1bda91718fec4fe): FURNACE
  *  and WEAVER by tests/run1.seedpool.test.ts BB_SOFT1_LONG_RULE=1 on the committed module (kit-1e/r2all.sh: 12 processes, six day ranges a hero,
  *  4-6 minutes each); FOUNDRY and BASTION are the rows read in the dry world of the frozen content (they read no stand-in pool: foundry day 16 and
- *  bastion day 10 re-read on the final module gave the same pair, kit-1e/r2cmpdry.mjs). */
+ *  bastion day 10 re-read on the final module gave the same pair, kit-1e/r2cmpdry.mjs).
+ *  BUMP-1F run 4 (step R2): all 128 picks re-read in bb-0.13.0's world (GATES and ENCHANT on; SOFT1_WORLD now ends with g) on the new stand-in pool (R1:
+ *  src/sim/standInPoolData.ts, commit a9be2ad651d3, sha16 623a9a662d6664ad): FURNACE and WEAVER by tests/run1.seedpool.test.ts BB_SOFT1_LONG_RULE=1 on the committed
+ *  module (kit-1f/r2all.sh: 12 processes, six day ranges a hero); FOUNDRY and BASTION are the rows read in the dry world of the frozen content (kit-1f/dryrule2.sh
+ *  dryF: they read no stand-in pool; foundry day 16 and bastion day 10 re-read on the new module gave the same pair, kit-1f/r2cmpdry.mjs).
+ *  BUMP-1F run 5 (step R2', RULING-BUMP1F-R9 R9.1, R10.1 PATH S): all 128 picks re-read at SOFT_TARGET 150 (was 250) in the same world on the same module, all four
+ *  heroes by tests/run1.seedpool.test.ts BB_SOFT1_LONG_RULE=1 (kit-1f/softt.sh dryT150: an export of aa1be7938a0a whose only change was SOFT_TARGET; 12 jobs; 64 of 64
+ *  hero-days). R9.1's reuse rule: four hero-days (furnace 5, weaver 7, foundry 12, bastion 10) re-read on this file's export gave the same pairs (kit-1f/r2cmp150.mjs). */
 export const SOFT1_PICKS: Readonly<Record<string, readonly (readonly [string, string])[]>> = {
-  furnace: [["f9:2fb07b77", "f4:0158e8f0"], ["f1:34898db0", "f7:ba82a8f7"], ["f12:a07abd4a", "f3:217e657f"], ["f5:8a91b171", "f2:fcdd6d37"], ["f1:57f84a13", "f2:d5df4903"], ["f3:a7feb367", "f12:97e0fad7"], ["f2:891a3488", "f3:89890c08"], ["f2:9e78e7bf", "f6:2588b265"], ["f2:496c55fb", "f8:70ba7e88"], ["f2:64eae314", "f8:fa1e3066"], ["f2:dc43752b", "f4:1ce664c7"], ["f11:28ae28d6", "f2:2ebe07c2"], ["f6:91b5d745", "f7:58df7b02"], ["f2:7e375619", "f6:d4eafb62"], ["f2:db4701e6", "f6:31264caa"], ["f4:3eb1c920", "f6:620c5072"]],
-  weaver: [["f1:7c1a1232", "f7:3f2e2191"], ["f6:ba55c96e", "f4:2a2da484"], ["f3:1866f478", "f12:ba07e646"], ["f9:5e772872", "f10:fd7d1c09"], ["f3:c1f66307", "f9:f92f2243"], ["f3:8a13e5c6", "f9:0473576f"], ["f9:39771c2c", "f7:24df75e4"], ["f9:29a9bbab", "f12:172720e4"], ["f12:6ed2201d", "f10:1fd66073"], ["f12:483ed1fc", "f10:0d7928ae"], ["f10:6cfd2168", "f11:4f053df2"], ["f10:c680ea4e", "f9:8d60d5ec"], ["f10:e406b29e", "f11:d93149ce"], ["f10:74e2fd3e", "f11:1c7d8e48"], ["f10:37eeb9ea", "f11:a119817a"], ["f10:abdef0d5", "f11:508eadb6"]],
-  foundry: [["f3:c5680d21", "f5:6803a5cf"], ["f10:2e772028", "f3:af13f612"], ["f9:173ca50d", "f3:bf5d0a25"], ["f9:c64c0f6e", "f8:7ab69f44"], ["f9:eef12735", "f8:98078e59"], ["f9:e7768b13", "f3:1f021857"], ["f3:daa4996d", "f11:82ec146a"], ["f11:f26602a2", "f8:86866649"], ["f9:eb69ba29", "f3:dc9b1080"], ["f3:419eee1c", "f4:f31bf040"], ["f3:92446dc1", "f11:a8c0be0e"], ["f11:95534aa6", "f4:bd49ffdf"], ["f9:87c3c17b", "f3:1136526c"], ["f3:eb0b3898", "f4:49c630ed"], ["f4:f20f143e", "f9:eb4080a6"], ["f9:728615e5", "f3:ef3ad30c"]],
-  bastion: [["f1:93febc57", "f2:3c7755ff"], ["f2:c334ca3b", "f6:09291a63"], ["f10:367a899d", "f12:e7883cf9"], ["f1:6564d632", "f9:4c51d63e"], ["f3:5f612dbe", "f10:aff58beb"], ["f3:ba112195", "f1:4e95c4d4"], ["f5:525407c2", "f1:76bb727e"], ["f4:8b5bcb72", "f3:03ac7b22"], ["f3:73b7034d", "f2:4a19fd58"], ["f3:45d3f424", "f2:e93569a7"], ["f3:10034b24", "f2:459d9321"], ["f3:84129009", "f7:6318fbba"], ["f7:2f74feea", "f1:4165ccbd"], ["f1:e1bf9f6c", "f8:91a77c12"], ["f2:46901358", "f1:458cfab2"], ["f1:445d402b", "f9:02c0405a"]],
+  furnace: [["f9:a38c3052", "f12:23d4f749"], ["f7:f6f17288", "f9:6fea3280"], ["f3:3df53092", "f9:71210507"], ["f3:5ea8b7ab", "f9:149c5a31"], ["f1:2ff73162", "f9:70b1ba6b"], ["f1:9fdf9ef7", "f2:dd92d091"], ["f1:7264a130", "f3:3e0b0cbb"], ["f2:316dff3a", "f1:b39ba921"], ["f1:e2bb2f96", "f2:775f7ff9"], ["f1:5380f75c", "f5:3cf217c9"], ["f1:a2982277", "f9:89129b27"], ["f1:457dd9db", "f3:3851d59f"], ["f1:da9ee496", "f2:c8f1a60d"], ["f1:36c07c13", "f5:4e5d817e"], ["f1:ed213c1d", "f3:39cd3523"], ["f1:fe041f76", "f5:98e8f805"]],
+  weaver: [["f11:2c9fe8e0", "f4:b22bacb6"], ["f5:200b3ee0", "f6:51405db2"], ["f7:999a4f4a", "f5:97438e57"], ["f5:d6fd145a", "f6:8556dfdf"], ["f5:7aa6599e", "f3:15b1896b"], ["f5:def5ca2d", "f3:e1abe7b4"], ["f12:8bbe2dc7", "f7:8564c161"], ["f5:eb7345f5", "f7:b1d176e7"], ["f7:9665d67e", "f5:d46ecd7d"], ["f5:bbe831db", "f7:8fe76323"], ["f7:565e1ce5", "f10:228b238a"], ["f7:5568c020", "f10:7452a0f0"], ["f10:93c9d88d", "f7:99a48187"], ["f10:91884ff6", "f7:a1a12481"], ["f10:2c98b34d", "f5:0d921a73"], ["f10:3f9cd56a", "f5:402a33d7"]],
+  foundry: [["f8:7dae2d4b", "f3:d7e4de68"], ["f11:65d7143d", "f7:cbda1eb1"], ["f9:3667b6a5", "f11:d61278cc"], ["f11:72efc72e", "f3:320ec74f"], ["f3:d262425a", "f8:0ac52022"], ["f3:6e3e8cb3", "f8:0158a63a"], ["f9:b76d2ddb", "f3:613f1a27"], ["f3:86ef34a6", "f9:9e548323"], ["f3:53f9dfb8", "f9:27446efa"], ["f3:0e23735a", "f9:48e9e49c"], ["f3:d6e0fc81", "f9:977e0f47"], ["f3:351899bf", "f10:17bcd79e"], ["f3:de413e32", "f10:33745ae4"], ["f10:4072ee8a", "f3:c30dbe0b"], ["f9:2afb119b", "f3:d58e848b"], ["f9:792842e0", "f3:498e64b1"]],
+  bastion: [["f1:1b04a970", "f5:04340423"], ["f12:8c9903e4", "f8:88032da7"], ["f10:936e515f", "f3:256a89be"], ["f10:05ee4934", "f8:52c396d6"], ["f10:e0b62c59", "f7:b8a893ff"], ["f12:6a559754", "f3:990b53a7"], ["f3:faf706f3", "f12:4a00ed19"], ["f3:2e9012c7", "f12:69e0dcbf"], ["f3:a982d909", "f9:090331a2"], ["f3:ce34c385", "f9:acd0cf82"], ["f9:600fe26d", "f1:83d95ce8"], ["f9:43fe4ba4", "f3:9f3df306"], ["f9:7b577f02", "f3:ead1dde6"], ["f9:48e604bb", "f1:60d27a1a"], ["f9:de9d39c2", "f3:9c38af5d"], ["f9:86a87ae0", "f1:dc7d28d9"]],
 };
 
 /** SOFT-1: a deck code's hash in SOFT1_PICKS (8 hex digits). */
@@ -600,10 +614,17 @@ export const FLOOR_PICKS: Readonly<Record<string, string>> = {
   // furnace 9011 4.7% (the first seed, 9001, scored 79.7%), weaver 9007 16.7% (9001: 32.8%), foundry 9008 25.7% (9001: 26.7%), bastion 9007 11.6%
   // (9001: 93.6%); all 16 seeds qualified for every hero. Was (BUMP-1D, variant A on bb-0.11.0): furnace 9005:9a646ea2, weaver 9013:fc5b64b7, foundry
   // 9003:6d010a7d, bastion 9004:9f86e774
-  furnace: "9011:512dd99f",
-  weaver: "9007:da9cff51",
-  foundry: "9008:f45ce8df",
-  bastion: "9007:cd458e17",
+  // BUMP-1F run 4 (step R2; RULING-BUMP1F-R7.5: the full 64-candidate re-run, variant A again, on bb-0.13.0's content: GATES and ENCHANT on, SOFT1_WORLD
+  // "111111111111g"; kit-1f/floorjoin.mjs floor1 over output-bump1f/floor/rows-floor1-*.json, read in the FINAL world: an export of the R1 commit a9be2ad651d3 with
+  // its stand-in module and the module's SOFT-1 rows of FURNACE and WEAVER, so each day's variants 0 and 1 (the decks a candidate must differ from) are the shipped
+  // pool's own; FOUNDRY and BASTION rows are the dry ones, which read no stand-in pool). The WEAKEST qualifying run: lowest mean win rate against the casual reference
+  // field, k 12: furnace 9010 1.95% (the first seed, 9001, scored 82.87%), weaver 9013 7.73% (9001: 19.84%), foundry 9008 14.84% (9001: 55.79%), bastion 9006 11.64%
+  // (9001: 82.40%); all 16 seeds qualified for every hero. Variant B (nearest 35%, not taken) would be furnace 9002:7002c168, weaver 9010:585caa58, foundry
+  // 9003:676b7e8c, bastion 9004:8e7da865. Was (BUMP-1E, variant A on bb-0.12.0): furnace 9011:512dd99f, weaver 9007:da9cff51, foundry 9008:f45ce8df, bastion 9007:cd458e17
+  furnace: "9010:8d7dd6aa",
+  weaver: "9013:63dd911b",
+  foundry: "9008:08f1e1aa",
+  bastion: "9006:868fa6c7",
 };
 
 /** FLOOR-1: a casual run's identity in FLOOR_PICKS: 8 hex digits of the hash of every day's deck code (star-aware), days 1..poolDepth(). */
@@ -889,7 +910,8 @@ function gradeMemoKey(pool: readonly GhostSnapshot[], k: number, seeds: number):
 /** The grade memo's world (gradeMemoKey's, unchanged): every switch the grades read. SOFT-1 C2: softDecks' memo reads it too. */
 function worldKey(): string {
   return [BOT_RUNES, sustainLive(), wave3Live(), hullScaleRules(), ladderFixRules(), npcDayRules(), guardRules(),
-    openRunesRules(), freeJoinsRules(), heartsRules(), pickRules(), shapesRules()].map((on) => (on ? "1" : "0")).join("");
+    openRunesRules(), freeJoinsRules(), heartsRules(), pickRules(), shapesRules()].map((on) => (on ? "1" : "0")).join("")
+    + (gatesRules() ? "g" : ""); // GATES-1 (REQ-BFG-052, G6): the three gates move every par field the grades and the picks read: another world; off, the key as before
 }
 
 /** HULL-ON (cap's ruling 9c114aab5ba18dfe): the memo's hook for tests/hullon.grademem.test.ts: its size; clear it first

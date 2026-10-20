@@ -17,6 +17,8 @@ import {
   FOOT_CELLS, FOOT_IDS, canonicalRot, footBox, footOf, footOnDeck, footprintCells, footSlots, footTurns, type FootId,
 } from "../src/sim/foot";
 import { RESHAPED_IDS, SHAPES, SHAPES_IDS, SHAPES_ITEMS, setShapes, shapesRules, withShapes } from "../src/sim/shapes";
+import { GATES_IDS } from "../src/sim/gates"; // BUMP-1F (F1): the three converters stand behind SHAPES' three in the canonical order
+import { SCALE_IDS } from "../src/sim/scale"; // BUMP-1F (F1): and the seven scaling rigs
 import { SHAPES2_IDS, withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: SHAPES2 ships on (bb-0.11.0): the SHAPES-1 world is measured with it set off
 import { hitsIfPlaced } from "../src/sim/beltside";
 import { outputsAt } from "../src/sim/stars";
@@ -279,7 +281,10 @@ describe("SHAPES-1 S1: the switch", () => {
       const keys0 = Object.keys(ITEMS), gantry0 = ITEMS.gantry, assembly0 = ITEMS.assembly;
       withShapes(() => {
         expect(shapesRules()).toBe(true);
-        expect(Object.keys(ITEMS)).toEqual([...keys0, "nailstrip", "embertrough", "spikerail"]);
+        // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: the canonical order, BUMP-1F P2 F1, src/sim/itemsKeep.ts ITEM_RANK: shapes 2, shapes2 3, scale 4, gates 5): was `[...keys0, "nailstrip", "embertrough", "spikerail"]`;
+        // SHAPES' three go in at their rank, before SHAPES2's six, the seven scaling rigs and the three converters (which keys0 holds), not behind them
+        const later = (id: string): boolean => SHAPES2_IDS.includes(id) || SCALE_IDS.includes(id) || GATES_IDS.includes(id);
+        expect(Object.keys(ITEMS)).toEqual([...keys0.filter((id) => !later(id)), "nailstrip", "embertrough", "spikerail", ...keys0.filter(later)]);
         expect(ITEMS.nailstrip).toBe(SHAPES_ITEMS.nailstrip);
         expect(ITEMS.gantry).toEqual({ ...gantry0, foot: "2x3" });
         expect(ITEMS.assembly).toEqual({ ...assembly0, foot: "I3", price: 4 });

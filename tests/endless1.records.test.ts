@@ -7,37 +7,69 @@ import { BAG_DAYS, endlessLastDay, endlessRecordProblem, endlessRecords, isReach
 import { ENDLESS_LAST_DAY, ENDLESS_LIVES, ENDLESS_MAX_DRAWS, ENDLESS_WIN_CAP, endlessDusk } from "../src/sim/endless";
 import { LONG_RUN_MAX_DAY, WIN_GOAL } from "../src/sim/longRun";
 import { RULES_VERSION } from "../src/sim/content";
+import { bagIds } from "../src/game/eventDefs"; // BUMP-1F (RULING-BUMP1F-R3.3, R5.4): the rules world's bag (10 events with ENCHANT off, 11 with it on)
+import { withEnchant } from "../src/sim/enchant"; // BUMP-1F (RULING-BUMP1F-R3.3, R5.4): the two worlds
 
 const has = (vd: number, day: number, wins: number, lives: number, opts?: { patchUp?: boolean }) => endlessRecords(vd, day, opts).some((r) => r.wins === wins && r.lives === lives);
 
+// BUMP-1F (RULING-BUMP1F-R3.3 and RULING-BUMP1F-R5 R5.4, TRIAGE-R34 lines 69-72): ENCHANT ships on, so the ASH SHRINE is the 11th event of the bag and the endless record model (records.ts endlessWalk reads bagIds().length)
+// opens its event bags every 11 days: the DOCK (PATCH UP) windows move with it, the walk derives the last dusk 63 (was 64 in the OFF world's 10-day bag), and the pinned ENDLESS_LAST_DAY STAYS 64 (R5.4: bb-0.12.0
+// records, judged in the OFF world, reach 64). The four red tests below are pinned to BOTH worlds: the body as it was runs under withEnchant(fn, false), and an ON twin pins the 11-day bag's numbers
+// (tests/enchant2.endlessbag.test.ts shows the same two worlds). Every other test of this file runs in the shipped (ON) world, as it passes.
+const off = <T>(fn: () => T): T => withEnchant(fn, false);
+const on = <T>(fn: () => T): T => withEnchant(fn, true);
+
 describe("ENDLESS-1 3.4: ENDLESS_LAST_DAY is derived from the record model and pinned", () => {
   it("the model's deepest dusk day is ENDLESS_LAST_DAY (64); without PATCH UP it is cap's count, 59", () => {
-    expect(endlessLastDay()).toBe(ENDLESS_LAST_DAY);
+    // BUMP-1F (RULING-BUMP1F-R3.3, R5.4; TRIAGE-R34 line 69): was a bare `expect(endlessLastDay()).toBe(ENDLESS_LAST_DAY)` (ENCHANT off by default: a bag is 10 days). OFF: 64 = ENDLESS_LAST_DAY; ON (a bag is 11 days): 63, under the pinned 64
+    expect(off(() => endlessLastDay())).toBe(ENDLESS_LAST_DAY);
+    expect(on(() => endlessLastDay())).toBe(63);
+    expect(on(() => bagIds().length)).toBe(11);
     expect(ENDLESS_LAST_DAY).toBe(64);
-    expect(endlessLastDay({ patchUp: false })).toBe(59);
+    expect(off(() => endlessLastDay({ patchUp: false }))).toBe(59);
+    expect(on(() => endlessLastDay({ patchUp: false }))).toBe(59); // no dock, no bag: the same in both worlds
     // cap's count: the latest victory day + the wins into the last dusk + the losses before it + the last dusk + the draws an upload may carry
     expect(LONG_RUN_MAX_DAY + (ENDLESS_WIN_CAP - 1) + (ENDLESS_LIVES - 1) + 1 + ENDLESS_MAX_DRAWS).toBe(59);
   });
 
   it("the extra 5 days are the dock's PATCH UP: once per event bag (bags 3-7 are in reach of a victory on day 25), one more loss each", () => {
-    const bags = Math.ceil(ENDLESS_LAST_DAY / BAG_DAYS) - Math.floor(LONG_RUN_MAX_DAY / BAG_DAYS); // bags 3, 4, 5, 6 and 7 = 5
-    expect(bags).toBe(5);
-    expect(ENDLESS_LAST_DAY).toBe(59 + bags);
-    // the deepest record: day 64, 29 wins, 2 draws, and 9 losses cut by 5 PATCH UPs (hearts 3 into the last dusk is possible)
-    expect(has(25, ENDLESS_LAST_DAY, ENDLESS_WIN_CAP - 1, 1)).toBe(true);
-    expect(endlessRecords(25, ENDLESS_LAST_DAY + 1)).toEqual([]);
+    // BUMP-1F (RULING-BUMP1F-R3.3, R5.4; TRIAGE-R34 line 70): the body as it was (BAG_DAYS 10, bags 3-7) runs under off(); the ON twin below is the 11-day bag's: bags 3-6 (days 23-66), 4 docks, the deepest dusk 59 + 4 = 63
+    off(() => {
+      const bags = Math.ceil(ENDLESS_LAST_DAY / BAG_DAYS) - Math.floor(LONG_RUN_MAX_DAY / BAG_DAYS); // bags 3, 4, 5, 6 and 7 = 5
+      expect(bags).toBe(5);
+      expect(ENDLESS_LAST_DAY).toBe(59 + bags);
+      // the deepest record: day 64, 29 wins, 2 draws, and 9 losses cut by 5 PATCH UPs (hearts 3 into the last dusk is possible)
+      expect(has(25, ENDLESS_LAST_DAY, ENDLESS_WIN_CAP - 1, 1)).toBe(true);
+      expect(endlessRecords(25, ENDLESS_LAST_DAY + 1)).toEqual([]);
+    });
+    on(() => {
+      const bag = bagIds().length, last = endlessLastDay(); // 11 and 63
+      const bags = Math.ceil(last / bag) - Math.floor(LONG_RUN_MAX_DAY / bag); // bags 3, 4, 5 and 6 = 4
+      expect(bag).toBe(11);
+      expect(bags).toBe(4);
+      expect(last).toBe(59 + bags);
+      expect(last).toBeLessThanOrEqual(ENDLESS_LAST_DAY); // the pinned bound (64) holds the ON world's deepest dusk too
+      // the deepest record: day 63, 29 wins, 2 draws, and 8 losses cut by 4 PATCH UPs
+      expect(has(25, last, ENDLESS_WIN_CAP - 1, 1)).toBe(true);
+      expect(endlessRecords(25, last + 1)).toEqual([]);
+    });
   });
 
   it("per victory day the deepest dusk grows with the victory day (and never passes the pinned bound)", () => {
-    let prev = 0;
-    for (let vd = WIN_GOAL; vd <= LONG_RUN_MAX_DAY; vd++) {
-      let deepest = 0;
-      for (let d = vd + 1; d <= ENDLESS_LAST_DAY + 2; d++) if (endlessRecords(vd, d).length) deepest = d;
-      expect(deepest, `victory day ${vd}`).toBeLessThanOrEqual(ENDLESS_LAST_DAY);
-      expect(deepest, `victory day ${vd}`).toBeGreaterThanOrEqual(prev - 1); // the bag alignment can give or take a day, never more
-      prev = deepest;
-    }
-    expect(prev).toBe(ENDLESS_LAST_DAY);
+    // BUMP-1F (RULING-BUMP1F-R3.3, R5.4; TRIAGE-R34 line 71): was one bare loop ending `expect(prev).toBe(ENDLESS_LAST_DAY)` (64 in the OFF world's 10-day bag; 63 with the 11-day bag, prev 63 vs 64); the loop runs in both worlds
+    const deepestByVictoryDay = (): number => {
+      let prev = 0;
+      for (let vd = WIN_GOAL; vd <= LONG_RUN_MAX_DAY; vd++) {
+        let deepest = 0;
+        for (let d = vd + 1; d <= ENDLESS_LAST_DAY + 2; d++) if (endlessRecords(vd, d).length) deepest = d;
+        expect(deepest, `victory day ${vd}`).toBeLessThanOrEqual(ENDLESS_LAST_DAY);
+        expect(deepest, `victory day ${vd}`).toBeGreaterThanOrEqual(prev - 1); // the bag alignment can give or take a day, never more
+        prev = deepest;
+      }
+      return prev;
+    };
+    expect(off(deepestByVictoryDay)).toBe(ENDLESS_LAST_DAY);
+    expect(on(deepestByVictoryDay)).toBe(63);
   });
 
   it("the stores' dDD keys hold it (data safety: two digits), and the game ends endless there (endlessDusk)", () => {
@@ -85,16 +117,31 @@ describe("ENDLESS-1 3.4: the endless record model (records.ts endlessRecords)", 
   });
 
   it("PATCH UP comes once per event bag: one dock in the rest of the bag the victory fell in (days 26-30), a second only from day 31", () => {
-    // victory day 25, dusks 26-29 (four, entering day 30), no win: at most 2 draws, so at least 2 losses
-    expect(has(25, 30, 0, 1, { patchUp: false })).toBe(true); // L L draw draw: two losses, no dock
-    expect(has(25, 30, 0, 2, { patchUp: false })).toBe(false);
-    expect(has(25, 30, 0, 2)).toBe(true); // L PATCH UP L draw: the dock undoes one loss
-    expect(has(25, 30, 0, 3)).toBe(false); // hearts back at 3 after two losses need two docks, and days 26-30 hold one
-    // five dusks (entering day 31), no win: at least 3 losses; hearts 2 take two docks, and the second is the next bag's, on the road of
-    // day 31 (before that dusk); hearts 3 would take three
-    expect(has(25, 31, 0, 2)).toBe(true);
-    expect(has(25, 31, 0, 2, { patchUp: false })).toBe(false);
-    expect(has(25, 31, 0, 3)).toBe(false);
+    // BUMP-1F (RULING-BUMP1F-R3.3, R5.4; TRIAGE-R34 line 72): the body as it was (the 10-day bag: the victory on day 25 falls in days 21-30, the second dock opens on the road of day 31) runs under off();
+    // the ON twin below is the 11-day bag's (the victory falls in days 23-33; the first dock is the rest of that bag, the second opens only on the road of day 34): has(25, 31, 0, 2) is false there
+    off(() => {
+      // victory day 25, dusks 26-29 (four, entering day 30), no win: at most 2 draws, so at least 2 losses
+      expect(has(25, 30, 0, 1, { patchUp: false })).toBe(true); // L L draw draw: two losses, no dock
+      expect(has(25, 30, 0, 2, { patchUp: false })).toBe(false);
+      expect(has(25, 30, 0, 2)).toBe(true); // L PATCH UP L draw: the dock undoes one loss
+      expect(has(25, 30, 0, 3)).toBe(false); // hearts back at 3 after two losses need two docks, and days 26-30 hold one
+      // five dusks (entering day 31), no win: at least 3 losses; hearts 2 take two docks, and the second is the next bag's, on the road of
+      // day 31 (before that dusk); hearts 3 would take three
+      expect(has(25, 31, 0, 2)).toBe(true);
+      expect(has(25, 31, 0, 2, { patchUp: false })).toBe(false);
+      expect(has(25, 31, 0, 3)).toBe(false);
+    });
+    on(() => {
+      expect(has(25, 30, 0, 1, { patchUp: false })).toBe(true); // the same four dusks: L L draw draw, no dock
+      expect(has(25, 30, 0, 2, { patchUp: false })).toBe(false);
+      expect(has(25, 30, 0, 2)).toBe(true); // the first dock is the same: L PATCH UP L draw (days 26-33 hold it)
+      expect(has(25, 30, 0, 3)).toBe(false); // hearts back at 3 after two losses need two docks, and the rest of the victory's bag holds one
+      // five dusks (entering day 31), no win: at least 3 losses and the one dock: 3 - 3 + 1 hearts; the second dock is the next bag's, on the road of day 34, not of day 31
+      expect(has(25, 31, 0, 2)).toBe(false); // BUMP-1F: true with the 10-day bag (the OFF half above)
+      expect(has(25, 31, 0, 1)).toBe(true);
+      expect(has(25, 31, 0, 2, { patchUp: false })).toBe(false);
+      expect(has(25, 31, 0, 3)).toBe(false);
+    });
   });
 
   it("a day with no dusk since the victory (or before it) has no records", () => {

@@ -525,7 +525,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       G(6, "longhaul", 5, 1), P(7),
       M(8, "flak", 0), P(9), G(9, "counterweight", 1, 2),
       soon(7, M2(9, "scatter", 0)), P(9), ...good(soon(8, G(9, "staticbrush", 3, 3))),
-      ...good(T(10, "swivel", 1), X(10, F("dragchain", 6, 1, [8, 1, "U"]))), soon(6, G(10, "grease", 1, 4, 1)),
+      // BUMP-1F P3 D1 (second step, days 3-5): the good-luck grease on day 3 (was 6; the ordinary day 10 and every ordinary deck as they were).
+      // At the merged tip OLD BULWARK read +0.463 / +0.361 / +0.518 on days 3 / 4 / 5 (softer than the Easy slot's mean, +0.374 / +0.394 /
+      // +0.430) while GRIMHOLD and SOOTJAW made the Medium slot HARDER than the Hard slot by 0.003 / 0.011 / 0.013 (rivals.difficulty's
+      // instrument). With it: +0.174 / +0.173 / +0.323, Medium over Hard by +0.038 / +0.016 / +0.015 (thin, in order)
+      ...good(T(10, "swivel", 1), X(10, F("dragchain", 6, 1, [8, 1, "U"]))), soon(3, G(10, "grease", 1, 4, 1)),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
@@ -814,8 +818,14 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       // 0.8.9 (CATCHUP-089): ARMOR PACKs 1/1/2/2/2/5/6/7 on days 3-10 (the FOUNDRY par field's 1/1/2/2/3/5/6/7: day 7
       // keeps his gold upgrades)
       M(1, "steambreech", 0), G(2, "twingauge", 4, 0, 3), G(2, "temper", 1, 0, 1), M(3, "twintrigger", 0),
-      G(3, "plateroller", 4, 2, 3), P(3), G(4, "venom", 4, 1), X(5, F("twinmould", 6, 2, [6, 1, "U"], [7, 1, "U"])), P(5),
-      M2(7, "twintrigger", 0), P(8, 3), G2(9, "twinmould", 6, 2), P(9), P(10),
+      // BUMP-1F (P3 D1, F7: the day-6 ladder): the second factory (the TWIN MOULD) on day 7 (was 5). With GATES and ENCHANT on the Easy slot
+      // read +0.179 against the Medium slot's +0.189 on day 6 (bb-0.12.0: +0.237 against +0.351; the par field now buys words and gates),
+      // and BRASSWICK was the cause: Easy by tier, but -0.041 on day 6 (ref wins 63%, his foe wins 38% of the J5's four fields), as hard as a
+      // Hard captain from day 5. One step: the factory arrives on day 7, where his numbers were already in line (the margin instrument,
+      // days 5 / 6 / 7: Easy +0.430 / +0.295 / +0.271 against Medium +0.215 / +0.189 / +0.152; J5 at K 24, Easy / Medium / Hard foe wins
+      // 4.5 / 14.6 / 20.9, 5.9 / 13.8 / 24.8, 6.8 / 14.4 / 22.4 on days 5-7). Removes a part from days 5-6 only: no luck cap can break
+      G(3, "plateroller", 4, 2, 3), P(3), G(4, "venom", 4, 1), P(5),
+      X(7, F("twinmould", 6, 2, [6, 1, "U"], [7, 1, "U"])), M2(7, "twintrigger", 0), P(8, 3), G2(9, "twinmould", 6, 2), P(9), P(10),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also

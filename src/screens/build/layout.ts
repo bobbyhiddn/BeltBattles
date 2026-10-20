@@ -18,7 +18,10 @@ export type Sel =
   | { kind: "turret"; index: number }
   // shoptap (REQ-BFG-035): a turret's bought core or one of its gear pieces (Build.mods, by uid), with its own panel
   // (inspector.ts fittedPanel: its text, TO CARGO and SELL). Only a touch tap on the selected turret picks one.
-  | { kind: "fitted"; uid: number };
+  | { kind: "fitted"; uid: number }
+  // ENCHANT-1 (REQ-BFG-085, E5): a word card (the ENCHANTER's offer `i`, or with `pick` the warlord pick's word `i`): its tap panel
+  // (apply.ts wordSpec). Only ever selected with ENCHANT on.
+  | { kind: "word"; pick: boolean; i: number };
 
 export const CARD_W = 46;
 export const CARD_H = 42;
@@ -64,6 +67,9 @@ export interface BuildLayout {
   /** ZOOM-1 (REQ-BFG-080): the carrier's own zoom (CarrierCam). `frame` is in the carrier's space: the layout's px as if
    *  the carrier drew at the UI's scale; `hull` and `pad` are on screen (the zoomed hull box). k 1: the identity. */
   cam: CarrierCam;
+  /** ENCHANT-1 (REQ-BFG-085, E5a): the ENCHANTER's wagon's cards and their tap targets (enchantStrip.ts wagonPlace), put in by
+   *  BuildScreen.layoutAt on a day with the wagon and the switch on. Absent otherwise: buildLayout itself never sets it. */
+  wagon?: { rects: Rect[]; hits: Rect[]; tag: { x: number; y: number } | null; shift: number };
 }
 
 /**

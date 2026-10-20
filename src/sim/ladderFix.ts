@@ -77,14 +77,31 @@ export function ladderFixRules(): boolean {
   return lfOn;
 }
 
+/** BUMP-1F P2 (Q5 of BUMP-1E's REPORT section 11): the def each fixed piece held when the pass last went OFF (the ladder's own fixed def, or
+ *  another switch's def over it: SCALE_RIGS reworks QUENCH TANK into KINDLING on top of the fixed def), put back when the pass goes on again. Without
+ *  it a round trip (the pass off, then on) overwrote KINDLING with a fresh QUENCH TANK: the scaling switch was on and its def gone. */
+const DISPLACED = new Map<string, ItemDef>();
+
 /** Turn the star-ladder pass on or off: swap each fixed piece's def in ITEMS (its fixed or its base def) and clear the
- *  star cache. Setting the state it already has does nothing. */
+ *  star cache. Setting the state it already has does nothing. BUMP-1F P2 (Q5): going off remembers the def it displaces, going on puts that very
+ *  def back (the first time on, and after a reset, it makes the fixed def as before), so off and on again is a round trip. */
 export function setLadderFix(on: boolean): void {
   if (on === lfOn) return;
   for (const id of Object.keys(LADDER_DEFS)) {
     if (!BASE.has(id)) BASE.set(id, ITEMS[id]);
-    if (on) FIXED.set(id, LADDER_DEFS[id](BASE.get(id)!));
-    ITEMS[id] = on ? FIXED.get(id)! : BASE.get(id)!;
+    if (on) {
+      const kept = DISPLACED.get(id);
+      if (kept !== undefined) {
+        DISPLACED.delete(id);
+        ITEMS[id] = kept;
+        continue;
+      }
+      FIXED.set(id, LADDER_DEFS[id](BASE.get(id)!));
+      ITEMS[id] = FIXED.get(id)!;
+    } else {
+      DISPLACED.set(id, ITEMS[id]);
+      ITEMS[id] = BASE.get(id)!;
+    }
   }
   clearStarCache();
   lfOn = on;

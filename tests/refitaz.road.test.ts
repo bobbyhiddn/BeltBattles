@@ -16,6 +16,7 @@ import { CAPTAIN_RUNES, LUCKS, NPC_ROAD, PLANS, dayOwned, ndDayOwned, roadAllowa
 import { RIVAL_IDS, RUN_DAYS, maxGoldByDay, rivalBuild, rivalDays, rivalLoadout, standInBuild } from "../src/sim/rivals";
 import { npcDayRules, setNpcDay } from "../src/sim/npcDay";
 import { setHullScale } from "../src/sim/hullScale";
+import { withEnchant } from "../src/sim/enchant"; // BUMP-1F (ENCHANT on): the all-off digest is the ENCHANT-off world's
 import { setLadderFix } from "../src/sim/ladderFix";
 import { FREE_JOINS, setFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (H4's captain pass): FREE_JOINS_PLANS, off and on
 import { runeGrants } from "../src/sim/runes";
@@ -55,7 +56,8 @@ function deckDigest(): string {
  *  BUMP-1E C3: SOOTJAW's SCATTER CHOKE moves from day 3 to day 5 (src/sim/rivalBuilds.ts), in every world: the all-off digest is no longer
  *  parAZ-accepted's but this one. Was "2892e67f4593a421" (green through 0.9.11). Nothing else in any captain's deck changed (the test
  *  passes with this one line of the plan put back). */
-const BASE_DIGEST_OFF = "6e9406039a0e06d9";
+const BASE_DIGEST_OFF = "dc01bfb57d8a4aa3"; // BUMP-1F (P3 D1's two captain-deck steps, src/sim/rivalBuilds.ts; RULING-BUMP1F-R2 R2.4 and R5 R5.2 (2)): was "6e9406039a0e06d9" (the digest is read with ENCHANT off too, below). BRASSWICK's TWIN MOULD on
+// day 7 (was 5; fa0e336) and OLD BULWARK's good-luck GREASE on day 3 (was 6; 0c98513) move the base's decks in every world. Proof: in a scratch copy of the tree with bump1f-base's rivalBuilds.ts put back, this test reads "6e9406039a0e06d9" again
 
 /** tests/captains.luck.test.ts's firstOfferDay: the first day the caravan can offer `d`. */
 function firstOfferDay(d: ItemDef): number {
@@ -85,7 +87,9 @@ describe("REFIT-AZ: the road allowance, behind NPC_DAY", () => {
     setHullScale(false);
     setLadderFix(false);
     expect(npcDayRules()).toBe(false);
-    expect(deckDigest()).toBe(BASE_DIGEST_OFF);
+    // BUMP-1F (ENCHANT on, bb-0.13.0; RULING-BUMP1F-R3.1): BASE_DIGEST_OFF is the every-switch-off world's, ENCHANT included: with ENCHANT on the rivals carry their own words from day 5 (ENCHANT-2, npcWords.ts),
+    // so the digest is read with ENCHANT off too (was `deckDigest()` bare), synchronously
+    expect(withEnchant(deckDigest, false)).toBe(BASE_DIGEST_OFF);
     for (const day of DAYS) for (const m of ["warlord", "dusk"] as const) expect(roadAllowance(day, m)).toBe(0);
   });
 

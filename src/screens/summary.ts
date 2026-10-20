@@ -47,6 +47,7 @@ const ROW = 8;
 const STOP_LABEL: Record<EventId, string> = {
   wreck: "SALVAGE", cache: "CACHE", trader: "TRADER", dice: "GAMBLE", dock: "DOCK",
   herald: "BOUNTY", sappers: "SABOTAGE", scout: "SCOUT", storm: "STORM", smuggler: "SMUGGLER",
+  shrine: "SHRINE", // ENCHANT-2 (REQ-BFG-085, T3): shorter than the widest label (SABOTAGE, SMUGGLER), so STOP_W and the OFF summary are as before
 };
 /** Widest STOP label (events, warlord tiers, DUSK): the column is sized to it. */
 const STOP_W = Math.max(...[...Object.values(STOP_LABEL), ...Object.values(TIER_LABEL), "DUSK"].map((s) => textWidth(s, "3")));

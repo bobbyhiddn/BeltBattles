@@ -14,7 +14,7 @@ import { onlineFoe } from "../src/game/day";
 import { openReplay, REPLAY_BROKEN, REPLAY_OTHER_RULES } from "../src/game/replays";
 import { battleRecordFor, replay } from "../src/net/replay";
 import { ghostId } from "../src/net/snapshot";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 
 const SEED_POOL = generateSamplePool();
 

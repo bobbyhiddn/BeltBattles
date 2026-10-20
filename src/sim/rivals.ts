@@ -17,6 +17,7 @@ import { turretsCost, type Build } from "./deck";
 import { warlordBuild, warlordHull } from "./ai";
 import { CAPTAIN_RUNES, PLANS, captainRunesOn, planBuild, type Luck, type RivalLoadout, type RoadMoment } from "./rivalBuilds";
 import { longRunRules } from "./longRun"; // RUN-1 (REQ-BFG-059): the long run's content has no last day
+import { captainWordsOn } from "./npcWords"; // ENCHANT-2 (REQ-BFG-085, T1): the rivals' own words (a type-only import back: no cycle)
 
 export type RivalId =
   | "sootjaw" | "nettle" | "grubnose" | "mothqueen"
@@ -312,7 +313,8 @@ export function rivalLoadout(id: RivalId, day: number, luck: Luck = luckOf(id), 
  * fight never uses it: stand-ins fight with standInBuild(id, day).
  */
 export function rivalBuild(id: RivalId, day: number): Build {
-  return captainRunesOn(rivalLoadout(id, day).build, CAPTAIN_RUNES[id], day); // BOTS-X: its runes up to `day` (none while CAPTAIN_RUNES is empty)
+  // ENCHANT-2 (REQ-BFG-085, T1): + the rival's words live on `day` (npcWords.ts captainWordsOn: the build itself with ENCHANT off)
+  return captainWordsOn(captainRunesOn(rivalLoadout(id, day).build, CAPTAIN_RUNES[id], day), id, day); // BOTS-X: its runes up to `day` (none while CAPTAIN_RUNES is empty)
 }
 
 // ------------------------------------------------------------ honest decks (rulings R1, R2)
@@ -389,7 +391,8 @@ export function standInBuild(id: RivalId, day: number): Build {
   // FLIP-X2 (REVIEW-BOTSX section 5): the fought deck holds the captain's runes, as rivalBuild does (captainRunesOn: the
   // first `day` ids of CAPTAIN_RUNES[id], their HULL and BELT on the build). What a captain is said to hold is what he
   // fights with; a value or cap check on this deck values it as bought (standins.ts boughtCost: the runes' grants out)
-  return captainRunesOn({ ...l.build, hullBonus: PLATE_HULL * (l.plating + rampPlates(day)) }, CAPTAIN_RUNES[id], day);
+  // ENCHANT-2 (REQ-BFG-085, T1): + the rival's words live on `day`, the same ones the road warlord holds (the build itself with ENCHANT off)
+  return captainWordsOn(captainRunesOn({ ...l.build, hullBonus: PLATE_HULL * (l.plating + rampPlates(day)) }, CAPTAIN_RUNES[id], day), id, day);
 }
 
 /**

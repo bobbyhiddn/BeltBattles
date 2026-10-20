@@ -10,7 +10,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { SEED_POOL } from "../server/seedPoolData";
 import { checkSnapshot, ghostId, type PoolEntry } from "../src/net/snapshot";
 import type { HeroId } from "../src/sim/content";
-import { ENDLESS, ENDLESS_LAST_DAY, ENDLESS_LIVES, ENDLESS_WIN_CAP, setEndless } from "../src/sim/endless";
+import { ENDLESS, ENDLESS_GOD_HULL_STEP, ENDLESS_LAST_DAY, ENDLESS_LIVES, ENDLESS_WIN_CAP, setEndless } from "../src/sim/endless"; // BUMP-1F (RULING-BUMP1F-R9 R9.2): + ENDLESS_GOD_HULL_STEP
 import { benchRun, readOf, summary, DEFAULT_STEPS, ENDLESS_BOTS, type BenchRow, type EndlessBot } from "../src/sim/harness/endlessBench";
 
 const pool: PoolEntry[] = SEED_POOL.map((line) => { const snapshot = checkSnapshot(JSON.parse(line) as unknown); return { id: ghostId(snapshot), snapshot }; });
@@ -65,7 +65,8 @@ describe("ENDLESS-1 bench: one run, end to end (par, FURNACE, the committed seed
 
   it("ENDLESS_BOTS and the default steps: par and c5, and the shipped step among the steps", () => {
     expect(ENDLESS_BOTS).toEqual(["par", "c5"]);
-    expect(DEFAULT_STEPS).toContain(250);
+    expect(DEFAULT_STEPS).toContain(ENDLESS_GOD_HULL_STEP); // BUMP-1F (RULING-BUMP1F-R9 R9.2): was toContain(250), the shipped step; it is 1500 now, read from the constant
+    expect(DEFAULT_STEPS).toContain(250); // BUMP-1F (R9.2): the step before the tune stays among the steps, for the reads before and after it
   });
 });
 

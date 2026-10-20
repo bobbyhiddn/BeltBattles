@@ -32,7 +32,7 @@ import { HEROES, ITEMS, MERCHANTS, OFFERS, REROLL_COST, buyableModules, itemsSol
 import type { Build } from "../sim/deck";
 import { starsOf, valueOf } from "../sim/stars";
 import { MATRIARCH_DAY, maxGoldByDay as shopGold, warlordPool, type Difficulty, type RivalId } from "../sim/rivals";
-import { BAG_IDS, EVENTS, EVENT_IDS, type Choice, type Delta, type EventId, type EventState } from "../game/eventDefs";
+import { EVENTS, bagIds, eventIds, type Choice, type Delta, type EventId, type EventState } from "../game/eventDefs"; // ENCHANT-2 (REQ-BFG-085, T3): the rules world's lists (bagIds, eventIds): with ENCHANT on they hold the ASH SHRINE
 import { ROAD_PICKS, warlordDeck, warlordDeckDay, warlordReward } from "../game/road";
 import type { WarlordReward } from "../game/roadTypes";
 import { newRun, type Run } from "../game/run";
@@ -44,6 +44,9 @@ import { shapesRules } from "../sim/shapes"; // SHAPES-1 (REQ-BFG-086 S1): the c
 import { longRunRules } from "../sim/longRun"; // RUN-1 (REQ-BFG-059, D6): a long run's events repeat once per bag
 import { plainRigsRules } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the memos hold one switch state (plainMemo)
 import { shapes2Rules } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114): the six more shaped rigs change the catalogue too (plainMemo)
+import { gatesRules } from "../sim/gates"; // GATES-1 (REQ-BFG-052, G6): the three gates change the catalogue too (plainMemo)
+import { shrineInBag } from "../game/shrine";
+import { enchantRules } from "../sim/enchant"; // ENCHANT-2 (REQ-BFG-085, T3): the ASH SHRINE is on the road only with ENCHANT on (plainMemo keys the memos on it)
 
 // RUN-1 (REQ-BFG-059, REQ-BFG-116; D6): THE EVENT BAGS. A run's events come in shuffled bags of every event once (events.ts
 // eventSequence; BAG_IDS: 10), so days 1-10 are bag 1, days 11-20 bag 2, and so on. The 10-day run never leaves bag 1, and
@@ -52,11 +55,12 @@ import { shapes2Rules } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114): the si
 // rule, the same state size), and a hull or belt mix may take its event once per bag (roadMixesFor: the dock's PLATING in two
 // bags is 2 x +hull). Without that, an honest day-11+ deck that took a repeated event would be REFUSED. With the switch off
 // every line below reads exactly as before: one bag, each event once.
-const BAG = BAG_IDS.length;
+/** ENCHANT-2 (T3): the days one event bag covers in the rules world: 10 (BAG_IDS) with ENCHANT off, 11 with the ASH SHRINE in the bag. */
+const bagLen = (): number => bagIds().length;
 
 /** RUN-1: the event bags a run of `days` days has reached: ceil(days / BAG) on a long run, 1 on a 10-day run (any `days`). */
 export function bagsFor(days: number): number {
-  return longRunRules() ? Math.max(1, Math.ceil(days / BAG)) : 1;
+  return longRunRules() ? Math.max(1, Math.ceil(days / bagLen())) : 1;
 }
 
 /** PLAIN-1 (REQ-BFG-084): the memos below read the catalogue (the TRADER's goods, the scout's discount), which PLAIN_RIGS
@@ -64,11 +68,15 @@ export function bagsFor(days: number): number {
  *  switch never moved (the game, the server) this never resets anything. */
 let memoPlain = plainRigsRules();
 let memoShapes2 = shapes2Rules(); // SHAPES-2 (REQ-BFG-114): SHAPES2 adds six rigs to the catalogue, so it keys the memos the same way
+let memoGates = gatesRules(); // GATES-1 (REQ-BFG-052, G6): GATES adds three gates to the catalogue (and to every shop), so it keys them too
+let memoEnchant = shrineInBag(); // ENCHANT-2 (REQ-BFG-085, T3): ENCHANT adds the ASH SHRINE to the road (eventIds), so it keys the memos the same way
 function plainMemo(): void {
-  if (plainRigsRules() === memoPlain && shapes2Rules() === memoShapes2) return;
+  if (plainRigsRules() === memoPlain && shapes2Rules() === memoShapes2 && gatesRules() === memoGates && shrineInBag() === memoEnchant) return;
   resetRoadCapMemo();
   memoPlain = plainRigsRules();
   memoShapes2 = shapes2Rules();
+  memoGates = gatesRules();
+  memoEnchant = shrineInBag();
 }
 
 // ------------------------------------------------------------------ D4: the reviewed model
@@ -94,6 +102,7 @@ const DELTA_MODEL: Record<Delta["k"], string> = {
   reveal: "no deck value",
   discount: "every price -n at the next caravan: discountGain",
   reroll: "n free rerolls at the next caravan: n x REROLL_COST",
+  ench: "ENCHANT-2 (T3): the ASH SHRINE's free word: no gold and no deck value in the ceiling (the server counts the shrine's words: enchantCheck.ts)",
 };
 export const MODELLED_DELTAS = Object.keys(DELTA_MODEL) as readonly Delta["k"][];
 
@@ -106,6 +115,7 @@ export const MODELLED_DELTAS = Object.keys(DELTA_MODEL) as readonly Delta["k"][]
 export const MODELLED_EVENTS: Readonly<Record<EventId, "fixed" | "picks" | "goods">> = {
   wreck: "picks", cache: "fixed", trader: "goods", dice: "fixed", dock: "fixed",
   herald: "fixed", sappers: "fixed", scout: "fixed", storm: "fixed", smuggler: "picks",
+  shrine: "fixed", // ENCHANT-2 (T3): card 1 (a word for max hull) is a RIDE THROUGH-like hull mix; card 2 (a cargo part) is blocked in the synthetic run and costs a part, which never raises the ceiling
 };
 
 /** The fork's picks (road.ts ROAD_PICKS) and a warlord reward's fields (roadTypes.ts WarlordReward), as reviewed. */
@@ -125,7 +135,7 @@ export const HULL_FLOOR = 1000;
 
 /** Throws RoadModelError when the live road content has an event or a fork pick the model has not reviewed. */
 export function checkRoadModel(): void {
-  for (const e of EVENT_IDS) if (!Object.prototype.hasOwnProperty.call(MODELLED_EVENTS, e)) throw new RoadModelError(`road event "${e}"`);
+  for (const e of eventIds()) if (!Object.prototype.hasOwnProperty.call(MODELLED_EVENTS, e)) throw new RoadModelError(`road event "${e}"`);
   for (const p of ROAD_PICKS) if (!MODELLED_PICKS.includes(p)) throw new RoadModelError(`fork pick "${p}"`);
 }
 
@@ -187,7 +197,7 @@ function optionOf(e: EventId, c: Choice, run: Run): RoadOption {
       case "bounty": o.bounty += d.n; break;
       case "discount": o.discount += d.n; break;
       case "reroll": o.reroll += d.n; break;
-      case "lives": case "sabotage": case "reveal": break;
+      case "lives": case "sabotage": case "reveal": case "ench": break; // ENCHANT-2 (T3): "ench" has no gold or deck value here
       default: throw new RoadModelError(`a "${(d as Delta).k}" gain (${e} ${c.label})`);
     }
   }
@@ -223,7 +233,7 @@ export function roadOptions(): ReadonlyMap<EventId, readonly RoadOption[]> {
   if (optionsMemo) return optionsMemo;
   checkRoadModel();
   const out = new Map<EventId, RoadOption[]>();
-  for (const e of EVENT_IDS) {
+  for (const e of eventIds()) {
     const fam = MODELLED_EVENTS[e];
     const runs = fam === "goods"
       ? [syntheticRun(), ...buyableModules().map((d) => {
@@ -448,7 +458,7 @@ function planDP(days: number, mix: Mix, mode: "deck" | "liquid", trace = false, 
   // 10-day run's alone: one event bag, no mask reset. A long run's rules are bb-0.10.0 or later, which always play the NPC day.
   const all = roadOptions();
   const discountEvents = new Set([...all].filter(([, l]) => l.some((o) => o.discount > 0)).map(([e]) => e));
-  const events = EVENT_IDS.filter((e) => mode === "deck" || !discountEvents.has(e));
+  const events = eventIds().filter((e) => mode === "deck" || !discountEvents.has(e));
   const E = events.length;
   const opts = events.map((e) => {
     const list = all.get(e)!;
@@ -545,14 +555,14 @@ function planDP(days: number, mix: Mix, mode: "deck" | "liquid", trace = false, 
 function npcPlanDP(days: number, mix: Mix, mode: "deck" | "liquid", trace: boolean, hoard: boolean): DpResult {
   const all = roadOptions();
   const discountEvents = new Set([...all].filter(([, l]) => l.some((o) => o.discount > 0)).map(([e]) => e));
-  const events = EVENT_IDS.filter((e) => mode === "deck" || !discountEvents.has(e));
+  const events = eventIds().filter((e) => mode === "deck" || !discountEvents.has(e));
   const E = events.length;
   // RUN-1 (REQ-BFG-059, D6): a long run's bags. `long` resets the event mask at each bag boundary; the mix's forced events may
   // each be taken with their forced choice in `need[i]` bags (a count tracked in the state's low digits `c`, radix need + 1,
   // exactly need[i] by the end). A forced event keeps its other (hull- and belt-neutral) choices for the bags it is not
   // forced in. Not `long` (the 10-day run, or any run of at most one bag's days): the code below is the old one exactly: a
   // forced event takes only its forced choices and the plan must take it (forcedMask), no counts (C = 1), the same states.
-  const long = longRunRules() && days > BAG; // a run of at most one bag's days never leaves bag 1
+  const long = longRunRules() && days > bagLen(); // a run of at most one bag's days never leaves bag 1
   const isForced = events.map((e) => mode === "deck" && mix.forced.has(e));
   const need = events.map((e, i) => (long && isForced[i] ? mix.counts?.get(e) ?? 1 : 0));
   const forcedMask = long ? 0 : isForced.reduce((m, f, i) => (f ? m | (1 << i) : m), 0);
@@ -582,7 +592,7 @@ function npcPlanDP(days: number, mix: Mix, mode: "deck" | "liquid", trace: boole
   for (let d = 1; d <= days; d++) {
     // RUN-1: a new event bag opens on day BAG + 1, 2 BAG + 1, ...: every event is on the road again (the mask forgets), the
     // Matriarch, the staked bounty and the forced counts carry over
-    if (long && d > 1 && (d - 1) % BAG === 0) {
+    if (long && d > 1 && (d - 1) % bagLen() === 0) {
       const merged = new Float64Array(S).fill(-Infinity);
       const arg = trace ? new Int32Array(S).fill(-1) : null;
       for (let s = 0; s < S; s++) {

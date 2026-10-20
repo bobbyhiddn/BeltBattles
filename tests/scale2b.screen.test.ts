@@ -5,7 +5,8 @@
 // BUMP-1E: the switch ships ON from bb-0.12.0 (SCALE_RIGS = true; it shipped off when this was written), so every "off" half below asks
 // for the 0.9.11 world outright with withScaleRigs(fn, false) (the `off` helper), synchronously (it was a bare read or a bare Battle);
 // the on halves are unchanged, and a bare read now is the shipped (on) world.
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { putItemsBack, snapshotItems, type ItemsSnapshot } from "../src/sim/itemsKeep"; // BUMP-1F (R5.5 (b)): each test puts ITEMS back as it found it
 import { ITEMS, type ItemDef, type ReadSpec } from "../src/sim/content";
 import { Battle } from "../src/sim/battle";
 import { SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale";
@@ -39,6 +40,13 @@ const ROT: ItemDef = {
 const ITEMS_RW = ITEMS as Record<string, ItemDef>;
 beforeAll(() => { ITEMS_RW.s2bscrot = ROT; clearStarCache(); });
 afterAll(() => { delete ITEMS_RW.s2bscrot; clearStarCache(); });
+// BUMP-1F (RULING-BUMP1F-R5 R5.5 (b); the suite guard, tests/setup/itemsGuard.ts): was no hook. The test-only ids above are the LAST keys of ITEMS (beforeAll appends them), and an
+// off/on call of the scaling switch takes the seven out and brings them back at their rank, AFTER the test-only ids: so a test that asks for the 0.9.11 world (withScaleRigs(fn, false))
+// left Object.keys(ITEMS) permuted (key 112: cindermail became a test id). Each test now keeps ITEMS as it found it (src/sim/itemsKeep.ts: snapshotItems, putItemsBack); the guard's
+// afterEach runs after this one, so it sees ITEMS unchanged.
+let kept: ItemsSnapshot;
+beforeEach(() => { kept = snapshotItems(); });
+afterEach(() => { putItemsBack(kept); });
 
 const on = <T>(fn: () => T): T => withScaleRigs(fn);
 const off = <T>(fn: () => T): T => withScaleRigs(fn, false); // BUMP-1E: the 0.9.11 world, asked for outright (the switch ships on; the off halves were bare)
@@ -174,9 +182,10 @@ describe("SCALE-2b screen: the keyword, its reminder and its glossary row", () =
 
   it("the reminder: the design's text in BURN's form, {*PLATE} drawn as SHIELD, 2 lines of 5x7 at the glossary's width", () => {
     on(() => {
-      expect(REMINDER.POISON()).toBe("EACH {*POISON}: 3 HULL DAMAGE A SEC UNTIL THE END. THEY ADD UP AND GO PAST {*PLATE}.");
-      expect(drawn()).toBe(`EACH ${ICON.POISON}POISON: 3 HULL DAMAGE A SEC UNTIL THE END. THEY ADD UP AND GO PAST ${ICON.PLATE}SHIELD.`);
-      expect(wrap(drawn(), GLOSSARY_WRAP_W, "5")).toEqual([`EACH ${ICON.POISON}POISON: 3 HULL DAMAGE A SEC UNTIL`, `THE END. THEY ADD UP AND GO PAST ${ICON.PLATE}SHIELD.`]);
+      // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: POISON_DPS 3 -> 2, src/sim/content.ts; the reminder reads the number): was "3 HULL DAMAGE A SEC" in all three lines
+      expect(REMINDER.POISON()).toBe("EACH {*POISON}: 2 HULL DAMAGE A SEC UNTIL THE END. THEY ADD UP AND GO PAST {*PLATE}.");
+      expect(drawn()).toBe(`EACH ${ICON.POISON}POISON: 2 HULL DAMAGE A SEC UNTIL THE END. THEY ADD UP AND GO PAST ${ICON.PLATE}SHIELD.`);
+      expect(wrap(drawn(), GLOSSARY_WRAP_W, "5")).toEqual([`EACH ${ICON.POISON}POISON: 2 HULL DAMAGE A SEC UNTIL`, `THE END. THEY ADD UP AND GO PAST ${ICON.PLATE}SHIELD.`]);
       // the design's own words (UNTIL THE FIGHT ENDS) take a third line: why the reminder says UNTIL THE END
       expect(wrap(icons("EACH {*POISON}: 3 HULL DAMAGE A SEC UNTIL THE FIGHT ENDS. THEY ADD UP AND GO PAST {*PLATE}."), GLOSSARY_WRAP_W, "5").length).toBe(3);
       // REQ-BFG-107's word rule: no plain PLATE word, and the one SHIELD is the soak layer's ({*PLATE})

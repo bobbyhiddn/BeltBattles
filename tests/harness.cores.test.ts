@@ -174,7 +174,12 @@ describe("harness cores (0.6.1b): legality", () => {
     // CATCHER, POWDER KEG) read their new defs, so the builds buy differently again: 3663963154 -> 1897913483 and 2068234838 -> 2516197445
     // (measured, the first run of this file in the bb-0.12.0 world, the log line above). With SCALE_RIGS off as well (oldWorld below) both read
     // BUMP-1D's values again, so no other harness path moved
-    expect(a).toBe(1897913483); // BUMP-1E: was 3663963154 (BUMP-1D: was 898715018)
+    // BUMP-1F (F3, BUMP-1E REPORT section 11; RULING-BUMP1F-R5 R5.2 (2)): the order lever's swap (levers.ts sortRoute) now undoes a swap that leaves a rig IDLE that worked before (a rig is never left
+    // idle), so some of the 90 random builds end with other placements: 1897913483 -> 3025328070 (measured, the first run of this file in the bb-0.13.0 world, the log line above). The full purses are
+    // unchanged (2516197445). Neither GATES nor ENCHANT moves either hash (measured with GATES off, ENCHANT off and both off, in this world: the same pair; the random builds draw from heroes.ts
+    // shopItems(kind), buyableModules() filtered by an exact kind, so the three converters (kind "converter") are never drawn), and with the F3 clause taken out of a scratch copy of levers.ts
+    // the random builds read 1897913483 again
+    expect(a).toBe(3025328070); // BUMP-1F (F3): was 1897913483 (BUMP-1E: was 3663963154 (BUMP-1D: was 898715018))
     // AZ-BUMP (the flip, HULL_SCALE): the full purses 2353056724 -> 3958019260, read from the log line above in run 5's group
     // check M1b (the work tree, every switch on)
     expect(b).toBe(2516197445); // BUMP-1E: the seven scaling rigs; was 2068234838. BUMP-1D: the twelve new pieces; was 3415494316 (SHAPES-1 (RUN5 3): EMBER TROUGH 5 G; was 710977181 (the flip))

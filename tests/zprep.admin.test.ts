@@ -10,7 +10,7 @@ import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { LAST_CHANCE_HULL, lastChanceOffer, lastChanceParts, type Boon } from "../src/sim/lastChance";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { ghostId, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
-import { inShapesWorld, validateUpload } from "../src/net/validate"; // SHAPES-1 flip: an older record's deck in its shapes world
+import { inEnchantWorld, inGatesWorld, inScaleWorld, inShapes2World, inShapesWorld, validateUpload } from "../src/net/validate"; // SHAPES-1 flip: an older record's deck in its shapes world; BUMP-1F: and in the other worlds (gates, scale, enchant, shapes2) validate.ts nests
 import { isReachable } from "../src/net/records";
 import { LAST_CHANCE_RULES } from "../src/net/rulesGate"; // Z-BUMP: the gate's words for a record under older rules
 import { uploadProblems, type StoredRecord } from "../server/ghostAdmin";
@@ -60,6 +60,13 @@ const stored = (s: GhostSnapshot, id = ghostId(s)): StoredRecord => ({
 /** Z-BUMP: a rules version before LAST_CHANCE_RULES (it stays older after the bump too). */
 const OLDER = "bb-0.9.1";
 
+/** BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): GATES and ENCHANT ship on; was inShapesWorld alone): run `fn` in the world OLDER's rules were played in, the
+ *  worlds validate.ts nests for a stored record's deck (gates outermost, then shapes, shapes2, scale, enchant innermost), each turning its switch off for
+ *  rules before its own: the par player buys no converter and takes no word there (a bb-0.9.1 record holding an `ench` is "snapshot.build.items[0].ench:
+ *  unknown field" to the strict decoder), as every ITEMS-keeping world function leaves ITEMS as it found it (BUMP-1F F1). */
+const inOlderWorld = <T,>(fn: () => T): T =>
+  inGatesWorld(OLDER, () => inShapesWorld(OLDER, () => inShapes2World(OLDER, () => inScaleWorld(OLDER, () => inEnchantWorld(OLDER, fn)))));
+
 describe("Z-PREP: ghosts:admin revalidate and a stored LAST CHANCE upload", () => {
   it("an honest LAST CHANCE upload at its budget's edge revalidates clean, each card; the old call refused each one", () => {
     for (const hero of ["furnace", "bastion"] as HeroId[]) {
@@ -104,7 +111,9 @@ describe("Z-PREP: ghosts:admin revalidate and a stored LAST CHANCE upload", () =
     // own rules version (an honest record: the encoder writes it and gives its id; older rules are asked no name)
     // SHAPES-1 flip (step 8): its deck is the same par run made in bb-0.9.1's world, SHAPES off (validate.ts inShapesWorld
     // judges it so); with SHAPES on the par player buys shaped rigs, which rules before bb-0.10.0 refuse (shapesGateProblem)
-    const older: GhostSnapshot = { ...par, rules: OLDER, build: inShapesWorld(OLDER, () => playerRun("furnace", 6, 5)[5].build) };
+    // BUMP-1F (GATES and ENCHANT ship on): and in bb-0.9.1's gates, scale and enchant worlds too (inOlderWorld; was inShapesWorld(OLDER, ...) alone): the par player
+    // takes no word and buys no converter there
+    const older: GhostSnapshot = { ...par, rules: OLDER, build: inOlderWorld(() => playerRun("furnace", 6, 5)[5].build) };
     expect(uploadProblems(stored(older), OLDER)).toEqual([]);
   });
 
@@ -113,7 +122,9 @@ describe("Z-PREP: ghosts:admin revalidate and a stored LAST CHANCE upload", () =
     // Z-BUMP (the flip; was: written with the switch on, read with it off): the same upload stamped with rules before
     // LAST_CHANCE_RULES. No encoder writes it (the gate refuses the field there: the point), so it keeps the id of the
     // upload under this build's rules; the decoder refuses it before any id is read
-    const rec = stored({ ...s, rules: OLDER }, ghostId(s));
+    // BUMP-1F (GATES and ENCHANT ship on): the stamped upload's deck is made in bb-0.9.1's world (inOlderWorld), so the strict decoder's first refusal is still the
+    // LAST CHANCE gate's (was ...s, whose shipped-world deck holds words, and the decoder said "snapshot.build.items[0].ench: unknown field" first)
+    const rec = stored({ ...s, rules: OLDER, build: inOlderWorld(() => honest("rune").build) }, ghostId(s));
     expect(uploadProblems(rec, OLDER)).toEqual([
       `strict decode: snapshot.lastChance: rules ${OLDER} predate ${LAST_CHANCE_RULES}: LAST CHANCE (snapshot.lastChance) needs ${LAST_CHANCE_RULES} or later`,
     ]);

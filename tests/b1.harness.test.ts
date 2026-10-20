@@ -55,7 +55,7 @@ describe("B1 M1: the par player keeps FOUNDRY's belts in sync", () => {
       }
     }
     expect(decks).toBe(120);
-  });
+  }, 120_000); // BUMP-1F (RULING-BUMP1F-R8 R8.1): 120 s for this test, was vitest's 30-s default: it passes alone but times out at 30 s once the host's 1-minute load passes ~15; no body, seed count or expectation changed
 
   it("FOUNDRY's par players still buy speed rigs, and place every one where it keeps the pair in sync", () => {
     let speed = 0;

@@ -159,4 +159,4 @@ export const ENDLESS_ONLINE_LAST_DAY = LONG_RUN_MAX_DAY;
  *  Build.hullBonus units (a day-1 number, as plating is: the day's M(d) scales it in battle); a plating is 250 (content.ts).
  *  R1e's design: "+25 hull per endless round" in the pre-NUM-1 units, i.e. 250 now. Tuned only by the bench (the band: par's mean
  *  endless wins between 2 and 6); godStandIn.ts reads it. */
-export const ENDLESS_GOD_HULL_STEP = 250;
+export const ENDLESS_GOD_HULL_STEP = 1500; // BUMP-1F (RULING-BUMP1F-R9 R9.2): was 250. Read on the R3' tip (par, seeds 1-100 a hero, 354 of 400 runs won): par's mean endless wins 6.81 at 250 (above the band 2-6), 4.24 at 1500 (nearest 4.0, inside the band), 3.31 at 2000, 2.25 at 3000, 1.80 at 4000 (outside); 1E read 3.83

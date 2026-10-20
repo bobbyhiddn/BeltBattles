@@ -41,6 +41,9 @@ const PLACE = [
   "TAP A CELL BESIDE A FACTORY: ITS ARROWS WORK THE FACTORIES THEY POINT AT, OR DRAG IT THERE.",
   "TAP A CELL BESIDE A FACTORY: ITS ARROWS WORK THE FACTORIES THEY POINT AT.",
   "DRAG IT BESIDE A FACTORY: ITS ARROWS WORK THE FACTORIES THEY POINT AT.",
+  // GATES-1 (REQ-BFG-057): a gate goes ON a belt tile (inspector.ts GATE_TAP, GATE_DRAG)
+  "TAP A BELT TILE: THE BELT SPLITS AROUND IT, OR DRAG IT THERE.", "TAP A BELT TILE: THE BELT SPLITS AROUND IT.",
+  "DRAG IT ONTO A BELT: THE BELT SPLITS AROUND IT.",
 ];
 
 /** THE TABLE (E5): every hint text a panel draws, by the tip(s) that cover it. */
@@ -59,7 +62,7 @@ export const TIPS: readonly Tip[] = [
     action: "a turret installed in a turret slot",
   },
   { id: "turn", hints: TURN, action: "a placed rig turned" },
-  { id: "move", hints: [...TURN, "FACES EVERY SIDE. DRAG TO MOVE."], action: "a placed part moved on the deck" },
+  { id: "move", hints: [...TURN, "FACES EVERY SIDE. DRAG TO MOVE.", "DRAG IT TO ANOTHER BELT TILE. TO CARGO JOINS THE BELT."], action: "a placed part moved on the deck" }, // GATES-1: + a gate's move hint (inspector.ts GATE_MOVE)
   { id: "supply", hints: ["USED THE MOMENT YOU BUY IT."], action: "a supply bought" },
   { id: "lay", hints: ["DRAG OUT OF IT TO LAY BELT."], action: "a belt laid" },
   {

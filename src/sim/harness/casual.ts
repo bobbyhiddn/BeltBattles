@@ -24,6 +24,8 @@ import type { HeroId } from "../content";
 import { eligible, pickGhost, type IntRng, type MatchRequest } from "../../net/matchmaking";
 import type { PoolEntry } from "../../net/snapshot";
 import { playerRun, type PlayerDay, type PlayerOpts, type PolicyKnobs } from "./player";
+import { enchantRules } from "../enchant"; // ENCHANT-1 (REQ-BFG-085, E8)
+import { CASUAL_WORD_RATE } from "./enchantBot";
 
 /** The casual knob sets the calibration compared (overrides on the typical policy). */
 export const CASUAL_TUNES: Readonly<Record<string, Partial<PolicyKnobs>>> = {
@@ -47,7 +49,10 @@ export const CASUAL_TUNE = "c5";
 export function casualOpts(tune: string | Partial<PolicyKnobs> = CASUAL_TUNE, more: PlayerOpts = {}): PlayerOpts {
   const knobs = typeof tune === "string" ? CASUAL_TUNES[tune] : tune;
   if (!knobs) throw new Error(`casual: no knob set ${String(tune)} (have ${Object.keys(CASUAL_TUNES).join(", ")})`);
-  return { ...more, policy: "typical", tune: { ...knobs, ...(more.tune ?? {}) } };
+  // ENCHANT-1 (REQ-BFG-085, E8): with ENCHANT on the casual player buys the ENCHANTER's words by its own rule (enchantBot.ts casualWordBuys:
+  // each affordable offer with chance CASUAL_WORD_RATE, on a seeded legal piece that holds no word; no rating read) and answers a warlord
+  // pick the same way (casualWarlordPick). Off: no such knob, the options exactly as before.
+  return { ...more, policy: "typical", tune: { ...knobs, ...(enchantRules() ? { wordBuy: CASUAL_WORD_RATE } : {}), ...(more.tune ?? {}) } };
 }
 
 /** The casual player's run (days 1..days), as playerRun plays par's. */

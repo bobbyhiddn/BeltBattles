@@ -16,6 +16,8 @@ import { bestRot } from "../../sim/beltside"; // 0.6.2 BELTSIDE: the preview's a
 import { coreFor, gearFor } from "../../sim/deck"; // 0.6.1b
 import { fitCore } from "../../game/run"; // 0.6.1b
 import { canFitGear, gearSlotsAt, turretSlots, type Build } from "../../sim/deck"; // 0.6.2s (REQ-BFG-031)
+import { enchantField } from "../../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): a cargo piece keeps its enchantment on the deck
+import { sellAsk } from "./apply"; // ENCHANT-1 (REQ-BFG-085, E4): selling a piece that holds a word asks first
 import { dropTurret } from "./turretActions"; // 0.6.2s (REQ-BFG-031 S5)
 import { completeTip } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a successful action completes its first-run tip
 
@@ -42,6 +44,7 @@ import { screenRect } from "./layout"; // SHAPES-1 (S3): a cell's size on screen
 import { footBox } from "../../sim/foot"; // SHAPES-1 (REQ-BFG-086 R1): a turned footprint's box
 import { boxRect } from "../../render/frame"; // SHAPES-1: a non-square box on screen
 import { aimShaped, carriedRot, shapedPiece, snapAnchor, turnFit } from "./shapeEdit"; // SHAPES-1 (S2, S3)
+import { snapSplit } from "../../sim/split"; // GATES-1 (REQ-BFG-057): a finger's drop of a gate snaps to a legal belt tile
 
 export interface Ctx {
   game: Game;
@@ -180,9 +183,10 @@ export function selectGain(ctx: Ctx, g: Gain): void {
   }
 }
 
-export function sell(ctx: Ctx, uid: number): void {
+export function sell(ctx: Ctx, uid: number, asked = false): void {
   if (shopShut(ctx.run)) return ctx.invalid(REFIT_NO_SHOP); // NPC-1 (REQ-BFG-077): no selling in REFIT (NPC_DAY on)
   if (!ctx.run.inventory.some((i) => i.uid === uid)) return;
+  if (!asked && sellAsk(ctx, { kind: "cargo", uid })) return; // ENCHANT-1 (REQ-BFG-085, E4): a piece that holds a word asks first (SELL? FIERY IS LOST); a second press sells
   const v = sellInventory(ctx.run, uid);
   const cp = ctx.coinPos();
   ctx.ufx.popup(cp.x, cp.y + 10, `+${v}`, C.lime);
@@ -206,9 +210,10 @@ export function store(ctx: Ctx, uid: number): void {
  *  signature factory stays aboard. */
 export function sellPlaced(ctx: Ctx, uid: number): void {
   if (shopShut(ctx.run)) return ctx.invalid(REFIT_NO_SHOP); // NPC-1: refused before the part leaves the deck
+  if (sellAsk(ctx, { kind: "item", uid })) return; // ENCHANT-1 (REQ-BFG-085, E4): asks first, before the part leaves the deck
   if (!storePlaced(ctx.run, uid)) return ctx.invalid(STAYS_ABOARD);
   ctx.touched();
-  sell(ctx, uid);
+  sell(ctx, uid, true);
 }
 
 /** shoptap (REQ-BFG-035): TO CARGO on a fitted core's or gear piece's panel: that piece goes to cargo (REMOVE CORE's and
@@ -345,6 +350,14 @@ export interface CarryTarget {
 export function carryTarget(L: BuildLayout, b: Run["build"], c: Carry, x: number, y: number): CarryTarget | null {
   const def = ITEMS[c.def];
   const ignore = c.src.from === "deck" ? c.uid : -1;
+  if (def.kind === "converter") { // GATES-1 (REQ-BFG-057): a gate goes only ON a belt tile; a finger's drop stands above the finger and snaps
+    const py = c.touch ? y - fingerLift(L, c.def, 0) : y; // to the nearest legal belt tile within 1 cell (split.ts snapSplit); a mouse's doesn't
+    const cell = dropCell(L, x, py, 1);
+    if (!cell) return null;
+    const at = (c.touch ? snapSplit(b, c.def, cell.x, cell.y, ignore) : null) ?? cell;
+    const chk = canPlaceItem(b, c.def, at.x, at.y, ignore);
+    return { ...at, rot: 0, ok: chk.ok, ...(chk.reason ? { reason: chk.reason } : {}), px: x, py };
+  }
   if (!shapedPiece(c.def)) {
     const cell = dropCell(L, x, y, def.size);
     if (!cell) return null;
@@ -471,7 +484,7 @@ export function drop(ctx: Ctx, c: Carry, x: number, y: number): boolean {
   } else if (src.from === "cargo") {
     const it = takeFromInventory(run, c.uid);
     if (!it) return false;
-    placeItem(b, { uid, def: c.def, x: cell.x, y: cell.y, ...starField(starsOf(it)), ...rotField(c.def, rot) }); // moving never fuses
+    placeItem(b, { uid, def: c.def, x: cell.x, y: cell.y, ...starField(starsOf(it)), ...rotField(c.def, rot), ...enchantField(it) }); // moving never fuses; ENCHANT-1: nor does it drop the word
   } else if (src.from === "deck") {
     // SHAPES-1 (S2): a shaped piece moves and turns at once (its new cells decide which of a factory's belts it keeps)
     const r = shaped ? moveItem(b, uid, cell.x, cell.y, rot) : moveItem(b, uid, cell.x, cell.y);

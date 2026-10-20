@@ -5,7 +5,7 @@
 // (validateUpload in player mode, as online.ts submitDusk asks it) and POST /v1/ghosts, in both switch states.
 // F5: the par player never plays a first run: with FIRST_RUN and PLAIN_RIGS on (every switch on) its decks are
 // PLAIN_RIGS-on-alone's.
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,18 +16,25 @@ import { isSnapshot } from "../src/game/ghostSnapshot";
 import { checkSnapshot, encodeSnapshot, type GhostSnapshot } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
 import { createGhostServer, type GhostServer } from "../server/app";
-import { FIRST_RUN_RUNES, setFirstRun, withFirstRun } from "../src/sim/firstRun";
-import { setPlainRigs, withPlainRigs } from "../src/sim/plainRigs";
-import { setHullScale } from "../src/sim/hullScale";
-import { setLadderFix } from "../src/sim/ladderFix";
-import { setNpcDay } from "../src/sim/npcDay";
+import { FIRST_RUN_RUNES, firstRunRules, setFirstRun, withFirstRun } from "../src/sim/firstRun";
+import { plainRigsRules, setPlainRigs, withPlainRigs } from "../src/sim/plainRigs";
+import { hullScaleRules, setHullScale } from "../src/sim/hullScale";
+import { ladderFixRules, setLadderFix } from "../src/sim/ladderFix";
+import { npcDayRules, setNpcDay } from "../src/sim/npcDay"; // BUMP-1F (F1/Q5): + the switches' getters, to put each back as the test found it
 import { firstRunRuneOffer, runeOffer } from "../src/sim/runes";
 import { playerRun } from "../src/sim/harness/player";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 
+// BUMP-1F (F1/Q5, the suite guard tests/setup/itemsGuard.ts; RULING-BUMP1F-R5 R5.2 (2)): PLAIN_RIGS ships on, so the afterEach's setPlainRigs(false) took the six plain rigs out of ITEMS
+// for good ("this test left ITEMS changed (122 keys became 116)"). A test that sets a switch puts it back as it found it: a beforeEach notes the two switches, the afterEach
+// restores them (the guard's own afterEach runs after this one). Was afterEach(() => { setFirstRun(false); setPlainRigs(false); })
+let found = { first: false, plain: false };
+beforeEach(() => {
+  found = { first: firstRunRules(), plain: plainRigsRules() };
+});
 afterEach(() => {
-  setFirstRun(false);
-  setPlainRigs(false);
+  setFirstRun(found.first);
+  setPlainRigs(found.plain);
 });
 
 const both = <T>(fn: () => T): T => withPlainRigs(() => withFirstRun(fn));
@@ -189,6 +196,7 @@ describe("F4: the client check and POST /v1/ghosts, the same fixtures, both swit
 describe("F5: bots, captains and stand-ins never play a first run", () => {
   it("every switch on plus PLAIN_RIGS: the par player's decks with FIRST_RUN on equal FIRST_RUN off's", () => {
     const trace = { onDecide: () => undefined }; // bypasses the par-run cache (a fresh run each call)
+    const was = { hull: hullScaleRules(), ladder: ladderFixRules(), npc: npcDayRules(), plain: plainRigsRules() }; // BUMP-1F (F1/Q5): the shipped switches are on; the finally puts each back as found (was false)
     setHullScale(true);
     setLadderFix(true);
     setNpcDay(true);
@@ -202,10 +210,12 @@ describe("F5: bots, captains and stand-ins never play a first run", () => {
         }
       }
     } finally {
-      setHullScale(false);
-      setLadderFix(false);
-      setNpcDay(false);
-      setPlainRigs(false);
+      // BUMP-1F (F1/Q5; RULING-BUMP1F-R5 R5.2 (2)): in the reverse order of turning them on, each as found (was setHullScale(false); setLadderFix(false); setNpcDay(false); setPlainRigs(false),
+      // which left LADDER_FIX off (ITEMS.quench QUENCH TANK, was KINDLING) and PLAIN_RIGS off (116 keys, was 122) in the shipped world)
+      setPlainRigs(was.plain);
+      setNpcDay(was.npc);
+      setLadderFix(was.ladder);
+      setHullScale(was.hull);
     }
   }, 300_000);
 });

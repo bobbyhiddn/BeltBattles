@@ -174,7 +174,8 @@ export function drawBadge(g: G, x: number, y: number, maxW: number, badge: ShopB
   drawText(g, label, x + w / 2, y + 1, fg, { font: "3", align: "center" });
 }
 
-function cardFrame(g: G, x: number, y: number, w: number, h: number, stripe: string, rarity: string, dim: boolean): void {
+// ENCHANT-1 (REQ-BFG-085): exported for enchantStrip.ts, which draws the ENCHANTER's word cards in a shop card's own frame
+export function cardFrame(g: G, x: number, y: number, w: number, h: number, stripe: string, rarity: string, dim: boolean): void {
   rect(g, x, y, w, h, C.ink);
   rect(g, x + 1, y + 1, w - 2, h - 2, dim ? C.night : C.slate0);
   rect(g, x + 1, y + 1, w - 2, 3, dim ? C.slate1 : stripe);
@@ -507,7 +508,7 @@ export function describe(def: ItemDef): string {
   // 0.6.2 BELTSIDE: kind "gate" reads "RIG" (ref/DESIGN-beltside.md §1: the code keeps the kind)
   // 0.6.2s (REQ-BFG-031 S10): a turret reads its class ("RARE HEAVY TURRET")
   const kind = def.kind === "gate" ? "RIG" : def.kind === "factory" ? "FACTORY" : def.kind === "mod" ? "TURRET GEAR" : def.kind === "core" ? "TURRET CORE"
-    : def.kind === "turret" ? `${(def.turret?.class ?? "").toUpperCase()} TURRET` : "SUPPLY";
+    : def.kind === "turret" ? `${(def.turret?.class ?? "").toUpperCase()} TURRET` : def.kind === "converter" ? "GATE" : "SUPPLY"; // GATES-1 (REQ-BFG-052): the word GATE (the one SHOPCARD-1 merge hunk)
   // SHAPES-1 (REQ-BFG-086.1, S8): a shaped piece's type line names its shape ("COMMON RIG · 2 CELLS", "RARE FACTORY ·
   // 2X3"); a 1-cell rig's and a 2x2 factory's stay as they are (faces.ts shapeWord: null)
   const sw = shapeWord(def.id);

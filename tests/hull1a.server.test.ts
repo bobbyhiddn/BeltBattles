@@ -17,6 +17,7 @@ import { finishWarlord, leaveCaravan, onToTheRoad, pickRoad, warlordDeck, warlor
 import { newRun, pendingRune, takeRune, type Run } from "../src/game/run";
 import { isSnapshot } from "../src/game/ghostSnapshot";
 import { checkSnapshot, type GhostSnapshot } from "../src/net/snapshot";
+import { withShrine } from "../src/game/shrine"; // BUMP-1F (ENCHANT on): the 10-event bag of the seed's refusal is read with the ASH SHRINE out
 import { heroGateProblem } from "../src/net/rulesGate";
 import { validateUpload } from "../src/net/validate";
 import { driveRuns } from "./uploadDriver";
@@ -72,11 +73,13 @@ describe("HULL-1a (h): the server with both switches on", () => {
       expect(d.roadLog).toEqual([{ day: 1, tier: "hard", outcome: "win", drop: expect.any(String) }]);
       return validateUpload(d.build, d.day, RULES_VERSION, { seed: d.runSeed, road: d.roadLog }).errors;
     };
+    // BUMP-1F (ENCHANT on, bb-0.13.0; RULING-BUMP1F-R3.1): was `verdict()` bare. With ENCHANT on the road-event bag holds the ASH SHRINE (an 11-event bag, ENCHANT-2 T3), so driver seed 9106's day 1 draws
+    // "event smuggler: BURN" now (was the dock's PLATING, which the regex below keeps): the refusal is the 10-event bag's, so it is read there (withShrine(.., false), synchronously; ENCHANT as shipped)
     setHullScale(false); // AZ-BUMP (the flip, HULL_SCALE): the first verdict is hull1-base's, HULL_SCALE off (it ships on)
     setNpcDay(true);
-    expect(verdict()).toEqual([]);
+    expect(withShrine(verdict, false)).toEqual([]);
     setHullScale(true);
-    expect(verdict()).toEqual([]);
+    expect(withShrine(verdict, false)).toEqual([]);
   });
 
   it("an over-budget hull is refused, the same with HULL_SCALE on or off (the ceiling is hullBonus in day-1 units)", () => {

@@ -255,7 +255,11 @@ describe("M1: absent fields encode exactly as before, and older codes decode exa
           // with the levels' (was the code as stored: '18 0/kiln64/...' vs '18 0 r:sharp_scrap/kiln64/...')
           const runeless = raw.runes?.length ? code.replace(/^(\S+ \S+(?: u[1-4][1-4])?) r:[^ /]+\//, "$1/") : code;
           if (raw.runes?.length) expect(runeless, `${code}: one runes word`).not.toBe(code);
-          if (!fifth && !join) expect(legacyEncode(raw)).toBe(raw.upgrades ? runeless.replace(/^(\S+ \S+) u[1-4][1-4]\//, "$1/") : runeless);
+          // BUMP-1F (ENCHANT on, bb-0.13.0; the regenerated pool, RULING-BUMP1F-R5 R5.2 (2)): the par player buys words now, so a stand-in code may carry ENCHANT-1's `~<code>[digits]`
+          // after an item's stars (`embertrough46r3~fi`, standinCode.ts), which the frozen encoder predates too: such a code is the frozen encoder's but that word, as with the levels'
+          // and the runes' head words above (was the code with the runes word out: '18 250/kiln64 embertrough46r3~fi barbed25r1 ...' vs the frozen encoder's '... embertrough46r3 barbed25r1 ...')
+          const wordless = runeless.replace(/~[a-z]{2}\d*/g, "");
+          if (!fifth && !join) expect(legacyEncode(raw)).toBe(raw.upgrades ? wordless.replace(/^(\S+ \S+) u[1-4][1-4]\//, "$1/") : wordless);
           if (fifth) turreted++;
           if (join) joined++;
           n++;

@@ -909,7 +909,8 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // the switch off (which reads 2309 / 62 as before): the seven scaling rigs' 183 desk panels join (120 rig, 42 cargo, 21 offer), each
     // with its hint and each showing it; "turret pressure ★2" and "turret pressure ★3" leave the missing list (PRESSURE BREECH's MAX 5 is
     // gone, so its turret panel is a line shorter and the optional hint fits beside the kept blocks); no other panel moves
-    expect([withHint, missing.length]).toEqual([2492, 60]); // BUMP-1E: was [2309, 62]
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): the three converters' desk panels (each shows its hint) join: 2492 -> 2519 with a hint, the 60 missing as before
+    expect([withHint, missing.length]).toEqual([2519, 60]); // BUMP-1F: was [2492, 60]; BUMP-1E: was [2309, 62]
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -1011,7 +1012,8 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // with the switch off (which reads 1229 as before): 109 of the seven scaling rigs' 183 panels keep the hint on the 69 px band, and 4
     // panels of the reworked KINDLING (QUENCH TANK's id: "rig quench ★1 2hit spare0/1" and "rig quench ★1 idle spare0/1": its sentence
     // is shorter than the old one) now have room for it; no panel gives the hint way
-    expect(hints).toBe(1342); // BUMP-1E: was 1229
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): the three converters' desk panels join the sweep (PANELS is built at collection with GATES on): 1342 -> 1367 (+25 of the +27 panels keep the hint on the band); not traced panel by panel
+    expect(hints).toBe(1367); // BUMP-1F: was 1342; BUMP-1E: was 1229
   });
 });
 

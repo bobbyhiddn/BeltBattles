@@ -26,9 +26,29 @@ import { itemName } from "./event/cards";
 import { drawBadge } from "./build/shop";
 import { DROP_STARS, npcDayRules } from "../sim/npcDay"; // NPC-1 (REQ-BFG-077, REQ-BFG-078); HULL-1b: DROP_STARS
 import { drawDropCard } from "./fork/drops"; // NPC-1: the drop card
+import { dropWordOf } from "../sim/npcWords"; // ENCHANT-2 (REQ-BFG-085, T2): the drop card says the word the drop keeps
 
 /** The line over a Hard win's part pick. */
 export const PICK_LINE_TEXT = "PICK 1 PART FROM THEIR DECK:";
+
+/**
+ * ENCHANT-2W (REQ-BFG-085, REQ-BFG-089; W4, E2-03's doubt): THE VICTORY CARD'S GOLD LINE SAYS WHAT IS INSIDE IT. `WarlordOutcome.gold` is the win's gold PLUS the bounty (road.ts finishWarlord:
+ * gold = reward.gold + bountyPaid; roadTypes.ts: "gold paid (reward + bounty)"), so the card's `+13 GOLD (BOUNTY +10)` was true but five of six readers of the strict read's round 2 left open
+ * whether the bounty is inside the 13. With a bounty paid the line now names its two parts, in the fork card's own words (`WIN +3 GOLD ... +10 BOUNTY`, fork/cards.ts rewardText): `+13 GOLD: 3 WIN,
+ * 10 BOUNTY`. Without one it is `+3 GOLD`, as before. (A loss or a draw draws no gold line at all: `REWARD FORFEIT ...`; a staked bounty is lost with it, as the SMUGGLER's card says: LOST OR UNFOUGHT: GONE.)
+ * Base text: the line reads the same with ENCHANT off.
+ */
+export function goldLineText(gold: number, bountyPaid: number): string {
+  return bountyPaid > 0 ? `+${gold} GOLD: ${gold - bountyPaid} WIN, ${bountyPaid} BOUNTY` : `+${gold} GOLD`;
+}
+
+/** The gold line's two pieces in `room` px: one line in the card's big 5x7 face where it fits (`+13 GOLD: 3 WIN, 10 BOUNTY`, 157 px at its widest realistic amounts), else the total in 5x7 and its
+ *  parts after it in the 3x5 face (the SABOTAGED tag shares the row: a sabotaged Hard win with a bounty has 129 px on a phone). The text is whole either way, never cut. */
+export function goldLineParts(gold: number, bountyPaid: number, room: number): { big: string; small: string } {
+  const full = goldLineText(gold, bountyPaid);
+  if (bountyPaid <= 0 || textWidth(full, "5") + 1 <= room) return { big: full, small: "" }; // + the outline's pixel
+  return { big: `+${gold} GOLD`, small: full.slice(`+${gold} GOLD`.length) };
+}
 /** SCOUT-1b (REQ-BFG-082): with VIEW BATTLEFIELD on the card, the PICK line's place over the picks (its 3x5 text, then
  *  4 px), and how far VIEW BATTLEFIELD's row moves up to sit above it. */
 export const PICK_LINE = 9;
@@ -92,13 +112,15 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
     drawText(g, `REWARD FORFEIT · WARLORDS NEVER COST A ${lifeWord(run)}`, W / 2, ry + 2, C.bone, { font: "3", align: "center" });
     ry += 12;
   } else {
-    const bounty = r.bountyPaid > 0 ? ` (BOUNTY +${r.bountyPaid})` : "";
-    drawText(g, `+${r.gold} GOLD${bounty}`, x + 10, ry, C.yellow, { outline: C.ink });
+    // ENCHANT-2W (W4): `+13 GOLD: 3 WIN, 10 BOUNTY` (was `+13 GOLD (BOUNTY +10)`); the room is the card's inside less the SABOTAGED tag's (a 3x5 word, 6 px clear)
+    const parts = goldLineParts(r.gold, r.bountyPaid, cw - 20 - (w.sabotaged ? textWidth("SABOTAGED", "3") + 6 : 0));
+    const gw = drawText(g, parts.big, x + 10, ry, C.yellow, { outline: C.ink });
+    if (parts.small) drawText(g, parts.small, x + 10 + gw + 1, ry + 2, C.yellow, { font: "3" });
     if (w.sabotaged) drawText(g, "SABOTAGED", x + cw - 10, ry + 1, C.amber, { font: "3", align: "right" });
     ry += 12;
     if (npc) {
       // NPC-1 (REQ-BFG-078): the drop as a part card going to cargo (the Matriarch's: her legendary part), or NO DROP
-      drawDropCard(g, r.took, w.reward.legendary, x + 10, ry, cw - 20, w.reward.legendary ? 1 : DROP_STARS[w.tier]); // HULL-1b: Hard's ★2
+      drawDropCard(g, r.took, w.reward.legendary, x + 10, ry, cw - 20, w.reward.legendary ? 1 : DROP_STARS[w.tier], r.took ? dropWordOf(w.build, r.took)?.ench : undefined); // HULL-1b: Hard's ★2; ENCHANT-2 (T2): + its word
       ry += 24;
     } else if (w.reward.legendary && r.took) {
       tag(g, "LEGENDARY", x + 10, ry, C.plum4, C.white);

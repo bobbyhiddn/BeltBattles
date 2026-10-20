@@ -10,7 +10,9 @@ import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: and PLAIN_RIGS
 import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: and the 10-day run
 import { SCALE_IDS, SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: and the scaling rules, outermost (the seven ids are the last keys in ITEMS)
 import { ENDLESS, endlessRules, withEndless } from "../src/sim/endless"; // BUMP-1E: and ENDLESS (newRun's `endless: true` mark; 0.9.7's run has none)
-import { EVENT_IDS } from "../src/game/eventDefs";
+import { GATES_IDS, gatesRules, withGates } from "../src/sim/gates"; // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 lines 74-75): and GATES (the three converters are the last ids of ITEMS, after the seven scaling ids)
+import { enchantRules, withEnchant } from "../src/sim/enchant"; // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 74): and ENCHANT (the ENCHANTER's wagon rides the caravans; 0.9.7's day has none)
+import { eventIds } from "../src/game/eventDefs"; // BUMP-1F (RULING-BUMP1F-R3.1, TRIAGE-R34 lines 76-77): the rules world's event list (was EVENT_IDS, the base ten)
 import { choicesFor, eventFor, makeEvent, pickChoice } from "../src/game/events";
 import { finishDay, ghostOf } from "../src/game/day";
 import {
@@ -105,7 +107,11 @@ describe("NPC-1 with the switch off: 0.9.7's day", () => {
   // seven in ITEMS for the rest of the worker (the ITEMS key-order hazard: every seeded draw after it moves). Outermost, the world is the one the pins meant.
   // BUMP-1E: and ENDLESS ships on too (newRun marks the run `endless: true`: 15 characters in the script's final run, 6292 -> 6307), 0.9.7's day has none of it:
   // withEndless(fn, false) inside the scaling switch (it touches no catalogue, so its place in the nest is free)
-  it("a scripted three-day run reads exactly as at npc1-base (digests from tests/npc1.script.ts run at 236ac6f; the stamped rules string put back)", () => withScaleRigs(() => withEndless(() => withNpcDay(() => withShapes(() => withShapes2(() => withPlainRigs(() => withLongRun(() => {
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 74): GATES and ENCHANT ship on (bb-0.13.0), and 0.9.7's day has neither: GATES adds its three converters to the catalogue (the caravan's offers draw from it: with it on the first digest read
+  // e8d0acdc:6340) and ENCHANT puts the ENCHANTER's wagon on the caravans, so withGates(fn, false) is now the OUTERMOST call of the nest (its three are the last ids of ITEMS, after the seven scaling ids: itemsKeep's rank puts them
+  // back in order, and outermost is still the way the nest has always kept the catalogue) and withEnchant(fn, false) sits beside withEndless (it touches no catalogue). With both off the first three digests hold exactly again
+  // (the check that the world is restored), and the two "rules string alone" digests move with the label (bb-0.13.0 is as long as bb-0.12.0, so the lengths stay 6295 and 6290)
+  it("a scripted three-day run reads exactly as at npc1-base (digests from tests/npc1.script.ts run at 236ac6f; the stamped rules string put back)", () => withGates(() => withScaleRigs(() => withEndless(() => withEnchant(() => withNpcDay(() => withShapes(() => withShapes2(() => withPlainRigs(() => withLongRun(() => {
     withHearts(() => withOpenRunes(() => {
       expect(digest097(9701)).toBe("5865119d:6292");
       expect(digest097(4242)).toBe("6ab6cc53:6243");
@@ -114,7 +120,9 @@ describe("NPC-1 with the switch off: 0.9.7's day", () => {
       // as long as bb-0.10.0, so the length stays 6295; was "16c756d4:6295"): the three digests above hold exactly with it put back
       // BUMP-1E: the bump again, the rules string alone (bb-0.12.0 is as long as bb-0.11.0, 6295 still; was "70587d51:6295"): the three digests above
       // hold exactly with the string put back, in the world with the scaling rules and ENDLESS off, which is what proves it is the string alone
-      expect(scriptDigest(9701)).toBe("c8f6e09a:6295");
+      // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 74): the bump again, the rules string alone (bb-0.13.0 is as long as bb-0.12.0, 6295 still; was "c8f6e09a:6295"): the three digests above hold exactly with it put back,
+      // in the world with GATES, ENCHANT, the scaling rules and ENDLESS off
+      expect(scriptDigest(9701)).toBe("4eb7083f:6295");
     }, false), false);
     expect(digest097(9701)).toBe("d5cc6dfb:6287"); // HULL-ON (the flip, HEARTS): 5865119d:6292 -> d5cc6dfb:6287
     expect(digest097(4242)).toBe("6d0b1d65:6236"); // HULL-ON (the flip, HEARTS and OPEN_RUNES): 6ab6cc53:6243 -> 6d0b1d65:6236
@@ -122,8 +130,10 @@ describe("NPC-1 with the switch off: 0.9.7's day", () => {
     // HULL-ON (the flip, HEARTS): 16c756d4:6295 -> 4528ba60:6290. BUMP-1D: the rules string alone again (the same length, 6290): 70587d51:6295
     // under bb-0.11.0 with HEARTS off (above), 921bd9a5:6290 with it on; was "4528ba60:6290"
     // BUMP-1E: the rules string alone again (bb-0.12.0, the same length, 6290; was "921bd9a5:6290"): the three digests above hold exactly with it put back
-    expect(scriptDigest(9701)).toBe("53719062:6290");
-  }, false), false), false), false), false), false), false));
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 74): the rules string alone again (bb-0.13.0, the same length, 6290; was "53719062:6290"): the three digests above hold exactly with it put back,
+    // in the world with GATES, ENCHANT, the scaling rules and ENDLESS off (the nest above)
+    expect(scriptDigest(9701)).toBe("38eb8767:6290");
+  }, false), false), false), false), false), false), false), false), false));
 
   // BUMP-1E: the scaling rules and ENDLESS ship on (they were off at bb-0.11.0); the test above reads 0.9.7's day with them off and puts them back
   it("the scaling rules and ENDLESS ship on, and the 0.9.7 digests' nest puts them back (both switches are on again after it)", () => {
@@ -132,7 +142,12 @@ describe("NPC-1 with the switch off: 0.9.7's day", () => {
     expect(ENDLESS).toBe(true); // BUMP-1E: was false
     expect(endlessRules()).toBe(true);
     expect(SCALE_IDS.every((id) => id in ITEMS)).toBe(true); // the seven are in the catalogue as shipped, and last in it (the ITEMS key-order hazard)
-    expect(Object.keys(ITEMS).slice(-SCALE_IDS.length)).toEqual([...SCALE_IDS]);
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 75): was expect(Object.keys(ITEMS).slice(-SCALE_IDS.length)).toEqual([...SCALE_IDS]); GATES ships on and its three ids (fuser, scattermill, smelter) are the LAST keys of ITEMS,
+    // ranked after the seven (itemsKeep ITEM_RANK: scale 4, gates 5; PACKET-BUMP-0130 section 5), so the seven now end just before them, and the three end the catalogue
+    expect(Object.keys(ITEMS).slice(-(SCALE_IDS.length + GATES_IDS.length), -GATES_IDS.length)).toEqual([...SCALE_IDS]);
+    expect(Object.keys(ITEMS).slice(-GATES_IDS.length)).toEqual([...GATES_IDS]);
+    expect(gatesRules()).toBe(true); // BUMP-1F: and the nest above puts GATES and ENCHANT back too (both ship on)
+    expect(enchantRules()).toBe(true);
   });
 
   it("the fork keeps its event stop, Hard its pick of 2, REFIT its sales, and the snapshot has no road", () => withNpcDay(() => {
@@ -296,7 +311,11 @@ describe("NPC-1 the day with the switch on (REQ-BFG-077)", () => {
         const log: unknown[] = [];
         for (let d = 1; d <= RUN_DAYS && !run.over; d++) run = npcDay(run, (["easy", "medium", "hard"] as const)[d % 3], 0, 0, true, log);
         expect(run.over).toBe(over);
-        expect(new Set(run.events.map((e) => e.id))).toEqual(new Set(EVENT_IDS));
+        // BUMP-1F (RULING-BUMP1F-R3.1, RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 lines 76-77): was expect(new Set(run.events.map((e) => e.id))).toEqual(new Set(EVENT_IDS)) (the base ten). ENCHANT ships on, so the ASH SHRINE is the
+        // 11th event of the bag (ENCHANT-2, PACKET-BUMP-0130 section 1): ten days meet TEN DIFFERENT events of the eleven (the base ten, or nine of them and the shrine; TRIAGE-R34 read the shrine in for SAPPERS here), every one of them in the shipped bag
+        const met = run.events.map((e) => e.id);
+        expect(new Set(met).size).toBe(10);
+        expect(met.every((id) => eventIds().includes(id))).toBe(true);
         expect(run.events.map((e) => e.day)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
         const last = log.filter((v) => v && typeof v === "object" && "road" in (v as object)).pop() as { road: unknown[]; day: number };
         expect(last.day).toBe(10);

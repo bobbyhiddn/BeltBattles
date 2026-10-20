@@ -177,7 +177,12 @@ describe("RUNES-2a the caravan stand-ins inherit the par player's switch", () =>
   /** BUMP-1E: the worth of the parts a candidate's run holds in cargo at the dusk of day 6 (player.ts PlayerDay: boughtCost(build) +
    *  rerollGold + gold + soldLoss + cargo = budget; caravan.ts: "cargoGold stays the gold's worth in cargo"). The candidate's own par
    *  run, as caravanDeck asks for it (the same cache entry). */
-  const cargoWorth = (c: CaravanDeck, botRunes: boolean): number => playerRun("weaver", 10, c.meta.seed, { ...CARAVAN_POLICY[c.meta.policy], maxStars: 2, botRunes })[5].cargo ?? 0;
+  // BUMP-1F (ENCHANT on by default, RULING-BUMP1F-R5 R5.2 (2); ENCHANT-1 E6.4): + the gold the run spent at the ENCHANTER by that dusk (PlayerDay.wordGold): caravan.ts books cargoGold as the RESIDUAL (spent + drops - value - rerolls - sale losses),
+  // so the ENCHANTER's gold lands in it beside the cargo's worth; was the cargo alone (candidate 0, botRunes on: 20 of 12, the 8 g of its words)
+  const cargoWorth = (c: CaravanDeck, botRunes: boolean): number => {
+    const d = playerRun("weaver", 10, c.meta.seed, { ...CARAVAN_POLICY[c.meta.policy], maxStars: 2, botRunes })[5];
+    return (d.cargo ?? 0) + (d.wordGold ?? 0);
+  };
 
   it("a caravan candidate holds a rune a dawn with botRunes on, none off, and its gold adds up either way", () => {
     expect(SCALE_RIGS).toBe(true); // BUMP-1E: the scaling rules ship on, so these candidates are the bb-0.12.0 world's; the 0.9.11 world's are read under the off switch below

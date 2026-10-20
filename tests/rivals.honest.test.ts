@@ -12,6 +12,7 @@ import { boughtCost } from "../src/sim/harness/standins"; // FLIP-X2: a captain 
 import { runeGrants } from "../src/sim/runes"; // FLIP-X2: the runes' grants and dawn gold
 import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): the plan identities with NPC_DAY off
 import { withHullScale } from "../src/sim/hullScale"; // AZ-BUMP (the flip): 0.9.7's gold table with HULL_SCALE off
+import { withNpcWords } from "../src/sim/npcWords"; // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2): the plan identities read the decks without the rivals' own words
 
 // Rulings R1 and R2 (Part 4): every dusk opponent is an honest deck a player could own. The async
 // validator (src/net, not in this series) is mirrored here: whole +250 plating (NUM-1: x10, was +25), whole +4 belt crates,
@@ -88,7 +89,10 @@ describe("stand-in decks are honest (R1, R2)", () => {
         // AZ-BUMP (the flip, NPC_DAY): the plan identities below (the hull and the value are the plan's; one plan, two decks)
         // mean the plan without REFIT-AZ's road additions (with the NPC day on, the dusk deck holds its dusk ones and the plan
         // loadouts their road deck's), so they read the decks with NPC_DAY off; refitaz.road checks the on decks
-        withNpcDay(() => {
+        // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2): + the rivals' own words off (withNpcWords false; was no wrapper): from day 5 the stand-in and the road deck
+        // carry the captain's words (npcWords.ts captainWordsOn, ENCHANT on) and the plan loadout `l` carries none, so the plan identities compare the decks without the word
+        // (the rival's words on the same day are enchant2.npcwords's: its test proves the stand-in and the warlord hold the same ones)
+        withNpcDay(() => withNpcWords(() => {
           const b = standInBuild(id, day), w = rivalBuild(id, day), l = rivalLoadout(id, day, "ordinary");
           const g = runeGrants(b.runes, day), hull = b.hullBonus - g.hull, belt = b.beltCap - g.belt;
           expect(hull, why).toBe(PLATE * (l.plating + rampPlates(day))); // NUM-1: 250 x (was 25 x)
@@ -98,7 +102,7 @@ describe("stand-in decks are honest (R1, R2)", () => {
           const { runes: _runes, ...plain } = b;
           expect({ ...plain, hullBonus: 0, beltCap: belt }, why).toEqual({ ...l.build, hullBonus: 0 });
           if (luckOf(id) === "ordinary") expect({ ...b, hullBonus: 0 }, why).toEqual({ ...w, hullBonus: 0 });
-        }, false);
+        }, false), false);
         // 0.8.9 (CATCHUP-089 fallback 2): the road deck may carry free PvE plates (good luck only, so a Hard captain's);
         // the stand-in's ordinary plan never owns one, and its hull above is the paid plating alone
         expect(l.pvePlates, why).toBe(0);
