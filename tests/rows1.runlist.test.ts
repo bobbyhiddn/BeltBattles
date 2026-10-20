@@ -162,7 +162,7 @@ describe("ROWS-1 W1: a list that fits is the same as with no limit; one that doe
     expect(paged).toBeGreaterThan(900);
     expect(wrappedFit).toBeGreaterThan(30);
     expect(wrappedPaged).toBeGreaterThan(300);
-  });
+  }, 120_000); // its own limit: 4 s on a quiet host, 8.5 s in a 3-worker batch at load 24, 15 s at load 28, against vitest's 30 s default (standing ruling 1: a time-only red)
 });
 
 describe("ROWS-1 W1: from which count the list ran off the screen, by view (held on day n, the day it holds n runes; 26 = day 25 and LAST CHANCE's)", () => {
@@ -296,5 +296,5 @@ describe("ROWS-1 W1: a list that fits is the same pixels as with no limit, on ev
     }
     expect(fit).toBeGreaterThan(60);
     expect(paged).toBeGreaterThan(10);
-  });
+  }, 60_000); // its own limit (1 to 4 s, 2 s in the batch)
 });
