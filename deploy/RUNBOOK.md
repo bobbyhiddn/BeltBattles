@@ -4095,9 +4095,16 @@ smoke offline and online 4 of 4 each (0 console errors, 0 NOT HONEST), touch nop
 summary rows), card3check 13 of 13, stylecheck 180 of 180, explaincheck 35 of 35, surge 4 of 4, asynccheck 62 of 62, rcruns off 32 of 32
 and on 44 of 44, the mirror, runeshots 103, 311 shots (126 differ from 0.9.12's, every one in a class the release names), motion taps
 123 of 123, the stills (c1: one accepted tap-target overlap of POWDER KEG's badge on the phone; p1: 0), the field and scout stills, the
-LAST CHANCE shots and the rollback probe (item (b) above). The suite (cut by its shard timeouts on a loaded host; the file-by-file
-re-runs are in the report), touch mixed, the LOOKS and the mutants' run are recorded in the report, not here: they had not finished
-when this paragraph was written.
+LAST CHANCE shots and the rollback probe (item (b) above). **The suite at T is ALL GREEN: 472 test files, 5,684 tests = 5,675 passed + 9 skipped** (the hull lane's 469 files match file by
+file, 5,646 passed + 9 skipped; runes.parity, harness.v2 and heroes.playable, which its suite ran apart, add 29 tests): the four
+nice-19 shards were cut by their timeouts on a loaded host, and the 11 files that had failed on time alone passed in file-by-file
+re-runs at nice 10 (the last, standInPool.gen, alone: 12 of 12, its 600 s par test by half a second); **touch mixed 2,215 of 2,215
+distinct checks, 0 FAIL** (0.9.12: 2,107; +108 are the ENDLESS summary rows); **the LOOKS** (82 shots: the RUN WON offer, the
+endless HUD, ENDLESS OVER with BEST, YOUR RUNES, HOW TO PLAY at four sizes, the new rigs' shop and panels, KINDLING, a POISON
+dusk, the save guard's aside line and SOOTJAW's day 5) show no clipped or overlapping text and no word on a shop card, except one
+row of YOUR RUNES' list on a phone (FORGE WARD's second line), which 0.9.12 cuts the same way; **the mutants: 37 of 37 current
+mutants caught (38 in the list: CM2b survives by design, its anchor `bb-0.9` being older than every label the tests upload under,
+and CM2c and CM2d re-anchor it; the exact rules check is pinned by CM2, CM2c and CM2d)**. The report has every number and log.
 
 ## Troubleshooting
 
