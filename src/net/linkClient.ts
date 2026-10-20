@@ -125,11 +125,9 @@ export async function redeemLinkCode(baseUrl: string, id: Identity, typed: strin
   return a.ok ? adopt(a.json, id, deps) : a;
 }
 
-/** DELETE MY ONLINE DATA: the server forgets the player; this device drops its link record, the mirror's copies and its key (the
- *  next online use makes a new player). Local progress stays. A repeat after a half-done cleanup is safe: the server's answer is 200. */
-export async function deleteOnlineData(baseUrl: string, id: Identity, deps: LinkDeps = {}): Promise<DeleteResult> {
-  const a = await call(baseUrl, "DELETE", "/v1/player", DELETE_PREFIX, id, {}, deps);
-  if (!a.ok) return a;
+/** The device's half of a deletion: the link record, the mirror's copies and the key itself are dropped (the next online use makes a
+ *  new player); local progress stays. Safe to repeat. { ok: false } when the mirror or the key store would not let go. */
+async function dropLocalIdentity(deps: LinkDeps): Promise<DeleteResult> {
   const store = deps.store === undefined ? browserLinkStorage() : deps.store;
   const mirror = deps.mirror === undefined ? capacitorMirror() : deps.mirror;
   clearLink(store);
@@ -145,6 +143,24 @@ export async function deleteOnlineData(baseUrl: string, id: Identity, deps: Link
     return { ok: false, error: "your online data was deleted, but this device could not forget its key" };
   }
   return { ok: true };
+}
+
+/** DELETE MY ONLINE DATA: the server forgets the player; this device drops its link record, the mirror's copies and its key (the
+ *  next online use makes a new player). Local progress stays. A repeat after a half-done cleanup is safe: the server's answer is 200. */
+export async function deleteOnlineData(baseUrl: string, id: Identity, deps: LinkDeps = {}): Promise<DeleteResult> {
+  const a = await call(baseUrl, "DELETE", "/v1/player", DELETE_PREFIX, id, {}, deps);
+  return a.ok ? dropLocalIdentity(deps) : a;
+}
+
+/** The server answered 410 to this device's key: its player was deleted (from another device). The key is dead, so this device
+ *  drops it the way the device that asked does: the next online use makes a new player, and local progress stays. ghostClient.ts
+ *  calls it on a 410 to an upload. Never throws. */
+export async function forgetDeletedPlayer(deps: LinkDeps = {}): Promise<DeleteResult> {
+  try {
+    return await dropLocalIdentity(deps);
+  } catch (e) {
+    return { ok: false, error: errText(e) };
+  }
 }
 
 /** A Steam web-API ticket (hex, from ISteamUser::GetAuthTicketForWebApi made for `steamIdentity`) links the Steam account to this

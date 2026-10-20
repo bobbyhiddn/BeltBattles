@@ -657,6 +657,51 @@ the last CUSTOMIZE pick, only while online with an identity, never at boot, one 
 server answers a new client's PUT with a 404 (nothing changes on screen); an old client never PUTs. **Deploy the server
 first or together with the client, never the client alone** (0.9.11 is a rules release, so they ship together anyway).
 
+## One player on every device (IDENT-1, REQ-BFG-122)
+
+Not a rules change: no `RULES_VERSION`, sim, deck-validation or ghost-format line moves. A feeder that rides a client+server release.
+
+**The model.** A key's own id is still `base64url(SHA-256(raw public key))`. One canonical player P (always its first key's own id)
+can have several keys linked to it, and later a Steam account. A key uploads under its own id (every 0.9.13 client, with no extra
+store read) or under the player it is linked to; anything else is a 403, as before. A key links to at most one player. The pool, the
+match query, `ghost-admin` and the names tags see only ids of the same kind they always did.
+
+**Records** (same backing store as the profiles: `<dataDir>/identity/…` locally, Tigris objects outside `ghosts/` and `profiles/`):
+`links/keys/<keyId>.json` `{player,at}`; `players/<P>.json` `{keys[],steam[],at,code?}`; `linkcodes/<sha256(code)>.json`
+`{player,expiresAt}` (codes are stored hashed); `links/steam/<steamId>.json` `{player,at}`; `tombstones/<P>.json` `{at,ids[]}`.
+`server/linkStore.ts` is the key/value interface with its three implementations; `server/links.ts` holds the rules and the caches.
+
+**Routes** (each signed by a device key in its OWN domain, over the exact body bytes; the body is canonical compact JSON with the
+client's clock `at`, refused when more than 10 minutes off the server's, 422): `POST /v1/link/code` `{at}` -> `{code,expiresAt}`;
+`POST /v1/link/redeem` `{at,code}` -> `{player,profile}`; `GET /v1/profile?at=<ms>` (the signed text is the query) ->
+`{player,profile}`; `DELETE /v1/player` `{at}` -> `{deleted:true}`; `POST /v1/link/steam` `{at,ticket,identity,appid}` -> `{player,
+profile}` (501 while `BB_STEAM_WEB_API_KEY` and `BB_STEAM_APP_IDS` are not both set). Domains: `bb-link-code-1\n`,
+`bb-link-redeem-1\n`, `bb-profile-get-1\n`, `bb-delete-1\n`, `bb-link-steam-1\n`. The full replies and refusals are the header of
+`server/linkRoutes.ts`.
+
+**Link codes.** 8 symbols of `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (no 0 O 1 I L), shown `XXXX-XXXX` (about 40 bits), live 10 minutes,
+single use, one live code per player (a new one replaces it). A wrong, expired or used code gets one refusal that never says which
+(403); wrong codes are limited to 5 per client address in 10 minutes (429). A redeeming key whose player has other keys or a Steam
+account, or that is linked elsewhere, gets 409: nothing is re-pointed. A lone key's profile is merged into the player's
+(`mergeWire`) and removed; its old ghosts stay as they are.
+
+**The client.** `beltbattles.link.v1` (written only when linked) holds `{player,key,at,readAt}`. `Identity.playerId` is the player
+once linked, as of the load or the last `refresh()`; the title calls `refresh()` when a NEW RUN starts, so a link takes effect at the
+next new run. The match request and the snapshots then carry P; the server also takes the key's own id from that key and skips the
+ghosts of every key linked to P, so a player never meets their own ghost from another device. A linked device reads the player's
+profile after the link and at startup (at most once an hour, `src/net/profileSync.ts`) and merges it with the wire's own rules
+(counters the max, sets the union, the picks the newer); a newer build's profile is never overwritten by an older one.
+
+**The native mirror.** On the phone builds (Capacitor's Preferences plugin: UserDefaults / SharedPreferences, not the Keychain) a NEW key
+is made extractable once, its private JWK goes to the mirror (`beltbattles.identity.jwk.v1`) and IndexedDB keeps a non-extractable
+re-import; an empty IndexedDB plus a mirrored JWK restores the same key, so a purged WebView keeps its playerId and, through the
+mirrored link record, its player. On the web nothing changes.
+
+**Deletion.** `DELETE /v1/player` removes the player's profile, every link to it (keys and Steam) and its live code, and writes the
+tombstone. From then on none of its ghosts is served (an in-memory set, read on the first request and at start, refreshed every 60 s)
+and its ids answer 410. `ghost-admin purge-tombstoned [--apply]` removes the ghosts themselves in every rules version (a dry run by
+default). The device drops its key, its mirror and its link record; local progress stays.
+
 ## 0.8.0: rules bb-0.8.0 and the four-hero seed pool
 
 0.8.0 changes battles: FOUNDRY and BASTION become playable, fifteen wave-3 parts join the one shared pool, and the

@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { loadIdentity, type Identity, type KeyStore } from "../src/net/identity";
 import { memoryMirror } from "../src/net/identityMirror";
 import { submitGhost } from "../src/net/ghostClient";
-import { deleteOnlineData, linkSteam, redeemLinkCode, requestLinkCode } from "../src/net/linkClient";
+import { deleteOnlineData, forgetDeletedPlayer, linkSteam, redeemLinkCode, requestLinkCode } from "../src/net/linkClient";
 import { LINK_KEY, readLink, writeLink } from "../src/net/linkState";
 import { getProfile, putProfile } from "../src/net/profileClient";
 import { SYNC_INTERVAL_MS, mergeRemoteProfile, startupProfileSync } from "../src/net/profileSync";
@@ -243,13 +243,40 @@ describe("DELETE MY ONLINE DATA", () => {
     // the server: tombstoned
     expect(fakeKeys(rig, "tombstones/")).toEqual([`tombstones/${id.keyId}.json`]);
     expect(fakeKeys(rig, "profiles/")).toEqual([]);
-    const gone = await submitGhost(rig.base, uploadFor(id), id, 3000);
+    let told = 0;
+    const gone = await submitGhost(rig.base, uploadFor(id), id, 3000, () => { told++; });
     expect(gone).toMatchObject({ ok: false, status: 410 });
+    expect(told).toBe(1); // an upload under a deleted player's id is told it is gone
     // the next online use makes a new player
     const fresh = await loadIdentity(keys, undefined, { mirror: null, links: store });
     expect(fresh!.keyId).not.toBe(id.keyId);
     // a repeat after a half-done cleanup is safe: the server answers 200 again
     expect(await deleteOnlineData(rig.base, id, { now: () => rig.clock.now, store, mirror, keyStore: keys })).toEqual({ ok: true });
+  });
+
+  it("a 410 to an upload (the player was deleted from another device) makes this device drop its dead key, link and mirror", async () => {
+    const rig = await openRig("jsonl");
+    const mirror = memoryMirror();
+    const store = mem();
+    const keys = await testKeyStore(1);
+    const one = await device(0);
+    const two = (await loadIdentity(keys, undefined, { mirror, links: store }))!;
+    const code = await requestLinkCode(rig.base, one.id, { now: () => rig.clock.now });
+    if (!code.ok) throw new Error("no code");
+    expect((await redeemLinkCode(rig.base, two, code.code, { now: () => rig.clock.now, store, mirror })).ok).toBe(true);
+    await mirror.set("beltbattles.identity.jwk.v1", "{}");
+    two.refresh?.();
+    played(store, { runs: 4 });
+    expect(await deleteOnlineData(rig.base, one.id, { now: () => rig.clock.now, store: one.store, mirror: null, keyStore: one.keys })).toEqual({ ok: true });
+    // device two does not know yet: its next upload under the player is a 410, and its default reaction is to forget the key
+    let dropped: Promise<unknown> | null = null;
+    const r = await submitGhost(rig.base, uploadFor(two, two.playerId), two, 3000, () => { dropped = forgetDeletedPlayer({ store, mirror, keyStore: keys }); });
+    expect(r).toMatchObject({ ok: false, status: 410 });
+    expect(await dropped).toEqual({ ok: true });
+    expect(readLink(store)).toBeNull();
+    expect(mirror.values.size).toBe(0);
+    expect(await keys.get()).toBeNull();
+    expect(loadProfile(store).counters.runs).toBe(4); // progress stays
   });
 
   it("a refusal or no answer leaves the device exactly as it was", async () => {

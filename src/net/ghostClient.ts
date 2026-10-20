@@ -12,6 +12,7 @@ import { checkSnapshot, encodeSnapshot, type GhostSnapshot, type PoolEntry } fro
 import { validateUpload } from "./validate";
 import { endlessRecordProblem, isReachable } from "./records"; // SCALE-2d (REQ-BFG-098, D5): a served ghost's record, with SCALE_RIGS on; BUMP-1E (R3.3 a): an endless ghost's record, as the server judges it
 import { scaleRules } from "../sim/scale"; // SCALE-2d
+import { forgetDeletedPlayer } from "./linkClient"; // IDENT-1 (REQ-BFG-122): a 410 means the player was deleted from another device
 
 export type GhostRequest = FallbackRequest;
 
@@ -124,6 +125,8 @@ export async function fetchGhost(
  */
 export async function submitGhost(
   baseUrl: string, snapshot: GhostSnapshot, identity: Identity, timeoutMs = 4000,
+  /** IDENT-1: what to do on a 410 (the server deleted this player, from another device): by default the device drops its dead key. */
+  onGone: () => void = () => void forgetDeletedPlayer(),
 ): Promise<SubmitResult> {
   try {
     // IDENT-1: this device's player id is its canonical player's once its key is linked (identity.playerId); the key's own id
@@ -143,6 +146,7 @@ export async function submitGhost(
       /* non-JSON error page */
     }
     if ((status === 200 || status === 201) && typeof parsed.id === "string") return { ok: true, id: parsed.id };
+    if (status === 410) onGone();
     return { ok: false, status, error: typeof parsed.error === "string" ? parsed.error : `HTTP ${status}` };
   } catch (e) {
     return { ok: false, error: errText(e) };
