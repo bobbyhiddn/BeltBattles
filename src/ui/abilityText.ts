@@ -1624,7 +1624,7 @@ function hitRow(h: TimelineHit, belt: BeltKind, own?: GateEffect): string {
   // ROWS-1 (REQ-BFG-098, REQ-BFG-100; F2, cap's design call): a scaling reader (a rig whose gate has `reads`, SCALE_RIGS on) says what
   // it reads, in the other rows' form `<NAME> +<amount> <what>`: the rig's own part first, if it gives something on this hit (a flat,
   // plating, a heal: the rows below, from the gate without its reader line), then the card face's own clause (readerClause.ts, the
-  // one function the face uses too) as the timeline draws its words, after a comma: `IRON WALL +3 DMG FOR EACH 10 SHIELD YOU HAVE`.
+  // one function the face uses too) as the timeline draws its words, after a comma: `IRON WALL +3 DAMAGE FOR EACH 10 SHIELD YOU HAVE`.
   // The numbers are the star's and the day's (hitText's shownOn); the count is battle state, never a value here (the walk is the
   // build view's). A bare reader (every one today) has no part of its own, so its row is its name and the clause
   if (!own && e.reads) {

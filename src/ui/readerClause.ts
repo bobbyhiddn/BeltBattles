@@ -1,6 +1,6 @@
 // ROWS-1 (REQ-BFG-098, REQ-BFG-100; F2 of BUMP-1E's review, owed since 0.9.13): a scaling reader's READING RULE, said once.
 // faces.ts readerFace draws it on the card (`HIT: +3 {DMG} FOR EACH 10 {*PLATE} YOU HAVE.`), and the belt timeline's row for the
-// same rig (abilityText.ts hitRow) says it after the rig's name (`IRON WALL +3 DMG FOR EACH 10 SHIELD YOU HAVE`). Both build it
+// same rig (abilityText.ts hitRow) says it after the rig's name (`IRON WALL +3 DAMAGE FOR EACH 10 SHIELD YOU HAVE`). Both build it
 // here, from the rig's `reads` line, so the face and the row cannot drift: the face adds its label and its full stop, the row
 // turns the tokens into the bare words the timeline draws (readerRowWords). Pure; the numbers are the day's (dayShown.ts: the
 // caller's shownOn), as the face has always shown them.
@@ -43,9 +43,10 @@ export function readerClause(r: ReadSpec): { clause: string; num: string } {
   return { clause: `${num} FOR EACH ${r.give === "plate" ? what.replace(" ON THE FOE", " ON FOE") : what}`, num };
 }
 
-/** A clause as the belt timeline draws its words: each token as a bare word, no icon (the other rows say DAMAGE, BURN, FRAY
- *  in plain words): `{DMG}` as DMG, `{SLUG}` as SLUG, a keyword `{*PLATE}` as the player's word (PLAYER_WORD: SHIELD; `{*SHIELD}`
- *  WARD). Pure. */
+/** A clause as the belt timeline draws its words: each token as a bare word, no icon (the other rows say DAMAGE, BURN, FRAY in
+ *  plain words): `{DMG}` as DAMAGE (the timeline's word for it: its rule is that every number in a row says what it is, and DMG is not
+ *  one of the words a number may stand before: tests/abilityPanels.test.ts `bare`), `{SLUG}` as SLUG, a keyword `{*PLATE}` as the
+ *  player's word (PLAYER_WORD: SHIELD; `{*SHIELD}` WARD). Pure. */
 export function readerRowWords(clause: string): string {
-  return clause.replace(/\{(\*?)([A-Z]+)\}/g, (_m: string, star: string, name: string) => (star ? PLAYER_WORD[name as KeywordName] ?? name : name));
+  return clause.replace(/\{(\*?)([A-Z]+)\}/g, (_m: string, star: string, name: string) => (star ? PLAYER_WORD[name as KeywordName] ?? name : name === "DMG" ? "DAMAGE" : name));
 }

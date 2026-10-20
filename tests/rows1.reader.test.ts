@@ -2,7 +2,7 @@
 // scaling reader says what it reads. Before, a rig whose gate has `reads` (IRON WALL, KINDLING, ...) was its bare name in the
 // timeline (abilityText.ts hitRow had no `reads` case); now `<NAME> <clause>`: the card face's own clause (faces.ts readerFace,
 // through the one function both use, readerClause.ts), as the timeline draws its words (bare words, no icons), without the face's
-// full stop: `IRON WALL +3 DMG FOR EACH 10 SHIELD YOU HAVE`. The rig's own part, if it gives something on the hit, comes first and
+// full stop: `IRON WALL +3 DAMAGE FOR EACH 10 SHIELD YOU HAVE`. The rig's own part, if it gives something on the hit, comes first and
 // the clause after a comma. The numbers are the star's and the day's. Every expected string is written from the catalogue's numbers
 // (scale.ts) and the day's multipliers (hullScale.ts), or read off the card face's drawn text, never from readerClause itself.
 import { readFileSync } from "node:fs";
@@ -40,7 +40,7 @@ const S = (n: number, day: number): string => fmtDmg(sustShown(n, day)); // a SH
 /** The row each reader should read, written by hand from the catalogue (scale.ts) and the day's multipliers: the face's words. */
 function expectedRow(id: string, s: number, day: number): string {
   const r = reads(id, s), name = ITEMS[id].name;
-  const give = r.give === "plate" ? `+${S(r.each, day)} SHIELD` : `+${D(r.each, day)} DMG`;
+  const give = r.give === "plate" ? `+${S(r.each, day)} SHIELD` : `+${D(r.each, day)} DAMAGE`;
   const what: Record<string, string> = {
     foeBurn: "BURN ON THE FOE", foePoison: "POISON ON THE FOE", beltSlugs: "SLUG ON ITS BELT", ownPlate: `${S(r.per ?? 1, day)} SHIELD YOU HAVE`,
     ownShield: "WARD YOU HAVE", hitsTaken: "HIT ON YOU", ownHits: "OF ITS HITS", heartsLost: "HEART LOST", wins: "WIN",
@@ -89,7 +89,7 @@ describe("ROWS-1 F2: a reader's row is its name and the card face's clause, as b
           expect(face.startsWith("HIT: "), id).toBe(true);
           expect(face.endsWith("."), id).toBe(true);
           // the DMG and SLUG icons stand alone (no word after them): their names; a keyword's icon is followed by its word
-          const clause = stripIcons(face.slice("HIT: ".length, -1).split(ICON.DMG).join("DMG").split(ICON.SLUG).join("SLUG"));
+          const clause = stripIcons(face.slice("HIT: ".length, -1).split(ICON.DMG).join("DAMAGE").split(ICON.SLUG).join("SLUG"));
           const row = hitText(hit(id, s), "free", day);
           expect(row, `${id} ★${s} day ${day}`).toBe(`${ITEMS[id].name} ${clause}`);
           expect(row).not.toMatch(/[-]/); // no icon glyph: the timeline draws bare words
@@ -119,23 +119,36 @@ describe("ROWS-1 F2: a reader's row is its name and the card face's clause, as b
   });
 
   it("IRON WALL's rows, by hand: ★1 day 1, ★3 day 1 and ★3 day 24", () => {
-    expect(hitText(hit("shieldwall", 1), "free", 1)).toBe("IRON WALL +3 DMG FOR EACH 10 SHIELD YOU HAVE");
-    expect(hitText(hit("shieldwall", 3), "free", 1)).toBe("IRON WALL +17 DMG FOR EACH 10 SHIELD YOU HAVE");
+    expect(hitText(hit("shieldwall", 1), "free", 1)).toBe("IRON WALL +3 DAMAGE FOR EACH 10 SHIELD YOU HAVE");
+    expect(hitText(hit("shieldwall", 3), "free", 1)).toBe("IRON WALL +17 DAMAGE FOR EACH 10 SHIELD YOU HAVE");
     // day 24 (hullScale.ts D(24) and S(24)): the numbers the face shows there
-    expect(hitText(hit("shieldwall", 3), "free", 24)).toBe(`IRON WALL +${D(17, 24)} DMG FOR EACH ${S(10, 24)} SHIELD YOU HAVE`);
+    expect(hitText(hit("shieldwall", 3), "free", 24)).toBe(`IRON WALL +${D(17, 24)} DAMAGE FOR EACH ${S(10, 24)} SHIELD YOU HAVE`);
     expect(hitText(hit("leechcoil", 1), "free", 1)).toBe("LEECH COIL HEAL 3 TIMES THE FOE'S POISON");
     expect(hitText(hit("cindermail", 3), "free", 1)).toBe("CINDER MAIL +5 SHIELD FOR EACH BURN ON FOE");
-    expect(hitText(hit("quench", 2), "free", 1)).toBe("KINDLING +5 DMG FOR EACH BURN ON THE FOE");
-    expect(hitText(hit("keg", 1), "free", 1)).toBe("POWDER KEG +2 DMG FOR EACH OF ITS HITS");
-    expect(hitText(hit("crowdpress", 1), "free", 1)).toBe("CROWD PRESS +3 DMG FOR EACH SLUG ON ITS BELT");
-    expect(hitText(hit("aegisspike", 1), "free", 1)).toBe("AEGIS SPIKE +40 DMG FOR EACH WARD YOU HAVE");
-    expect(hitText(hit("grudgerod", 1), "free", 1)).toBe("GRUDGE ROD +6 DMG FOR EACH HEART LOST");
-    expect(hitText(hit("trophychain", 1), "free", 1)).toBe("TROPHY CHAIN +8 DMG FOR EACH WIN");
-    expect(hitText(hit("rotgauge", 1), "free", 1)).toBe("ROT GAUGE +3 DMG FOR EACH POISON ON THE FOE");
+    expect(hitText(hit("quench", 2), "free", 1)).toBe("KINDLING +5 DAMAGE FOR EACH BURN ON THE FOE");
+    expect(hitText(hit("keg", 1), "free", 1)).toBe("POWDER KEG +2 DAMAGE FOR EACH OF ITS HITS");
+    expect(hitText(hit("crowdpress", 1), "free", 1)).toBe("CROWD PRESS +3 DAMAGE FOR EACH SLUG ON ITS BELT");
+    expect(hitText(hit("aegisspike", 1), "free", 1)).toBe("AEGIS SPIKE +40 DAMAGE FOR EACH WARD YOU HAVE");
+    expect(hitText(hit("grudgerod", 1), "free", 1)).toBe("GRUDGE ROD +6 DAMAGE FOR EACH HEART LOST");
+    expect(hitText(hit("trophychain", 1), "free", 1)).toBe("TROPHY CHAIN +8 DAMAGE FOR EACH WIN");
+    expect(hitText(hit("rotgauge", 1), "free", 1)).toBe("ROT GAUGE +3 DAMAGE FOR EACH POISON ON THE FOE");
+  });
+
+  it("the timeline's own rule for a row: every number says what it is (tests/abilityPanels.test.ts `bare`: DAMAGE, SHIELD, TIMES ... after a number, never DMG), whole rows, no icon", () => {
+    const UNIT = /^(SEC|LOADS?|DAMAGE|BURN|POISON|FRAY|HULL|HARASSMENT|COPIES|HITS?|TILES?|TIMES|PLATING|SHIELD|RIGS?|STUNS)$/;
+    for (const id of READERS) {
+      for (const s of STARS) {
+        for (const day of DAYS) {
+          const row = hitText(hit(id, s), "free", day), ws = row.replace(/[,():]/g, " ").split(/\s+/).filter(Boolean);
+          ws.forEach((w, i) => { if (/^[+-]?\d+(\.\d+)?%?$/.test(w)) expect(UNIT.test(ws[i + 1] ?? ""), `${id} ★${s} day ${day}: "${w}" before "${ws[i + 1]}" in ${row}`).toBe(true); });
+          expect(row, id).not.toMatch(/DMG/);
+        }
+      }
+    }
   });
 
   it("no day: day 1's numbers; the count is never a value (the row has no live count, and carries none from the walk's hit)", () => {
-    expect(hitText(hit("shieldwall", 2), "free")).toBe("IRON WALL +6 DMG FOR EACH 10 SHIELD YOU HAVE");
+    expect(hitText(hit("shieldwall", 2), "free")).toBe("IRON WALL +6 DAMAGE FOR EACH 10 SHIELD YOU HAVE");
     // a walk's hit carries the reader line as display data (deck.ts TimelineHit.reads) and flat 0: the row is the same
     const walked = hit("shieldwall", 2, { reads: { count: "ownPlate", each: 6, per: 10, give: "dmg" }, flat: 0 });
     expect(hitText(walked, "free", 1)).toBe(hitText(hit("shieldwall", 2), "free", 1));
@@ -153,19 +166,19 @@ describe("ROWS-1 F2: the rig's own part comes first, then the clause after a com
   };
   const drop = (id: string): void => { delete items[id]; clearStarCache(); };
 
-  it("a plating rig that reads: `NAME +10 SHIELD, +3 DMG FOR EACH ...` (as the old IRON WALL row did); a flat; a heal; a keg's fuse", () => {
+  it("a plating rig that reads: `NAME +10 SHIELD, +3 DAMAGE FOR EACH ...` (as the old IRON WALL row did); a flat; a heal; a keg's fuse", () => {
     try {
       own("rows1plate", { plate: 10 });
-      expect(hitText(hit("rows1plate", 1), "free", 1)).toBe("ROWS1PLATE +10 SHIELD, +3 DMG FOR EACH POISON ON THE FOE");
+      expect(hitText(hit("rows1plate", 1), "free", 1)).toBe("ROWS1PLATE +10 SHIELD, +3 DAMAGE FOR EACH POISON ON THE FOE");
       own("rows1flat", {});
-      expect(hitText(hit("rows1flat", 1, { flat: 20 }), "free", 1)).toBe("ROWS1FLAT +20 DAMAGE, +3 DMG FOR EACH POISON ON THE FOE");
+      expect(hitText(hit("rows1flat", 1, { flat: 20 }), "free", 1)).toBe("ROWS1FLAT +20 DAMAGE, +3 DAMAGE FOR EACH POISON ON THE FOE");
       own("rows1heal", { heal: 5 });
-      expect(hitText(hit("rows1heal", 1), "free", 1)).toBe("ROWS1HEAL HEALS 5 HULL, +3 DMG FOR EACH POISON ON THE FOE");
+      expect(hitText(hit("rows1heal", 1), "free", 1)).toBe("ROWS1HEAL HEALS 5 HULL, +3 DAMAGE FOR EACH POISON ON THE FOE");
       own("rows1keg", { keg: { flat: 90, fuse: 10 } });
-      expect(hitText(hit("rows1keg", 1), "free", 1)).toBe("ROWS1KEG +90 DAMAGE EVERY 10 SEC, +3 DMG FOR EACH POISON ON THE FOE");
+      expect(hitText(hit("rows1keg", 1), "free", 1)).toBe("ROWS1KEG +90 DAMAGE EVERY 10 SEC, +3 DAMAGE FOR EACH POISON ON THE FOE");
       // the own part's numbers go through the day as they always did (x S(d)): the plating, then the clause's own
       own("rows1plate", { plate: 10 });
-      expect(hitText(hit("rows1plate", 1), "free", 24)).toBe(`ROWS1PLATE +${S(10, 24)} SHIELD, +${D(3, 24)} DMG FOR EACH POISON ON THE FOE`);
+      expect(hitText(hit("rows1plate", 1), "free", 24)).toBe(`ROWS1PLATE +${S(10, 24)} SHIELD, +${D(3, 24)} DAMAGE FOR EACH POISON ON THE FOE`);
     } finally {
       for (const id of ["rows1plate", "rows1flat", "rows1heal", "rows1keg"]) drop(id);
     }
