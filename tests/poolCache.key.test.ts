@@ -15,6 +15,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ITEMS, withSustain, withWave3 } from "../src/sim/content";
+import { withEffectFloor } from "../src/sim/effectFloor";
 import { withEnchant } from "../src/sim/enchant";
 import { withEndless } from "../src/sim/endless";
 import { withFirstRun } from "../src/sim/firstRun";
@@ -45,6 +46,7 @@ const items = ITEMS as Record<string, unknown>;
 const FLIP: Record<string, <T>(fn: () => T, on?: boolean) => T> = {
   hearts: withHearts, longRun: withLongRun, wave3: withWave3, sustain: withSustain, freeJoins: withFreeJoins, guard: withGuard,
   plainRigs: withPlainRigs, scaleRigs: withScaleRigs, firstRun: withFirstRun, endless: withEndless, shapes2: withShapes2,
+  effectFloor: withEffectFloor, // SHOCK-1 (REQ-BFG-033): the effect floor's switch (src/sim/effectFloor.ts)
   npcDay: withNpcDay, hullScale: withHullScale, shapes: withShapes, openRunes: withOpenRunes, ladderFix: withLadderFix, pick: withPick,
   gates: withGates, enchant: withEnchant, // BUMP-1F: the two switches the merged closure adds
 };

@@ -28,7 +28,9 @@ const TAGS: ModuleTag[] = ["FORGE", "HARASS", "SWARM", "BURST", "TEMPO", "TWIN",
 const SOURCES: [string, string[]][] = [
   ["src/game/run.ts", ["rollRarity", "baseMerchantWeight", "startingCopy", "starLevelsOwned", "ownsDef", "dayPool", "merchantWeight", "pickMerchants", "familiarChance", "familiarCandidates", "rollShop", "shopBadge", "reroll", "buyOffer"]],
   ["src/sim/content.ts", ["itemsSoldBy", "buyableModules", "rarityWeights"]],
-  ["src/game/eventDefs.ts", ["roadPart", "roadParts", "salvagePool", "smugglerPool", "ofRarity", "UPGRADE", "draw", "holds", "salvagePart", "smugglerParts", "swapPart", "partChoice", "tradeGood"]],
+  ["src/game/eventDefs.ts", ["salvagePool", "ofRarity", "UPGRADE", "draw", "holds", "salvagePart", "smugglerParts", "swapPart", "partChoice", "tradeGood"]],
+  ["src/game/smugglerPool.ts", ["roadPart", "roadParts", "smugglerPool"]], // SHOCK-1 (REQ-BFG-033): the road-part helpers and the SMUGGLER's pool moved here from eventDefs.ts
+  ["src/game/wares.ts", ["holdEffects"]], // SHOCK-1: the effect floor in the per-run draw reads the catalogue and the seed alone
   ["src/game/events.ts", ["owns", "blockReason", "choicesFor", "receive", "pickChoice"]],
   ["src/game/fuse.ts", ["gainModule", "mergePreview"]],
   ["src/game/road.ts", ["topParts", "hardParts", "warlordReward"]],

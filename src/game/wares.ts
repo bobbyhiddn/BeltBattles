@@ -23,12 +23,19 @@
 // held to the first unlock step after day 1 (GATES_FIRST_DAY: never in day 1's shop) by the same hold and the same stand-ins.
 // A gate (kind "converter") is in none of the draw's kinds, so it never waits for a restock: it opens on GATES_FIRST_DAY in
 // every run that holds it. The offer lever (holdGates, GATES_ODDS.minStock) keeps at least that many of the three in the wares.
+//
+// SHOCK-1 (REQ-BFG-033; SHOCK-1D): with EFFECT_FLOOR on (src/sim/effectFloor.ts), a run whose wares hold none of the SMUGGLER's SHOCK pool,
+// or none of its BURN pool (smugglerPool: the card and the floor read one predicate), gets one piece of it in place of one drawn piece
+// (holdEffects, after the restocks are drawn), so no run's SMUGGLER reads NONE ON OFFER; the run keeps its size, its merchants' and
+// rarities' shares, its restocks and every other ware's day. Off (the switch ships off): the draw is exactly what it was.
 
 import { hashSeed, Rng } from "../core/rng";
 import { ITEMS, RARITIES, buyableModules, type MerchantId } from "../sim/content";
 import { SUSTAIN_FIRST_DAY, isSustain } from "../sim/content"; // BOTS-X (REQ-BFG-069): the day-3 hold
 import { SHAPES2_ODDS, isShapedRig, shapes2Rules } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114 S3): the offer lever b
 import { GATES_ODDS, gatesRules, isGatesPiece } from "../sim/gates"; // GATES-1 (REQ-BFG-052 G5): the day hold and the offer lever b
+import { EFFECT_FLOOR_ODDS, effectFloorRules } from "../sim/effectFloor"; // SHOCK-1 (REQ-BFG-033, SHOCK-1D): the effect floor
+import { smugglerPool, type SmugglerKind } from "./smugglerPool"; // SHOCK-1: the SMUGGLER's two pools, from a leaf (eventDefs.ts imports this file, so wares.ts cannot import eventDefs.ts)
 
 /** The draw's rule: `active` wares a run, `late` of them held back for two restocks; the unlock ladder. */
 export interface DrawRule {
@@ -136,6 +143,7 @@ export function drawWares(seed: number, rule: DrawRule = DRAW): Wares {
     const order = new Rng(hashSeed(seed, "late", KINDS[i])).shuffle([...ids]);
     order.slice(0, lq[i]).forEach((id, j) => late.set(id, rule.lateDays[j % 2]));
   });
+  if (effectFloorRules() && EFFECT_FLOOR_ODDS.minStock > 0) holdEffects(seed, all, picked, standIns, late, rule); // SHOCK-1 (REQ-BFG-033, SHOCK-1D): the effect floor, after the restocks are drawn (they read the draw as before)
   const out: Wares = {};
   // FIX-ABE: the restocks above read the slots' draw as before (a held ware may wait for one; a stand-in never does, it
   // opens with the slot it holds), so a run's every other ware keeps its day and the stand-ins only add
@@ -192,6 +200,50 @@ function holdGates(seed: number, all: readonly string[], picked: Set<string>): v
   if (need <= 0) return;
   const rng = new Rng(hashSeed(seed, "wares-gates"));
   for (const id of rng.shuffle(gates.filter((o) => !picked.has(o))).slice(0, need)) picked.add(id);
+}
+
+/**
+ * SHOCK-1 (REQ-BFG-033; SHOCK-1D section 5.1, BRIEF-SHOCK1 B3): the effect floor. With EFFECT_FLOOR on, the per-run draw keeps one piece of
+ * each of the SMUGGLER's two pools among the run's wares, SHOCK first and then BURN (smugglerPool: COIL, STATIC BRUSH and LODESTONE; TEMPER,
+ * BELLOWS and the other BURN rigs). A run whose wares (drawn pieces and stand-ins) hold none of a kind's pool gets one of it in place of one
+ * drawn piece, so the SMUGGLER's card never reads NONE ON OFFER. Called after the restocks are drawn (`late`), so they read the draw as
+ * before. Each kind has its own stream (`wares-floor`, so no other draw moves): the incoming piece is a seeded pick among the pool pieces the
+ * run lacks, the victim a seeded pick of the first non-empty step of the drawn pieces that are none of a stand-in, a piece of either pool, a
+ * shaped rig, a gate or held past its seat's day (holdShaped's swap, with the restocks kept in step):
+ *   1. the incoming piece's merchant and rarity, not a restock ware;   2. the same, a restock ware allowed;
+ *   3. its merchant, not a restock ware;   4. its merchant, a restock ware allowed;   5. any, not a restock ware;   6. any.
+ * The steps that allow a restock ware (2, 4, 6) are skipped for a piece that never waits for one (the ARCANE DEALER's, a legendary). A victim
+ * that waited for a restock hands its day to the incoming piece (the restocks stay 12, on the same days; the victim's entry goes); any other
+ * piece opens on its seat's day. So the run keeps its size, each merchant's and rarity's share and every other ware's day. One piece a kind
+ * is the only depth built (EFFECT_FLOOR_ODDS.minStock is read as on or off). Called only with the switch on; the draw is untouched with it off.
+ */
+function holdEffects(seed: number, all: readonly string[], picked: Set<string>, standIns: ReadonlySet<string>, late: Map<string, number>, rule: DrawRule): void {
+  const held = (id: string): boolean => picked.has(id) || standIns.has(id); // a stand-in is a ware of the run too
+  const pools: Record<SmugglerKind, string[]> = { SHOCK: smugglerPool("SHOCK"), BURN: smugglerPool("BURN") };
+  const guarded = new Set([...pools.SHOCK, ...pools.BURN]); // a victim is never a piece of either pool (the other kind's incoming piece included)
+  for (const kind of ["SHOCK", "BURN"] as const) {
+    const pool = pools[kind];
+    if (!pool.length || pool.some(held)) continue;
+    const rng = new Rng(hashSeed(seed, "wares-floor", kind));
+    const id = rng.pick(pool.filter((o) => !held(o)));
+    const d = ITEMS[id];
+    const drawn = all.filter((o) => picked.has(o) && !standIns.has(o) && !guarded.has(o) && !isShapedRig(ITEMS[o]) && !isGatesPiece(o) && !heldPast(o, rule));
+    const sameTier = (o: string): boolean => ITEMS[o].merchant === d.merchant && ITEMS[o].rarity === d.rarity;
+    const sameMerchant = (o: string): boolean => ITEMS[o].merchant === d.merchant;
+    const mayWait = d.merchant !== "arcane" && d.rarity !== "legendary"; // the ARCANE DEALER's and legendaries never wait for a restock (the late draw)
+    const steps = [
+      drawn.filter((o) => sameTier(o) && !late.has(o)), mayWait ? drawn.filter(sameTier) : [],
+      drawn.filter((o) => sameMerchant(o) && !late.has(o)), mayWait ? drawn.filter(sameMerchant) : [],
+      drawn.filter((o) => !late.has(o)), mayWait ? drawn : [],
+    ];
+    const step = steps.find((s) => s.length > 0);
+    if (step) { // (a catalogue with no such piece keeps the run whole and adds the incoming one: never so in the shipped world)
+      const victim = rng.pick(step);
+      picked.delete(victim);
+      if (late.has(victim)) { late.set(id, late.get(victim)!); late.delete(victim); }
+    }
+    picked.add(id);
+  }
 }
 
 /**
