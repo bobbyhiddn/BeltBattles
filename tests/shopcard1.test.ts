@@ -76,7 +76,7 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
       // F2: the icon doubled, pixel for pixel, outside the plates the grid and the marks draw on
       const z = cardZones(w, h, d.price), ic = R(itemIcon(d.id)), dy = -lift(s); // SHOPCARD-1c (G3): the sale plate sits against the price
       const plates: Box[] = [
-        ...(shapedPiece(d.id) ? [plateAt(d.id, z.grid)] : []), z.merge, z.sale,
+        ...(hasGrid(d.id) ? [plateAt(d.id, z.grid)] : []), z.merge, z.sale, // PRESENT-1 S1: hasGrid (every piece bigger than one cell), was shapedPiece
       ];
       let seen = 0;
       for (let j = 0; j < ic.height; j++) for (let i = 0; i < ic.width; i++) {
@@ -254,9 +254,13 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
     console.log(`SHOPCARD1 shaped pieces' cards, ${rows.length}:\n${rows.join("\n")}`);
   });
 
-  it("a card of a piece that is not shaped draws no grid, plate or arrowhead", () => {
-    for (const id of ["whetstone", "kiln", "flak", "calibrate", "press"]) for (const [wn, w, h] of WIDTHS) {
+  // PRESENT-1 S1 (REQ-BFG-113 (1); was "a card of a piece that is not shaped draws no grid" over whetstone, kiln, flak, calibrate, press): a piece of ONE
+  // cell (a 1-cell rig, a gun's gear, a core) draws no grid, plate or arrowhead; the KILN and the STAMP PRESS (2x2 factories) now draw a plain grid
+  // (tests/present1.s1.test.ts pins those and the size-2 turrets)
+  it("a card of a piece of one cell draws no grid, plate or arrowhead", () => {
+    for (const id of ["whetstone", "flak", "calibrate"]) for (const [wn, w, h] of WIDTHS) {
       expect(shapedPiece(id), id).toBe(false);
+      expect(hasGrid(id), id).toBe(false);
       const c = draw(id, w, h, {}), z = cardZones(w, h);
       for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
         const px = c.at(OX + z.grid.x + x, OY + z.grid.y + y);
@@ -445,11 +449,20 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
   const fillOf = (id: string): string => (ITEMS[id].kind === "gate" ? C.wood2 : C.steel2);
   const limeIn = (c: RasterCanvas, b: Box): number => { let n = 0; for (let y = b.y; y < b.y + b.h; y++) for (let x = b.x; x < b.x + b.w; x++) if (c.at(x, y) === C.lime) n++; return n; };
 
-  it("hasGrid is shapeEdit's shapedPiece for every id, and only the five shaped pieces have one", () => {
-    for (const id of Object.keys(ITEMS)) expect(hasGrid(id), id).toBe(shapedPiece(id));
+  // PRESENT-1 S1 (REQ-BFG-113 (1)): was "hasGrid is shapeEdit's shapedPiece for every id, and only the eleven shaped pieces have one". Now every piece
+  // bigger than one cell has one: the eleven shaped pieces (still shapeEdit's shapedPiece, a subset) and the plain ones, 2x2 factories and size-2 turrets
+  it("hasGrid: every shaped piece (shapeEdit's shapedPiece) and every other piece bigger than one cell, a 2x2 factory or a size-2 turret", () => {
+    for (const id of Object.keys(ITEMS)) if (shapedPiece(id)) expect(hasGrid(id), id).toBe(true);
+    for (const id of Object.keys(ITEMS)) {
+      const d = ITEMS[id];
+      expect(hasGrid(id), id).toBe(shapedPiece(id) || ((d.kind === "factory" || d.kind === "turret") && d.size === 2));
+    }
     expect(hasGrid("no-such-piece")).toBe(false);
-    // SC-0912: eleven, not five (SHAPES2's six join: ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE)
-    expect(Object.keys(ITEMS).filter(hasGrid).sort()).toEqual(["assembly", "cinderhook", "elbowguard", "embertrough", "gantry", "jawcrusher", "nailstrip", "pickaxe", "sawbar", "sparkcomb", "spikerail"]);
+    // SC-0912: eleven shaped pieces (SHAPES2's six join: ELBOW GUARD, SAW BAR, SPARK COMB, CINDER HOOK, JAW CRUSHER, PICKAXE)
+    expect(Object.keys(ITEMS).filter(shapedPiece).sort()).toEqual(["assembly", "cinderhook", "elbowguard", "embertrough", "gantry", "jawcrusher", "nailstrip", "pickaxe", "sawbar", "sparkcomb", "spikerail"]);
+    // and the plain ones: no gate (rig), core, gear or supply; the 2x2 factories and the size-2 turrets
+    for (const id of ["whetstone", "temper", "flak", "calibrate"]) if (ITEMS[id]) expect(hasGrid(id), id).toBe(false);
+    for (const id of ["kiln", "loom", "press", "scrapcannon", "bombard", "thunderer"]) expect(hasGrid(id), id).toBe(true);
   });
 
   it("the cargo slot: the grid in the slot's top-left corner inside its 16 px face, the star pips over it; a piece without one draws none", () => {

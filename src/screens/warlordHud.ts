@@ -156,7 +156,7 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
       // 0.6.1d2: the same MERGE/wait/MAX badge as the shop card, bottom-right so it never
       // crosses the name text (which isn't wrapped or truncated here).
       const badge = shopBadge(run, d);
-      drawGridRight(g, d, bx, by + 2, bw, bx + 18 + textWidth(itemName(d), "3") + 3, badge ? by + 12 : Infinity); // SHOPCARD-1 (G4): clear of the name and the badge
+      drawGridRight(g, d, bx, by + 2, bw, bx + 18 + textWidth(itemName(d), "3") + 3, badge ? by + 12 : Infinity, { x: bx + 2, y: by + 2 }); // SHOPCARD-1 (G4): clear of the name and the badge; PRESENT-1 S1 (a): else over the icon's corner (was dropped)
       if (badge) {
         const bw2 = Math.max(20, Math.min(34, bw - 6));
         drawBadge(g, bx + bw - bw2 - 2, by + 12, bw2, badge, pt);

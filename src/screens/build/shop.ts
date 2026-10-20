@@ -19,8 +19,7 @@ import { abilityText, type TextOpts } from "../../ui/abilityText"; // TXT-095: i
 import { CARD_W } from "./layout";
 import { faceBlocks } from "./faceBlocks"; // SHOPCARD-1 (REQ-BFG-115, F5): the panel's own face blocks, for the hover tooltip's whole face
 import { shapeWord } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-086.1): the type line's shape
-import { drawShapePlate, gridCell } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G1): the card's shape grid (was SHAPES-1's miniShape); SC-0912: gridCell (was GRID_CELL)
-import { shapedPiece } from "./shapeEdit"; // SHAPES-1
+import { drawShapePlate, gridCell, hasGrid } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G1): the card's shape grid (was SHAPES-1's miniShape); SC-0912: gridCell (was GRID_CELL)
 import { GAP } from "../../ui/spacing"; // CARD-3 (REQ-BFG-087, D4): the tooltip's family line's gap
 
 export const MERCHANT_COLOR: Record<MerchantId, string> = {
@@ -333,7 +332,7 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   if (s.sold) g.globalAlpha = SOLD_ALPHA;
   g.drawImage(iconX2(def.id), x + z.icon.x, y + z.icon.y);
   g.globalAlpha = 1;
-  if (shapedPiece(def.id)) drawShapePlate(g, def.id, x + z.grid.x, y + z.grid.y, gridCell(def.id), s.sold ? SOLD_ALPHA : 1); // SC-0912: the piece's own cell (4 for PICKAXE)
+  if (hasGrid(def.id)) drawShapePlate(g, def.id, x + z.grid.x, y + z.grid.y, gridCell(def.id), s.sold ? SOLD_ALPHA : 1); // SC-0912: the piece's own cell (4 for PICKAXE); PRESENT-1 S1: every piece bigger than one cell (hasGrid), a plain 2x2 factory and a size-2 turret too
   if (!s.sold) {
     // F4: the bottom-left corner holds the merge mark (MERGE ★2, ★3) or the owned marker (a copy that won't merge yet, or
     // only ★3 copies: was the MAX word); the sale mark sits against the price (1c), where no merge mark is

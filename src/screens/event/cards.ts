@@ -223,10 +223,16 @@ export function drawChoiceCard(g: G, r: Rect, c: Choice, i: number, v: CardView)
   // SHOPCARD-1 (REQ-BFG-113, G4): a choice that pays or gives a shaped part shows its grid on an ink plate at the card's right end,
   // 15 px under its top (clear of the badge and the odds above; the note line at the foot is under it), and the exchange line keeps
   // clear of it (its chips and names stop short of the plate: chip() drops what doesn't fit)
-  const shaped = [...c.gain, ...c.cost].find((d): d is Extract<Delta, { k: "item" }> => d.k === "item" && hasGrid(d.def));
-  const plateW = shaped ? shapeGridSize(shaped.def).w + 2 : 0;
+  // PRESENT-1 (S1 (b), REQ-BFG-113 (1)): EVERY such part, not the first (it was `.find`): the plates side by side from the card's right end, in
+  // the exchange line's own order (what it takes, then what it gives), 2 px apart; the line keeps clear of all of them
+  const shaped = [...c.cost, ...c.gain].filter((d): d is Extract<Delta, { k: "item" }> => d.k === "item" && hasGrid(d.def));
+  const plateW = shaped.reduce((n, d) => n + shapeGridSize(d.def).w + 2, 0) + Math.max(0, shaped.length - 1) * 2;
   exchange(g, x + 5, y + 25, r.w - 10 - (plateW ? plateW + 4 : 0), c, dim, v.day, v.shrineWord); // ENCHANT-2W (W2): + word B for the shrine's blocked card
-  if (shaped) drawShapePlate(g, shaped.def, x + r.w - 4 - plateW, y + 15, undefined, dim ? 0.5 : 1);
+  let platX = x + r.w - 4 - plateW;
+  for (const d of shaped) {
+    drawShapePlate(g, d.def, platX, y + 15, undefined, dim ? 0.5 : 1);
+    platX += shapeGridSize(d.def).w + 2 + 2;
+  }
   const note = cardNote(c);
   if (note) drawText(g, note, x + 5, y + r.h - 9, c.blocked ? C.red : C.slate4, { font: "3" });
   if (v.state === "chosen") {

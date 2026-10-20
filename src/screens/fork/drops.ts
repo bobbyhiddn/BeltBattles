@@ -177,5 +177,6 @@ export function drawDropCard(g: G, drop: string | null, legendary: boolean, x: n
   if (hasGrid(drop)) {
     const pw = shapeGridSize(drop).w + 2, px = x + w - 4 - pw;
     if (x + 23 + Math.max(textWidth(t.name), textWidth(t.sub, "3")) + 4 <= px) drawShapePlate(g, drop, px, y + 1);
+    else g.drawImage(shapeGrid(drop), x + 4, y + 4); // PRESENT-1 S1 (a): a card too narrow for the plate beside the words draws the grid over its icon's corner (was dropped)
   }
 }

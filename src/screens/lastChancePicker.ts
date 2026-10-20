@@ -13,7 +13,7 @@ import { frame, rect } from "../render/pixel";
 import { C, RARITY_COLOR } from "../render/palette";
 import { drawText, icons, textWidth } from "../render/font";
 import { itemIcon } from "../render/sprites";
-import { drawShapePlate, hasGrid, shapeGridSize } from "../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its card
+import { drawShapePlate, hasGrid, shapeGrid, shapeGridSize } from "../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its card
 import { isPhone, tapPx } from "../ui/tap"; // a finger's target for the ⓘ on a phone
 import { panel, type Rect } from "../ui/ui";
 import { colourize, drawRich, wrapRich, type RichLine } from "../ui/richText";
@@ -229,6 +229,15 @@ export function lcPartPlate(r: Rect, defId: string, name: string, sub: string): 
   if (!hasGrid(defId)) return null;
   const sz = shapeGridSize(defId), w = sz.w + 2, x = r.x + r.w - 3 - INFO - 4 - w;
   return x < r.x + 31 + Math.max(textWidth(name), textWidth(sub, "3")) + 3 ? null : { x, y: r.y + 7, w, h: sz.h + 2 };
+}
+
+/** PRESENT-1 (S1 (a), REQ-BFG-113 (1)): where a part card's grid goes, never nowhere: its plate (lcPartPlate) where the words leave room, else
+ *  over the icon box's inner corner (the box is 20 x 20 at +6, +7: every grid of a piece fits it, PICKAXE's 17 x 11 the widest), as the
+ *  drops, the road cards and the scout deck draw a grid over an icon. Null: not a piece bigger than one cell. Pure (tests). */
+export function lcPartGrid(r: Rect, defId: string, name: string, sub: string): { plate: Rect } | { corner: { x: number; y: number } } | null {
+  if (!hasGrid(defId)) return null;
+  const plate = lcPartPlate(r, defId, name, sub);
+  return plate ? { plate } : { corner: { x: r.x + 6, y: r.y + 7 } };
 }
 
 /** A part or hull card's frame and head: the dark panel with `edge` top and bottom, the icon box, the name and sub. */
@@ -469,8 +478,9 @@ export class LastChancePicker {
         drawHead(g, r, RARITY_COLOR[def.rarity], itemIcon(def.id), def.name, RARITY_COLOR[def.rarity], lcPartSub(def.rarity, o.partStars ?? 1), open, word ? ENCHANT_DEFS[word.ench] : undefined); // HULL-1d
         // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its ink plate in the head's free room, left of the ⓘ box, 7 px under
         // the card's top (the head is 31 px: the tallest plate, SPIKE RAIL's 18, ends 25 px down); the name and the sub line end well before it
-        const plate = lcPartPlate(r, def.id, word ? `${ENCHANT_DEFS[word.ench].name} ${def.name}` : def.name, lcPartSub(def.rarity, o.partStars ?? 1));
-        if (plate) drawShapePlate(g, def.id, plate.x, plate.y);
+        const where = lcPartGrid(r, def.id, word ? `${ENCHANT_DEFS[word.ench].name} ${def.name}` : def.name, lcPartSub(def.rarity, o.partStars ?? 1));
+        if (where && "plate" in where) drawShapePlate(g, def.id, where.plate.x, where.plate.y);
+        else if (where) g.drawImage(shapeGrid(def.id), where.corner.x, where.corner.y); // PRESENT-1 S1 (a): a card too narrow for the plate beside the words draws the grid over its icon's corner (was dropped)
         drawBody(g, r, t.lines, t.info, hint, L.gap);
         if (word) drawBoardSpark(g, r.x + r.w - 5, r.y - 1, ENCHANT_DEFS[word.ench].color); // ENCHANT-1 (E7): the word's spark on the card's top-right corner (on its ink plate: the open card's frame is yellow)
       } else {

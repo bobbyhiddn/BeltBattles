@@ -8,7 +8,7 @@
 
 import { ITEMS } from "../sim/content";
 import { rigArrowCells } from "../sim/deck";
-import { footOffsets, isShaped } from "../sim/foot";
+import { footCount, footOffsets, isShaped } from "../sim/foot";
 import { C } from "../render/palette";
 import { makeCanvas, rect, type G } from "../render/pixel";
 
@@ -233,18 +233,26 @@ export function shapeGridSize(defId: string, cell = gridCell(defId)): { w: numbe
 }
 
 /** G4: does `defId`'s card show the grid? A rig or a factory whose foot is not its 1-cell or 2x2 default (foot.ts isShaped:
- *  shapeEdit.ts shapedPiece's rule, here so the drawing layers need not import a screen). False for an unknown id. */
+ *  shapeEdit.ts shapedPiece's rule, here so the drawing layers need not import a screen). False for an unknown id.
+ *  PRESENT-1 (S1, REQ-BFG-113 (1); backlog #471): and every other piece bigger than one cell, a plain 2x2 factory and a size-2 turret
+ *  (foot.ts footOf: "2x2"), whose grid has no arrows (gridSpecOf: only a rig has any). A core, a gear, a supply and a gate (1 cell) none. */
 export function hasGrid(defId: string): boolean {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, defId) ? ITEMS[defId] : undefined;
-  return !!d && (d.kind === "gate" || d.kind === "factory") && isShaped(d);
+  return !!d && (((d.kind === "gate" || d.kind === "factory") && isShaped(d)) || ((d.kind === "factory" || d.kind === "turret") && footCount(d) > 1));
 }
 
 /** G4: a shaped piece's grid (no plate) at the right end of a row `x`..`x + w` whose top is `y`, where it clears `left` (the row's
- *  own words end there) and ends above `floor` (a badge's top): the warlord's pick buttons. Returns whether it drew. */
-export function drawGridRight(g: G, defId: string, x: number, y: number, w: number, left: number, floor = Infinity): boolean {
+ *  own words end there) and ends above `floor` (a badge's top): the warlord's pick buttons. Returns whether it drew.
+ *  PRESENT-1 (S1 (a), REQ-BFG-113 (1)): `corner`, where the grid goes when the words leave it no room at the row's end: over the
+ *  piece's icon, top-left at that point, as every other surface draws a grid over an icon (the row's own picture); it was dropped. */
+export function drawGridRight(g: G, defId: string, x: number, y: number, w: number, left: number, floor = Infinity, corner?: { x: number; y: number }): boolean {
   if (!hasGrid(defId)) return false;
   const sz = shapeGridSize(defId), px = x + w - 3 - sz.w;
-  if (px < left || y + sz.h > floor) return false;
+  if (px < left || y + sz.h > floor) {
+    if (!corner) return false;
+    g.drawImage(shapeGrid(defId), corner.x, corner.y);
+    return true;
+  }
   g.drawImage(shapeGrid(defId), px, y);
   return true;
 }
