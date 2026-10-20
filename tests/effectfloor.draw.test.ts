@@ -143,11 +143,11 @@ describe("EFFECT_FLOOR off: the draw is the freeze's (SHOCK-1D 5.3 item 1)", () 
     expect([n.SHOCK, n.BURN]).toEqual([FREEZE_NO_SHOCK, FREEZE_NO_BURN]); // FREEZE
   }, 60000);
 
-  it("the switch ships off (the rules bump flips this pin), and the game's own newRun draws the off draw", () => {
-    expect(EFFECT_FLOOR).toBe(false); // FREEZE: the bump turns the switch on and this pin with it
+  it("the switch is on (the rules bump turned it on), and the game's own newRun draws the on draw", () => {
+    expect(EFFECT_FLOOR).toBe(true); // the rules bump turned the switch on (src/sim/effectFloor.ts)
     expect(effectFloorRules()).toBe(EFFECT_FLOOR);
-    const off = tableOff();
-    for (const i of [0, 7, 99, 1234]) expect(newRun("furnace", TABLE_SEEDS[i], "effectfloor").wares, `table seed ${i}`).toEqual(off[i]);
+    const on = tableOn();
+    for (const i of [0, 7, 99, 1234]) expect(newRun("furnace", TABLE_SEEDS[i], "effectfloor").wares, `table seed ${i}`).toEqual(on[i]);
   }, 60000);
 });
 

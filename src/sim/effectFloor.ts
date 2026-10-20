@@ -24,8 +24,8 @@
 //
 // Shared, pure and dependency-light (no DOM, no catalogue): the game and the tests read the same switch.
 
-/** THE switch (REQ-BFG-033): off until the rules bump after bb-0.13.0 turns it on. */
-export const EFFECT_FLOOR: boolean = false;
+/** THE switch (REQ-BFG-033): ON since BUMP-1G (battle rules bb-0.14.0). SHOCK-1 shipped it off at the bb-0.13.0 freeze; this line is the flip, and every run's wares now hold at least one SHOCK and one BURN piece. */
+export const EFFECT_FLOOR: boolean = true;
 
 /**
  * THE FLOOR'S DEPTH (SHOCK-1D 5.1, question 3): how many pieces of each effect (the SMUGGLER's SHOCK pool, its BURN pool) a run's

@@ -15,6 +15,7 @@ import { SHAPES2, SHAPES2_IDS, SHAPES2_ODDS, isShapedRig, setShapes2, withShapes
 import { withPlainRigs } from "../src/sim/plainRigs";
 import { DRAW, drawWares, heldPast } from "../src/game/wares";
 import { newRun, rollShop } from "../src/game/run";
+import { withEffectFloor } from "../src/sim/effectFloor"; // SHOCK-1 flip: the lever test below reads the shaped-rig lever alone
 import { buildLayout } from "../src/screens/build/layout";
 
 const MIN_STOCK = SHAPES2_ODDS.minStock; // the shipped value
@@ -67,7 +68,7 @@ describe("SHAPES-2 S3: the lever (the per-run draw keeps shaped rigs in stock)",
   });
 
   it("on: every run holds at least 7 shaped rigs, the draw keeps its size and each merchant's and rarity's share", () => {
-    withPlainRigs(() => withShapes2(() => {
+    withEffectFloor(() => withPlainRigs(() => withShapes2(() => { // SHOCK-1 flip: with the effect floor off (the floor swaps a piece of its own, differently in the two draws compared here)
       const by = (w: Record<string, number>, f: (id: string) => string) => {
         const o: Record<string, number> = {};
         for (const id of Object.keys(w)) o[f(id)] = (o[f(id)] ?? 0) + 1;
@@ -101,7 +102,7 @@ describe("SHAPES-2 S3: the lever (the per-run draw keeps shaped rigs in stock)",
       expect(raritiesMoved).toBeLessThan(75); // and inside the rarity but where the merchant drew none of it (the dealer sells no other common): about one run in six
       // deterministic: the same seed, the same wares
       expect(JSON.stringify(drawWares(7))).toBe(JSON.stringify(drawWares(7)));
-    }));
+    })), false);
   });
 
   it("on: the per-run draw stays in REQ-BFG-022's band (55-70) and day 1 holds 17+ buyable parts, with PLAIN_RIGS off and on", () => {
