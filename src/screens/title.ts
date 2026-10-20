@@ -205,7 +205,9 @@ export class TitleScreen implements Screen {
     this.L = titleLayout(W, H, portrait, !!this.save, this.k);
     this.arena.setFrames(this.L.frames, portrait ? [[0, 1], [0, -1]] : [[-1, 0], [1, 0]]);
     // MOTION-2: the drifts never close the open floor below the battle's minimum (as in a battle)
-    this.motion.setLanes({ portrait, gap: this.L.gap }, minGap(portrait ? H : W));
+    // TITLE-SURGE (PRESENT-1, REQ-BFG-038; REVIEW-CUSTOM3 ruling 4): and, as battle.ts:439 and replay.ts:171 pass their whole layout, W and the
+    // frames too, so ArenaMotion.setLanes takes the lanes through laneSpec (battleLayout.ts:166): landscape's surge stays inside the boards' margin
+    this.motion.setLanes({ portrait, gap: this.L.gap, W, frames: this.L.frames }, minGap(portrait ? H : W));
   }
 
   /** intro tooling (read only; scripts/introcheck.mjs): the title's frame as drawn, in logical px: its scale and the
