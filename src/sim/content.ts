@@ -54,7 +54,11 @@ import type { FootId } from "./foot"; // SHAPES-1 (REQ-BFG-086): ItemDef.foot (a
 // ENCHANTER's eight words), fixes what 1E found inside the generators' closure and retunes the day-6 ladder, POISON against BURN and the
 // casual player's lift; every pool is regenerated once with them. Ghosts and records made under bb-0.12.0 don't mix: they keep the old
 // pieces (GATES_RULES and ENCHANT_RULES, src/net/rulesGate.ts).
-export const RULES_VERSION = "bb-0.13.0";
+// BUMP-1G (BRIEF-BUMP1G): bb-0.14.0 (was bb-0.13.0) turns on the effect floor (every run's wares hold at least one SHOCK and one BURN piece:
+// src/sim/effectFloor.ts), fixes the bots inside the generators' closure (a belt redraw keeps a rig's word, the par bot's LAST CHANCE sale is
+// whole plates, playerRun's cache names every toggle) and retunes the late game; every pool is regenerated once with them. The rules string
+// is cap's call; the release lane picks the label at staging.
+export const RULES_VERSION = "bb-0.14.0";
 /**
  * RUNES-1 (REQ-BFG-058, decision 10): the rules whose bot pools a rules release carries forward instead of regenerating
  * them: the stand-in pool (standInPoolData.ts's `rules` tag) and the seed ghosts drawn from it and from the par player
