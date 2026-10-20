@@ -58,6 +58,7 @@ import { rigArrowCells } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 R2): a lon
 import { shapesRules } from "../sim/shapes"; // SHAPES-1: the shaped pieces' faces, lines and notes (SHAPES on only)
 import { isShapes2Piece, shapes2Rules } from "../sim/deck"; // SHAPES-2 (REQ-BFG-114; deck.ts re-exports shapes2.ts: faceText.test.ts reads import paths as string literals, and a digit is not allowed in them): the six more shaped plain rigs: the same stat-row face path as PLAIN-1's six
 import { scaleRules } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): VENOM DRIP's plain POISON face (SCALE_RIGS on only)
+import { isConverterItem } from "../sim/split"; // BUMP-1F (RULING-BUMP1F-R11 R11.3): the three gates' desk-card effect line is their star-1 stat row (cardEffect)
 import { POISON_DPS } from "../sim/content"; // SCALE-2b: POISON's hull damage a second (its reminder)
 import type { ReadCount } from "../sim/content"; // SCALE-2c (REQ-BFG-098): the reader faces' words, by count
 import { isGatesPiece } from "../sim/deck"; // GATES-1 (REQ-BFG-052; deck.ts re-exports gates.ts): the three gates' faces, while they are in ITEMS (GATES on)
@@ -294,7 +295,7 @@ export const REMINDER: Record<KeywordName, (n?: number) => string> = {
   HEAL: () => "{*HEAL}: GIVES BACK HULL, NEVER PAST FULL.",
   REGEN: () => "{*REGEN}: GIVES BACK THIS MUCH HULL EACH SEC.",
   // SCALE-2b (REQ-BFG-108; REPORT-SCALE1 section 2, the design's keyword text in CARD-3's words, BURN's form): battle.ts
-  // hullEffects, POISON_DPS (3) a POISON at each whole second x D(d) (dmgNow, as BURN's tick), no decay until the fight
+  // hullEffects, POISON_DPS (2; 3 until BUMP-1F P3 D2, RULING-BUMP1F-R13 R13.5) a POISON at each whole second x D(d) (dmgNow, as BURN's tick), no decay until the fight
   // ends; stacks add (impact); straight to hp, never absorb() ({*PLATE}: the soak layer, SHIELD to the player). Read only
   // while SCALE_RIGS is on (KEYWORDS holds POISON then: VENOM DRIP's face, its glossary row, the status row's chip). The
   // design's UNTIL THE FIGHT ENDS is UNTIL THE END: the whole text must fit the glossary's 2 lines of 5x7 at 225 px, and
@@ -1288,7 +1289,11 @@ export function cardEffect(def: string, o: TextOpts = {}): string {
   const t = cardText(def, o);
   if (t) return t;
   const plain = plainRigStats(def, 1, o.day);
-  return plain ? statRow(plain) : "";
+  if (plain) return statRow(plain);
+  // BUMP-1F (RULING-BUMP1F-R11 R11.3; GATES-1's converters, REQ-BFG-052, REQ-BFG-115): a gate (FUSER, SCATTER MILL, SMELTER) has no cardText and no plain stat row, so the tap panel's one-line effect on the 360x640 strip
+  // (inspector.ts, headerOnly) had none; its effect line is its own star-1 face stat row (faceLines(def, 1): statRow of the face's stats), as the plain rigs' is. No number, rule or sim code changes
+  if (isConverterItem({ def })) return faceLines(def, 1, o)?.stats ?? "";
+  return "";
 }
 
 // ------------------------------------------------------------- Y2 (release Y): the STUN pieces with the switch on
