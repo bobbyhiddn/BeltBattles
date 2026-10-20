@@ -257,7 +257,7 @@ describe("ROWS-1 F17: on the desk nothing moves", () => {
     }
   });
 
-  it("a list that is not paged (a run without the endless mark: no room limit) is runeListH(n) taller by 9 px for each wrapped row, nothing else", () => {
+  it("a list that is not paged (no room limit: the plan with Infinity, which a list that fits equals, tests/rows1.runlist.test.ts) is runeListH(n) taller by 9 px for each wrapped row, nothing else", () => {
     const op = view(402, 690, 3);
     const defs = [RUNES.forge_ward, RUNES.scrap_halo, ...ALL.slice(0, 8)];
     const P = runeListPlan(defs, 4, 46, op.W, Infinity, op.foot, 0, 50);

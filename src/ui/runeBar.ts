@@ -24,7 +24,6 @@ import { drawIconTip, helpCursor, iconTipRect } from "../screens/build/keywords"
 import type { View } from "../core/io";
 import { drawRich, wrapRich, type RichLine } from "./richText";
 import { RUNES, isRune, type RuneDef, type RuneHeld } from "../sim/runes";
-import { endlessMarked } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059, 3.5): only an endless-marked run gets the paged YOUR RUNES list
 import {
   RUNE_KEYWORD_COLOUR, KEYWORD_WORD, runeInitials, runeKeyword, runeReminderSpans, runeSentenceSpans, runeTaken, tierColour,
 } from "./runeText";
@@ -589,7 +588,8 @@ export const runeListH = (n: number): number => 16 + n * 19 + 2;
 
 /** ENDLESS-1 (REQ-BFG-059, 3.5; RULING-RUN1-R1: YOUR RUNES running off a phone past about 21 runes, deferred to ENDLESS): the list's
  *  rows are RUNE_ROW_H apart and its title takes RUNE_LIST_HEAD; an endless run holds about 50 runes, 19 px each, so a list taller
- *  than the room under the bar is shown a PAGE of rows at a time, with a foot of two buttons (< and >) and "PAGE 2/5". */
+ *  than the room under the bar is shown a PAGE of rows at a time, with a foot of two buttons (< and >) and "PAGE 2/5".
+ *  ROWS-1 run 3 (W1): on any run, not only an endless-marked one (drawOver hands every run the room under the bar). */
 export const RUNE_ROW_H = 19;
 export const RUNE_LIST_HEAD = 16;
 /** The paged list's foot, at least this tall (art px); on a phone a finger's square (runeTapOf) when that is taller. */
@@ -783,11 +783,13 @@ export class RuneBar {
       }, { W: s.game.W, H: s.game.H }, s.game.canvas, undefined, undefined, undefined, s.run.day); // MERGE-099E: no `take` (CARD-4 P4: the read-out keeps its targets), then the day
     } else if (this.list) {
       // ENDLESS-1: the whole list when it fits under the bar (exactly as before), else a page of rows and a foot (runeListLayout)
-      // (only a run that carries the endless mark pages: any other run's list is the whole list, as it always was)
       // ROWS-1 (REQ-BFG-100; F17): each row is its rune's first sentence WHOLE (runeRowLines: every line it wraps to, was the first
       // line only), so a row is 19 px for one line and 9 more for each further line (runeListRowH); the pages (runeListPages) hold
       // whole rows by those heights. A row's words are the card's at this width: on the desk every row is one line, as before
-      const P = runeListPlan(defs, x, y, w, endlessMarked(s.run) ? s.game.H - 4 - y : Infinity, Math.max(RUNE_LIST_FOOT_MIN, runeTapOf(s)), this.page, s.run.day);
+      // ROWS-1 run 3 (RULING-ROWS1-R1 W1, question 3): EVERY run is handed the room under the bar, not only an endless-marked one (a
+      // run has no day limit since 0.9.11: it holds a rune a dawn, 17 by its deepest draw-free dusk and one more from LAST CHANCE, and
+      // with wrapped rows that runs off a phone). A list that fits is the whole list, one page, no foot, the same pixels as before
+      const P = runeListPlan(defs, x, y, w, s.game.H - 4 - y, Math.max(RUNE_LIST_FOOT_MIN, runeTapOf(s)), this.page, s.run.day);
       const LL = P.layout, r = P.box;
       this.pages = LL.pages;
       this.page = P.page;
