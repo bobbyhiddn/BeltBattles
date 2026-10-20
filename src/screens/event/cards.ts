@@ -8,12 +8,13 @@ import type { ShopBadge } from "../../game/run";
 import { ITEMS } from "../../sim/content";
 import { ENCHANT_DEFS, isEnchantId } from "../../sim/enchant"; // ENCHANT-2 (REQ-BFG-085, T3): the shrine's word chip (its icon, its name in its colour)
 import { enchantIcon } from "../../render/enchantArt"; // ENCHANT-2 (T3)
+import { SHRINE_NO_PART } from "../../game/shrine"; // ENCHANT-2W (REQ-BFG-085, W2): the reason that marks the ASH SHRINE's blocked card 2 (read only)
 import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): an event's hull amount on the day's hull
 import { C } from "../../render/palette";
 import { frame, rect, type G } from "../../render/pixel";
 import { drawText, textWidth } from "../../render/font";
 import { beltIcon, coinIcon, heartIcon, itemIcon } from "../../render/sprites";
-import { rerollIcon, shieldIcon, skullIcon, tagIcon } from "../../render/eventArt";
+import { crateIcon, rerollIcon, shieldIcon, skullIcon, tagIcon } from "../../render/eventArt"; // ENCHANT-2W (W2): the crate, the run bar's cargo mark
 import { drawBadge } from "../build/shop";
 import { drawShapePlate, hasGrid, shapeGridSize } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on the choice card
 import type { Rect } from "../../ui/ui";
@@ -67,13 +68,17 @@ export function deltaText(d: Delta, cost: boolean, day?: number): string {
   }
 }
 
+/** ENCHANT-2W (REQ-BFG-085; W1, E2-01): the count in front of the part the ASH SHRINE's card 2 takes, in the game's own count form (`3x DMG`): `1x`.
+ *  ENCHANT-2's fix round printed a bare `1 TEMPER`; three of six readers of its re-read could not tell whether that 1 is a count or a star. */
+export const SHRINE_COUNT = "1x";
+
 /** ENCHANT-2 (REQ-BFG-085; T6 fix round, E2-01): the text of a chip as the card draws it. `bare`: a part's icon alone (T3: the word keeps the room). `count`
- *  (only a card that gains a WORD, the ASH SHRINE's): the part a card TAKES reads `1 TEMPER`, a count and then the part, because two of six readers of
+ *  (only a card that gains a WORD, the ASH SHRINE's): the part a card TAKES reads `1x TEMPER` (ENCHANT-2W, W1: was `1 TEMPER`), a count and then the part, because two of six readers of
  *  the strict read's round 1 asked how many parts card 2 takes (the bare name `TEMPER` showed no number). Every other chip is deltaText, as before. */
 export function chipText(d: Delta, cost: boolean, day: number | undefined, bare: boolean, count = false): string {
   if (bare && d.k === "item") return "";
   const t = deltaText(d, cost, day); // HULL-1a: `day`
-  return count && cost && d.k === "item" ? `1 ${t}` : t;
+  return count && cost && d.k === "item" ? `${SHRINE_COUNT} ${t}` : t;
 }
 
 function chip(g: G, x: number, cy: number, d: Delta, cost: boolean, dim: boolean, right: number, day?: number, bare = false, count = false): number {
@@ -104,7 +109,7 @@ function exchangeNeed(c: Choice, day: number | undefined, bare: boolean, count: 
 
 /**
  * ENCHANT-2 (REQ-BFG-085, T3; T6 fix round, E2-01): how a card that gains a WORD draws the part it takes in `w` px, null for any other card (drawn exactly as before):
- * `count` (`1 TEMPER`) where the whole line fits with the count; else `name` (`TEMPER`, what T3 drew: the count never costs a card the name it showed before);
+ * `count` (`1x TEMPER`; ENCHANT-2W, W1: was `1 TEMPER`) where the whole line fits with the count; else `name` (`TEMPER`, what T3 drew: the count never costs a card the name it showed before);
  * else `bare` (the part as its icon alone: the word never loses its room to a long part name; the card's label says OFFER CARGO PART).
  */
 export function exchangeForm(c: Choice, w: number, day?: number): "count" | "name" | "bare" | null {
@@ -113,8 +118,49 @@ export function exchangeForm(c: Choice, w: number, day?: number): "count" | "nam
   return exchangeNeed(c, day, false, false) <= w ? "name" : "bare";
 }
 
-/** "pay -> get" line centred on row cy (icons centred, 3x5 text). */
-export function exchange(g: G, x: number, cy: number, w: number, c: Choice, dim: boolean, day?: number): void {
+/**
+ * ENCHANT-2W (REQ-BFG-085; W2, E2-01b): THE ASH SHRINE'S BLOCKED CARD 2, with nothing in cargo, drew `FREE -> NOTHING`, which is false: the card costs a cargo part and gives
+ * word B (all six readers of the strict read's round 2 flagged it). The Choice's data stays (shrine.ts: cost and gain empty, blocked SHRINE_NO_PART; the bots and the
+ * road-cap model read it); only the drawing changes: it draws the line the card WOULD have, dimmed as every blocked card's chips are: the crate (the run bar's cargo mark),
+ * `1x CARGO PART` (no part is named: none is in cargo), the arrow, and word B's icon and name. The red reason under it stays. Three tiers as the card with a part has:
+ * the count, else `CARGO PART`, else the crate alone; the word never loses its room.
+ */
+export const SHRINE_GHOST_PART = "CARGO PART";
+export type GhostForm = "count" | "name" | "bare";
+
+/** Is `c` the ASH SHRINE's blocked card 2 (the one drawn as the would-be line)? Only that card carries this reason, with nothing to take and nothing to give. */
+export const isShrineBlockedPart = (c: Choice): boolean => c.blocked === SHRINE_NO_PART && !c.cost.length && !c.gain.length;
+
+/** The text of the would-be cost in a form: `1x CARGO PART`, `CARGO PART`, or "" (the crate alone). */
+export const ghostText = (form: GhostForm): string => (form === "count" ? `${SHRINE_COUNT} ${SHRINE_GHOST_PART}` : form === "name" ? SHRINE_GHOST_PART : "");
+
+/** The width the would-be cost chip takes in a form (as chipWidth: icon, 2 px, text, 5 px after). */
+function ghostWidth(form: GhostForm): number {
+  const text = ghostText(form), icon = crateIcon();
+  return (text ? icon.width + 2 + textWidth(text, "3") : icon.width) + 5;
+}
+
+/** The form the would-be line takes in `w` px for word B: the widest of count, name, bare that fits with the word's chip (never the word's room). */
+export function ghostForm(word: string, w: number, day?: number): GhostForm {
+  const room = w - 7 - chipWidth({ k: "ench", word }, false, day, false);
+  if (ghostWidth("count") <= room) return "count";
+  return ghostWidth("name") <= room ? "name" : "bare";
+}
+
+/** Draw the would-be line of the shrine's blocked card on row cy: crate, cost text and arrow dim (slate3, slate2), word B's chip as a blocked card's chip (its icon in its own colour, its name dim). */
+function drawShrineGhost(g: G, x: number, cy: number, w: number, word: string, day?: number): void {
+  const icon = crateIcon(), form = ghostForm(word, w, day), text = ghostText(form);
+  g.drawImage(icon, x, cy - Math.floor(icon.height / 2));
+  if (text) drawText(g, text, x + icon.width + 2, cy - 2, C.slate3, { font: "3" });
+  const cx = x + ghostWidth(form);
+  drawText(g, "→", cx, cy - 2, C.slate2, { font: "3" });
+  chip(g, cx + 7, cy, { k: "ench", word }, false, true, x + w, day);
+}
+
+/** "pay -> get" line centred on row cy (icons centred, 3x5 text). ENCHANT-2W (W2): `shrineWord`, word B of the ASH SHRINE's offer (event.ts reads it from shrine.ts shrineOffer):
+ *  with it, the shrine's blocked card 2 draws its would-be line (isShrineBlockedPart); every other card draws exactly as before. */
+export function exchange(g: G, x: number, cy: number, w: number, c: Choice, dim: boolean, day?: number, shrineWord?: string): void {
+  if (shrineWord !== undefined && isShrineBlockedPart(c)) return drawShrineGhost(g, x, cy, w, shrineWord, day);
   const right = x + w;
   let cx = x;
   // ENCHANT-2 (REQ-BFG-085, T3): a card that gains a WORD never loses it to a long part name: when the whole line does not fit, the part is its icon alone
@@ -139,6 +185,8 @@ export interface CardView {
   flash: boolean; // chosen-card blink (off with Reduced Motion)
   badge?: ShopBadge | null; // 0.6.1d2: live from run.ts:shopBadge, for a choice that gains an item
   day?: number; // HULL-1a (REQ-BFG-079): the run's day (a hull amount: the day's number with HULL_SCALE on)
+  /** ENCHANT-2W (REQ-BFG-085; W2): word B of the ASH SHRINE's offer (shrine.ts shrineOffer(run.seed, ev.day)[1], read by event.ts while the shrine is open), for its blocked card 2's would-be line; absent on every other event. */
+  shrineWord?: string;
 }
 
 /** The line at the foot of a choice card: why it is blocked, else its note. Y4 (release Y; BRIEF-Y4 S3): a quiet block (the
@@ -177,7 +225,7 @@ export function drawChoiceCard(g: G, r: Rect, c: Choice, i: number, v: CardView)
   // clear of it (its chips and names stop short of the plate: chip() drops what doesn't fit)
   const shaped = [...c.gain, ...c.cost].find((d): d is Extract<Delta, { k: "item" }> => d.k === "item" && hasGrid(d.def));
   const plateW = shaped ? shapeGridSize(shaped.def).w + 2 : 0;
-  exchange(g, x + 5, y + 25, r.w - 10 - (plateW ? plateW + 4 : 0), c, dim, v.day);
+  exchange(g, x + 5, y + 25, r.w - 10 - (plateW ? plateW + 4 : 0), c, dim, v.day, v.shrineWord); // ENCHANT-2W (W2): + word B for the shrine's blocked card
   if (shaped) drawShapePlate(g, shaped.def, x + r.w - 4 - plateW, y + 15, undefined, dim ? 0.5 : 1);
   const note = cardNote(c);
   if (note) drawText(g, note, x + 5, y + r.h - 9, c.blocked ? C.red : C.slate4, { font: "3" });
