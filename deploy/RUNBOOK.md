@@ -3969,12 +3969,18 @@ CHANGELOG commit b2ddc3840a6a; and the release record (deploy/GAME_BUILD.txt and
   (src/game/saveGuard.ts:70-86) does not trip, no aside line, CONTINUE works and the run goes on under bb-0.12.0 with the
   reworked numbers; it carries no endless mark, so when it is won it ends there (NEW RUN and TITLE) and is **not** offered
   ENDLESS (src/sim/endless.ts:113-114; src/screens/summary.ts:273-275). (b) **A 0.9.13 save on 0.9.12 (v24, the rollback)**
-  has no guard to meet: 0.9.12 has no saveGuard.ts (the E.2 class, accepted for 0.9.11). A save that holds one of the seven
-  new rigs names a piece 0.9.12 does not know: expect a dead CONTINUE or build screen; NEW RUN overwrites the save. A save
-  in ENDLESS keeps its extra fields (0.9.12 does not read them) and its hearts (at most 3). From 0.9.13 on the guard makes
-  that rollback graceful. The browser read of (b), with a save that holds a GRUDGE ROD, one in ENDLESS and a won run kept for its
-  RUN WON offer, is the STAGE's rollback probe (kit0913/rbprobe, O/browser/rbprobe-*.log; not yet run when this section was written): its
-  result is in the STAGE report; a crash or a lost save there is a finding, not a blocker.
+  has no guard to meet: 0.9.12 has no saveGuard.ts (the E.2 class, accepted for 0.9.11). **Read in a browser** by the STAGE's
+  rollback probe (kit0913/rbprobe; 0.9.13's page and 0.9.12's page, each with a save that holds a GRUDGE ROD, one in ENDLESS on day
+  15 and a won run kept for its RUN WON offer; O/browser/rbprobe-*.log and their stills): 0.9.13's page loads all three with no
+  error. On 0.9.12's page a save that names **one of the seven new rigs** (in its build, its inventory or its shop stock) breaks
+  CONTINUE: a GRUDGE ROD in the build leaves the title as it was (a dead CONTINUE; page error `unknown item grudgerod`); a new rig
+  only in the shop stock opens a build screen that draws nothing (a black screen; page error `Cannot read properties of undefined
+  (reading 'price')`). A reload brings the title back, the save stays (a won run's is cleared by that load) and **NEW RUN always
+  works** and replaces it; no title fails to draw, no console error loop. A save that names **no new rig** loads on 0.9.12 as an
+  ordinary run: one in ENDLESS opens its build screen on its day with the day's rune pick and plays on as a run past day 10 with
+  its hearts; a won run kept for its offer opens its build screen on the day it was won (no RUN WON offer: 0.9.12 clears that
+  save). From 0.9.13 on the save guard makes this rollback graceful (the aside line, the save untouched); a rollback from
+  0.9.13 to 0.9.12 can leave a player who held a new rig with a dead or black CONTINUE until NEW RUN: a finding, not a blocker.
 
 **The release command** (`node /app/dist/ghost-server.mjs seed`) finds the live store holding bb-0.11.0's 192 pool ghosts
 (days 1-16, 12 a day) and the uploads made under it, and nothing under bb-0.12.0; this commit's bundle carries the new pool
@@ -4071,8 +4077,8 @@ decoder refuses; on Tigris, the real store, nothing is removed). An **open 0.9.1
 bb-0.12.0 ghosts, v24's server **serves them** (its match route serves the bucket of the rules a request names; tigris-rollback step f),
 but refuses that tab's uploads (a 422 for a run's, a 400 for an ENDLESS dusk's; read from v24's code, not rehearsed: step f sends only an
 unsigned POST, 401). A run
-saved in 0.9.13 may not carry on there (item (b) above): expect a dead CONTINUE if it holds a new rig; the player starts a NEW RUN.
-Rolling back loses nothing on the server.
+saved in 0.9.13 may not carry on there (item (b) above, read in a browser): CONTINUE is dead or black if the save names a new
+rig, an ordinary run if it does not; NEW RUN always works. Rolling back loses nothing on the server.
 
 tests/tsc-tests-baseline.json is the ride's (5242b7c lowered it from 164 to 163 type errors); the release lane did not touch it (sha16
 `216977d9b4bd72fe`).
