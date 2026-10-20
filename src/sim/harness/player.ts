@@ -2223,10 +2223,15 @@ function refitSwap(run: Run, def: string, rng: Rng, stars = 1): { rel: number; s
  *  star) spent on ARMOR PACKs, "the least a gold can buy" (harness/lastChance.ts goldBy10 prices the gold runes the same way). A part the
  *  bots can place nowhere (45% of the par boards of days 3-8 at K 24) sat in cargo, rated no gain, and so was the weakest card by
  *  construction (c5 20%, par 7% on 1D's F1); a part is never worth less than selling it. One reader: the pick (botLastChancePick) and
- *  the modeled run's card (lastChanceCard) both take this number, so the bots get what they priced. */
+ *  the modeled run's card (lastChanceCard) both take this number, so the bots get what they priced. BUMP-1G B2: in whole plates. */
 export function partSaleHull(def: string, stars: number): number {
   const armor = ITEMS[PACK_ITEM.armor];
-  return Math.floor(sellValue(def, stars) * ((armor.supply?.hull ?? 0) / Math.max(1, armor.price)));
+  const plate = armor.supply?.hull ?? 0;
+  const raw = Math.floor(sellValue(def, stars) * (plate / Math.max(1, armor.price)));
+  // BUMP-1G B2 (RULING-BUMP1F-R12 R12.2; the KNOWN LIMITATION "the par bot books a modeled sale hull the server refuses"): a human holds hull only in WHOLE PLATES (an ARMOR PACK: +plate hull for its price),
+  // so the sale is spent on as many whole plates as it pays and what is left over buys nothing: plate x floor(raw / plate), or nothing. The pick (botLastChancePick), the card (lastChanceCard) and the endless
+  // bench (which takes the pick and plays the card) all read this one number, so every deck the par bot builds after a LAST CHANCE part holds a hull the server's supply check can reach.
+  return plate > 0 ? plate * Math.floor(raw / plate) : 0;
 }
 
 /** LC-1: the par run's LAST CHANCE card at the dawn after `day` (playerRun's opts.lastChance): the game's takeLastChance

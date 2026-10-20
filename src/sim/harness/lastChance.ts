@@ -148,7 +148,7 @@ export function botLastChancePick(offer: LastChanceOffer, hero: HeroId, board: B
     // BUMP-1F (PACKET-BUMP-0130 section 4, SEMANTIC): ENCHANT's `worth` first, then C2's sale floor. A sold part loses its word, so the
     // floor takes no worth: the floor is the plain sale
     const sold = cloneBuild(board);
-    sold.hullBonus += partSaleHull(offer.part, offer.partStars ?? 1);
+    sold.hullBonus += partSaleHull(offer.part, offer.partStars ?? 1); // BUMP-1G B2: whole plates (player.ts partSaleHull), as the card books them
     part = Math.max(part, rateOn(sold, day));
   }
   let rune = -Infinity, factor: number | undefined;
