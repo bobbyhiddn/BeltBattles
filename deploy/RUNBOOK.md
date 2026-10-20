@@ -4218,7 +4218,9 @@ one process, load 5.6), and **16 s and 260,336 kB on one pinned core** (kit0914/
 O/logs/seedtime-<commit>.log). fly.toml's [[vm]] is 256 MB (262,144 kB) and the release command runs on a throwaway machine of that size, so
 **the seed is the launch's heaviest step: 92% and 99% of the VM's memory by those two reads**, against 0.9.13's 11 s and 187,424 kB on one
 pinned core (71%; 9.1 s and 186,192 kB at a loaded host) and 0.9.12's 4 s and 168,164 kB. The reads were taken on a 30 GB host, which sets node's heap
-limits; none was taken on a 256 MB machine. A release command killed for memory fails the deploy and replaces nothing (section 4).
+limits; none was taken on a 256 MB machine. With node held to the limits of a small machine (kit0914/seedmem.sh, one core, nice 10, O/logs/seedmem-T.log) the same seed still completes,
+exit 0, at 200,956, 208,084, 207,576 and 199,748 kB under `--max-old-space-size` 128, 96, 64 and 48, and at 173,344 and 168,728 kB with a small young generation too
+(`--max-semi-space-size` 4 and 2): 64-79% of the VM. A release command killed for memory fails the deploy and replaces nothing (section 4).
 
 **The boot.** The server warms roadCap's memo once the port is open and uploads are open (server/main.ts:47-48,
 server/warm.ts; the ride changed warm.ts): the first deep upload does not pay about 5 seconds. After the deploy and after a restart, **look for the
@@ -4311,7 +4313,9 @@ label tests (8 passed). At the release record's commit the gate (tsc 0, typechec
 the smoke 45 of 45, luckcaps `check: IDENTICAL: regenerated 7401 bytes`); fp and all 41 parBench lines IDENTICAL; runnercopies all SAME; seedcheck 14 of 14 yes; probecheck 23 of 23 yes;
 the seed rehearsal 8 PASS (the launch seed `192 written, 0 unchanged, 0 removed`, again `0 written, 192 unchanged, 0 removed`, and v25's rollback seed `0 written, 192 unchanged, 0 removed`);
 the boot; the Tigris rehearsal's steps a to e PASS; server/dist against v25's (eight of nine differ or are gone, above); the six generated files' bytes SAME; and no file of the
-stand-in generators' closure (102 files) changed after bump1f-accepted. The suite, the browser block and the mutants are recorded in O/STAGE-REPORT.md as the STAGE runs them.
+stand-in generators' closure (102 files) changed after bump1f-accepted. **The suite at this commit's tree: ALL GREEN, 525 files** (6,419 tests declared: 6,408 passed and 11 skipped; the hull lane's 525 files match file by file, and the four more tests are the P7 probe rows), after seven
+time-outs under load in the first round (two 600 s limits, four 30 s limits and the known memo-hit bound of tests/bump1e.warm) that all passed in the second round at a quiet host (O/logs/suite-<commit>-rr*.log). The
+canary, the browser block and the mutants are recorded in O/STAGE-REPORT.md as the STAGE runs them.
 
 ## Troubleshooting
 
