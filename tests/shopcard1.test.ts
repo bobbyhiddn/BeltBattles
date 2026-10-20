@@ -182,10 +182,16 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
       // SHOPCARD-1c (G3): a SOLID down triangle (7-5-3-1 px, rows 1-4, no stem: a stem read as a plus), 1 px of ink round it
       expect([px(c, z.sale, 1, 1), px(c, z.sale, 7, 1), px(c, z.sale, 4, 4), px(c, z.sale, 0, 1), px(c, z.sale, 8, 1), px(c, z.sale, 3, 4), px(c, z.sale, 4, 5)], `${wn} sale`)
         .toEqual([C.lime, C.lime, C.lime, C.ink, C.ink, C.ink, C.ink]);
-      // a merge mark takes the sale's place in the badge's corner only; with both, the merge mark shows and the sale mark does not
+      // PRESENT-1 S4 (a) (was: with both, the merge mark showed and the sale mark did not): a sale that can merge shows both marks,
+      // the merge mark in the badge's corner and the sale mark against the price; the same beside the owned marker
       const both = fresh(w + 8, h + 8);
       drawCard(G(both), { x: OX, y: OY, w, h }, ITEMS.whetstone, 3, "alchemist", { ...BASE, sale: true, badge: { kind: "merge", toStars: 2 } as ShopBadge }, 0);
-      expect(px(both, z.sale, 4, 2), `${wn}: no sale mark with a merge mark`).not.toBe(C.lime);
+      expect([px(both, z.sale, 1, 1), px(both, z.sale, 7, 1), px(both, z.sale, 4, 4), px(both, z.sale, 0, 1), px(both, z.sale, 4, 5)], `${wn}: the sale mark beside the merge mark`)
+        .toEqual([C.lime, C.lime, C.lime, C.ink, C.ink]);
+      expect([px(both, z.merge, 5, 1), px(both, z.merge, 5, 0)], `${wn}: and the merge mark stays`).toEqual([C.amber, C.ink]);
+      const wait = fresh(w + 8, h + 8);
+      drawCard(G(wait), { x: OX, y: OY, w, h }, ITEMS.whetstone, 3, "alchemist", { ...BASE, sale: true, badge: { kind: "wait" } as ShopBadge }, 0);
+      expect([px(wait, z.sale, 1, 1), px(wait, z.sale, 4, 4)], `${wn}: the sale mark beside the owned marker`).toEqual([C.lime, C.lime]);
       // sold: no mark, no price, the icon dim (alpha), nothing at the price's place
       const sold = draw("whetstone", w, h, { sold: true, sale: true, badge: { kind: "merge", toStars: 2 } as ShopBadge });
       for (const m of [z.merge, z.sale]) for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) expect(px(sold, m, x, y), `${wn} sold`).not.toBe(C.ink);

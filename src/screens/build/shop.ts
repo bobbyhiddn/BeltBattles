@@ -335,11 +335,13 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   if (hasGrid(def.id)) drawShapePlate(g, def.id, x + z.grid.x, y + z.grid.y, gridCell(def.id, r.w >= CARD_TEXT_MIN_W ? Infinity : CARGO_FACE), s.sold ? SOLD_ALPHA : 1); // SC-0912: the piece's own cell (PICKAXE 4 where the 16 px face binds); PRESENT-1 S1: every piece bigger than one cell (hasGrid), a plain 2x2 factory and a size-2 turret too; a wide card (landscape, desk: 69 px and up) has room for PICKAXE at 5 (S1 (d))
   if (!s.sold) {
     // F4: the bottom-left corner holds the merge mark (MERGE ★2, ★3) or the owned marker (a copy that won't merge yet, or
-    // only ★3 copies: was the MAX word); the sale mark sits against the price (1c), where no merge mark is
+    // only ★3 copies: was the MAX word); the sale mark sits against the price (1c). PRESENT-1 S4 (a) (REQ-BFG-115; LIVE-PACKETS-0912
+    // section 1 item 5): beside the merge mark or the owned marker too (a sale that can merge showed no sale mark: zones' `sale`
+    // is clear of both, tests/shopcard1.test.ts)
     const b = s.badge;
     if (b?.kind === "merge") drawMergeMark(g, x + z.merge.x, y + z.merge.y, b.toStars, t);
     else if (b) drawOwnedMarker(g, x + ownedMarkAt(r.h).x, y + ownedMarkAt(r.h).y);
-    else if (s.sale) drawSaleMark(g, x + z.sale.x, y + z.sale.y);
+    if (s.sale) drawSaleMark(g, x + z.sale.x, y + z.sale.y);
     // the price stays at the bottom centre on both widths (a sold card shows none: it dims, and says no word)
     const px = cardPriceX(x, r.w, price, false, false);
     g.drawImage(coinIcon(), px, y + r.h - 11);
