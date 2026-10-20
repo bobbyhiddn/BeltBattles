@@ -699,17 +699,15 @@ export function infoView(items: readonly InfoItem[], r: Rect, top: number, botto
   return { areas, pages: infoPagesIn(items, areas.map((q) => q.h)) };
 }
 
-/** The ⓘ button's glyph in the icon box's corner (where U2c's `?` was): an "i" (a dot over a stem) INSIDE A RING, in the box's whole 5x7 (drawn, so the font needs no new glyph).
- *  POLISH-1 (REQ-BFG-089; P5b, cap's answer 2 on ENCHANT-2W's read): it was a bare "i" with a serif and a foot in 3x5, and desk readers took it for the star level (a 1). Candidate A
- *  of the read (O/REPORT.md): the ring says "more about this piece", the dot and stem inside it are the i. (x, y) is still the old glyph's top-left (box + 1, + 1). */
+/** The ⓘ button's glyph in the icon box's corner: the 5x7 face's `?`, in the box's whole 5x7 (drawn here, so the font needs no new glyph).
+ *  POLISH-1 (REQ-BFG-089; P5b, cap's answer 2 on ENCHANT-2W's read): it was a bare "i" with a serif and a foot in 3x5, and desk readers took it for the star level (a 1). THREE
+ *  candidates were drawn on a real ★1 panel (the game's own drawDetails) and read blind by fresh seats on both views (O/REPORT.md, P5b): A, a ring round an i (what this was in
+ *  48e219d0), was read as a letter badge ("A", "R") by 6 of 8 seats; C, a filled badge with the i cut out, as a padlock or an 8 by 8 of 8; B, this `?`, as a help button that explains the
+ *  part by 7 of 8 (and every seat read the star level right). (x, y) is still the old glyph's top-left (box + 1, + 1). */
+const INFO_GLYPH = [".###.", "#...#", "....#", "...#.", "..#..", ".....", "..#.."];
 export function drawInfoGlyph(g: G, x: number, y: number, colour: string): void {
-  const bx = x - 1, by = y - 1; // the ink box's top-left: the ring uses all of it
-  rect(g, bx + 1, by, 3, 1, colour); // top
-  rect(g, bx + 1, by + 6, 3, 1, colour); // bottom
-  rect(g, bx, by + 1, 1, 5, colour); // left side
-  rect(g, bx + 4, by + 1, 1, 5, colour); // right side
-  rect(g, bx + 2, by + 2, 1, 1, colour); // the dot
-  rect(g, bx + 2, by + 4, 1, 2, colour); // the stem
+  const bx = x - 1, by = y - 1; // the ink box's top-left: the `?` uses all of it
+  INFO_GLYPH.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] === "#") rect(g, bx + i, by + j, 1, 1, colour); });
 }
 
 /** Draw the 1 art px dotted underline under a word's glyphs (every other pixel), in its colour. */
