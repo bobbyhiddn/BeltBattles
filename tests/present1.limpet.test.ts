@@ -21,9 +21,9 @@ describe("PRESENT-1 S2 fix 3: LIMPET WORKS's ANYTHING note", () => {
 
   it("explainPanel puts it among the panel's NOTES (the ⓘ view) and the face keeps its sentence unchanged", () => {
     const t = explainPanel(bare, "limpet");
-    expect(t.notes.map((b) => b.text)).toContain(icons(LINE));
+    expect((t.notes ?? []).map((b) => b.text)).toContain(icons(LINE));
     const k = explainPanel(bare, "kiln");
-    expect(k.notes.map((b) => b.text)).not.toContain(icons(LINE));
+    expect((k.notes ?? []).map((b) => b.text)).not.toContain(icons(LINE));
     // the face's own line is not touched: it still says ANYTHING (the note explains it)
     const face = faceLines("limpet", 1, {})!;
     expect(face.rules.map((r) => r.text).join(" ")).toMatch(/AFTER ITS SLUG HITS ANYTHING\.$/);
