@@ -445,7 +445,7 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
     expect(n).toBe(72);
     console.log(`BUMP-1D: the ${STAND_IN_POOL_RULES} stand-in pool, days 11-16: ${n} decks; ${carry.turrets} carry a turret list (${carry.bought} with a bought turret), ${carry.joined} a joined belt (${carry.joins} joins), ${carry.both} both`);
     expect(carry).toEqual(POOL_CARRIES_LONG);
-  });
+  }, 120_000); // BUMP-1F (RULING-BUMP1F-R8 R8.1): 120 s for this test, was vitest's 30-s default: it passes alone but times out at 30 s once the host's 1-minute load passes ~15; no body, count or expectation changed
 
   it("the bundled ghost pool (tools/samplePool.ts): the strict loader takes every snapshot and the player mode accepts each", () => {
     const load = loadGhostPool(samplePoolJson(generateSamplePool())); // CACHE-1: was samplePoolJson() (its default argument, generateSamplePool(), run for real)

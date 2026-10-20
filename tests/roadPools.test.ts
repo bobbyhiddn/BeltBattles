@@ -332,7 +332,7 @@ describe("one shared pool: FURNACE and WEAVER get the very same offers and choic
       cells++;
     }
     expect(cells).toBe(6000);
-  });
+  }, 120_000); // BUMP-1F (RULING-BUMP1F-R8 R8.1): 120 s for this test, was vitest's 30-s default: rollShop's 100-seed sweep is ~20-25 s of CPU alone and times out at 30 s once the host's 1-minute load passes ~15; no body, count or expectation changed
 
   for (const [id, name] of [["wreck", "SALVAGE"], ["smuggler", "SMUGGLER"], ["trader", "TRADER SWAP"]] as [EventId, string][]) {
     it(`${name}: same seed, day and parts held, same choices and badges (100 seeds x days 1-10 x 3 sets)`, () => {

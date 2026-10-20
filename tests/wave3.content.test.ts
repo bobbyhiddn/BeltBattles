@@ -364,7 +364,7 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
     }
     expect(seen).toBe(0);
     expect(onSeen).toBeGreaterThan(0);
-  });
+  }, 120_000); // BUMP-1F (RULING-BUMP1F-R8 R8.1): 120 s for this test, was vitest's 30-s default: it passes alone but times out at 30 s once the host's 1-minute load passes ~15; no body, count or expectation changed
 
   // 0.8.0 I1 M2: flipped (the switch is on): the switch-off half runs under withWave3(fn, false)
   it("the road-event pools (SALVAGE, SMUGGLER, TRADER) hold no wave-3 part; with the switch on, SALVAGE and SWAP take them", () => {
@@ -474,5 +474,5 @@ describe("nothing in play sees wave 3 while the switch is off (BRIEF-wave3-P1 se
     ]);
     expect(inPool.has("stoker")).toBe(true);
     expect(decks).toBeGreaterThan(0);
-  });
+  }, 120_000); // BUMP-1F (RULING-BUMP1F-R8 R8.1): 120 s for this test, was vitest's 30-s default: it passes alone but times out at 30 s once the host's 1-minute load passes ~15; no body, count or expectation changed
 });
