@@ -30,10 +30,12 @@ describe("roadCap's warm-up (BUMP-1E P6)", () => {
     expect(live(() => [roadCap(5), roadCapHoard(5), roadCap(9), roadCapHoard(9)])).toEqual(cold);
   });
 
-  it("the second pass over the same days is a memo hit (a tenth of the first, or under 50 ms)", async () => {
+  // BUMP-1G (REVIEW-BUMP1F-run6 Q3; time only): was "a tenth of the first, or under 50 ms". BUMP-1F's cold third whole-suite read (load 10-27) failed this timing bound while the
+  // file took 2 s alone (REPORT-BUMP1F section R6.7), so the bound is LOOSER, never removed: a fifth of the first pass, or under 150 ms (a real miss costs the whole first pass).
+  it("the second pass over the same days is a memo hit (a fifth of the first, or under 150 ms)", async () => {
     resetRoadCapMemo();
     const a = await warmRoadCap(() => {}, RULES_VERSION, 12);
     const b = await warmRoadCap(() => {}, RULES_VERSION, 12);
-    expect(b.ms === 0 || b.ms < a.ms / 10 || b.ms < 50, `first ${a.ms} ms, second ${b.ms} ms`).toBe(true);
+    expect(b.ms === 0 || b.ms < a.ms / 5 || b.ms < 150, `first ${a.ms} ms, second ${b.ms} ms`).toBe(true);
   });
 });

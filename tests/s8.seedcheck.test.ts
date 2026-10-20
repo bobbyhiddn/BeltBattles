@@ -63,7 +63,9 @@ describe("S8 T1d: checkPool passes the run seed (RULING-S8-R1 item 2)", () => {
     console.log(`S8 T1d (a): ${raws.length} entries, ${seeded.length} with a run seed, ${raws.filter((r) => r.road?.length).length} with a road log`);
     expect(seeded.length).toBeGreaterThan(0);
     expect(checkPool(raws)).toHaveLength(raws.length);
-  });
+    // BUMP-1G (REVIEW-BUMP1F-run6 Q3; time only, no assertion changed): BUMP-1F's third whole-suite read measured this test at 12,973 ms alone and 33.8 s in a shard at
+    // load ~20, over vitest's 30 s default (REPORT-BUMP1F section R6.7): a 120 s per-test limit, as RULING-BUMP1F-R8.1, R11.4 and R13.2 gave eight other tests.
+  }, 120_000);
 
   it("(b) a forged road-log drop passes checkPool without the run seed and is refused with it, on its road line", () => {
     const f = forgery();
