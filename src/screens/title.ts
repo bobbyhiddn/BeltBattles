@@ -42,6 +42,23 @@ import { minGap } from "../game/battleLayout";
 import { settings } from "../core/settings";
 import { currentName } from "../game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063): the name screen comes first
 import { HEART_COST_FROM, HEART_COSTS, HEARTS_START, heartsRules } from "../sim/hearts"; // RETUNE-1 run 2: the rules card's hearts
+import { onlineSession } from "../game/online"; // IDENT-1 (REQ-BFG-122): the page's online session (its identity and server)
+import { startupProfileSync } from "../net/profileSync"; // IDENT-1: a linked device reads the player's profile once per page load
+import { optionsExtras } from "./linkCards"; // IDENT-1: LINK A DEVICE and DELETE MY ONLINE DATA, below NAME
+
+/** IDENT-1 (REQ-BFG-122): the title reads the player's profile from the server once per page load (net/profileSync.ts), as soon as the
+ *  online session has an identity; `done` is that one time (a module's flag, so a second title screen does not repeat it). */
+export const startupSync = { done: false };
+
+/** IDENT-1: a link takes effect at the next NEW RUN. The session's identity keeps the playerId it has until this runs (net/identity.ts
+ *  refresh); it never throws and never holds a run back. No session: nothing happens. */
+export function refreshIdentity(): void {
+  try {
+    onlineSession()?.identity?.refresh?.();
+  } catch {
+    /* a new run starts whatever the identity does */
+  }
+}
 
 
 /** JOINS-1 (REQ-BFG-091): the rules card's line 3 under the switch now. FREE_JOINS off: it states RULE JOIN LIMIT and
@@ -227,6 +244,27 @@ export class TitleScreen implements Screen {
     this.motion.update(dt, settings.reducedMotion); // MOTION-2: the display clock (frame time; never the sim's)
     this.arena.update(dt);
     if (this.arena.b.over && (this.overT += dt) > 3.2) this.newArena();
+    this.syncOnce();
+  }
+
+  /** IDENT-1: once per page load, as soon as the online session is active (it has an identity), the profile is read from the server and
+   *  merged (net/profileSync.ts startupProfileSync: a device that was never linked does nothing). No session: no request, nothing. */
+  private syncOnce(): void {
+    if (startupSync.done) return;
+    const s = onlineSession();
+    if (!s || !s.active || !s.identity) return; // offline, failed or still loading: look again next frame
+    startupSync.done = true;
+    try {
+      startupProfileSync(s.url, s.identity).catch(() => undefined); // fire and forget
+    } catch {
+      /* never disturbs the title */
+    }
+  }
+
+  /** NEW RUN: a link made since the page loaded takes effect now (IDENT-1), then the hero screen. */
+  private startNewRun(): void {
+    refreshIdentity();
+    this.game.go(new HeroScreen(this.game));
   }
 
   draw(g: G): void {
@@ -261,7 +299,7 @@ export class TitleScreen implements Screen {
     panel(g, L.panel, "dark");
     // PACKS M2 (REQ-BFG-063): with no player name stored, every title button (but the sound one) opens the name screen
     // first and does its own thing once a name is in (gate)
-    button(ui, g, "new", b.new, "NEW RUN", { primary: true, onTap: () => this.gate(() => game.go(new HeroScreen(game))) });
+    button(ui, g, "new", b.new, "NEW RUN", { primary: true, onTap: () => this.gate(() => this.startNewRun()) });
     if (save && b.cont) {
       button(ui, g, "cont", b.cont, "CONTINUE", {
         sub: continueSub(save), // RUN-1 (REQ-BFG-059, D7): a long run's save reads WINS n/10 · DAY n · HERO · W-L
@@ -288,7 +326,8 @@ export class TitleScreen implements Screen {
       lines.forEach((ln, i) => drawText(g, ln, W / 2, y0 + i * lh, C.yellow, { font: "3", align: "center", outline: C.ink }));
     }
     if (this.help) this.drawHelp(g);
-    if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; }, this.k);
+    // IDENT-1 (REQ-BFG-122): + LINK A DEVICE and DELETE MY ONLINE DATA below NAME (off, with one line why, while there is no online session)
+    if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; }, this.k, optionsExtras(game, () => this.k));
   }
 
   private drawHelp(g: G): void {
@@ -337,7 +376,7 @@ export class TitleScreen implements Screen {
       this.help = false;
       this.menu = false;
     } else if (this.menu) return;
-    else if (k === "Enter" || k === " ") this.gate(() => this.game.go(new HeroScreen(this.game)));
+    else if (k === "Enter" || k === " ") this.gate(() => this.startNewRun());
     else if (k === "c" || k === "C") this.gate(() => this.continueRun());
     else if (k === "h" || k === "H" || k === "?") this.gate(() => { this.help = !this.help; });
   }

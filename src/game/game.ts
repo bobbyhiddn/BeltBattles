@@ -15,6 +15,15 @@ import { nextFuseToast } from "./save";
 import { online } from "./session";
 import { NameEntry, type NameEntryOpts } from "../screens/name"; // PACKS M2 (REQ-BFG-063)
 
+/** IDENT-1 (REQ-BFG-122): a card the game shell draws over whatever screen is up (Game.openModal), the name screen's way: it draws
+ *  last, takes every tap (its UI regions) and every key, and cleans up after itself in dispose() (an HTML row, a timer). */
+export interface Modal {
+  draw(g: G): void;
+  /** A key that reached the game (the HTML entry has its own): Enter, Escape... */
+  key(k: string): void;
+  dispose(): void;
+}
+
 export interface Screen {
   toastY?: number;
   /** 0.6.1a: true on the build screen, which shows the save-migration notice (save.ts MIGRATE_TOAST). */
@@ -224,13 +233,38 @@ export class Game implements InputSink {
 
   /** Open the name screen (once: a second call while it is up does nothing). */
   openName(opts: NameEntryOpts): void {
-    if (this.nameEntry) return;
+    if (this.nameEntry || this.modal) return;
     this.nameEntry = new NameEntry(this, opts);
   }
 
   closeName(): void {
     this.nameEntry?.dispose();
     this.nameEntry = null;
+  }
+
+  // ------------------------------------------------------------ IDENT-1 (REQ-BFG-122): a card over the screen
+
+  /** IDENT-1: a card drawn over the current screen while it is up (src/screens/linkCards.ts: LINK A DEVICE, DELETE MY ONLINE DATA),
+   *  the name screen's way: it takes every tap and key, and nothing under it moves. null when none is up. */
+  modal: Modal | null = null;
+
+  /** Open a modal card (once: a second call, or one while the name screen is up, does nothing). */
+  openModal(m: Modal): void {
+    if (this.modal || this.nameEntry) {
+      m.dispose(); // not shown: let it drop whatever it made (an HTML row)
+      return;
+    }
+    this.modal = m;
+  }
+
+  closeModal(): void {
+    this.modal?.dispose();
+    this.modal = null;
+  }
+
+  /** Something drawn over the screen holds the input: the name screen or a modal card. */
+  private get covered(): boolean {
+    return !!this.nameEntry || !!this.modal;
   }
 
   render(): void {
@@ -259,6 +293,7 @@ export class Game implements InputSink {
     this.ui.begin();
     this.screen.draw(g);
     this.nameEntry?.draw(g); // PACKS M2: over the screen, under the toast and the wipe; its regions take every tap
+    this.modal?.draw(g); // IDENT-1: and a modal card the same way
     this.drawToast(g);
     this.drawWipe(g);
     this.ui.end();
@@ -317,7 +352,7 @@ export class Game implements InputSink {
     ui.pressed = null;
     if (this.wipeDir !== 0) return;
     const r = ui.hit(x, y);
-    if (!this.nameEntry) this.screen.pressed?.(x, y, r ? r.id : null, kind); // shoptap (D3): the build screen's belt X hears every press (PACKS M2: not while the name screen is up)
+    if (!this.covered) this.screen.pressed?.(x, y, r ? r.id : null, kind); // shoptap (D3): the build screen's belt X hears every press (PACKS M2: not while the name screen is up; IDENT-1: nor a modal card)
     if (r) {
       if (r.onDown) r.onDown(x, y);
       else ui.pressed = r.id;
@@ -332,7 +367,7 @@ export class Game implements InputSink {
     ui.pointer.y = y;
     const r = ui.hit(x, y);
     ui.hover = r ? r.id : null;
-    if (ui.pressed || this.wipeDir !== 0 || this.nameEntry) return; // PACKS M2: nothing under the name screen moves
+    if (ui.pressed || this.wipeDir !== 0 || this.covered) return; // PACKS M2: nothing under the name screen moves (IDENT-1: nor under a modal card)
     this.screen.move?.(x, y, down);
   }
 
@@ -361,14 +396,14 @@ export class Game implements InputSink {
   /** SHAPES-1 (REQ-BFG-086 S3): a second finger's press while the first is down: a region a second finger may press
    *  (Region.second: the floating ROTATE button of a touch carry) takes it; anything else ignores it, as before. */
   pointerExtra(x: number, y: number): void {
-    if (this.wipeDir !== 0 || this.nameEntry) return;
+    if (this.wipeDir !== 0 || this.covered) return;
     const r = this.ui.hit(x, y);
     if (r && r.second && r.onTap) r.onTap();
   }
 
   /** SHAPES-1 (S3): the mouse wheel goes to the screen (the build screen turns a carried piece with it). */
   wheel(dy: number, mode = 0): boolean {
-    if (this.wipeDir !== 0 || this.nameEntry) return false;
+    if (this.wipeDir !== 0 || this.covered) return false;
     return !!this.screen.wheel?.(dy, mode);
   }
 
@@ -376,6 +411,10 @@ export class Game implements InputSink {
     this.audio.unlock();
     if (this.nameEntry) {
       this.nameEntry.key(k); // PACKS M2: the name screen has the keys while it is up
+      return;
+    }
+    if (this.modal) {
+      this.modal.key(k); // IDENT-1: so does a modal card
       return;
     }
     if (k === "m" || k === "M") {
