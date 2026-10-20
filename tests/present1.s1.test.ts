@@ -107,9 +107,9 @@ describe("PRESENT-1 S1 (a): the grid is not dropped where it was", () => {
     let plates = 0, corners = 0;
     for (const id of bigger) for (const cardW of [130, 150, 178, 200, 233, 260, 300]) for (const name of withWords(id)) {
       const d = ITEMS[id], r = { x: 4, y: 10, w: cardW, h: 80 }, sub = lcPartSub(d.rarity, 1);
-      const where = lcPartGrid(r, id, name, sub);
+      const where = lcPartGrid(r, id, name, sub)!;
       expect(where, `${id} ${cardW} "${name}": never dropped`).not.toBeNull();
-      if ("plate" in where!) {
+      if ("plate" in where) {
         expect(where.plate).toEqual(lcPartPlate(r, id, name, sub));
         plates++;
       } else {
