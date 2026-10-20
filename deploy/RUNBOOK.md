@@ -4307,7 +4307,7 @@ tests/tsc-tests-baseline.json is unchanged by the ride (3,382 bytes, sha16 `2169
 pool ghosts refused; tests/bump1e.lastchance is narrowed to three cases); (2) the bots lose a word when a belt redraw lifts its rig (468 against 476 word-days, -1.7%); (3) the ladder:
 parBeatsEasy fails on days 9 and 10; (4) P5 line 9 (POISON against BURN) is report only (81.5% on day 3, 63.8% on day 9); (5) a saved bb-0.12.0 endless run meets step 1500 from its next
 endless dusk (intended). Display items for later releases: a selected GROWING rig's counter box reads 3 as 9 under the white frame (F1), FIERY's spark sits on the LAST CHANCE card's frame corner (F2),
-HOW TO PLAY has no POISON in its keyword line and no line on the gates or the ENCHANTER's words (F3), and damage numbers stack in dense day 8-9 fights (F5).
+HOW TO PLAY has no POISON in its keyword line and no line on the gates or the ENCHANTER's words (F3), damage numbers stack in dense day 8-9 fights (F5), and the YOUR RUNES list's last page cuts its last entry's value on the phone views (0.9.13 does the same: F8).
 Three tests have no time limit of their own and can time out under load (green alone, standing ruling 1): tests/s8.seedcheck '(a)', tests/seed.test 'is 192 v3 ghosts ...' and tests/bump1e.warm's memo-hit bound.
 
 **The checks of this STAGE** (STAGE-0914; O/STAGE-REPORT.md has every command, log and number; this paragraph is brought up
@@ -4322,8 +4322,18 @@ stand-in generators' closure (102 files) changed after bump1f-accepted. **The su
 time-outs under load in the first round (two 600 s limits, four 30 s limits and the known memo-hit bound of tests/bump1e.warm) that all passed in the second round at a quiet host (O/logs/suite-<commit>-rr*.log). The
 canary is green (tests/net-pool 5 of 5). **The browser block so far** (run on T's built pages): the page smoke 4 of 4 on the offline and on the online page at 0 console errors and 0 NOT HONEST; touchcheck
 noprof 2,409 of 2,409 (0.9.13's 2,323 + the ride's two new sections, apply 68 and gatesplit 18; the six scout rows that read the enemy LOOM's face title needed a one-line scripts fix, fefab254, because a rival's word now comes first: RISING LOOM);
-card3check 13, stylecheck 180, explaincheck 35, surge 4, mirror, asynccheck 62 of 62 and rcruns 32 and 44 (0.9.13's counts); the field and scout stills and the LAST CHANCE shots; the rollback probe above. The mixed touch run, the pixel comparison, the motion and
-still checks, the mutants and the rest are recorded in O/STAGE-REPORT.md as the STAGE runs them.
+card3check 13, stylecheck 180, explaincheck 35, surge 4, mirror, asynccheck 62 of 62 and rcruns 32 and 44 (0.9.13's counts); the field and scout stills and the LAST CHANCE shots; the rollback probe above. After those, the browser block went on (run 3): **the stills** (c1 one failed check, `op690 cnt:belt0:1: the tap opens its panel`,
+byte for byte the failure 0.9.13's c1 read and cap accepted then, F11: the C8 badge's tap target over belt 0's second chip; p1 0
+failed checks; desk 0); **touch mixed, whole: 2,301 distinct checks, 0 FAIL** (0.9.13's 2,215 plus the ride's apply 68 and
+gatesplit 18; 18 slow-tap WARNs at the other lanes' load, none a FAIL); **the pixel comparison** of T's 311 shots against
+live-0913's (213 byte-identical, 98 differ, each the title's version text, a word's spark mark on a part, the shop's stock and the
+ENCHANTER's wagon, a road event or offer drawn another way, or a seeded foe's board: none without seeded content; T's frames are
+the next release's reference), the shots with metrics (311, ALL PASS) and the runeshots (103); the motion taps (123 of 123); **the
+LOOKS** (97 PNGs, all viewed: no clipped or overlapping text and no word on a shop card); and **the mutants: 37 of 37 current
+mutants caught, every one red and none timed out (the list has 38 ids: CM2c, the oldest of the rules-check chain, survives by
+design and is superseded by CM2d and CM2e, because its anchor `bb-0.10` is older than every label the tests upload under now that
+BUMP-1F moved the rules test's labels; cap's ruling at 0.9.13 for CM2b, repeated for CM2c).** O/STAGE-REPORT.md has every number
+and log.
 
 ## Troubleshooting
 
