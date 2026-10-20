@@ -19,7 +19,7 @@ describe("PRESENT-1 S2: GRAPNEL GUN says DESTROYS on its ⓘ pages", () => {
     const want = ["SHOT: IT DESTROYS THE NEAREST SLUGS WITHIN 1 TILE OF A HIT.", "SHOT: IT DESTROYS THE NEAREST SLUGS WITHIN 2 TILES OF A HIT.", "SHOT: IT DESTROYS THE NEAREST SLUGS WITHIN 3 TILES OF A HIT."];
     const log: string[] = [];
     for (const s of [1, 2, 3]) {
-      const t = glossaryText("SHOT", { def: "grapnel", stars: s });
+      const t = glossaryText("SHOT", { def: "grapnel", stars: s })!;
       expect(t).toBe(want[s - 1]);
       for (const [v, w] of [["phone", GLOSSARY_WRAP_W], ["desk", 118]] as const) {
         const rows = wrapRich(colourize(icons(t), "#FFFFFF"), w, "5"), old = wrapRich(colourize(icons(t.replace("DESTROYS", "RIPS")), "#FFFFFF"), w, "5");
