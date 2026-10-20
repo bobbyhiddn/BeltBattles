@@ -386,16 +386,23 @@ const DRAW_PINS: Record<string, string> = {
   // the switch off); the other nineteen pins are unchanged again (the later dusks meet the run's own saved ghost, a kiln-only deck)
   // BUMP-1F (RULING-BUMP1F-R11 R11.1): the dusk card of the first view reads "31ac8d9de99bea42" (was "679ef2b17c8b52b3"): the same day-8 fight against LONGTOOTH moved twice, POISON_DPS 3 -> 2 (fb2a51b: "dc20eb457fdf1dca")
   // and ENCHANT-2's rival words (041ae8b: this digest); the test below reads each step; the other nineteen pins are unchanged again
-  "402x690@3 dusk": "31ac8d9de99bea42", "402x690@3 warlord": "90125b5a27c241db",
-  "390x844@3 dusk": "a9e4673a34f2d29c", "390x844@3 warlord": "deb11fdf6d15c600",
-  "430x932@3 dusk": "b70c1e1846ca0070", "430x932@3 warlord": "d5c3a8adf2883978",
-  "360x780@3 dusk": "1b833baef9910d3b", "360x780@3 warlord": "8732239750bb1762",
-  "844x390@3 dusk": "47ff25579c4f0c0f", "844x390@3 warlord": "ac866b5903f9c158",
-  "690x402@3 dusk": "a2794b7620d11f99", "690x402@3 warlord": "bf31287b365983be",
-  "932x430@3 dusk": "38d738f28f35b8d1", "932x430@3 warlord": "a44d16016486e9ad",
-  "1920x1080@1 dusk": "39b128a5d9b81f37", "1920x1080@1 warlord": "fb1d939c518cee07",
-  "1366x768@1 dusk": "677f4f12f039bdd8", "1366x768@1 warlord": "7e7c8bcdfcef005c",
-  "1280x720@1 dusk": "af672a76309d5cb7", "1280x720@1 warlord": "75e9e9f3f8988bc9",
+  // POLISH-1 (REQ-BFG-085; P3b): ALL TWENTY moved, one cause: the cards' top lines and FIRST SHOT row say `24 SEC` (was `24S`, read as 245): battleHud.ts duskLine / resultRows,
+  // warlordHud.ts roadLine (REPLAY1B_PINS=print at the POLISH-1 P3 commit). Old -> new, in this order:
+  //   402x690@3 dusk 31ac8d9de99bea42 -> efa3c5fca15be5d6, warlord 90125b5a27c241db -> f486ea3fee3d0591;  390x844@3 a9e4673a34f2d29c -> a94ade9cdc76ebda, deb11fdf6d15c600 -> 6c6bc3a57ac53021;
+  //   430x932@3 b70c1e1846ca0070 -> 4b8e9c2798abf420, d5c3a8adf2883978 -> 59f34b339536724a;  360x780@3 1b833baef9910d3b -> 3fd67b8c94d060c1, 8732239750bb1762 -> 5a639c4fb5ea5a5d;
+  //   844x390@3 47ff25579c4f0c0f -> 53b451a30dbe7e45, ac866b5903f9c158 -> b11412cd63244cbe;  690x402@3 a2794b7620d11f99 -> d51b079e3d23d191, bf31287b365983be -> 71815048c5981a96;
+  //   932x430@3 38d738f28f35b8d1 -> 573712b77fe3e0ec, a44d16016486e9ad -> 6045e6ebc4552bf3;  1920x1080@1 39b128a5d9b81f37 -> 451aec91c4e3a37a, fb1d939c518cee07 -> 84f5705c0221af4d;
+  //   1366x768@1 677f4f12f039bdd8 -> c8c0f0a06827742b, 7e7c8bcdfcef005c -> bdcbf89c8c4d2adf;  1280x720@1 af672a76309d5cb7 -> 1814366e2d4b038d, 75e9e9f3f8988bc9 -> ce848fe586dc8387
+  "402x690@3 dusk": "efa3c5fca15be5d6", "402x690@3 warlord": "f486ea3fee3d0591",
+  "390x844@3 dusk": "a94ade9cdc76ebda", "390x844@3 warlord": "6c6bc3a57ac53021",
+  "430x932@3 dusk": "4b8e9c2798abf420", "430x932@3 warlord": "59f34b339536724a",
+  "360x780@3 dusk": "3fd67b8c94d060c1", "360x780@3 warlord": "5a639c4fb5ea5a5d",
+  "844x390@3 dusk": "53b451a30dbe7e45", "844x390@3 warlord": "b11412cd63244cbe",
+  "690x402@3 dusk": "d51b079e3d23d191", "690x402@3 warlord": "71815048c5981a96",
+  "932x430@3 dusk": "573712b77fe3e0ec", "932x430@3 warlord": "6045e6ebc4552bf3",
+  "1920x1080@1 dusk": "451aec91c4e3a37a", "1920x1080@1 warlord": "84f5705c0221af4d",
+  "1366x768@1 dusk": "c8c0f0a06827742b", "1366x768@1 warlord": "bdcbf89c8c4d2adf",
+  "1280x720@1 dusk": "1814366e2d4b038d", "1280x720@1 warlord": "ce848fe586dc8387",
 };
 
 describe("REPLAY-1b (b): the card's primary has a finger's target on a phone, its drawing unchanged", () => {
@@ -482,8 +489,9 @@ describe("REPLAY-1b (b): the card's primary has a finger's target on a phone, it
     }, scaling), enchant);
     // the world before ENCHANT-2's rival words (ENCHANT off)
     const was = first(false, false), now = first(true, false);
-    expect(was.digest).toBe("453cc4992673a68c"); // the pin before the flip, read in its own world
-    expect(now.digest).toBe("dc20eb457fdf1dca"); // BUMP-1F D2 (POISON_DPS 2): was "679ef2b17c8b52b3" (BUMP-1E)
+    // POLISH-1 (P3b): both of this world's digests moved with the card's clock text (`24 SEC`): "453cc4992673a68c" -> "e01cd33812d3aa75", "dc20eb457fdf1dca" -> "02a01eaad1c7d6f6"
+    expect(was.digest).toBe("e01cd33812d3aa75"); // the pin before the flip, read in its own world
+    expect(now.digest).toBe("02a01eaad1c7d6f6"); // BUMP-1F D2 (POISON_DPS 2): was "679ef2b17c8b52b3" (BUMP-1E)
     expect(now.digest).not.toBe(was.digest);
     for (const x of [was, now]) expect([x.r.foe, x.r.ghost, x.r.outcome, x.venom], x.digest).toEqual(["LONGTOOTH", false, "loss", true]);
     // the same fight to the tick, your side's numbers the same; the foe's BURN (VENOM DRIP's lengthening gone) and its damage are the card's two that differ
@@ -492,7 +500,7 @@ describe("REPLAY-1b (b): the card's primary has a finger's target on a phone, it
     expect([now.r.enemy.burnDealt, now.r.enemy.damage]).toEqual([1495, 9947]); // BUMP-1F D2: was 10099 (BUMP-1E: was 2392 and 10540)
     // as shipped (ENCHANT on): the rival's word moves the foe's damage in both worlds, and the shipped card is DRAW_PINS'
     const wasE = first(false, true), nowE = first(true, true);
-    expect(wasE.digest).toBe("7a2e466c54eb809f");
+    expect(wasE.digest).toBe("e088be2e07194639"); // POLISH-1 (P3b): was "7a2e466c54eb809f" (the clock text)
     expect(nowE.digest).toBe(DRAW_PINS["402x690@3 dusk"]);
     for (const x of [wasE, nowE]) expect([x.r.foe, x.r.ghost, x.r.outcome, x.venom], x.digest).toEqual(["LONGTOOTH", false, "loss", true]);
     expect([wasE.r.enemy.burnDealt, wasE.r.enemy.damage]).toEqual([2392, 9719]);

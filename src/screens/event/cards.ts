@@ -56,7 +56,7 @@ export function deltaText(d: Delta, cost: boolean, day?: number): string {
   const s = cost ? "-" : "+";
   switch (d.k) {
     case "gold": case "lives": return `${s}${d.n}`;
-    case "hull": return `${s}${hullShown(d.n, day)} HULL`; // HULL-1a (REQ-BFG-079): the day's number (`day`: the run's)
+    case "hull": return `${s}${hullShown(d.n, day)} MAX HULL`; // HULL-1a (REQ-BFG-079): the day's number (`day`: the run's); POLISH-1 (P3d): it is MAX hull, as the outcome says (event.ts)
     case "belt": return `${s}${d.n} BELT`;
     case "item": return itemName(d.def);
     case "bounty": return `+${d.n} ON A HARD WIN`;

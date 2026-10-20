@@ -36,7 +36,7 @@ import {
 } from "../src/sim/enchant";
 import { makeEnchantState, slugMadeFx } from "../src/sim/enchantFx";
 import {
-  ENCHANT_NOTES, enchantedTitle, nameSpans, panelText, partNotes, pieceLine, slugDmg, wordFace, wordLine, wordOn,
+  ENCHANT_NOTES, RISING_RESETS, enchantedTitle, nameSpans, panelText, partNotes, pieceLine, slugDmg, wordFace, wordLine, wordOn,
 } from "../src/ui/enchantFaces";
 import { carryStats, enchantNotes, factoryStats, plainRigStats, turretStats, wordRows } from "../src/ui/faces";
 import { statRow } from "../src/ui/icons";
@@ -306,7 +306,8 @@ describe("ENCHANT-1 E7: THE ROWS: the piece's own numbers, then every word's one
         expect(wordLine("braced", kind, stars), `BRACED ${kind} ★${stars}`).toContain(`THE FIRST ${ENCHANT_NUM.bracedStuns * stars} {STUN}STUNS`);
         expect(wordLine("fiery", kind, stars), `FIERY ${kind} ★${stars}`).toContain(`ADDS +${ENCHANT_NUM.burn * stars} {BURN} `); // ENCHANT-2 (T4c): the card says what the panel says
       }
-      expect(wordLine("rising", "rig", 1)).toBe(panelText("EACH SLUG IT HITS: +5 DMG MORE THAN THE LAST.".replace("+5", `+${ENCHANT_NUM.risingStep}`)));
+      // POLISH-1 (P3a): + ` IT STARTS OVER EACH FIGHT.` (was ... THAN THE LAST.)
+      expect(wordLine("rising", "rig", 1)).toBe(panelText("EACH SLUG IT HITS: +5 DMG MORE THAN THE LAST. IT STARTS OVER EACH FIGHT.".replace("+5", `+${ENCHANT_NUM.risingStep}`)));
       for (const id of ["echoing", "massive", "swift", "wide"] as const) for (const kind of KINDS) {
         if (wordLine(id, kind, 1) !== null) expect(wordLine(id, kind, 3), `${id}: no number scales`).toBe(wordLine(id, kind, 1));
       }
@@ -602,11 +603,12 @@ describe("ENCHANT-1 E7: THE NOTES (behind the hover or the tap) and the word car
       expect(f.color).toBe(ENCHANT_DEFS[id].color);
       expect(f.notes).toEqual(ENCHANT_NOTES);
       expect(f.lines.map((l) => l.kind), `${id}: a row for each kind it goes on, in the order rig, factory, turret, and for no other`).toEqual(goes);
-      for (const l of f.lines) {
+      for (const [i, l] of f.lines.entries()) {
         expect(l.legal, `${id} ${l.kind}`).toBe(true);
         expect(l.label, `${id} ${l.kind}`).toBe(`${goes.length === 1 ? "ONLY " : ""}ON A ${l.kind.toUpperCase()}`);
         expect(l.label, `${id} ${l.kind}: no NOT ON row any more`).not.toMatch(/^NOT ON/);
-        expect(l.text, `${id} ${l.kind}`).toBe(wordLine(id, l.kind, 1));
+        // POLISH-1 (P3a): RISING's reset sentence stands once on its card, on the last row (three rows with it do not keep whole in the phone band)
+        expect(l.text, `${id} ${l.kind}`).toBe(id === "rising" && i < f.lines.length - 1 ? wordLine(id, l.kind, 1)!.replace(` ${RISING_RESETS}`, "") : wordLine(id, l.kind, 1));
         expect(l.text).not.toMatch(/[[\]]/);
         expect(l.text).not.toMatch(/(?<!\{)\bDMG\b(?!\})/);
       }

@@ -34,6 +34,9 @@ import { isPhone, tapPx } from "../ui/tap"; // shoptap (D5, backlog 319)
 import { BattleCounters, plateKeep } from "./battleCounters"; // COUNT-1 (REQ-BFG-100): the counters, as the battle shows them
 import { PairWatch } from "../game/pairCue"; // PAIR-CUE (REQ-BFG-100, REQ-BFG-081): the PAIR on the board, as the battle shows it
 
+/** POLISH-1 (REQ-BFG-085; P3b): the replay card's top line, `REPLAY · DAY 6 · 24 SEC` (`clock` is fmtClock's whole seconds; the unit was a bare `S`, read as part of the number). */
+export const replayLine = (day: number | string, clock: string): string => `REPLAY · DAY ${day} · ${clock} SEC`;
+
 type Box = { x: number; y: number; w: number; h: number };
 const hits = (a: Box, b: Box): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
@@ -275,7 +278,7 @@ export class ReplayScreen implements Screen {
       panel(g, { x, y, w, h }, "raised");
       drawText(g, won ? "WIN" : lost ? "LOSS" : "DRAW", W / 2, y + 6, won ? C.lime : lost ? C.red : C.bone, { align: "center", scale: 2, outline: C.ink });
       this.cardClock = fmtClock(b.t);
-      drawText(g, `REPLAY · DAY ${this.label.day} · ${this.cardClock}S`, W / 2, y + 23, C.slate4, { font: "3", align: "center" }); // NUM-4: a clock
+      drawText(g, replayLine(this.label.day, this.cardClock), W / 2, y + 23, C.slate4, { font: "3", align: "center" }); // NUM-4: a clock; POLISH-1 (P3b): `24 SEC`
       button(ui, g, "replayback", { x: x + 10, y: y + h - 4 - bh, w: w - 20, h: bh }, "BACK", { primary: true, onTap: () => this.leave() });
     } else {
       button(ui, g, "replayleave", replayLeaveRect(this.L, this.game.view), "BACK", { font: "3", onTap: () => this.leave() });

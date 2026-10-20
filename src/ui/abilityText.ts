@@ -337,19 +337,22 @@ const immunities = (e: ItemDef): string => {
   const im = m(e).immune ?? [];
   return STUN_CAUSES.every((k) => im.includes(k)) ? "EVERY STUN" : `${list(im.map((k) => STALL_WORD[k]))} STUNS`;
 };
+/** POLISH-1 (REQ-BFG-085; P3c, ENCHANT-2W's read: "looks cut off"): which belts' last tiles MANTLET guards. battle.ts makeSide flags the last `intakeGuard` tiles of every connected
+ *  route INTO the turret that carries it (the belts that feed it, no others): `INTO IT`, IT the turret (it was `IN`, a sentence that ended on a preposition). */
+const BELT_INTO = "INTO IT";
 /** 0.6.2 FB-B: MANTLET ★2 FULL GUARD (NUM-3: was FULL PLATE) shields the last tile of each belt into its turret, ★3 BULWARK SKIRT the last 3
  *  (battle.ts makeSide: the last intakeGuard tiles of every connected route into it). Y7b2 (the flip): the rigs working
  *  those tiles are not guarded (was "a rig with an arrow on a shielded tile is shielded too (Battle.skirted)"). */
 const shielded = (n: number): string => (n === 1 // Y2 (release Y; DESIGN-Y row 14): not their rigs
-  ? ", AND SO DOES THE LAST TILE OF EACH BELT IN" // TXT-096: a clause of the opening (was its own sentence, "SO DOES ... IN.")
-  : `, AND SO DO THE LAST ${n} TILES OF EACH BELT IN`);
+  ? `, AND SO DOES THE LAST TILE OF EACH BELT ${BELT_INTO}` // TXT-096: a clause of the opening (was its own sentence, "SO DOES ... IN."); POLISH-1 (P3c): ... INTO IT (was ... IN)
+  : `, AND SO DO THE LAST ${n} TILES OF EACH BELT ${BELT_INTO}`);
 /** MANTLET's clause at a star: at ★1 the stalls it ignores; above, the stalls that star adds and the tiles it shields. */
 function mantletGist(e: ItemDef, stars: number): string {
   const was = stars > 1 ? effectAt("mantlet", stars - 1).mod?.immune ?? [] : [];
   const added = (m(e).immune ?? []).filter((c) => !was.includes(c)), guard = m(e).intakeGuard ?? 0;
   return [
     ...(stars <= 1 ? [`IGNORES ${immunities(e)}`] : added.length ? [`IGNORES ${list(added.map((c) => STALL_WORD[c]))} TOO`] : []),
-    ...(guard ? [`GUARDS THE LAST ${guard === 1 ? "TILE" : `${guard} TILES`} OF EACH BELT IN`] : []),
+    ...(guard ? [`GUARDS THE LAST ${guard === 1 ? "TILE" : `${guard} TILES`} OF EACH BELT ${BELT_INTO}`] : []), // POLISH-1 (P3c): ... INTO IT (was ... IN)
   ].join(", ");
 }
 
@@ -358,7 +361,7 @@ export function shieldText(n: number): string {
   // NUM-4 (REVIEW-SUSB F3): MANTLET's word is GUARD (NUM-3's FULL GUARD); SHIELD is the sustain keyword (was SHIELDED)
   // Y7b2 (cap's ruling d4e8184e90c0ed75; the flip): the rig guard left with the switch's off branch (battle.ts
   // acceptHarassment), so the line names the tiles only (was "..., AND THE RIGS WORKING IT/THEM.")
-  return `GUARDED: THE LAST ${n === 1 ? "TILE" : `${n} TILES`} OF EACH BELT IN.`;
+  return `GUARDED: THE LAST ${n === 1 ? "TILE" : `${n} TILES`} OF EACH BELT ${BELT_INTO}.`; // POLISH-1 (P3c): ... INTO IT. (was ... IN., which read as cut off)
 }
 
 /**

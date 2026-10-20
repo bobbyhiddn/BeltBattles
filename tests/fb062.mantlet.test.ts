@@ -217,25 +217,28 @@ describe("FB-B MANTLET: FULL GUARD (NUM-3: was FULL PLATE) shields the belt tile
     // THE LAST TILE OF EACH BELT IN."] .. and the perks after 1)
     const every = "THE TURRET IGNORES EVERY STUN";
     expect(STARS.map((s) => abilityText("mantlet", s).sentences)).toEqual([
-      [`${every}, AND SO DOES THE LAST TILE OF EACH BELT IN.`],
-      [`${every}, AND SO DO THE LAST 2 TILES OF EACH BELT IN.`],
-      [`${every}, AND SO DO THE LAST 3 TILES OF EACH BELT IN.`],
+      // POLISH-1 (P3c): ... INTO IT. (the belts that feed the turret; was ... IN., which read as cut off)
+      [`${every}, AND SO DOES THE LAST TILE OF EACH BELT INTO IT.`],
+      [`${every}, AND SO DO THE LAST 2 TILES OF EACH BELT INTO IT.`],
+      [`${every}, AND SO DO THE LAST 3 TILES OF EACH BELT INTO IT.`],
     ]);
     expect([2, 3].map((s) => abilityText("mantlet", s).perk)).toEqual([{ name: "FULL GUARD", stars: 2, after: 0 }, { name: "BULWARK SKIRT", stars: 3, after: 0 }]);
     // NUM-4 (REQ-BFG-047; SUS-B F3): MANTLET's verb is FULL GUARD's, GUARDS / GUARDED: (was SHIELDS / SHIELDED:); the
     // tile counts unchanged
     // Y7b2 (the flip): was "IGNORES EVERY STUN", "GUARDS THE LAST TILE OF EACH BELT IN", "GUARDS THE LAST 3 TILES ..."
     expect(STARS.map((s) => gist("mantlet", s))).toEqual([
-      "IGNORES EVERY STUN, GUARDS THE LAST TILE OF EACH BELT IN",
-      "GUARDS THE LAST 2 TILES OF EACH BELT IN",
-      "GUARDS THE LAST 3 TILES OF EACH BELT IN",
+      // POLISH-1 (P3c): ... INTO IT (was ... BELT IN)
+      "IGNORES EVERY STUN, GUARDS THE LAST TILE OF EACH BELT INTO IT",
+      "GUARDS THE LAST 2 TILES OF EACH BELT INTO IT",
+      "GUARDS THE LAST 3 TILES OF EACH BELT INTO IT",
     ]);
     // Y7b2 (cap's ruling d4e8184e90c0ed75; the flip): the rig guard left with the switch's off branch, so the turret
     // panel's line names the tiles only (was "GUARDED: THE LAST TILE OF EACH BELT IN, AND THE RIGS WORKING IT." and
     // "GUARDED: THE LAST 3 TILES OF EACH BELT IN, AND THE RIGS WORKING THEM.")
     expect([shieldLine(1), shieldLine(3)]).toEqual([
-      "GUARDED: THE LAST TILE OF EACH BELT IN.",
-      "GUARDED: THE LAST 3 TILES OF EACH BELT IN.",
+      // POLISH-1 (P3c): ... INTO IT. (was ... IN.)
+      "GUARDED: THE LAST TILE OF EACH BELT INTO IT.",
+      "GUARDED: THE LAST 3 TILES OF EACH BELT INTO IT.",
     ]);
   });
 });
