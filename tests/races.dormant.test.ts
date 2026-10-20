@@ -68,7 +68,7 @@ describe("race heroes and signature factories remain dormant while timing gear i
         }
       }
     }
-  });
+  }, 120_000); // BUMP-1F (RULING-BUMP1F-R8 R8.1, RULING-BUMP1F-R11 R11.4): 120 s for this test, was vitest's 30-s default: 29.6 s alone (the file 42 s), so it times out at 30 s under any load; no body, count or expectation changed
 
   // 0.8.0 N1 (oracle 94b9559fbb7da299 (2)): FOUNDRY's and BASTION's captains (BRASSWICK, MASTER VOSS, GRIMHOLD, THANE KARSK)
   // fly their own hero's CRUCIBLE or WARDWORKS, so a deck may hold its own hero's signature factory and no other race
