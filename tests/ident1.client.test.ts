@@ -134,6 +134,30 @@ describe.each(["jsonl", "tigris"] as Kind[])("a second device links and sees the
   });
 });
 
+describe("the finished-run count follows the player", () => {
+  it("a linked second device is not a new player: its stated run count is raised to the merged profile's, never lowered", async () => {
+    const rig = await openRig("jsonl");
+    const one = await device(0), two = await device(1), three = await device(2);
+    played(one.store, { runs: 6 });
+    expect(await putProfile(rig.base, one.id, loadProfile(one.store))).toEqual({ ok: true });
+    const code = await requestLinkCode(rig.base, one.id, { now: () => rig.clock.now });
+    if (!code.ok) throw new Error("no code");
+    // device two has no run count; device three (below) has a bigger one
+    expect(two.store.getItem("beltbattles.runs.v1")).toBeNull();
+    expect((await redeemLinkCode(rig.base, two.id, code.code, { now: () => rig.clock.now, store: two.store, mirror: null })).ok).toBe(true);
+    expect(JSON.parse(two.store.getItem("beltbattles.runs.v1")!)).toEqual({ runs: 6 });
+    // a bigger count of its own stays; the last run counted is kept
+    three.store.setItem("beltbattles.runs.v1", JSON.stringify({ runs: 9, last: "r-9" }));
+    const code2 = await requestLinkCode(rig.base, one.id, { now: () => rig.clock.now });
+    if (!code2.ok) throw new Error("no code");
+    expect((await redeemLinkCode(rig.base, three.id, code2.code, { now: () => rig.clock.now, store: three.store, mirror: null })).ok).toBe(true);
+    expect(JSON.parse(three.store.getItem("beltbattles.runs.v1")!)).toEqual({ runs: 9, last: "r-9" });
+    // an unlinked device never gets here: nothing is written
+    const four = await device(3);
+    expect(four.store.keys()).toEqual([]);
+  });
+});
+
 describe("startup sync: only a linked device, at most once an hour", () => {
   it("a device that was never linked sends nothing and writes nothing", async () => {
     const d = await device(0);

@@ -10,7 +10,7 @@
 // The link flow merges the profile the redeem answered with (linkClient.ts); the title calls startupProfileSync once per page load,
 // as soon as the online session has an identity.
 
-import { PROFILE_V, evaluateUnlocks, loadProfile, saveProfile, type Profile } from "../game/profile";
+import { PROFILE_V, SEED_RUNS_KEY, evaluateUnlocks, loadProfile, saveProfile, type Profile } from "../game/profile";
 import type { Identity } from "./identity";
 import { browserLinkStorage, readLink, writeLink, type LinkStorage } from "./linkState";
 import { getProfile } from "./profileClient";
@@ -18,6 +18,22 @@ import { WIRE_V, encodeWire, mergeWire, toWire, type WireProfile } from "./profi
 
 /** The server's profile is read at startup at most this often (per device). */
 export const SYNC_INTERVAL_MS = 3_600_000;
+
+/** The finished-run count the match request states (online.ts RUNS_KEY, `{runs, last}`, written online only; profile.ts names the same
+ *  key SEED_RUNS_KEY) follows the player: after a merge it is raised to the merged profile's run count, never lowered. Without it a
+ *  linked second device of an experienced player would count 0 runs and, by the new-player rule (matchmaking.ts NEW_PLAYER_RUNS), meet
+ *  only the seed pool for its first three runs. Only a linked device gets here (the link flow and the startup sync). Never throws. */
+function adoptRunCount(runs: number, store?: Store | null): void {
+  try {
+    if (!store || !Number.isInteger(runs) || runs <= 0) return;
+    const raw = store.getItem(SEED_RUNS_KEY);
+    const cur = raw ? (JSON.parse(raw) as { runs?: unknown; last?: unknown } | null) : null;
+    const have = cur && typeof cur.runs === "number" && Number.isInteger(cur.runs) && cur.runs >= 0 ? cur.runs : 0;
+    if (runs > have) store.setItem(SEED_RUNS_KEY, JSON.stringify({ runs, ...(typeof cur?.last === "string" ? { last: cur.last } : {}) }));
+  } catch {
+    /* storage unavailable: the count just does not follow */
+  }
+}
 
 export type MergeResult = "merged" | "unchanged" | "skipped";
 export type SyncResult = MergeResult | "failed";
@@ -32,14 +48,19 @@ export function mergeRemoteProfile(remote: WireProfile, store?: Store | null): M
     if (local.v > PROFILE_V || remote.v > WIRE_V) return "skipped";
     const here = toWire(local);
     const merged = mergeWire(here, remote);
-    if (encodeWire({ ...merged, updatedAt: 0 }) === encodeWire({ ...here, updatedAt: 0 })) return "unchanged";
+    if (encodeWire({ ...merged, updatedAt: 0 }) === encodeWire({ ...here, updatedAt: 0 })) {
+      adoptRunCount(merged.counters.runs, store);
+      return "unchanged";
+    }
     local.counters = { ...merged.counters };
     local.heroesWon = [...merged.heroesWon];
     local.heroesFinished = [...merged.heroesFinished];
     local.unlocked = [...new Set([...local.unlocked, ...merged.unlocked])];
     local.chosen = { ...merged.chosen } as Profile["chosen"];
     evaluateUnlocks(local); // the merged counters may earn more than either side had opened
-    return saveProfile(local, store) ? "merged" : "skipped";
+    if (!saveProfile(local, store)) return "skipped";
+    adoptRunCount(merged.counters.runs, store);
+    return "merged";
   } catch {
     return "skipped";
   }
