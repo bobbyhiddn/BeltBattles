@@ -47,7 +47,7 @@ function drawnSubs(t: PanelText, plan: PanelPlan): string[] {
 /** Is any drawn sub line wider than the room fitHead has (it would be cut with a dot)? */
 const cutSub = (t: PanelText, plan: PanelPlan): boolean => drawnSubs(t, plan).some((s) => textWidth(s, "3") > plan.subMax);
 
-const VIEWS: [string, number, number, number][] = [["phone-390x844", 390, 844, 3], ["op-402x690", 402, 690, 3], ["land-844x390", 844, 390, 3], ["desk-1920x1080", 1920, 1080, 1], ["desk-1280x800", 1280, 800, 1], ["laptop-1366x768", 1366, 768, 1]];
+const VIEWS: [string, number, number, number][] = [["phone-390x844", 390, 844, 3], ["op-402x690", 402, 690, 3], ["phone-360x640", 360, 640, 3], ["phone-320x568", 320, 568, 2], ["land-844x390", 844, 390, 3], ["desk-1920x1080", 1920, 1080, 1], ["desk-1280x800", 1280, 800, 1], ["laptop-1366x768", 1366, 768, 1]]; // the six of tests/enchant2.rivalfaces.test.ts plus the two narrowest phones (360x640 and 320x568)
 const pickSub = (pw: number, ph: number, p: boolean, scale: number): number => { const g = battleGrid(pw, ph, p); return g.close === scale ? g.sub : 1; };
 
 describe("W5: faceText(build, sel, line, day, owner) names the owner in the sub line, and only there", () => {
