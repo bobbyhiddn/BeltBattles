@@ -30,6 +30,7 @@ import { footX, footY } from "../../render/frame";
 import { itemIcon } from "../../render/sprites";
 import { cruiserModel, drawTurrets, turretPivotX, turretPivotY, type CruiserModel, type CruiserView } from "../../render/cruiser";
 import { drawMachinery } from "../../render/machinery";
+import { drawEnchantCounters } from "../../render/enchantMarks"; // POLISH-1 (REQ-BFG-085; P1): GROWING's counters over the selection's frames
 import { drawLevelMark, levelMarks, type LevelMark } from "../../render/levelMark"; // bb-0.8.3 (REQ-BFG-043 D11): the board's level marks
 import { SeaBackdrop } from "../../render/backdrop"; // MOTION-2 (REQ-BFG-071): the day's sea behind the build screen
 import { MOTION, MOTION_KNOBS, MotionPerf, seaForDay, stillSeaSeed } from "../../render/motion";
@@ -674,9 +675,11 @@ export class BuildScreen implements Screen, EditHost {
     const L = this.L;
     const b = this.run.build;
     const col = Math.floor(this.t * 5) % 2 ? C.white : C.yellow;
+    let framed = false; // POLISH-1 (P1): a frame was drawn, so GROWING's counters are drawn again over it (below)
     if (s.kind === "item") {
       const p = itemByUid(b, s.uid);
       if (!p || this.ed.carry) return;
+      framed = true;
       const size = defOf(p).size;
       if (shapedPiece(p.def)) { // SHAPES-1 (REQ-BFG-086 R1): the frame round its turned footprint's box
         const fb = footBox(defOf(p), p.rot ?? 0), r = boxRect(L.frame, p.x, p.y, fb.w, fb.h);
@@ -689,6 +692,7 @@ export class BuildScreen implements Screen, EditHost {
         }
       }
     } else if (s.kind === "route" && b.routes[s.index] && !this.ed.draw) {
+      framed = true;
       for (const k of b.routes[s.index].cells) frame(g, Math.round(footX(L.frame, kx(k), ky(k))), Math.round(footY(L.frame, kx(k), ky(k))), 12, 12, col);
       // 0.6.2j (J10): a joining belt's join tile, where its payloads enter the main belt
       const link = joinOf(b, s.index);
@@ -701,14 +705,20 @@ export class BuildScreen implements Screen, EditHost {
     } else if (s.kind === "turret") {
       const r = this.deckTurretRect(s.index); // ZOOM-1: drawn in the carrier's space
       frame(g, r.x, r.y, r.w, r.h, col);
+      framed = true;
     } else if (s.kind === "fitted") {
       // shoptap (REQ-BFG-035): a fitted core or gear piece: its turret is framed
       const m = b.mods.find((q) => q.uid === s.uid);
       if (m && turretSlots(b)[m.turret]) {
         const r = this.deckTurretRect(m.turret);
         frame(g, r.x, r.y, r.w, r.h, col);
+        framed = true;
       }
     }
+    // POLISH-1 (REQ-BFG-085; P1, BUMP-1F's review F1): the frames above lay a 1 px line over a GROWING counter's top-left (a selected rig's own frame at
+    // cell + 12, a neighbour's, a belt tile's), so a 3 read as a 9. The counters once more over them (as the level marks are, in drawFrame): the box
+    // and its number are whole selected or not, and the frame still shows the selection. No frame, no word, no GROWING above 0 or the switch off: nothing is drawn.
+    if (framed) drawEnchantCounters(g, this.view);
   }
 
   /** Tooling: logical centre of the first affordable gate card (or, in a refit or when none, the
