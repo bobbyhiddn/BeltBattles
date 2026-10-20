@@ -405,7 +405,10 @@ export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, text: string
   // CARD-3 (REQ-BFG-087, D4; SPACE-1 open item 7): the family line and the effect are separate items: the gap G (3x5's)
   // between them (the effect's first line sat right under the names: 2 px, the pitch's)
   const fam = familiesText(def.id), famLine = fam ? familySpans(fam) : null, fh = famLine ? 7 + GAP["3"] : 0;
-  const w = Math.max(textWidth(def.name), ...lines.map((l) => lineWidth(l, "3")), textWidth(describe(def), "3"), famLine ? lineWidth(famLine, "3") : 0) + 10;
+  // PRESENT-1 (REQ-BFG-081; LIVE-PACKETS-0912 1 (5) g): the kind line in the panel's words (panelKind: a core's and gear's plain words, WORDS-1's
+  // KIND_SUB), as the phone panel and the desk column say it; WORDS-1 changed only the panel's sub line (was describe(def): "RARE TURRET CORE")
+  const kind = panelKind(def);
+  const w = Math.max(textWidth(def.name), ...lines.map((l) => lineWidth(l, "3")), textWidth(kind, "3"), famLine ? lineWidth(famLine, "3") : 0) + 10;
   const h = 22 + fh + lines.length * 7 + apart;
   const x = Math.max(2, Math.min(W - w - 2, Math.round(r.x + r.w / 2 - w / 2)));
   const y = H ? Math.max(2, Math.min(r.y + r.h + 4, H - 2 - h)) : r.y + r.h + 4;
@@ -414,7 +417,7 @@ export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, text: string
   rect(g, x + 1, y + 1, w - 2, h - 2, C.night);
   rect(g, x + 1, y + 1, w - 2, 1, RARITY_COLOR[def.rarity]);
   drawText(g, def.name, x + 5, y + 4, RARITY_COLOR[def.rarity], { outline: C.ink });
-  drawText(g, describe(def), x + 5, y + 13, C.slate4, { font: "3" });
+  drawText(g, kind, x + 5, y + 13, C.slate4, { font: "3" });
   if (famLine) drawRich(g, famLine, x + 5, y + 21, "3");
   let ly = y + 21 + fh;
   items.forEach((item, k) => {
