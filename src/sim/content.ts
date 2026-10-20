@@ -97,7 +97,7 @@ export const BURN_TIME = 3.0; // a Burn stack's seconds where its source sets no
 export const BURN_DPS = 10;
 /** SCALE-2b (REQ-BFG-108; ref/scale1/REPORT-SCALE1.md section 2): the hull damage one POISON deals at each whole second of
  *  the fight (Battle.hullEffects: the hull takes POISON_DPS x its POISON as one number, then D(day)). Read only while
- *  SCALE_RIGS is on (scale.ts): with it off no hull ever holds POISON. SCALE-2e benches the 3; no tuning here.
+ *  SCALE_RIGS is on (scale.ts): with it off no hull ever holds POISON. SCALE-2e benched the 3; it is 2 since BUMP-1F P3 D2 (below).
  *  BUMP-1F P3 D2 (RULING-BUMP1F-R2 R2.3; was 3): 2. At 2 one POISON stack needs 15 s to deal what one BURN stack deals (BURN_DPS x
  *  BURN_TIME = 30), at 3 it needed 10 s. tools/scale2e/poison.ts, day 3, K 6, 48 BURN decks, 4 seeds, 3 -> 2: check 2 (POISON against
  *  BURN) under 15 s 77.0% -> 74.9% (bar at most 45%: still FAIL), all fights 66.8% -> 63.3%; check 1 (against the SHIELD wall, bar at
