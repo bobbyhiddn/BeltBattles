@@ -2,7 +2,7 @@
 // under a SHAPED piece sends that piece to cargo (the to-cargo path: same uid, stars ride along); a turret always goes in;
 // a 1-cell rig on the new intake stays (S5's ruling, point 2); the toast is `NAIL STRIP WENT TO CARGO · TURRET INTAKE`
 // (two or more: `2 PARTS WENT TO CARGO · TURRET INTAKE`). With SHAPES off the sweep does nothing.
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { newRun, installFromCargo, intakeToast, moveInstalled, sweepIntakes, type Run } from "../src/game/run";
 import { canPlaceItem, cloneBuild, isIntakeCell, itemByUid, key as K, moveTurret, turretSlots } from "../src/sim/deck";
 import { SHAPES, setShapes, withShapes } from "../src/sim/shapes";
@@ -12,6 +12,10 @@ import { validateBuild, validateUpload } from "../src/net/validate";
 import { casualRun } from "../src/sim/harness/casual";
 import { installAt } from "../src/screens/build/turretActions";
 import type { Ctx } from "../src/screens/build/actions";
+import { GATES, setGates } from "../src/sim/gates"; // BUMP-1F (GATES default): this file's world is the one before the three converters
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): was no hook; this file's fixtures and pins are the world before the three converters, so every test runs with GATES off, as its pins were measured, and the afterEach puts the shipped value back (even if the test throws)
+beforeEach(() => { setGates(false); });
+afterEach(() => { setGates(GATES); });
 
 afterEach(() => setShapes(SHAPES)); // SHAPES-1 flip: the shipped value (on)
 

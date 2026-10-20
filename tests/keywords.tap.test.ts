@@ -434,7 +434,8 @@ describe("U2f: the taller ⓘ view", () => {
     // 325 + 36 = 361
     // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0): the seven new scaling rigs (SCALE_IDS) join the buyable modules, a cargo
     // panel at each star: 361 + 21 = 382 (the next but one test below counts them panel by panel, against the switch-off world)
-    expect(sheet.length).toBe(382); // BUMP-1E: was 361
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): the three converters (gates.ts) join the buyable modules, a cargo panel at each star: 382 + 9 = 391
+    expect(sheet.length).toBe(391); // BUMP-1F: was 382; BUMP-1E: was 361
     // NUM-3 (R1's STUN fold), measured on num3 with steps 1-3: op 118 / 160 / 27 -> 119 / 167 / 19, desk 72 / 94 / 84 / 25 /
     // 20 / 10 -> 67 / 88 / 87 / 34 / 18 / 10 / 1 (the 7 STUN-fold pieces' faces: their LEVELS ladders and KEYWORDS replace a
     // legacy NEXT STAR sentence, so their body-only views page otherwise; U2f's view below is the one the game draws)
@@ -530,7 +531,7 @@ describe("U2f: the taller ⓘ view", () => {
     // pieces the flip changes page otherwise (VENOM DRIP ★1-★3, now POISON's source with a POISON definition in its ⓘ; the five reworks'
     // cargo panels: new faces, NOTES and ladders, PRESSURE BREECH's on both heroes); every other panel pages as it did. Op [8, 180, 112, 61]
     // -> the old ids' [5, 171, 124, 61] + the new [0, 5, 16] = [5, 176, 140, 61]
-    expect(histogram(o.map((x) => x!.u2e))).toEqual([5, 176, 140, 61]); // BUMP-1E: was [8, 180, 112, 61]
+    expect(histogram(o.map((x) => x!.u2e))).toEqual([5, 177, 148, 61]); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): was [5, 176, 140, 61] (+9: the three converters' panels, 1 in the second bin and 8 in the third); BUMP-1E: was [8, 180, 112, 61]
     // CARD-5 (L, by design): SCRAPPER's taller face (its scrap line) and LEVELS move three desk views a bucket: [3, 51, 106,
     // 87, 71, 7] -> [3, 51, 106, 90, 68, 7]
     // SHOPCARD-1b (REQ-BFG-081), measured: the desk column sizes to its text, and 20 cargo panels' longer face lines (SEAM WELDER's YOUR HULL:,
@@ -561,7 +562,7 @@ describe("U2f: the taller ⓘ view", () => {
     // LINE's NOTES without the size note); not traced view by view. The op views are unchanged (op [8, 180, 112, 61] stands)
     // BUMP-1E, measured as above: desk [3, 59, 109, 92, 72, 24, 2] -> the old ids' [2, 57, 104, 87, 81, 28, 2] + the seven new rigs' [0, 0, 4, 7, 10]
     // = [2, 57, 108, 94, 91, 28, 2]
-    expect(histogram(k.map((x) => x!.u2e))).toEqual([2, 57, 108, 94, 91, 28, 2]); // BUMP-1E: was [3, 59, 109, 92, 72, 24, 2]
+    expect(histogram(k.map((x) => x!.u2e))).toEqual([2, 57, 109, 99, 94, 28, 2]); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): was [2, 57, 108, 94, 91, 28, 2] (+9: the three converters' panels, 1 / 5 / 3 in the third to fifth bins); BUMP-1E: was [3, 59, 109, 92, 72, 24, 2]
   });
 
   it("U2f's: op most on 1 page and none over 2 (3 with any one rune held); desk none over 3; pinned", () => {
@@ -597,10 +598,11 @@ describe("U2f: the taller ⓘ view", () => {
     const defOf = (id: string): string => /^(?:cargo|offer|placed) (\w+)/.exec(id)![1];
     const was = withScaleRigs(() => pagesOf(sheetPanels()), false), now = pagesOf(sheet);
     expect(SCALE_RIGS).toBe(true);
-    expect([was.size, now.size]).toEqual([361, 382]);
+    expect([was.size, now.size]).toEqual([370, 391]); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): was [361, 382]; both worlds hold the three converters' 9 panels (the switch-off world is the scaling switch's)
     // the 0.9.11 world's pins, kept: [U2e op, U2e desk, U2f op, U2f desk]
     const hist = (m: typeof was, col: number) => histogram([...m.values()].map((v) => v[col]).filter((n) => n > 0));
-    expect([0, 1, 2, 3].map((col) => hist(was, col))).toEqual([[8, 180, 112, 61], [3, 59, 109, 92, 72, 24, 2], [276, 85], [353, 8]]);
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): the switch-off world is the scaling switch's, so it holds the three converters' 9 panels now: was [[8, 180, 112, 61], [3, 59, 109, 92, 72, 24, 2], [276, 85], [353, 8]]
+    expect([0, 1, 2, 3].map((col) => hist(was, col))).toEqual([[8, 181, 120, 61], [3, 59, 110, 97, 75, 24, 2], [285, 85], [362, 8]]);
     // the +21: the seven new rigs' cargo panels, three each
     const added = [...now.keys()].filter((id) => !was.has(id));
     expect(added).toHaveLength(21);
@@ -611,7 +613,7 @@ describe("U2f: the taller ⓘ view", () => {
     expect(moved.filter((id) => !SCALE_DEF_IDS.includes(defOf(id))), "a panel of a piece the flip leaves alone pages otherwise").toEqual([]);
     expect(moved.length).toBeGreaterThan(0);
     // the new pins are the old ones' histograms with exactly these changes: the shipped world reads them in the tests above
-    expect([0, 1, 2, 3].map((col) => hist(now, col))).toEqual([[5, 176, 140, 61], [2, 57, 108, 94, 91, 28, 2], U2F_OP, U2F_DESK]);
+    expect([0, 1, 2, 3].map((col) => hist(now, col))).toEqual([[5, 177, 148, 61], [2, 57, 109, 99, 94, 28, 2], U2F_OP, U2F_DESK]); // BUMP-1F (cause: GATES default): was [[5, 176, 140, 61], [2, 57, 108, 94, 91, 28, 2], ...]
   });
 
   it("on every phone view and the desk: the view never covers the panel's header (title row, star badge, ⓘ) and stays on screen; closed, nothing changes", () => {
@@ -735,17 +737,17 @@ describe("U2f: the taller ⓘ view", () => {
 // and its two ★3, and POWDER KEG ★3, 1 -> 2): op [276, 85] -> the old ids' [272, 89] + the new [17, 4] = [289, 93]; the worst rune held
 // [142, 219] -> [135, 226] + [1, 20] = [136, 246], the same with the switch on; desk [353, 8] -> [353, 8] + [21] = [374, 8]. U2f's aims hold:
 // op most on 1 page and none over 2, a rune held none over 3, desk none over 3
-const U2F_OP = [289, 93]; // BUMP-1E: was [276, 85]. SC-0912 (SHOPCARD-1e merged onto 0.9.11), measured on the merged tree (361 panels): was [300, 61] (BUMP-1D's); 1e's own tree [270, 55] -> [246, 79]: the {BELT} definition moves 24 factory views from one page to two (here 24: 300 -> 276). BUMP-1D: was [270, 55]. CARD-5 (L, by design): SCRAPPER's scrap ladder takes one op view to 2 pages: was [271, 54]. SHAPES-1 x c099-card3: was [262, 54] (SHAPES-1 flip: [260, 56] -> [260, 65]; CARD-2: [260, 56] -> [262, 54]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [309, 2])
+const U2F_OP = [298, 93]; // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): was [289, 93] (the nine panels of the three converters, FUSER, SCATTER MILL and SMELTER at each star, take one page: [289 + 9, 93]). BUMP-1E: was [276, 85]. SC-0912 (SHOPCARD-1e merged onto 0.9.11), measured on the merged tree (361 panels): was [300, 61] (BUMP-1D's); 1e's own tree [270, 55] -> [246, 79]: the {BELT} definition moves 24 factory views from one page to two (here 24: 300 -> 276). BUMP-1D: was [270, 55]. CARD-5 (L, by design): SCRAPPER's scrap ladder takes one op view to 2 pages: was [271, 54]. SHAPES-1 x c099-card3: was [262, 54] (SHAPES-1 flip: [260, 56] -> [260, 65]; CARD-2: [260, 56] -> [262, 54]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [309, 2])
 // WORDS-1 (REQ-BFG-081), measured: the stat icons' and face words' notes list in the view, so with the worst rune's keywords
 // after them 82 views take a second page (was [304, 12]); none takes a third (U2f's aim: 3 at most with a rune held)
-const U2F_OP_RUNE = [136, 246]; // BUMP-1E: was [142, 219] (see above). SC-0912, measured on the merged tree: was [145, 216] (BUMP-1D's): 3 more views take a second page with the worst rune held (1e's own tree [145, 180] -> [139, 186]: 6 more); not traced view by view. BUMP-1D: was [142, 183]. SHAPES-1 flip: was [143, 173] (EXPLAIN-1: was [234, 82]; Y7b2 (the flip): was [282, 34])
+const U2F_OP_RUNE = [136, 255]; // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): was [136, 246] (+9: the three converters' panels take 1 page with the worst rune held). // BUMP-1E: was [142, 219] (see above). SC-0912, measured on the merged tree: was [145, 216] (BUMP-1D's): 3 more views take a second page with the worst rune held (1e's own tree [145, 180] -> [139, 186]: 6 more); not traced view by view. BUMP-1D: was [142, 183]. SHAPES-1 flip: was [143, 173] (EXPLAIN-1: was [234, 82]; Y7b2 (the flip): was [282, 34])
 /** FLIP-X1 (F-d, SUS-D §9): the worst one rune held with the switch on (RUNE_LIST's 57 and the 8 sustain runes), measured
  *  on flipx1: the same as RUNE_LIST's (no sustain rune pages a view further than its worst rune in play). The switch-off
  *  pin above is RUNE_LIST's, unchanged. FLIP-X2: still the same as RUNE_LIST's (was [276, 34]). Y1: still the same (was
  *  [280, 36]). Y7b2 (the flip): still the same (was [282, 34]). EXPLAIN-1: still the same (was [234, 82]). */
 // SHOPCARD-1e (E1): as U2F_OP_RUNE (the worst rune held, the switch on: [139, 186] on SHOPCARD-1e's tree, was [145, 180]; SHOPCARD-1b: [142, 183]); the factories' extra {BELT} definition moves 4 desk views from one page to two: [324, 1] -> [320, 5]
-const U2F_OP_RUNE_ON = [136, 246]; // BUMP-1E: was [142, 219], still the same as RUNE_LIST's (U2F_OP_RUNE). SC-0912, measured on the merged tree: was [145, 216] (BUMP-1D's), still the same as RUNE_LIST's (U2F_OP_RUNE). BUMP-1D: was [142, 183]. SHAPES-1 flip: the same as RUNE_LIST's, as before (was [143, 173]; WORDS-1: was [304, 12])
-const U2F_DESK = [374, 8]; // BUMP-1E: was [353, 8] (see above). SC-0912, measured on the merged tree: was [357, 4] (BUMP-1D's); 1e's own tree [324, 1] -> [320, 5]: the {BELT} definition moves 4 desk views from one page to two (here 4: 357 -> 353). BUMP-1D: was [324, 1]. SHAPES-1 x c099-card3: was [315, 1] (SHAPES-1 flip: was [277, 39] -> [283, 42]; CARD-2 (K5): was [277, 39] -> [315, 1]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [302, 9])
+const U2F_OP_RUNE_ON = [136, 255]; // BUMP-1F (cause: GATES default): was [136, 246]. // BUMP-1E: was [142, 219], still the same as RUNE_LIST's (U2F_OP_RUNE). SC-0912, measured on the merged tree: was [145, 216] (BUMP-1D's), still the same as RUNE_LIST's (U2F_OP_RUNE). BUMP-1D: was [142, 183]. SHAPES-1 flip: the same as RUNE_LIST's, as before (was [143, 173]; WORDS-1: was [304, 12])
+const U2F_DESK = [383, 8]; // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): was [374, 8] (+9: the three converters' panels take one desk page). BUMP-1E: was [353, 8] (see above). SC-0912, measured on the merged tree: was [357, 4] (BUMP-1D's); 1e's own tree [324, 1] -> [320, 5]: the {BELT} definition moves 4 desk views from one page to two (here 4: 357 -> 353). BUMP-1D: was [324, 1]. SHAPES-1 x c099-card3: was [315, 1] (SHAPES-1 flip: was [277, 39] -> [283, 42]; CARD-2 (K5): was [277, 39] -> [315, 1]; EXPLAIN-1: was [316]; Y7b2 (the flip): was [302, 9])
 
 // FLIP-X1 (N4-b, REVIEW-NUM4 section 3; NUM-4 finding 6): every line of the ⓘ view is on screen. The view's areas stayed on
 // the screen (the test above), but on the 1920x1080 desk WARD BELL's last KEYWORDS line (a held rune's HULL) drew partly

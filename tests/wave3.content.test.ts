@@ -34,6 +34,7 @@ import { SHAPES_IDS, isShapesPiece, withShapes } from "../src/sim/shapes"; // SH
 import { GUARD_DEFS, withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's guarded def
 import { PLAIN_RIG_IDS, isPlainRig, withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D (the flip, PLAIN_RIGS): the six plain stat rigs, after the sustain pieces in ITEMS
 import { SHAPES2_IDS, isShapes2Piece, withShapes2 } from "../src/sim/shapes2"; // BUMP-1D (the flip, SHAPES2): the six more shaped rigs, last in ITEMS
+import { GATES_IDS, isGatesPiece, withGates } from "../src/sim/gates"; // BUMP-1F (the flip, GATES): the three converters, last of all in ITEMS (after the seven scaling rigs)
 import { SCALE_DEFS, SCALE_IDS, SCALE_RIGS, isScalePiece, withScaleRigs } from "../src/sim/scale"; // BUMP-1E (the flip, SCALE_RIGS): the seven scaling rigs, last of all in ITEMS; IRON WALL and SPALL CATCHER (wave 3's) are reworked
 
 const FAMS: ModuleTag[] = ["FORGE", "HARASS", "SWARM", "BURST", "TEMPO", "TWIN", "PLATE"];
@@ -100,9 +101,12 @@ describe("wave 3 behind one switch (content.ts WAVE3_LIVE)", () => {
     // BUMP-1E (the flip, SCALE_RIGS on in bb-0.12.0): the seven scaling rigs join ITEMS after every other def (scale.ts: after SHAPES2's six), so
     // they are the last 7 keys and the tail above is read in the keys before them: `older` is ITEMS without them (was Object.keys(ITEMS) in each
     // of the five slices below)
-    const nScale = SCALE_IDS.length, keys = Object.keys(ITEMS), older = keys.slice(0, -nScale);
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): the three converters (gates.ts: FUSER, SCATTER MILL, SMELTER) join ITEMS after the seven scaling rigs, so
+    // they are the last 3 keys and the seven the 7 before them: `older` is ITEMS without both (was `older = keys.slice(0, -nScale)` and `keys.slice(-nScale)` equal to SCALE_IDS)
+    const nScale = SCALE_IDS.length, nGates = GATES_IDS.length, keys = Object.keys(ITEMS), older = keys.slice(0, -(nScale + nGates));
     expect(SCALE_RIGS).toBe(true);
-    expect(keys.slice(-nScale)).toEqual([...SCALE_IDS]);
+    expect(keys.slice(-nGates)).toEqual([...GATES_IDS]);
+    expect(keys.slice(-(nScale + nGates), -nGates)).toEqual([...SCALE_IDS]);
     const nShaped = SHAPES_IDS.length, nShaped2 = SHAPES2_IDS.length, nPlain = PLAIN_RIG_IDS.length;
     const tail = SUSTAIN_IDS.length + nPlain + nShaped + nShaped2;
     expect(older.slice(-15 - tail, -tail)).toEqual([...WAVE3_IDS]);
@@ -120,11 +124,12 @@ describe("wave 3 behind one switch (content.ts WAVE3_LIVE)", () => {
     // SHAPES-1 flip: + NAIL STRIP, EMBER TROUGH and SPIKE RAIL, the three shaped rigs: 88 -> 91, and 73 -> 76 with wave 3 off
     // BUMP-1D: + the six plain stat rigs and the six more shaped rigs, twelve rigs: 91 -> 103, and 76 -> 88 with wave 3 off
     // BUMP-1E: + the seven scaling rigs (SCALE_IDS: each a rig with a merchant and a price, so stocked): 103 -> 110, and 88 -> 95 with wave 3 off
-    expect(buyableModules()).toHaveLength(110);
+    // BUMP-1F: + the three converters (GATES on: each a piece with a merchant and a price, so stocked): 110 -> 113, and 95 -> 98 with wave 3 off
+    expect(buyableModules()).toHaveLength(113); // BUMP-1F: was 110
     withWave3(() => {
       expect(Object.keys(ITEMS).filter(isWave3)).toEqual([]);
       expect(ids(buyableModules()).filter(isWave3)).toEqual([]);
-      expect(buyableModules()).toHaveLength(95); // SHAPES-1 flip: + the three shaped rigs (was 73); BUMP-1D: + twelve (was 76); BUMP-1E: + seven (was 88)
+      expect(buyableModules()).toHaveLength(98); // BUMP-1F: was 95; SHAPES-1 flip: + the three shaped rigs (was 73); BUMP-1D: + twelve (was 76); BUMP-1E: + seven (was 88)
     }, false);
   });
 
@@ -141,22 +146,24 @@ describe("wave 3 behind one switch (content.ts WAVE3_LIVE)", () => {
     // and stay through wave 3's switch too: the older entries, wave 3, sustain, the 6 plain rigs, the 3 rigs, the 6 more rigs, the 7 scaling rigs (was
     // [...before, ...WAVE3_IDS, ...SUSTAIN_IDS, ...PLAIN_RIG_IDS, ...SHAPES_IDS, ...SHAPES2_IDS], with the seven inside `before`, ahead of wave 3);
     // the counts + 7 (was 88 / 103 / 88 / 103)
-    const all = Object.keys(ITEMS), before = all.filter((id) => !isWave3(id) && !isSustain(id) && !isShapesPiece(id) && !isPlainRig(id) && !isShapes2Piece(id) && !isScalePiece(id));
-    expect(all).toEqual([...before, ...WAVE3_IDS, ...SUSTAIN_IDS, ...PLAIN_RIG_IDS, ...SHAPES_IDS, ...SHAPES2_IDS, ...SCALE_IDS]); // ITEMS order: the older entries first, unchanged
+    // BUMP-1F (cause: GATES default): the three converters, the very last keys (after the seven), stay through wave 3's switch too: `before` leaves them out and the lists end with GATES_IDS
+    // (were `before` with them inside, ahead of wave 3, no isGatesPiece filter and no GATES_IDS in the four lists below); the counts + 3 (were 95 / 110)
+    const all = Object.keys(ITEMS), before = all.filter((id) => !isWave3(id) && !isSustain(id) && !isShapesPiece(id) && !isPlainRig(id) && !isShapes2Piece(id) && !isScalePiece(id) && !isGatesPiece(id));
+    expect(all).toEqual([...before, ...WAVE3_IDS, ...SUSTAIN_IDS, ...PLAIN_RIG_IDS, ...SHAPES_IDS, ...SHAPES2_IDS, ...SCALE_IDS, ...GATES_IDS]); // ITEMS order: the older entries first, unchanged
     withWave3(() => {
       expect(wave3Live()).toBe(false);
-      expect(Object.keys(ITEMS)).toEqual([...before, ...SUSTAIN_IDS, ...PLAIN_RIG_IDS, ...SHAPES_IDS, ...SHAPES2_IDS, ...SCALE_IDS]);
-      expect(buyableModules()).toHaveLength(95); // FLIP-X2: 71 - SIFTER + the 3 sustain pieces (was 71); SHAPES-1 flip: + 3 rigs; BUMP-1D: + 12 (was 76); BUMP-1E: + 7 (was 88)
+      expect(Object.keys(ITEMS)).toEqual([...before, ...SUSTAIN_IDS, ...PLAIN_RIG_IDS, ...SHAPES_IDS, ...SHAPES2_IDS, ...SCALE_IDS, ...GATES_IDS]); // BUMP-1F: + GATES_IDS
+      expect(buyableModules()).toHaveLength(98); // BUMP-1F: was 95; FLIP-X2: 71 - SIFTER + the 3 sustain pieces (was 71); SHAPES-1 flip: + 3 rigs; BUMP-1D: + 12 (was 76); BUMP-1E: + 7 (was 88)
       expect(ids(buyableModules()).filter(isWave3)).toEqual([]);
       for (const id of WAVE3_IDS) expect(ids(itemsSoldBy(ITEMS[id].merchant!)), id).not.toContain(id);
-      withWave3(() => expect(buyableModules()).toHaveLength(110)); // nested: on for one call, back off after (FLIP-X2: was 86; BUMP-1D: was 91; BUMP-1E: was 103)
-      expect(buyableModules()).toHaveLength(95); // BUMP-1E: was 88
+      withWave3(() => expect(buyableModules()).toHaveLength(113)); // nested: on for one call, back off after (BUMP-1F: was 110; FLIP-X2: was 86; BUMP-1D: was 91; BUMP-1E: was 103)
+      expect(buyableModules()).toHaveLength(98); // BUMP-1F (cause: GATES default; the three converters): was 95; BUMP-1E: was 88
     }, false);
     expect(wave3Live()).toBe(true);
     expect(Object.keys(ITEMS)).toEqual(all);
     expect(() => withWave3(() => { throw new Error("boom"); }, false)).toThrow("boom");
     expect(wave3Live()).toBe(true);
-    expect(buyableModules()).toHaveLength(110); // FLIP-X2: was 86; SHAPES-1 flip: + the three shaped rigs (was 88); BUMP-1D: + twelve (was 91); BUMP-1E: + seven (was 103)
+    expect(buyableModules()).toHaveLength(113); // BUMP-1F (cause: GATES default; the three converters): was 110; FLIP-X2: was 86; SHAPES-1 flip: + the three shaped rigs (was 88); BUMP-1D: + twelve (was 91); BUMP-1E: + seven (was 103)
   });
 
   it("the upload check takes a wave-3 part with the switch on, and refuses it while the switch is off", () => {
@@ -206,7 +213,8 @@ describe("the 15 entries are D1's (DESIGN-wave3.md 3.1)", () => {
     // switch (the adds above hold): IRONMONGER + CINDER MAIL, LEECH COIL (16 -> 18), TINKER + CROWD PRESS, AEGIS SPIKE (16 -> 18), ALCHEMIST + ROT
     // GAUGE (14 -> 15), SCRAPPER + GRUDGE ROD (10 -> 11), QUARTERMASTER + TROPHY CHAIN (9 -> 10); GUNSMITH and ARCANE DEALER sell none (28 and 10 as before)
     expect(SCALE_RIGS).toBe(true);
-    expect(on).toEqual({ ironmonger: 18, tinker: 18, alchemist: 15, gunsmith: 28, scrapper: 11, quartermaster: 10, arcane: 10 }); // BUMP-1E: was { ironmonger: 16, tinker: 16, alchemist: 14, gunsmith: 28, scrapper: 10, quartermaster: 9, arcane: 10 }
+    // BUMP-1F (cause: GATES default; gates.ts GATES_DEFS): + the three converters, on both sides of wave 3's switch (the adds above hold): TINKER + FUSER, SCATTER MILL (18 -> 20), ALCHEMIST + SMELTER (15 -> 16)
+    expect(on).toEqual({ ironmonger: 18, tinker: 20, alchemist: 16, gunsmith: 28, scrapper: 11, quartermaster: 10, arcane: 10 }); // BUMP-1F: was { ironmonger: 18, tinker: 18, alchemist: 15, ... }; BUMP-1E: was { ironmonger: 16, tinker: 16, alchemist: 14, gunsmith: 28, scrapper: 10, quartermaster: 9, arcane: 10 }
   });
 });
 
@@ -227,7 +235,9 @@ describe("family map v2 in content.ts (DESIGN-wave3.md 2.2; VERIFIED-D1 Q1-Q3)",
     // behind them (the plain rigs, the three rigs and the six more rigs would end up after the seven, and every seeded draw after it in the worker
     // would differ). Their own families are checked after, with every switch on. Was: withShapes2(() => withShapes(() => withPlainRigs(() =>
     // withSustain(() => withWave3(() => {...}, on), false), false), false), false)
-    for (const on of [false, true]) withScaleRigs(() => withShapes2(() => withShapes(() => withPlainRigs(() => withSustain(() => withWave3(() => {
+    // BUMP-1F (cause: GATES default): D1's catalogue has none of the three converters either (77 / 92 counted with the switches on, 73 / 88 with the gates, D1's 70 / 85 and the twelve and the seven), so the map check also runs
+    // with the gates switch off for the call (withGates(fn, false)), the OUTERMOST call of the nest (its three are the last keys of ITEMS: off first, back last). Was: the nest without withGates
+    for (const on of [false, true]) withGates(() => withScaleRigs(() => withShapes2(() => withShapes(() => withPlainRigs(() => withSustain(() => withWave3(() => {
       const all = buyableModules();
       expect(all).toHaveLength(on ? 85 : 70);
       for (const d of all) {
@@ -236,7 +246,7 @@ describe("family map v2 in content.ts (DESIGN-wave3.md 2.2; VERIFIED-D1 Q1-Q3)",
         for (const f of t) expect(FAMS).toContain(f);
         expect([...t].sort(), d.id).toEqual([...map[d.id]].sort());
       }
-    }, on), false), false), false), false), false);
+    }, on), false), false), false), false), false), false);
     // FLIP-X2: with the switch on (the default now) the buyable modules are D1's and the 3 sustain pieces, each with 1-3
     // distinct families of the seven: WARD BELL and MENDING LOOM PLATE, MEND PRESS PLATE and SWARM
     // SHAPES-1 flip: and the three shaped rigs (shapes.ts SHAPES_ITEMS), after them: NAIL STRIP and EMBER TROUGH FORGE,
@@ -257,8 +267,9 @@ describe("family map v2 in content.ts (DESIGN-wave3.md 2.2; VERIFIED-D1 Q1-Q3)",
       ["jawcrusher", ["FORGE", "BURST"]], ["pickaxe", ["FORGE", "BURST"]],
       ["cindermail", ["FORGE", "PLATE"]], ["rotgauge", ["SWARM", "FORGE"]], ["leechcoil", ["SWARM", "PLATE"]], ["crowdpress", ["SWARM", "FORGE"]],
       ["aegisspike", ["PLATE", "FORGE"]], ["grudgerod", ["FORGE"]], ["trophychain", ["FORGE", "BURST"]],
+      ["fuser", ["FORGE", "BURST"]], ["scattermill", ["SWARM"]], ["smelter", ["FORGE"]], // BUMP-1F (cause: GATES default; gates.ts GATES_DEFS): the three converters, last of all
     ]);
-    for (const id of [...SHAPES_IDS, ...PLAIN_RIG_IDS, ...SHAPES2_IDS, ...SCALE_IDS]) { // BUMP-1E: + SCALE_IDS
+    for (const id of [...SHAPES_IDS, ...PLAIN_RIG_IDS, ...SHAPES2_IDS, ...SCALE_IDS, ...GATES_IDS]) { // BUMP-1E: + SCALE_IDS; BUMP-1F: + GATES_IDS
       const t = ITEMS[id].tags ?? [];
       expect(t.length >= 1 && t.length <= 3 && new Set(t).size === t.length && t.every((f) => FAMS.includes(f)), id).toBe(true);
     }
@@ -286,7 +297,8 @@ describe("family map v2 in content.ts (DESIGN-wave3.md 2.2; VERIFIED-D1 Q1-Q3)",
     // AEGIS SPIKE, GRUDGE ROD, TROPHY CHAIN (33 -> 39), SWARM + ROT GAUGE, LEECH COIL, CROWD PRESS (25 -> 28), PLATE + CINDER MAIL, LEECH COIL, AEGIS SPIKE
     // (19 -> 22), BURST + TROPHY CHAIN (29 -> 30); HARASS, TEMPO and TWIN as they were (the seven carry none of those)
     expect(SCALE_RIGS).toBe(true);
-    expect(size).toEqual({ FORGE: 39, HARASS: 20, SWARM: 28, BURST: 30, TEMPO: 23, TWIN: 18, PLATE: 22 }); // BUMP-1E: was { FORGE: 33, HARASS: 20, SWARM: 25, BURST: 29, TEMPO: 23, TWIN: 18, PLATE: 19 }
+    // BUMP-1F (cause: GATES default; tags in gates.ts GATES_DEFS): + the three converters: FORGE + FUSER, SMELTER (39 -> 41), SWARM + SCATTER MILL (28 -> 29), BURST + FUSER (30 -> 31); HARASS, TEMPO, TWIN and PLATE as they were
+    expect(size).toEqual({ FORGE: 41, HARASS: 20, SWARM: 29, BURST: 31, TEMPO: 23, TWIN: 18, PLATE: 22 }); // BUMP-1F: was { FORGE: 39, HARASS: 20, SWARM: 28, BURST: 30, TEMPO: 23, TWIN: 18, PLATE: 22 }; BUMP-1E: was { FORGE: 33, HARASS: 20, SWARM: 25, BURST: 29, TEMPO: 23, TWIN: 18, PLATE: 19 }
     for (const f of t.families) expect(f.kinds.length, f.tag).toBeGreaterThanOrEqual(4);
     // with the switch off the same tags read 7 families too (TWIN and PLATE on the older modules: 13 and 5)
     // FLIP-X2: the same moves with wave 3 off: FORGE 19 -> 18, HARASS 18 -> 17, SWARM 20 -> 21, PLATE 5 -> 7
@@ -295,7 +307,7 @@ describe("family map v2 in content.ts (DESIGN-wave3.md 2.2; VERIFIED-D1 Q1-Q3)",
     // BUMP-1E: the seven stay with wave 3 off too (none is a wave-3 piece): FORGE 29 -> 35, SWARM 21 -> 24, BURST 27 -> 28, PLATE 10 -> 13
     const off = withWave3(() => familyTable(), false);
     expect(Object.fromEntries(off.families.map((f) => [f.tag, f.members.length])))
-      .toEqual({ FORGE: 35, HARASS: 19, SWARM: 24, BURST: 28, TEMPO: 19, TWIN: 13, PLATE: 13 }); // BUMP-1E: was { FORGE: 29, HARASS: 19, SWARM: 21, BURST: 27, TEMPO: 19, TWIN: 13, PLATE: 10 }
+      .toEqual({ FORGE: 37, HARASS: 19, SWARM: 25, BURST: 29, TEMPO: 19, TWIN: 13, PLATE: 13 }); // BUMP-1F (the three converters stay with wave 3 off too): was { FORGE: 35, SWARM: 24, BURST: 28, ... }; BUMP-1E: was { FORGE: 29, HARASS: 19, SWARM: 21, BURST: 27, TEMPO: 19, TWIN: 13, PLATE: 10 }
   });
 });
 

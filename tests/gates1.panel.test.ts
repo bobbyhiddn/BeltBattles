@@ -116,7 +116,8 @@ describe("GATES-1b B3: only the panel's walk sees a gate; with none on the deck 
       expect(walkRoute(b, 0, undefined, { gates: true, unplated: true })).toEqual(walkRoute(b, 0, undefined, { unplated: true }));
     }
     // and with GATES off the three gates are no pieces at all: no deck can hold one
-    expect(Object.keys(ITEMS).filter((id) => ITEMS[id].kind === "converter")).toEqual([]);
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): was bare (the shipped world had GATES off); asked for outright now (withGates(fn, false))
+    withGates(() => expect(Object.keys(ITEMS).filter((id) => ITEMS[id].kind === "converter")).toEqual([]), false);
   });
 
   it("the continuous walk (LADDER_FIX off) puts a second inside the gate and leaves its tile out", () => {

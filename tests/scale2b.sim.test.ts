@@ -4,7 +4,8 @@
 // and taken out again. The real ROT GAUGE and LEECH COIL are SCALE-2c's.
 // BUMP-1E: the switch ships ON from bb-0.12.0 (SCALE_RIGS = true; it shipped off when this was written), so every "off" half below asks
 // for the 0.9.11 world outright with withScaleRigs(fn, false), synchronously (it was a bare Battle or a bare read); the on halves are unchanged.
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { putItemsBack, snapshotItems, type ItemsSnapshot } from "../src/sim/itemsKeep"; // BUMP-1F (R5.5 (b)): each test puts ITEMS back as it found it
 import { BURN_DPS, BURN_TIME, ITEMS, POISON_DPS, type ItemDef, type ReadSpec } from "../src/sim/content";
 import { Battle, type Payload, type Projectile, type SideState, type SimEvent, type Target, type TurretState } from "../src/sim/battle";
 import { SCALE_DEFS, SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale";
@@ -42,6 +43,13 @@ afterAll(() => {
   for (const id of Object.keys(TEST_DEFS)) delete ITEMS_RW[id];
   clearStarCache();
 });
+// BUMP-1F (RULING-BUMP1F-R5 R5.5 (b); the suite guard, tests/setup/itemsGuard.ts): was no hook. The test-only ids above are the LAST keys of ITEMS (beforeAll appends them), and an
+// off/on call of the scaling switch takes the seven out and brings them back at their rank, AFTER the test-only ids: so a test that asks for the 0.9.11 world (withScaleRigs(fn, false))
+// left Object.keys(ITEMS) permuted (key 112: cindermail became a test id). Each test now keeps ITEMS as it found it (src/sim/itemsKeep.ts: snapshotItems, putItemsBack); the guard's
+// afterEach runs after this one, so it sees ITEMS unchanged.
+let kept: ItemsSnapshot;
+beforeEach(() => { kept = snapshotItems(); });
+afterEach(() => { putItemsBack(kept); });
 
 // ---------------------------------------------------------------------------------------------- helpers
 

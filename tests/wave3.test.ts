@@ -9,6 +9,7 @@ import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: ... and no sha
 import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: ... and no plain rig (inD1 below)
 import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: ... and none of the six more shaped rigs (inD1 below)
 import { SCALE_IDS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: ... and none of the seven scaling rigs (inD1 below)
+import { GATES, GATES_IDS, withGates } from "../src/sim/gates"; // BUMP-1F (GATES default): ... and none of the three converters (inD1 below)
 import { DORMANT_ITEMS } from "../src/sim/races/data";
 import { newRun, rollShop, type Run } from "../src/game/run";
 import { Rng } from "../src/core/rng";
@@ -41,7 +42,11 @@ const HEROES: HeroId[] = ["furnace", "weaver", "foundry", "bastion", "metronome"
 // ITEMS (scale.ts: after SHAPES2's six), so the scaling switch goes off first and comes back last, and no key is left behind them (a nest with it
 // left on would put SHAPES-1's three and the twelve behind the seven, and every seeded draw after it in the worker, the par player's decks, would
 // differ). Was: withShapes2(() => withShapes(() => withPlainRigs(() => withSustain(fn, false), false), false), false)
-const inD1 = <T>(fn: () => T): T => withScaleRigs(() => withShapes2(() => withShapes(() => withPlainRigs(() => withSustain(fn, false), false), false), false), false);
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): GATES ships on (bb-0.13.0), and D1's catalogues hold none of the three converters (FUSER, SCATTER
+// MILL, SMELTER: kind converter, no row in D1's maps; D1's counts are without them: 71 became 74 and 100 became 103), so D1's world has the gates switch off for the call
+// (withGates(fn, false)). It is the OUTERMOST call of the nest, by the same rule: the three are the last keys in ITEMS (gates.ts: after SCALE's seven), so the gates
+// switch goes off first and comes back last. Was: withScaleRigs(() => withShapes2(() => withShapes(() => withPlainRigs(() => withSustain(fn, false), false), false), false), false)
+const inD1 = <T>(fn: () => T): T => withGates(() => withScaleRigs(() => withShapes2(() => withShapes(() => withPlainRigs(() => withSustain(fn, false), false), false), false), false), false);
 
 describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
   // 0.8.0 I1 M2 (REPORT-P1 section 13, "D1's 71-module counts"): wave 3 is live, so v070-rc's catalogue is the `today`
@@ -72,9 +77,14 @@ describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
     expect(SCALE_RIGS).toBe(true);
     expect(counted().filter((id) => SCALE_IDS.includes(id))).toEqual([...SCALE_IDS]); // the live catalogue holds all seven, the last ones in ITEMS
     expect(inD1(() => counted().filter((id) => SCALE_IDS.includes(id)))).toEqual([]); // and D1's holds none
-    expect([live.total, live.modules, live.turrets, live.sameAsBuyable]).toEqual([111, 98, 13, false]); // FLIP-X2: SIFTER dormant (was true); BUMP-1D: was [92, 79, 13, false]; BUMP-1E: was [104, 91, 13, false]
-    expect(buyableModules().length).toBe(110); // FLIP-X2: 89 counted less the dormant SIFTER (was 85); SHAPES-1 flip: was 88; BUMP-1D: was 91; BUMP-1E: was 103
-    expect(live.byKind).toEqual({ rig: 53, factory: 16, core: 15, mod: 14, turret: 13 }); // FLIP-X2: factory 15 -> 16, mod 12 -> 14; SHAPES-1 flip: rig 31 -> 34; BUMP-1D: rig 34 -> 46; BUMP-1E: rig 46 -> 53
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): + the three converters (gates.ts GATES_DEFS: FUSER, SCATTER MILL, SMELTER; each priced with a
+    // merchant, so counted and stocked; tools/wave3.ts kind() tallies a converter with the rigs): 111 -> 114 counted, 98 -> 101 without turrets, buyableModules() 110 -> 113, rig 53 -> 56
+    expect(GATES).toBe(true);
+    expect(counted().filter((id) => GATES_IDS.includes(id))).toEqual([...GATES_IDS]); // the live catalogue holds all three, the very last ones in ITEMS
+    expect(inD1(() => counted().filter((id) => GATES_IDS.includes(id)))).toEqual([]); // and D1's holds none
+    expect([live.total, live.modules, live.turrets, live.sameAsBuyable]).toEqual([114, 101, 13, false]); // BUMP-1F: was [111, 98, 13, false]; FLIP-X2: SIFTER dormant (was true); BUMP-1D: was [92, 79, 13, false]; BUMP-1E: was [104, 91, 13, false]
+    expect(buyableModules().length).toBe(113); // BUMP-1F: was 110; FLIP-X2: 89 counted less the dormant SIFTER (was 85); SHAPES-1 flip: was 88; BUMP-1D: was 91; BUMP-1E: was 103
+    expect(live.byKind).toEqual({ rig: 56, factory: 16, core: 15, mod: 14, turret: 13 }); // BUMP-1F: rig 53 -> 56; FLIP-X2: factory 15 -> 16, mod 12 -> 14; SHAPES-1 flip: rig 31 -> 34; BUMP-1D: rig 34 -> 46; BUMP-1E: rig 46 -> 53
     expect(inD1(() => catalogueCount()).total).toBe(86); // FLIP-X2: D1's wave-3 catalogue, the switch off
   });
 
@@ -82,8 +92,10 @@ describe("wave3: the catalogue count (REQ-BFG-022 acceptance 1)", () => {
   // back last) and leaves every key where it found it; a nest with the scaling switch still on would leave SHAPES-1's three and the twelve behind the seven
   it("inD1 puts ITEMS back in its key order (the seven scaling rigs stay the last keys), and D1's world has none of them", () => {
     const order = Object.keys(ITEMS);
-    expect(order.slice(-SCALE_IDS.length)).toEqual([...SCALE_IDS]);
-    expect(inD1(() => Object.keys(ITEMS).filter((id) => SCALE_IDS.includes(id)))).toEqual([]);
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): the last three keys are the converters (gates.ts, after SCALE's seven) and the seven scaling ids stand just before them; was order.slice(-SCALE_IDS.length) equal to SCALE_IDS
+    expect(order.slice(-GATES_IDS.length)).toEqual([...GATES_IDS]);
+    expect(order.slice(-(GATES_IDS.length + SCALE_IDS.length), -GATES_IDS.length)).toEqual([...SCALE_IDS]);
+    expect(inD1(() => Object.keys(ITEMS).filter((id) => SCALE_IDS.includes(id) || GATES_IDS.includes(id)))).toEqual([]);
     expect(Object.keys(ITEMS)).toEqual(order);
   });
 
@@ -250,7 +262,17 @@ describe("wave3: the new NPCs (M5, tools/wave3Npcs.ts; REQ-BFG-024, 011)", () =>
 
   it("every plan is legal on every day: caps of its luck tier, the stand-in budget, caravan days and slots", () => {
     withCatalogue("wave3", () => {
-      for (const n of NPCS) expect(problems(n), n.id).toEqual([]);
+      // BUMP-1F (RULING-BUMP1F-R5 R5.2 (3), cause: the regenerated luck caps, src/sim/harness/luckCapsData.ts 5fe7ea8: the par player now buys converters and words, so
+      // the ordinary tier's caps are lower on two days): was `for (const n of NPCS) expect(problems(n), n.id).toEqual([]);` (no problem for any plan). D1's four plans below
+      // overshoot the NEW caps, each by one part on the days named (measured at the bb-0.13.0 tip; the plans in tools/wave3Npcs.ts are unchanged); the list is exact, as
+      // tests/captains.luck's ceiling lists are: a plan that overshoots anywhere else, or overshoots more, still fails.
+      const OVERS: Record<string, string[]> = {
+        grimhold: ["stand-in d7: epic 1 > 0", "warlord d7 (ordinary): epic 1 > 0"],
+        lockjaw: ["stand-in d7: epic 1 > 0", "stand-in d10: rare 7 > 6"],
+        thistlemail: ["stand-in d10: rare 7 > 6"],
+        voss: ["stand-in d7: epic 1 > 0"],
+      };
+      for (const n of NPCS) expect(problems(n), n.id).toEqual(OVERS[n.id] ?? []);
       // the check bites: one more epic on day 1, or a legendary before day 4, is a problem
       const bad = { ...NPCS[0], buys: [...NPCS[0].buys, { def: "compound", at: 1 }] };
       expect(problems(bad).some((p) => p.includes("first offered"))).toBe(true);

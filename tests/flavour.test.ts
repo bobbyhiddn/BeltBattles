@@ -69,7 +69,8 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     expect(SCALE_RIGS).toBe(true);
     expect(SCALE_IDS.length).toBe(7);
     for (const id of SCALE_IDS) expect(SOLD.some((d) => d.id === id && d.kind === "gate"), id).toBe(true);
-    expect(byKind).toEqual({ gate: 52 /* BUMP-1E: was 45 */, factory: 16, core: 15, mod: 14, turret: 13, supply: 2 });
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): + the three converters (FUSER, SCATTER MILL, SMELTER: kind "converter", sold by the tinker and the alchemist); the other kinds as before
+    expect(byKind).toEqual({ gate: 52 /* BUMP-1E: was 45 */, factory: 16, core: 15, mod: 14, turret: 13, supply: 2, converter: 3 /* BUMP-1F: new */ });
   });
 
   it("0.6.2rel2: each turret's kept claim holds against the TurretDefs at every star (and FB-B's four keep nothing)", () => {
@@ -113,8 +114,9 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     // row: flavour() shows none): 275 -> 311
     // BUMP-1E: the seven scaling rigs' 21 module-stars (7 rigs x 3 stars) join, none with flavour (each keeps no sentence: the loop above
     // pins flavour() at [] for them at every star and class factor), so only the module-stars move: 311 -> 332; withFlavour and sentences stay 16
-    expect(counts).toEqual({ moduleStars: 332 /* BUMP-1E: was 311 */, withFlavour: 16, sentences: 16 });
-    expect(counts.moduleStars - 311).toBe(SCALE_IDS.length * 3); // BUMP-1E: the whole +21 is the seven new rigs' three stars each
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): + the three converters' 3 stars each (they keep no flavour sentence: the face builds their line from the numbers): 332 -> 341; withFlavour and sentences stay 16
+    expect(counts).toEqual({ moduleStars: 341 /* BUMP-1F: was 332 */, withFlavour: 16, sentences: 16 }); // BUMP-1E: was 311
+    expect(counts.moduleStars - 311).toBe((SCALE_IDS.length + GATES_IDS.length) * 3); // BUMP-1F (cause: GATES default): the whole +30 is the seven new rigs' and the three converters' three stars each; BUMP-1E: was SCALE_IDS.length * 3 (+21)
   });
 
   it("a kept sentence is one whole sentence under T2's rules and quotes no number", () => {

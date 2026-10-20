@@ -20,9 +20,11 @@ describe("GATES-1 G6: captains and warlords get no gate; every authored deck sta
   for (const id of RIVAL_IDS) {
     it(`${id}: the road deck and the dusk deck, on every day, at every luck tier: the same deck with the switch on, no converter, legal`, () => {
       for (const day of DAYS) {
-        const road = rivalBuild(id, day), dusk = standInBuild(id, day);
+        // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): was `const road = rivalBuild(id, day), dusk = standInBuild(id, day);` bare, the
+        // shipped world being GATES off; the switch-off build is now made under withGates(fn, false) and the switch-on build is the shipped state.
+        const [road, dusk] = withGates(() => [rivalBuild(id, day), standInBuild(id, day)], false);
         const [roadOn, duskOn] = withGates(() => {
-          expect(GATES).toBe(false); // the shipped value; withGates sets it for its call only
+          expect(GATES).toBe(true); // BUMP-1F: was toBe(false); the shipped value is now ON (GATES = true, bb-0.13.0); withGates sets the live state for its call only
           return [rivalBuild(id, day), standInBuild(id, day)];
         });
         expect(JSON.stringify(roadOn), `${id} day ${day}: the road deck`).toBe(JSON.stringify(road));
@@ -35,8 +37,9 @@ describe("GATES-1 G6: captains and warlords get no gate; every authored deck sta
         for (const luck of LUCKS) for (const moment of ["warlord", "dusk"] as const) {
           const b = rivalLoadout(id, day, luck, moment).build;
           expect(hasConverter(b), `${id} day ${day} ${luck} ${moment}`).toBe(false);
-          // the verdict of the legality replay is the same in both switch states, whatever it is (off first: the shipped state)
-          const off = legalityProblems(b);
+          // the verdict of the legality replay is the same in both switch states, whatever it is (off first)
+          // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): was `const off = legalityProblems(b);` bare ("the shipped state" was off); now off is made explicitly
+          const off = withGates(() => legalityProblems(b), false);
           expect(withGates(() => legalityProblems(b)), `${id} day ${day} ${luck} ${moment}: the same verdict with GATES on`).toEqual(off);
         }
       }

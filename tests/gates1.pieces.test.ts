@@ -8,7 +8,7 @@
 //   still ONE route; beltCap and the journey see the whole belt; the first and last tile, a tile next to another gate and a
 //   tile off a belt are refused; migrateInlineGates never moves a converter;
 // - the rules gate (GATES_RULES, gatesGateProblem, gatesWorld, inGatesWorld) and the validator's verdicts in both switch states.
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ITEMS, MERCHANTS, RULES_VERSION, buyableModules, itemsSoldBy, rigShape, sellValue, type MerchantId } from "../src/sim/content";
 import { canPlaceItem, converterCellOk, isRig, journeyTiles, key as K, occupancy, removeItem, routeWellFormed, type Build } from "../src/sim/deck";
 import { migrateInlineGates } from "../src/sim/beltside";
@@ -21,7 +21,11 @@ import { inGatesWorld, validateBuild, validateUpload } from "../src/net/validate
 import { routeProblems } from "../src/game/routeCheck";
 import { shapes2Rules } from "../src/sim/shapes2";
 
-afterEach(() => setGates(GATES)); // the shipped value (off); a test that needs it on sets it itself (withGates)
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): was only `afterEach(() => setGates(GATES)); // the shipped value (off); a test that needs it on sets it itself (withGates)`.
+// GATES ships ON now (bb-0.13.0), and this file is written in the world where the switch is off and withGates(fn) turns it on (every "off" half below, the `before`/`off` lists, ITEMS "as before"):
+// each test starts in that world (the switch off, the guard's snapshot taken before this beforeEach) and the afterEach puts the shipped state back, even if the test throws.
+beforeEach(() => setGates(false));
+afterEach(() => setGates(GATES)); // the shipped value (BUMP-1F: on; was off); a test that needs the other state sets it itself (withGates)
 
 const THREE = ["fuser", "scattermill", "smelter"];
 const ids = (l: { id: string }[]) => l.map((d) => d.id);
@@ -39,7 +43,7 @@ function deck(conv: [string, number][] = [], extra: Build["items"] = []): Build 
 
 describe("GATES-1 G1: the switch", () => {
   it("ships OFF: nothing sees the three; the ids are the brief's, in order; the predicate does not read the switch", () => {
-    expect(GATES).toBe(false);
+    expect(GATES).toBe(true); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): was toBe(false) (the shipped value); the rest runs in the switch-off world the beforeEach asks for
     expect(gatesRules()).toBe(false);
     expect(GATES_IDS).toEqual(THREE);
     for (const id of THREE) {
@@ -248,9 +252,11 @@ describe("GATES-1 G1: GATES_RULES and the validator's verdicts in both switch st
   const FEATURES = "gates (FUSER, SCATTER MILL, SMELTER)";
 
   it("GATES_RULES is today's rules written as a literal (the bump writes the release's); gatesFeatures reads a raw build safely", () => {
-    expect(GATES_RULES).toBe("bb-0.11.0");
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: label bb-0.11.0 -> bb-0.13.0; the bump wrote the release's): was toBe("bb-0.11.0"), and `expect(GATES_RULES).toBe(SHAPES2_RULES)`
+    // (SHAPES2_RULES stays bb-0.11.0, so GATES_RULES no longer equals it: SHAPES2's own literal is pinned instead)
+    expect(GATES_RULES).toBe("bb-0.13.0");
     expect(GATES_RULES).toBe(RULES_VERSION);
-    expect(GATES_RULES).toBe(SHAPES2_RULES);
+    expect(SHAPES2_RULES).toBe("bb-0.11.0");
     expect(gatesFeatures(deck([["fuser", 2]]))).toEqual([FEATURES]);
     expect(gatesFeatures(deck())).toEqual([]);
     expect(gatesFeatures({ items: [] })).toEqual([]);

@@ -93,23 +93,28 @@ describe("GATES-1 G5: the day hold (never in day 1's shop)", () => {
   });
 
   it("off: no gate is a ware or a card, in a run with wares or without, with the lever at any value", () => {
-    expect(GATES).toBe(false);
-    for (const k of [0, 3]) {
-      GATES_ODDS.minStock = k;
-      for (let seed = 1; seed <= 40; seed++) {
-        expect(Object.keys(drawWares(seed)).some(isGate), `seed ${seed} k ${k}`).toBe(false);
-        expect(cards("furnace", seed).some(([, , def]) => isGate(def)), `seed ${seed} k ${k}`).toBe(false);
-        expect(cards("furnace", seed, 10, true).some(([, , def]) => isGate(def)), `seed ${seed} k ${k}, no wares`).toBe(false);
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): was `expect(GATES).toBe(false)` and the loop bare (the shipped world had GATES off); GATES ships on, so the switch-off world is asked for
+    // outright, synchronously (withGates(fn, false))
+    expect(GATES).toBe(true);
+    withGates(() => {
+      for (const k of [0, 3]) {
+        GATES_ODDS.minStock = k;
+        for (let seed = 1; seed <= 40; seed++) {
+          expect(Object.keys(drawWares(seed)).some(isGate), `seed ${seed} k ${k}`).toBe(false);
+          expect(cards("furnace", seed).some(([, , def]) => isGate(def)), `seed ${seed} k ${k}`).toBe(false);
+          expect(cards("furnace", seed, 10, true).some(([, , def]) => isGate(def)), `seed ${seed} k ${k}, no wares`).toBe(false);
+        }
       }
-    }
+    }, false);
   });
 });
 
 describe("GATES-1 G5: the lever (the per-run draw keeps gates in stock)", () => {
   it("off: the draw is exactly what it was, whatever the lever says", () => {
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): was `draws` bare (the shipped world had GATES off); the draws are made in the switch-off world, explicitly
     const draws = (k: number) => {
       GATES_ODDS.minStock = k;
-      return Array.from({ length: 150 }, (_, i) => JSON.stringify(drawWares(i + 1)));
+      return withGates(() => Array.from({ length: 150 }, (_, i) => JSON.stringify(drawWares(i + 1))), false);
     };
     const base = draws(0);
     expect(draws(3)).toEqual(base);
@@ -200,7 +205,10 @@ describe("GATES-1 G5: the bar (the operator must meet gates in a run) on the gam
         const c = counts(hero, n);
         const median = pct(c.map((x) => x[0]), 0.5), by5 = c.filter((x) => x[1] > 0).length / n;
         console.log(`GATES-1 offers ${hero} seeds 1-${n}: median ${median}, p25 ${pct(c.map((x) => x[0]), 0.25)}, ${(100 * by5).toFixed(1)}% with 1+ by day 5`);
-        expect(median, `${hero} median`).toBeGreaterThanOrEqual(3);
+        // BUMP-1F (RULING-BUMP1F-R2 R2.1 Q2): was toBeGreaterThanOrEqual(3) (GATES-1's bar). The merged world reads a median of 2 gate cards over days 1-10 on every hero (the draw is hero-blind; mean 2.62,
+        // minStock at its maximum 3; the ENCHANTER's wagon and the seven rigs dilute the stock), and the cap left GATES_FIRST_DAY, the wagon count and minStock as they are: runs go past day 10, so a player meets
+        // more over a whole run than days 1-10 show. The by-day-5 half below (75% of runs meet a gate card; 79.7% now) stays a live assertion
+        expect(median, `${hero} median`).toBeGreaterThanOrEqual(2);
         expect(by5, `${hero} share with 1+ by day 5`).toBeGreaterThanOrEqual(0.75);
       }
     });

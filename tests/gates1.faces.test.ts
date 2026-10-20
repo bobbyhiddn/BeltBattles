@@ -75,9 +75,10 @@ describe("GATES-1 G4: the face", () => {
   });
 
   it("with GATES off there is no face to ask for; with it on, hasFace and faceAt know the three", () => {
-    for (const id of GATES_IDS) expect(hasFace(id), id).toBe(false);
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): was the two off lines bare (the shipped world had GATES off); asked for outright now (withGates(fn, false))
+    withGates(() => { for (const id of GATES_IDS) expect(hasFace(id), id).toBe(false); }, false);
     on(() => { for (const id of GATES_IDS) { expect(hasFace(id), id).toBe(true); expect(faceAt(id, 1)!.stats.length, id).toBeGreaterThan(0); } });
-    expect(gateNotes("fuser")).toEqual([]);
+    withGates(() => expect(gateNotes("fuser")).toEqual([]), false);
   });
 
   it("every line wraps to at most three lines at the narrowest desk column (102 px of the 5x7 face) and two on the op band (225 px); the stat rows fit the band", () => {

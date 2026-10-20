@@ -93,13 +93,16 @@ const tile = (c: RasterCanvas, x: number, y: number): string => region(c, x, y, 
 
 describe("GATES-1 G4: the three icons", () => {
   it("draw with the switch off, as nothing but ITEMS' absence differs: an icon never reads ITEMS (this runs before anything caches them)", () => {
-    expect(GATES).toBe(false);
-    for (const id of THREE) {
-      expect(ITEMS[id], id).toBeUndefined();
-      expect(dims(itemIcon(id)), id).toEqual([12, 12]);
-      expect(opaque(R(itemIcon(id))), id).toBeGreaterThan(40);
-      expect(dims(gateSprite(id, 0, false)), id).toEqual([12, 12]);
-    }
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): was `expect(GATES).toBe(false)` and the loop bare (the shipped world had GATES off); GATES ships on, so the switch-off world is asked for outright (withGates(fn, false), synchronously)
+    expect(GATES).toBe(true);
+    withGates(() => {
+      for (const id of THREE) {
+        expect(ITEMS[id], id).toBeUndefined();
+        expect(dims(itemIcon(id)), id).toEqual([12, 12]);
+        expect(opaque(R(itemIcon(id))), id).toBeGreaterThan(40);
+        expect(dims(gateSprite(id, 0, false)), id).toEqual([12, 12]);
+      }
+    }, false);
   });
 
   it("each is its own 12x12 picture: none matches another, nor any other item's icon, nor its own board sprite", () => {

@@ -16,6 +16,8 @@ import { gainModule } from "../src/game/fuse";
 import { overclocked } from "../src/sim/overclock";
 import { PLAIN_DEFS, PLAIN_RIGS, PLAIN_RIG_IDS, isPlainRig, plainRigsRules, setPlainRigs, withPlainRigs } from "../src/sim/plainRigs";
 import { withShapes2 } from "../src/sim/shapes2";
+import { SHAPES_IDS } from "../src/sim/shapes"; // BUMP-1F (F1): SHAPES' three sit behind PLAIN_RIGS' six in the canonical order
+import { GATES_IDS, withGates } from "../src/sim/gates"; // BUMP-1F (GATES default): the base's world has none of the three converters either
 import { SCALE_IDS, SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the base's digest has the seven out too
 import { K, SEED, barge, furnaceBench, item, withItem } from "./wave3.helpers";
 import { pastTilePlain, poolDigest } from "./plain1.helpers";
@@ -33,7 +35,10 @@ const on = <T>(fn: () => T): T => withPlainRigs(fn);
  *  OUTERMOST of the nest: it goes off first and comes back last (the ITEMS key-order rule: a lone withShapes2 / withPlainRigs off-and-on puts their ids
  *  behind the seven, and every seeded draw after it differs). That is also the world the digest was measured in (the catalogue before the twelve AND the
  *  seven): was withShapes2(() => withPlainRigs(fn, false), false), which left the seven in ITEMS, the pool and every stock (digest be5e26108cbff73b). */
-const off = <T>(fn: () => T): T => withScaleRigs(() => withShapes2(() => withPlainRigs(fn, false), false), false);
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): GATES ships on (bb-0.13.0), and the base's world (the digest's) has none of the three converters, so the gates
+// switch is off too, the OUTERMOST of the nest (its three are the last keys of ITEMS: off first, back last). BASE_POOL_DIGEST is NOT moved: with the three out, the digest is the base's.
+// Was: withScaleRigs(() => withShapes2(() => withPlainRigs(fn, false), false), false)
+const off = <T>(fn: () => T): T => withGates(() => withScaleRigs(() => withShapes2(() => withPlainRigs(fn, false), false), false), false);
 /** FURNACE's bench with one more belt-side item. */
 const bench = (...more: ReturnType<typeof item>[]): Build => more.reduce((b, p) => withItem(b, p), furnaceBench());
 // PLAIN-1F (M1): `wins` is Battle's readonly [number, number] (it was already at plain1-base); undefined reads as the 0
@@ -82,7 +87,9 @@ describe("PLAIN_RIGS off (P1): nothing sees the six", () => {
     // the cause of the old red, kept as a guard: the same world with the seven back in (the scaling switch on inside the nest) is not the base's
     expect(off(() => withScaleRigs(() => poolDigest(), true))).not.toBe(BASE_POOL_DIGEST);
     expect(scaleRules()).toBe(true); // put back, and (outermost) the seven last in ITEMS again
-    expect(Object.keys(ITEMS).slice(-SCALE_IDS.length)).toEqual([...SCALE_IDS]);
+    // BUMP-1F (cause: GATES default): the seven stand just before the three converters, which are the last keys (was `.slice(-SCALE_IDS.length)` equal to SCALE_IDS)
+    expect(Object.keys(ITEMS).slice(-(SCALE_IDS.length + GATES_IDS.length), -GATES_IDS.length)).toEqual([...SCALE_IDS]);
+    expect(Object.keys(ITEMS).slice(-GATES_IDS.length)).toEqual([...GATES_IDS]);
   });
 
   it("a switch put back after a throw (withPlainRigs) leaves the catalogue as it was", () => {
@@ -116,14 +123,17 @@ describe("PLAIN_RIGS on (P1): the six join the shared pool like any rig of their
     expect(rigArrows("rasp")).toEqual([0]); // I: forward
     // after every base def: the catalogue's order is the base's, then the six (BUMP-1D: the base is the world with the switch off, SHAPES2 too)
     const base = off(() => Object.keys(ITEMS));
-    off(() => on(() => expect(Object.keys(ITEMS)).toEqual([...base, ...PLAIN_RIG_IDS])));
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: the canonical order, BUMP-1F P2 F1, src/sim/itemsKeep.ts ITEM_RANK: plain 1, shapes 2, shapes2 3, scale 4, gates 5): was
+    // `[...base, ...PLAIN_RIG_IDS]`; a switch adds its ids at its rank, so the six go in before SHAPES' three (which `off` leaves on) and not behind them
+    off(() => on(() => expect(Object.keys(ITEMS)).toEqual([...base.filter((id) => !SHAPES_IDS.includes(id)), ...PLAIN_RIG_IDS, ...base.filter((id) => SHAPES_IDS.includes(id))])));
   }));
 
   it("the pool holds the base's buyable parts plus the six, and every merchant still stocks its base parts", () => {
     // BUMP-1D: the base's buyable parts are the world with PLAIN_RIGS and SHAPES2 off (the release ships both on)
     const base = off(() => buyableModules().map((d) => d.id));
     const withSix = off(() => on(() => buyableModules().map((d) => d.id)));
-    expect(withSix).toEqual([...base, ...PLAIN_RIG_IDS]);
+    // BUMP-1F (cause: the canonical order, BUMP-1F P2 F1): was `[...base, ...PLAIN_RIG_IDS]`; the six come before SHAPES' three in ITEMS, so in the pool
+    expect(withSix).toEqual([...base.filter((id) => !SHAPES_IDS.includes(id)), ...PLAIN_RIG_IDS, ...base.filter((id) => SHAPES_IDS.includes(id))]);
     for (const id of PLAIN_RIG_IDS) expect(buyableModules().map((d) => d.id), id).toContain(id); // and the shipped pool has them
   });
 

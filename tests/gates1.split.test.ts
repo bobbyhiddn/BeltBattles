@@ -333,9 +333,12 @@ describe("GATES-1 G3: the suggestion", () => {
 
 describe("GATES-1 G3: GATES off", () => {
   it("no gate exists: nothing to carry, preview or suggest; a deck without gates is never touched by the sweep", () => {
-    expect(ITEMS.fuser).toBeUndefined();
-    const run = furnace();
-    expect(releaseStranded(run)).toEqual([]);
-    expect(strandedConverters(run.build)).toEqual([]);
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): was the body bare (the shipped world had GATES off); GATES ships on, so the switch-off world is asked for outright (withGates(fn, false), synchronously)
+    withGates(() => {
+      expect(ITEMS.fuser).toBeUndefined();
+      const run = furnace();
+      expect(releaseStranded(run)).toEqual([]);
+      expect(strandedConverters(run.build)).toEqual([]);
+    }, false);
   });
 });

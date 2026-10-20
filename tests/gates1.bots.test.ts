@@ -288,11 +288,15 @@ describe("GATES-1 G6: the par runs (GATES on)", () => {
   it("deterministic (the same hero and seed give the same run), and the run key moves with the switch: a switch-off run buys none", () => {
     const a = JSON.stringify(days("furnace", 3).map((d) => d.build)), b = JSON.stringify(days("furnace", 3).map((d) => d.build));
     expect(a).toBe(b);
-    expect(GATES).toBe(false);
-    for (const hero of ["furnace", "bastion"] as HeroId[]) for (let seed = 1; seed <= 3; seed++) {
-      const run = playerRun(hero, 10, seed);
-      expect(run.flatMap((d) => d.buys).some((bb) => (THREE as readonly string[]).includes(bb.def)), `${hero} ${seed} off`).toBe(false);
-      expect(run.flatMap((d) => d.build.items).some((p) => ITEMS[p.def] === undefined), "every def is a def of the world it ran in").toBe(false);
-    }
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): was `expect(GATES).toBe(false)` and the loop bare (the shipped world had GATES off); GATES ships on, so the switch-off runs are made
+    // in the switch-off world, asked for outright (withGates(fn, false), synchronously: the run key moves with the switch)
+    expect(GATES).toBe(true);
+    withGates(() => {
+      for (const hero of ["furnace", "bastion"] as HeroId[]) for (let seed = 1; seed <= 3; seed++) {
+        const run = playerRun(hero, 10, seed);
+        expect(run.flatMap((d) => d.buys).some((bb) => (THREE as readonly string[]).includes(bb.def)), `${hero} ${seed} off`).toBe(false);
+        expect(run.flatMap((d) => d.build.items).some((p) => ITEMS[p.def] === undefined), "every def is a def of the world it ran in").toBe(false);
+      }
+    }, false);
   }, 120_000);
 });
