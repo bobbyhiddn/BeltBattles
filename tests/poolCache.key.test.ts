@@ -3,8 +3,9 @@
 //    non-relative import is a node: built-in, none is unresolved);
 //  - editing ANY file of that closure changes the key (one overlay per file), a file outside it does not;
 //  - flipping ANY switch changes the key (the switch list is held equal to the `*Rules` / `*Live` functions the closure exports);
-//  - permuting ITEMS (one id re-inserted at the end: what turning SHAPES, SHAPES2 or PLAIN_RIGS off and back on does while SCALE_RIGS
-//    stays on, REPORT-BUMP1E 8.1 (d)) changes the key, and putting the order back puts the key back; so does a patched def;
+//  - permuting ITEMS (one id re-inserted at the end: what turning SHAPES, SHAPES2 or PLAIN_RIGS off and back on did while SCALE_RIGS
+//    stayed on, REPORT-BUMP1E 8.1 (d); BUMP-1F: F1 ended that, a round trip of those switches leaves the order and the key as they were)
+//    changes the key, and putting the order back puts the key back; so does a patched def;
 //  - the environment (BB_*, and the content of BB_SOFT1_PICKS_FILE's files), the node version, the arguments and the builder move it;
 //  - the store: a miss builds once, a hit returns a fresh deep-equal copy (undefined, NaN, -0, Infinity, Map, Set, Date, shared
 //    references and key order kept), BB_POOL_CACHE=0 touches nothing, a bad file is a miss, a lock is honoured or stolen when stale.
@@ -14,9 +15,11 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ITEMS, withSustain, withWave3 } from "../src/sim/content";
+import { withEnchant } from "../src/sim/enchant";
 import { withEndless } from "../src/sim/endless";
 import { withFirstRun } from "../src/sim/firstRun";
 import { withFreeJoins } from "../src/sim/freeJoins";
+import { withGates } from "../src/sim/gates";
 import { withGuard } from "../src/sim/guard";
 import { withHearts } from "../src/sim/hearts";
 import { withHullScale } from "../src/sim/hullScale";
@@ -43,6 +46,7 @@ const FLIP: Record<string, <T>(fn: () => T, on?: boolean) => T> = {
   hearts: withHearts, longRun: withLongRun, wave3: withWave3, sustain: withSustain, freeJoins: withFreeJoins, guard: withGuard,
   plainRigs: withPlainRigs, scaleRigs: withScaleRigs, firstRun: withFirstRun, endless: withEndless, shapes2: withShapes2,
   npcDay: withNpcDay, hullScale: withHullScale, shapes: withShapes, openRunes: withOpenRunes, ladderFix: withLadderFix, pick: withPick,
+  gates: withGates, enchant: withEnchant, // BUMP-1F: the two switches the merged closure adds
 };
 
 /** A reader that serves the closure from memory and edits one file. */
@@ -164,14 +168,22 @@ describe("the key moves with everything the builders read", () => {
     }
   });
 
-  it("turning SHAPES off and back on while other switches stay on re-orders ITEMS, and the key follows (REPORT-BUMP1E 8.1 (d))", () => {
-    withPlainRigs(() => undefined, false); // off, then back on: the six plain ids are re-inserted, so they are the last keys of ITEMS now
+  // BUMP-1F: was "turning SHAPES off and back on while other switches stay on re-orders ITEMS, and the key follows (REPORT-BUMP1E 8.1 (d))":
+  // withPlainRigs(off) then withShapes(off), each back on, left the six plain ids and then the three shaped ids as the last keys of ITEMS,
+  // so the key moved. F1 (6ce4bd8: src/sim/itemsKeep.ts ITEM_RANK, addRanked) ended that: a switch puts its ids back at their ranked
+  // place, so the round trip leaves Object.keys(ITEMS) and the key as they were. The premise is gone, so the pin is the rule. That the
+  // key follows an order change is still proved by the permutation test below (an id re-inserted at the end moves the key).
+  it("turning the id-adding switches off and back on while the others stay on leaves ITEMS' key order and the key as they were (BUMP-1F F1; was: re-orders ITEMS, and the key follows)", () => {
+    const keys = Object.keys(ITEMS);
     const before = key();
-    withShapes(() => undefined, false); // off, then back on: the three shaped ids are re-inserted after them
+    for (const trip of [withPlainRigs, withShapes, withShapes2, withScaleRigs, withGates]) {
+      trip(() => undefined, false); // off, then back on
+      expect(Object.keys(ITEMS), trip.name).toEqual(keys);
+    }
     const after = key();
     expect(after.parts.switches).toBe(before.parts.switches);
-    expect(after.parts.itemsOrder).not.toBe(before.parts.itemsOrder);
-    expect(after.key).not.toBe(before.key);
+    expect(after.parts.itemsOrder).toBe(before.parts.itemsOrder);
+    expect(after.key).toBe(before.key);
   });
 
   it("permuting ITEMS changes the key, and putting the order back puts the key back; so does a patched def", () => {

@@ -14,9 +14,11 @@
 //   (d) the value of every BB_* name the closure's code mentions (BB_SOFT1_PICKS_FILE is the one the builders read; the others only
 //       appear in their messages), and the content of the files BB_SOFT1_PICKS_FILE names;
 //   (e) the node version (and V8, platform, vite and vitest);
-//   (f) the live catalogue: the key ORDER of ITEMS (turning SHAPES, SHAPES2 or PLAIN_RIGS off and back on while SCALE_RIGS stays on
-//       re-inserts their ids at the end, and every seeded draw after that moves: REPORT-BUMP1E 8.1 (d)), whether each entry is
-//       enumerable (WAVE3 off), and the whole content of ITEMS and HEROES (a test that patches a def).
+//   (f) the live catalogue: the key ORDER of ITEMS (a world that moves ids re-orders every seeded draw after it: REPORT-BUMP1E 8.1 (d);
+//       BUMP-1F: was "turning SHAPES, SHAPES2 or PLAIN_RIGS off and back on while SCALE_RIGS stays on re-inserts their ids at the end",
+//       which F1 (src/sim/itemsKeep.ts ITEM_RANK, addRanked) ended: a round trip leaves the order as it was; the key still follows any
+//       order change a test makes), whether each entry is enumerable (WAVE3 off), and the whole content of ITEMS and HEROES (a test
+//       that patches a def).
 //
 // The cache lives outside the repository (node_modules/.cache/bb-pool/, or BB_POOL_CACHE_DIR). A write is atomic (a temp file,
 // then rename), and one process builds a given key at a time (a lock directory; the others wait for the file, up to 25 minutes,
@@ -33,9 +35,11 @@ import { dirname, join, resolve } from "node:path";
 import { deserialize, serialize } from "node:v8";
 import { HEROES, ITEMS, sustainLive, wave3Live } from "../../src/sim/content";
 import { BOT_RUNES } from "../../src/sim/runes";
+import { enchantRules } from "../../src/sim/enchant";
 import { endlessRules } from "../../src/sim/endless";
 import { firstRunRules } from "../../src/sim/firstRun";
 import { freeJoinsRules } from "../../src/sim/freeJoins";
+import { gatesRules } from "../../src/sim/gates";
 import { guardRules } from "../../src/sim/guard";
 import { heartsRules } from "../../src/sim/hearts";
 import { hullScaleRules } from "../../src/sim/hullScale";
@@ -172,6 +176,10 @@ export const SWITCHES: ReadonlyArray<readonly [string, () => boolean]> = [
   ["openRunes", openRunesRules],
   ["ladderFix", ladderFixRules],
   ["pick", pickRules],
+  // BUMP-1F: the two switches the merged closure adds (src/sim/gates.ts, src/sim/enchant.ts). Without them the key could not tell a
+  // GATES-on or ENCHANT-on pool from an off one (ENCHANT off does not change ITEMS' keys or content). A correctness fix, not a re-pin.
+  ["gates", gatesRules],
+  ["enchant", enchantRules],
 ];
 
 interface ProcessInfo { pid: number; arch: string; platform: string; versions: Record<string, string> }
