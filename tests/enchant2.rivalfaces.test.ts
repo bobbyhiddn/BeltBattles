@@ -110,17 +110,21 @@ describe("ENCHANT-2 T4: a rival's enchanted piece, in the faces the battle and t
   });
 
   it("with ENCHANT off a rival's deck carries no word, so its faces are the plain pieces' (no word in any title, no enchant NOTES)", () => {
-    for (const id of RIVAL_IDS) for (const day of rivalDays(id, 16).filter((d) => d >= 5)) for (const maker of Object.keys(MAKERS) as Maker[]) {
-      const b = MAKERS[maker](id, day);
-      expect(worded(b), `${id} d${day} ${maker}`).toEqual([]);
-    }
-    const b = withEnchant(() => standInBuild("sootjaw", 12));
-    expect(worded(b).length, "the same captain with the switch on").toBeGreaterThan(0);
-    for (const w of worded(b)) {
-      const t = faceText(b, w.sel, null, 12)!; // the deck carries a word, the switch is off now: the panels read none
-      expect(t.ench).toBeUndefined();
-      expect(t.title.startsWith(ENCHANT_DEFS[w.word].name)).toBe(false);
-    }
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 54): was a bare body (ENCHANT off by default; the decks hold the rivals' words and the panels read them once the switch is on, RULING-BUMP1F-R3.1);
+    // the whole body runs under withEnchant(fn, false), the one ON build inside it stays under withEnchant(fn) (its own explicit ON)
+    withEnchant(() => {
+      for (const id of RIVAL_IDS) for (const day of rivalDays(id, 16).filter((d) => d >= 5)) for (const maker of Object.keys(MAKERS) as Maker[]) {
+        const b = MAKERS[maker](id, day);
+        expect(worded(b), `${id} d${day} ${maker}`).toEqual([]);
+      }
+      const b = withEnchant(() => standInBuild("sootjaw", 12));
+      expect(worded(b).length, "the same captain with the switch on").toBeGreaterThan(0);
+      for (const w of worded(b)) {
+        const t = faceText(b, w.sel, null, 12)!; // the deck carries a word, the switch is off now: the panels read none
+        expect(t.ench).toBeUndefined();
+        expect(t.title.startsWith(ENCHANT_DEFS[w.word].name)).toBe(false);
+      }
+    }, false);
   });
 });
 
@@ -192,9 +196,12 @@ describe("ENCHANT-2 T4: the board's sparks show on the rival's side (they alread
   });
 
   it("with the switch off the same decks (which carry no word then) draw exactly as plain decks on every facing: the sparks are the words', never the deck's", () => {
-    for (const id of RIVAL_IDS) {
-      const b = standInBuild(id, 12);
-      expect(worded(b)).toEqual([]);
-    }
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 55): was a bare loop (ENCHANT off by default; standInBuild(id, 12) holds the rival's words under the new default); runs under withEnchant(fn, false)
+    withEnchant(() => {
+      for (const id of RIVAL_IDS) {
+        const b = standInBuild(id, 12);
+        expect(worded(b)).toEqual([]);
+      }
+    }, false);
   });
 });

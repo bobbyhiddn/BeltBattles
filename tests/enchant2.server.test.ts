@@ -18,7 +18,7 @@ import { setShrine, withShrine } from "../src/game/shrine";
 
 vi.setConfig({ testTimeout: 240_000 }); // ENCHANT-1's sweeps' rule: these play many seeded par runs; under a loaded host (24 cores shared with other lanes) the 30 s default is a time-only red
 
-afterEach(() => { setEnchant(ENCHANT); setShrine(true); }); // the shipped values (ENCHANT off; the shrine in the bag when it is on)
+afterEach(() => { setEnchant(ENCHANT); setShrine(true); }); // the shipped values (BUMP-1F: ENCHANT on since bb-0.13.0, was off; the shrine in the bag when it is on)
 // state C: the rivals' words and their drops, the ASH SHRINE out of the bag (tests/enchant2.shrine.server.test.ts is state D)
 const on = <T>(fn: () => T): T => withEnchant(() => withShrine(fn, false), true);
 const off = <T>(fn: () => T): T => withEnchant(fn, false);
@@ -57,12 +57,17 @@ describe("ENCHANT-2 T2: what the pairs and the bound are", () => {
   });
 
   it("the drop bound is one a day from day 5; maxEnchantsByDay and freeEnchantsByDay take it as their extra and keep ENCHANT-1's numbers at 0", () => {
-    expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(npcDropsByDay)).toEqual([0, 0, 0, 0, 1, 2, 3, 4, 5, 6]);
-    expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(enchantExtraWords)).toEqual([0, 0, 0, 0, 1, 2, 3, 4, 5, 6]);
-    expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => maxEnchantsByDay(d, false))).toEqual([0, 0, 2, 2, 5, 5, 7, 8, 10, 10]); // ENCHANT-1's, unchanged
-    expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => maxEnchantsByDay(d, false, enchantExtraWords(d)))).toEqual([0, 0, 2, 2, 6, 7, 10, 12, 15, 16]);
-    expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => freeEnchantsByDay(d, false, enchantExtraWords(d)))).toEqual([0, 0, 0, 0, 2, 3, 4, 6, 7, 8]);
-    expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => enchantFreeWords(d, undefined))).toEqual([0, 0, 0, 0, 2, 3, 4, 6, 7, 8]);
+    // BUMP-1F (RULING-BUMP1F-R3.1, RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 56): was six bare lines, with `.map(enchantExtraWords)` handing the array INDEX over as the `seed` argument. The file is state C (the rivals'
+    // words and their drops, the ASH SHRINE out of the bag: on() below); the shipped world has the shrine in the bag, where shrineBound(day, seed) adds the shrine words of that seed (index 0..9 read here as a seed:
+    // [0,0,0,0,1,3,3,5,6,7] against the drop bound's [0,0,0,0,1,2,3,4,5,6]). The block runs in state C and calls enchantExtraWords(d) with the day alone
+    on(() => {
+      expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(npcDropsByDay)).toEqual([0, 0, 0, 0, 1, 2, 3, 4, 5, 6]);
+      expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => enchantExtraWords(d))).toEqual([0, 0, 0, 0, 1, 2, 3, 4, 5, 6]);
+      expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => maxEnchantsByDay(d, false))).toEqual([0, 0, 2, 2, 5, 5, 7, 8, 10, 10]); // ENCHANT-1's, unchanged
+      expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => maxEnchantsByDay(d, false, enchantExtraWords(d)))).toEqual([0, 0, 2, 2, 6, 7, 10, 12, 15, 16]);
+      expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => freeEnchantsByDay(d, false, enchantExtraWords(d)))).toEqual([0, 0, 0, 0, 2, 3, 4, 6, 7, 8]);
+      expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((d) => enchantFreeWords(d, undefined))).toEqual([0, 0, 0, 0, 2, 3, 4, 6, 7, 8]);
+    });
   });
 });
 

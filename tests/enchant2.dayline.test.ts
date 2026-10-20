@@ -180,9 +180,12 @@ describe("ENCHANT-2 T6 fix round: a RIVAL's part reads the fight's day too (E2-0
   });
 
   it("with ENCHANT off the same piece has no word line at all (a stray word on a deck is not read)", () => {
-    const b = on(() => rivalBuild("sparkfang", 8));
+    const b = on(() => rivalBuild("sparkfang", 8)); // built with ENCHANT on: the deck carries the stray word
     const at = turretSlots(b).findIndex((s) => s.turret?.def === "scrapcannon" && s.turret.ench === "rising");
-    const t = faceText(b, { kind: "turret", index: at }, null, 8)!;
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2) and R5.6, TRIAGE-R34 line 49): was a bare faceText (the switch shipped off, so the read was in the OFF world); ENCHANT is on by default now, so the
+    // face is read under withEnchant(fn, false) (the OFF world, synchronously). The deck itself stays the ON-built one: it is the stray word that the OFF read must not show
+    expect(at, "the ON-built deck holds the stray RISING SCRAP CANNON").toBeGreaterThanOrEqual(0);
+    const t = withEnchant(() => faceText(b, { kind: "turret", index: at }, null, 8)!, false);
     expect(bodyTexts(t).some((x) => x.includes("MORE THAN THE LAST"))).toBe(false);
   });
 });

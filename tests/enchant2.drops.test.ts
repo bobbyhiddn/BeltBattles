@@ -20,7 +20,7 @@ import { itemName } from "../src/screens/event/cards";
 import { cutName, dropCardText, dropListText, dropWord, fitWordName } from "../src/screens/fork/drops";
 import { textWidth } from "../src/render/font";
 
-afterEach(() => setEnchant(ENCHANT)); // the shipped value (off)
+afterEach(() => setEnchant(ENCHANT)); // the shipped value (BUMP-1F: on since bb-0.13.0; was off)
 
 /** Every piece the run holds of `def`, anywhere: cargo, the deck's rigs and factories, the installed turrets. */
 function holding(run: Run, def: string): { ench?: string; enchDir?: number; stars: number }[] {
@@ -68,8 +68,11 @@ describe("ENCHANT-2 T2: dropWordOf", () => {
       expect(dropWordOf(d, "venom")).toEqual({ ench: "wide", enchDir: 2 });
       expect(dropWordOf(d, "scrapcannon")).toEqual({ ench: "echoing" });
     });
-    expect(dropWordOf(d, "venom")).toBeNull();
-    expect(dropWordOf(d, "scrapcannon")).toBeNull();
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 50): was two bare calls (ENCHANT off by default; npcWords.ts dropWordOf returns the word whenever the switch is on, and it is on now)
+    withEnchant(() => {
+      expect(dropWordOf(d, "venom")).toBeNull();
+      expect(dropWordOf(d, "scrapcannon")).toBeNull();
+    }, false);
   });
 });
 
@@ -184,9 +187,12 @@ describe("ENCHANT-2 T2: the drop's surfaces say the word before the part's name"
       expect(lines).toBeGreaterThan(20);
       expect(worded).toBeGreaterThan(5);
     });
-    const deck = rivalBuild("sootjaw", 12);
-    expect(warlordDropTable("sootjaw", "hard", deck).lines.every((l) => l.ench === undefined && !("enchDir" in l))).toBe(true);
-    expect(plain(deck)).toBe(true);
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 51): was three bare lines (ENCHANT off by default; rivalBuild("sootjaw", 12) holds the rivals' words under the new default); the off half runs under withEnchant(fn, false)
+    withEnchant(() => {
+      const deck = rivalBuild("sootjaw", 12);
+      expect(warlordDropTable("sootjaw", "hard", deck).lines.every((l) => l.ench === undefined && !("enchDir" in l))).toBe(true);
+      expect(plain(deck)).toBe(true);
+    }, false);
   });
 
   it("the ⓘ list rows start with the word, then the name; a plain row is what it was", () => {

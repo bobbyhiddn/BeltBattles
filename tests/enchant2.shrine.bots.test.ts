@@ -19,10 +19,13 @@ function visits(days: PlayerDay[]): { day: number; v: NonNullable<NonNullable<Pl
 
 describe("the bots at the ASH SHRINE", () => {
   it("ENCHANT off: no visit, and the runs are what they were (a visit never appears in a road stop)", () => {
-    for (const hero of HEROES.slice(0, 2)) for (const seed of [1, 2]) {
-      expect(visits(playerRun(hero, 10, seed))).toEqual([]);
-      expect(visits(casualRun(hero, 10, seed, "c5"))).toEqual([]);
-    }
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 57): was a bare loop (ENCHANT off by default; par visits the shrine on day 9 under the new default); runs under withEnchant(fn, false)
+    withEnchant(() => {
+      for (const hero of HEROES.slice(0, 2)) for (const seed of [1, 2]) {
+        expect(visits(playerRun(hero, 10, seed))).toEqual([]);
+        expect(visits(casualRun(hero, 10, seed, "c5"))).toEqual([]);
+      }
+    }, false);
   });
 
   it("ENCHANT on: a visit exactly on the days the run's event is the shrine, by par and by the casual c5; the word goes where the bot says; deterministic", () => {

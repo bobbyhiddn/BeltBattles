@@ -129,37 +129,45 @@ describe("ENCHANT-2 T1: every grant names a piece the deck holds, every day it i
 
 describe("ENCHANT-2 T1: with ENCHANT off the table is never read and every deck is byte for byte what it was", () => {
   it("rivalBuild and standInBuild equal the runes-only deck (JSON) for every rival and every day 1-16, with no word anywhere", () => {
-    for (const id of RIVAL_IDS) {
-      for (const day of rivalDays(id, LAST)) {
-        const road = JSON.stringify(rivalBuild(id, day));
-        expect(road, `${id} d${day}`).toBe(JSON.stringify(captainRunesOn(rivalLoadout(id, day).build, CAPTAIN_RUNES[id], day)));
-        expect(road).not.toContain('"ench"');
-        if (id === "matriarch") continue; // she never stands in
-        expect(JSON.stringify(standInBuild(id, day)), `${id} d${day} stand-in`).not.toContain('"ench"');
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 52): was a bare body (ENCHANT off by default); the equality with the runes-only deck holds only with the switch off (ON, the decks hold the rivals' words:
+    // RULING-BUMP1F-R3.1), so the body runs under withEnchant(fn, false). The ON equality is proven below: the ON deck with its words taken off is this one
+    withEnchant(() => {
+      for (const id of RIVAL_IDS) {
+        for (const day of rivalDays(id, LAST)) {
+          const road = JSON.stringify(rivalBuild(id, day));
+          expect(road, `${id} d${day}`).toBe(JSON.stringify(captainRunesOn(rivalLoadout(id, day).build, CAPTAIN_RUNES[id], day)));
+          expect(road).not.toContain('"ench"');
+          if (id === "matriarch") continue; // she never stands in
+          expect(JSON.stringify(standInBuild(id, day)), `${id} d${day} stand-in`).not.toContain('"ench"');
+        }
       }
-    }
+    }, false);
   });
 
   it("captainWordsOn returns the very build it was given, and NPC_WORDS is not read at all", () => {
-    const reads: string[] = [];
-    const saved = new Map<string, readonly NpcGrant[]>();
-    const table = NPC_WORDS as unknown as Record<string, readonly NpcGrant[]>;
-    for (const id of RIVAL_IDS) {
-      saved.set(id, table[id]);
-      Object.defineProperty(table, id, { configurable: true, enumerable: true, get() { reads.push(id); return saved.get(id); } });
-    }
-    try {
-      for (const id of RIVAL_IDS) for (const day of rivalDays(id, LAST)) {
-        const b = rivalLoadout(id, day).build;
-        expect(captainWordsOn(b, id, day)).toBe(b);
-        rivalBuild(id, day);
-        if (id !== "matriarch") standInBuild(id, day);
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 53): was a bare body (ENCHANT off by default; with the switch on captainWordsOn returns a copy holding the words, and npcWordsRules() is true);
+    // the whole body runs under withEnchant(fn, false), where the table is never read (the getters below stay installed and removed inside it, as before)
+    withEnchant(() => {
+      const reads: string[] = [];
+      const saved = new Map<string, readonly NpcGrant[]>();
+      const table = NPC_WORDS as unknown as Record<string, readonly NpcGrant[]>;
+      for (const id of RIVAL_IDS) {
+        saved.set(id, table[id]);
+        Object.defineProperty(table, id, { configurable: true, enumerable: true, get() { reads.push(id); return saved.get(id); } });
       }
-    } finally {
-      for (const id of RIVAL_IDS) Object.defineProperty(table, id, { configurable: true, enumerable: true, writable: true, value: saved.get(id) });
-    }
-    expect(reads).toEqual([]);
-    expect(npcWordsRules()).toBe(false);
+      try {
+        for (const id of RIVAL_IDS) for (const day of rivalDays(id, LAST)) {
+          const b = rivalLoadout(id, day).build;
+          expect(captainWordsOn(b, id, day)).toBe(b);
+          rivalBuild(id, day);
+          if (id !== "matriarch") standInBuild(id, day);
+        }
+      } finally {
+        for (const id of RIVAL_IDS) Object.defineProperty(table, id, { configurable: true, enumerable: true, writable: true, value: saved.get(id) });
+      }
+      expect(reads).toEqual([]);
+      expect(npcWordsRules()).toBe(false);
+    }, false);
   });
 });
 
@@ -191,7 +199,7 @@ describe("ENCHANT-2 T1: with ENCHANT on the rivals carry their live words", () =
   it("nothing about a deck moves but its words: the ENCHANT-on deck with the words taken off is the ENCHANT-off deck", () => {
     for (const id of RIVAL_IDS) {
       for (const day of rivalDays(id, LAST).filter((d) => d >= 5)) {
-        const off = rivalBuild(id, day);
+        const off = withEnchant(() => rivalBuild(id, day), false); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2); green for the wrong reason, not a TRIAGE line): was a bare rivalBuild (ENCHANT off by default), which is ON now and made this on-versus-on
         const on = withEnchant(() => rivalBuild(id, day));
         expect(JSON.stringify(stripped(on)), `${id} d${day}`).toBe(JSON.stringify(stripped(off)));
         expect(wordsOf(on).length, `${id} d${day}`).toBeGreaterThan(0);

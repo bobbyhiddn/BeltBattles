@@ -19,6 +19,8 @@ import { withLongRun } from "../src/sim/longRun";
 
 const OLD_IDS: EventId[] = ["wreck", "cache", "trader", "dice", "dock", "herald", "sappers", "scout", "storm", "smuggler"];
 const HEROES4: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 lines 58-66): ENCHANT is on by default since bb-0.13.0 (the shrine is in the bag), so every "ENCHANT off" half of this file runs under off()
+const off = <T>(fn: () => T): T => withEnchant(fn, false);
 
 /** The pre-ENCHANT-2 eventSequence, copied word for word (events.ts at the base commit 016347f): the OFF world must equal it. */
 function oldSequence(seed: number, n: number, long = false): EventId[] {
@@ -68,7 +70,8 @@ function atShrine(hero: HeroId = "furnace", seed = 4242, day = 6, cargo: string[
 }
 
 describe("ENCHANT off: the ten-event game is untouched", () => {
-  it("EVENT_IDS and BAG_IDS are the old ten, in the old order, and the rules world's lists are the same arrays", () => {
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 58): was a bare body (ENCHANT off by default: enchantRules() false); the shipped default is ON, so the body runs under off()
+  it("EVENT_IDS and BAG_IDS are the old ten, in the old order, and the rules world's lists are the same arrays", () => off(() => {
     expect(enchantRules()).toBe(false);
     expect(EVENT_IDS).toEqual(OLD_IDS);
     expect(BAG_IDS).toEqual(OLD_IDS);
@@ -76,9 +79,10 @@ describe("ENCHANT off: the ten-event game is untouched", () => {
     expect(bagIds()).toBe(BAG_IDS);
     expect(WARLORD_EVENT_IDS).toEqual(["herald", "sappers"]);
     expect(Object.keys(EVENTS)).toHaveLength(11); // the shrine's def exists (the screens draw it) but no list the game reads holds it
-  });
+  }));
 
-  it("eventSequence and eventFor equal the base commit's, pinned literals and a copy of the old algorithm over 300 seeds and 5 lengths, long and not", () => {
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 59): was a bare body (the pinned literals and the old algorithm are the ten-event bag's; the 11-event bag is the shipped default now); runs under off()
+  it("eventSequence and eventFor equal the base commit's, pinned literals and a copy of the old algorithm over 300 seeds and 5 lengths, long and not", () => off(() => {
     for (const [k, want] of Object.entries(PINS)) {
       const [seed, tail] = k.split(":");
       const long = tail.endsWith("L"), n = parseInt(tail, 10);
@@ -90,20 +94,22 @@ describe("ENCHANT off: the ten-event game is untouched", () => {
       }
       for (const d of [1, 5, 10, 14]) expect(eventFor(seed, d)).toBe(oldSequence(seed, d)[d - 1]);
     }
-  });
+  }));
 
-  it("no seed's first 30 days (long) holds the shrine, and the shrine card is not a modelled road option", () => {
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 60): was a bare body (ENCHANT off by default); runs under off()
+  it("no seed's first 30 days (long) holds the shrine, and the shrine card is not a modelled road option", () => off(() => {
     for (let seed = 1; seed <= 200; seed++) expect(eventSequence(seed, 30, true)).not.toContain(SHRINE_ID);
     expect(roadOptions().has(SHRINE_ID)).toBe(false);
     expect(roadMixesFor(1).some((m) => m.key.includes("shrine"))).toBe(false);
-  });
+  }));
 
-  it("the gain does nothing off: no open word", () => {
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 61): was a bare body (ENCHANT off by default; with the switch on the first card opens the word, enchShrine set); runs under off()
+  it("the gain does nothing off: no open word", () => off(() => {
     const run = atShrine();
     expect(pickChoice(run, 0).ok).toBe(true); // the card can be played by a tool; the word is simply not opened
     expect(run.enchShrine).toBeUndefined();
     expect(pendingEnchantPick(run)).toBeNull();
-  });
+  }));
 });
 
 describe("ENCHANT on: the bag holds the ASH SHRINE once", () => {
@@ -113,7 +119,10 @@ describe("ENCHANT on: the bag holds the ASH SHRINE once", () => {
       expect(eventIds()).toEqual([...OLD_IDS, SHRINE_ID]);
       expect(bagIds()).toHaveLength(11);
     });
-    expect(bagIds()).toHaveLength(10); // and back to ten when the switch goes back
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 62): was `expect(bagIds()).toHaveLength(10); // and back to ten when the switch goes back` (the switch shipped off, so "back" was ten); the shipped
+    // world is ON, where the switch goes back to eleven: the ten is the OFF world's, read under withEnchant(fn, false), and the bare read pins the way back to the shipped value
+    expect(withEnchant(() => bagIds(), false)).toHaveLength(10);
+    expect(bagIds()).toHaveLength(11); // and back to eleven (the shipped value) when the switch goes back
   });
 
   it("each bag of a long run holds every one of the eleven events exactly once, and never the same event two days running", () => {
@@ -142,7 +151,7 @@ describe("ENCHANT on: the bag holds the ASH SHRINE once", () => {
   });
 
   it("the sequences differ from the ten-event ones (the event days reshuffle, as the brief expects)", () => {
-    const off = eventSequence(1, 10);
+    const off = withEnchant(() => eventSequence(1, 10), false); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 63): was a bare eventSequence(1, 10) (ENCHANT off by default; the bare read is the 11-event bag now, on-versus-on)
     const on = withEnchant(() => eventSequence(1, 10));
     expect(on).not.toEqual(off);
   });
@@ -317,13 +326,13 @@ describe("the road-cap model (src/net/roadCap.ts)", () => {
   it("the shrine is a reviewed event and 'ench' a reviewed gain, so the D4 guard passes in both switch states", () => {
     expect(MODELLED_EVENTS.shrine).toBe("fixed");
     expect(MODELLED_DELTAS).toContain("ench");
-    checkRoadModel();
+    off(() => checkRoadModel()); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2); green for the wrong reason, not a TRIAGE line): was a bare checkRoadModel() (ENCHANT off by default), which is the ON state now and made both calls the same state
     withEnchant(() => checkRoadModel());
   });
 
   it("with ENCHANT on the shrine is a hull-mix event (card 1: -100 hull, like RIDE THROUGH) and a no-op; off it is absent", () => {
     resetRoadCapMemo();
-    const off = roadOptions();
+    const off = withEnchant(() => roadOptions(), false); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 64): was a bare roadOptions() (ENCHANT off by default; the shrine is in the bare world's options now)
     expect(off.has(SHRINE_ID)).toBe(false);
     withEnchant(() => {
       const on = roadOptions();
@@ -336,13 +345,13 @@ describe("the road-cap model (src/net/roadCap.ts)", () => {
       expect(mixes.some((m) => m.key.includes(`shrine(-${SHRINE_HULL},0)`))).toBe(true);
     });
     resetRoadCapMemo();
-    expect(roadOptions().has(SHRINE_ID)).toBe(false); // and the memo forgets it again when the switch goes back
+    expect(withEnchant(() => roadOptions(), false).has(SHRINE_ID)).toBe(false); // and the memo forgets it again when the switch goes back. BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 64): was a bare roadOptions()
   });
 
   it("the ceiling does not move on days 1-10 (an event with no gold and no deck value raises nothing); after that it follows the 11-day bag", () => {
     resetRoadCapMemo();
     const caps = (): number[] => Array.from({ length: 16 }, (_, i) => roadCap(i + 1));
-    const off = caps();
+    const off = withEnchant(() => caps(), false); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2); green for the wrong reason, not a TRIAGE line): was a bare caps() (ENCHANT off by default), which is ON now and made this on-versus-on
     resetRoadCapMemo();
     const on = withEnchant(() => caps());
     resetRoadCapMemo();
@@ -354,8 +363,10 @@ describe("the road-cap model (src/net/roadCap.ts)", () => {
 
   it("a bag is 11 days with the shrine in it, 10 without: bagsFor follows the rules world", () => {
     withLongRun(() => {
-      expect(bagsFor(10)).toBe(1);
-      expect(bagsFor(11)).toBe(2);
+      off(() => { // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 65): was two bare reads (ENCHANT off by default; the bare bag is 11 days now)
+        expect(bagsFor(10)).toBe(1);
+        expect(bagsFor(11)).toBe(2);
+      });
       withEnchant(() => {
         expect(bagsFor(11)).toBe(1);
         expect(bagsFor(12)).toBe(2);
@@ -393,9 +404,10 @@ describe("honest decks that took the shrine's hull card (the player ceiling, bot
     });
   });
 
-  it("ENCHANT off: a hull of 150 is the DARK WIND's as ever, and the model knows no shrine key", () => {
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 66): was a bare body (ENCHANT off by default; the shrine's key is among the bare world's mixes now); runs under off()
+  it("ENCHANT off: a hull of 150 is the DARK WIND's as ever, and the model knows no shrine key", () => off(() => {
     expect(keys(250 - 100, 6).some((k) => k.startsWith("storm("))).toBe(true);
     expect(keys(250 - 100, 6).some((k) => k.includes("shrine"))).toBe(false);
     expect(fit(250 - 100, 6).hullOk).toBe(true);
-  });
+  }));
 });
