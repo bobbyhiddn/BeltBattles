@@ -6,7 +6,10 @@
 //    and each dusk's signed upload gets 201 (the server's own log line, POST /v1/ghosts 201).
 //  - later: a new player (another browser profile, so another device key; beltbattles.runs.v1 = 3, so not a new player)
 //    on a second server over those uploads alone (the store's ghosts.jsonl without the seed pool; uploads open) meets one
-//    of them at dusk 1: an online ghost whose id is one the runs uploaded.
+//    of them at dusk 1: an online ghost whose id is one the runs uploaded. The one console line allowed there is Chromium's
+//    own network line for the server's designed none-yet answer (404 on GET /v1/ghosts/match: day 2's prefetch, when no
+//    uploaded ghost matches the player's record yet; server/app.ts; the client falls back to the stand-in). It is counted: the
+//    count must equal the server's own `GET /v1/ghosts/match 404` log lines for that player, and a fallback fetch must show.
 //  - old (with --old <dir>): the 0.7.0 online page (built from branch v070-rc), and 0.7.0's own playthrough.mjs to drive
 //    it, served at / of the 0.8.0 server with uploads open. Its dusk-1 fetch asks for bb-0.6.2 and falls back to the
 //    stand-in (404), its upload is refused (422), and NEXT goes on to day 2. The only console lines allowed are
@@ -116,7 +119,7 @@ async function offlineRuns(browser, offline) {
       const r = await scriptedRun(c.page, !!view.hasTouch, (s) => log(`  ${s}`), { days: 3, roads: "vev", check: "fresh", hero, buys: 8, pool: [] });
       await c.page.screenshot({ path: join(OUT, `offline-${hero}-${vname}-day3.png`) });
       const online = await c.page.evaluate(() => window.bb.online());
-      check(version === "0.9.12" && r.days.length >= 3, `offline ${hero} ${vname}: version ${version}, three days played (${r.days.join(" | ")})`);
+      check(version === "0.9.13" && r.days.length >= 3, `offline ${hero} ${vname}: version ${version}, three days played (${r.days.join(" | ")})`);
       check(online === null, `offline ${hero} ${vname}: no online session`);
       const other = c.requests.filter((q) => !/^GET (file|data|blob):/.test(q));
       check(other.length === 0, `offline ${hero} ${vname}: no request but the page (${c.requests.length} file:// requests, ${other.length} others${other.length ? `: ${other.slice(0, 3).join(", ")}` : ""})`);
@@ -179,7 +182,14 @@ async function laterRun(browser, online, data) {
   const srv = await startServer(online, only, "open", false); // open: the later player's own upload gets 201, not a 403 line
   try {
     for (const [vname, [view, pin]] of Object.entries(RUNVIEWS)) {
-      const c = await context(browser, view, pin, () => false, () => localStorage.setItem("beltbattles.runs.v1", JSON.stringify({ runs: 3, last: "rc-earlier-run" })));
+      // r0913 (ruling 8, cap's RULING B): which uploads are in the store depends on the runs before (the seeded shop moves them), so day 2's
+      // prefetch can meet the server's designed none-yet 404 (server/app.ts: "no ghost for this rules version, day and record yet"), and
+      // Chromium prints every 404 as a console error. Only that line gets through: the 404 network line for GET /v1/ghosts/match on this
+      // server (no 422, no POST /v1/ghosts, no other path, no page or JS error); it is counted below.
+      const noneYet = (text, loc) => /^Failed to load resource: the server responded with a status of 404/.test(text) && (loc === `${srv.base}/v1/ghosts/match` || loc.startsWith(`${srv.base}/v1/ghosts/match?`));
+      const before = srv.out.length; // this player's lines of the server's log start here (the views run one after the other)
+      let lastSource;
+      const c = await context(browser, view, pin, noneYet, () => localStorage.setItem("beltbattles.runs.v1", JSON.stringify({ runs: 3, last: "rc-earlier-run" })));
       log(`\n== later ${vname}`);
       try {
         await c.page.goto(`${srv.base}/`);
@@ -188,6 +198,7 @@ async function laterRun(browser, online, data) {
           if (!/fewer than 3 days/.test(e.message)) throw e; // one dusk is the point here
         });
         const o = await c.page.evaluate(() => window.bb.online());
+        lastSource = o.lastFetch?.source;
         await c.page.screenshot({ path: join(OUT, `later-${vname}-day1.png`) });
         log(`  session: runs ${o.runs}, seen ${o.seen.join(", ")}, lastFetch ${o.lastFetch?.source} ${o.lastFetch?.hero ?? ""} ${o.lastFetch?.id ?? ""}`);
         const ids = dayOneIds(); // backlog 337: after this run, with any earlier later player's own upload in it
@@ -197,7 +208,12 @@ async function laterRun(browser, online, data) {
       } catch (e) {
         check(false, `later ${vname}: ${e.message}`);
       }
-      check(c.errors.length === 0, `later ${vname}: 0 console errors${c.errors.length ? `: ${c.errors.slice(0, 3).join(" | ")}` : ""}`);
+      await sleep(300); // the server's log line for the last request
+      // every allowed line is accounted for: as many as the server logged `GET /v1/ghosts/match 404` for this player, and (when there is one) the session shows the fallback fetch
+      const n404 = c.allowed.length, server404 = srv.out.slice(before).filter((l) => / GET \/v1\/ghosts\/match 404 /.test(l)).length;
+      const accounted = n404 === server404 && (n404 === 0 || lastSource === "fallback");
+      if (n404) log(`  allowed (none-yet 404 on /v1/ghosts/match): ${c.allowed.join(" | ")}`);
+      check(c.errors.length === 0 && accounted, `later ${vname}: 0 console errors (${n404} none-yet 404 on /v1/ghosts/match allowed; the server logged ${server404}${n404 ? `, the session's last fetch ${lastSource}` : ""})${c.errors.length ? `: ${c.errors.slice(0, 3).join(" | ")}` : ""}${accounted ? "" : " -- the allowed lines are NOT accounted for"}`);
       await c.ctx.close();
     }
   } finally {

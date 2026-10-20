@@ -188,6 +188,12 @@ export async function takeDawnRune(page, touch) {
   return true;
 }
 
+// STAGE-0913 run 2: the buy landed: the deck grew by one item, or the run's copy weight by one (a merge); `n` is placePlanned's count() before the drop
+const boughtOne = (n) => {
+  const run = window.bb.game.run, w = (l) => l.reduce((s, c) => s + 2 ** ((c.stars || 1) - 1), 0);
+  return run.build.items.length === n.items + 1 || w(run.build.items) + w(run.build.mods) + w(run.inventory) === n.weight + 1;
+};
+
 /** Drag the build screen's planned part onto its belt tile: the mouse, or (shoptap) a finger: until 0.8.0 a phone run
  *  tapped the card then the tile (tap-to-place), which a touch tap no longer does (it reads), so it drags as the mouse does.
  *  0.6.0c: `reserve` gold must be left after a shop buy (today's STAKE / SPY), else nothing is bought. */
@@ -196,7 +202,14 @@ export async function placePlanned(page, touch, reserve = 0) {
     const s = window.bb.game.screen, run = window.bb.game.run, p = s.dragPlan();
     if (!p) return null;
     const prices = s.refit ? [] : run.shop.wagons.flatMap((w) => w.offers).filter((o) => !o.sold && o.def === p.def && o.price <= run.gold).map((o) => o.price);
-    return { a: window.bb.toClient(p.from.x, p.from.y), b: window.bb.toClient(p.to.x, p.to.y), def: p.def, left: run.gold - Math.max(0, ...prices) };
+    // STAGE-0913 run 2 (scripts only): one deck cell's step along the deck's x and along its y, on screen in client px (through the
+    // carrier's zoom and the facing: BuildScreen.tileCentre), for the mouse drop's re-aim below
+    const t00 = s.tileCentre(0, 0), t10 = s.tileCentre(1, 0), t01 = s.tileCentre(0, 1);
+    const c00 = window.bb.toClient(t00.x, t00.y), c10 = window.bb.toClient(t10.x, t10.y), c01 = window.bb.toClient(t01.x, t01.y);
+    return {
+      a: window.bb.toClient(p.from.x, p.from.y), b: window.bb.toClient(p.to.x, p.to.y), def: p.def, left: run.gold - Math.max(0, ...prices),
+      ex: { x: c10.x - c00.x, y: c10.y - c00.y }, ey: { x: c01.x - c00.x, y: c01.y - c00.y },
+    };
   });
   if (!plan || plan.left < reserve) return null;
   // 0.6.1a: a bought copy whose twin is placed merges into it (ARSENAL.md §4.1 rule 5), so the deck
@@ -209,17 +222,33 @@ export async function placePlanned(page, touch, reserve = 0) {
   const n0 = await page.evaluate(count);
   if (touch) {
     await touchDragPiece(page, plan.a, plan.b, plan.def); // STAGE-0911: a shaped piece's finger ends its lift below the plan's tile
+    await page.waitForFunction(boughtOne, n0, { timeout: 5000 });
   } else {
-    await page.mouse.move(plan.a.x, plan.a.y);
-    await page.mouse.down();
-    await page.mouse.move(plan.b.x, plan.b.y, { steps: 12 });
-    await sleep(150);
-    await page.mouse.up();
+    // STAGE-0913 run 2 (scripts only): the mouse's drop point is where the piece's BOX is centred (src/screens/build/actions.ts
+    // dropAnchor: the box centred under the pointer), and the plan's tile (dragPlan) is the box's ANCHOR cell (its top-left one). A 1-cell
+    // rig, and a longer one with room around it, lands on or beside its plan as before; a 3-cell rig whose plan is the last slot of a full
+    // deck lands one cell off it and the drop is refused (invalid(): no word, nothing bought). So the drag aims at the plan's tile as before,
+    // and when no buy lands within 3 s it aims again at the next cell along the deck's y, then its x, then both, then two cells out (the
+    // box's centre for a 3-cell piece), as a player aims a ghost that shows red.
+    const aims = [[0, 0], [0, 1], [1, 0], [1, 1], [0, 2], [2, 0]];
+    for (let k = 0; ; k++) {
+      const [i, j] = aims[k];
+      const to = { x: plan.b.x + i * plan.ex.x + j * plan.ey.x, y: plan.b.y + i * plan.ex.y + j * plan.ey.y };
+      await page.mouse.move(plan.a.x, plan.a.y);
+      await page.mouse.down();
+      await page.mouse.move(to.x, to.y, { steps: 12 });
+      await sleep(150);
+      await page.mouse.up();
+      try {
+        await page.waitForFunction(boughtOne, n0, { timeout: k === aims.length - 1 ? 5000 : 3000 });
+        if (k) console.log(`[playthrough] RE-AIM: ${plan.def} bought when aimed ${i} cell(s) along the deck's x and ${j} along its y from the plan's tile (aim ${k + 1})`);
+        break;
+      } catch (e) {
+        if (k === aims.length - 1) throw e;
+        if (await page.evaluate(boughtOne, n0)) break; // a buy that landed late counts: no second drag
+      }
+    }
   }
-  await page.waitForFunction((n) => {
-    const run = window.bb.game.run, w = (l) => l.reduce((s, c) => s + 2 ** ((c.stars || 1) - 1), 0);
-    return run.build.items.length === n.items + 1 || w(run.build.items) + w(run.build.mods) + w(run.inventory) === n.weight + 1;
-  }, n0, { timeout: 5000 });
   const merged = (await page.evaluate(() => window.bb.game.run.build.items.length)) === n0.items;
   return merged ? `${plan.def} (merged)` : plan.def;
 }

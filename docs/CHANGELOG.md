@@ -61,45 +61,48 @@ AI decks now buy gates and enchantments.
   the time (was 25%).
 - **ENDLESS:** THE GOD gains 1500 hull per endless win (was 250).
 
-## Next release (battle rules bb-0.12.0; the release lane writes the label): rigs that count, POISON and ENDLESS
+## 0.9.13: rigs that count, POISON and ENDLESS
 
-New battle rules: bb-0.12.0. Ghosts and uploads from bb-0.11.0 and older no longer meet this release's players. The
+New battle rules: bb-0.12.0. Ghosts and uploads from bb-0.11.0 and older no longer meet this release's players (a run
+saved on 0.9.12 keeps the one foe it had already drawn for its day). The
 stand-in and seed pools were rebuilt for the new rules and again cover days 1 to 16 (192 ghosts in the seed pool), and the
 AI decks now buy the new rigs.
 - **POISON is back as its own status:** VENOM DRIP now puts POISON on the foe's hull instead of making BURN last longer:
   1, 2 or 3 POISON at one, two and three stars. Each POISON takes 3 hull damage every second until the fight ends, more on
   later days, as BURN does. POISON adds up and never fades, goes straight to the hull past SHIELD, and a WARD never blocks
   it. It has its own icon, colour, glossary note and chip on the status row, and a first-sight note.
-- **Seven new rigs that count what is on the board.** Each adds to a slug it hits, once for each thing it counts. The
+- **Seven new rigs that count what is on the board.** Each acts when it hits a slug, once for each thing it counts. The
   numbers are for one, two and three stars on day 1, and grow with the day. CINDER MAIL gives +2, +3 or +5 SHIELD
   for each BURN on the foe. ROT GAUGE gives +3, +5 or +8 damage for each POISON on the foe. LEECH COIL heals your hull 3, 4
   or 6 times the foe's POISON. CROWD PRESS gives +3, +7 or +11 damage for each slug on the belt it hits. AEGIS SPIKE gives
   +40, +88 or +140 damage for each WARD you have. GRUDGE ROD gives +6, +13 or +21 damage for each heart you have lost this
   run. TROPHY CHAIN gives +8, +12 or +28 damage for each win this run. Each has its own icon.
-- **Five rigs that now count too** (the same kind of numbers): KINDLING (the new name of QUENCH TANK: the same piece)
+- **Five pieces that now count too** (the same kind of numbers): KINDLING (the new name of QUENCH TANK: the same piece)
   gives +3, +5 or +8 damage for each BURN on the foe and no longer uses the BURN up. PRESSURE BREECH has no cap of 5 loads any more: +5, +13 or +42
   damage for each load queued at it. IRON WALL gives +3, +6 or +17 damage for each whole 10 SHIELD you have, and no longer
-  plates your hull itself. SPALL CATCHER gives +1, +2 or +7 damage for each hit your ship has taken this fight, instead of
+  gives your hull SHIELD itself. SPALL CATCHER gives +1, +2 or +7 damage for each hit your ship has taken this fight, instead of
   a charge every 40 damage taken. POWDER KEG gives +2, +5 or +11 damage for each of its own hits this fight, instead of a
-  12-second fuse.
+  fuse of 12, 10 or 8 seconds.
 - **One order for every bonus:** damage that counts something (FOR EACH ...) is kept apart from a rig's own fixed damage,
   so DRAKE NOZZLE turns only the fixed damage into BURN, never the counted kind.
-- **You can see the counts work:** a small +n floats up from a rig when it adds 10 or more to a slug (larger from 140), in
-  the colour of what it added. While you hold a SPALL CATCHER your status row shows a hits chip, POWDER KEG shows its
+- **You can see the counts work:** a small +n floats up from the rig (or the gun) when a count adds 10 or more (larger from
+  140), in the colour of what it added. While you hold a SPALL CATCHER your status row shows a hits chip, POWDER KEG shows its
   running bonus on its tile and SPALL CATCHER on its gun, and with a GRUDGE ROD or TROPHY CHAIN aboard your name on the
   battle screen reads your record, like 4W 6 hearts, and a tap on your plate says it in words.
-- **SOOTJAW** (a Medium captain) no longer brings his scatter choke on day 3: it comes on day 5, so his day 3 and day 4
-  fights are softer.
+- **SOOTJAW** (a Medium captain) now brings his scatter choke on day 5, not day 3.
 - **ENDLESS:** after you win a run you can CONTINUE ENDLESS or END RUN. Your build, gold, runes and upgrades carry on with 3
   fresh hearts, and your score is your endless wins; close the game on that screen and it is still waiting. In endless a
-  loss costs 1 heart on every day, a draw costs none, PATCH UP heals up to 3 and LAST CHANCE does not fire; endless ends at
-  your 3rd lost heart, at 30 endless wins or after day 64. Your endless foes are other players' endless builds, and THE
+  loss costs 1 heart on every day, a draw costs none, PATCH UP still gives back 1 heart (never above 3) and LAST CHANCE does
+  not fire; endless ends when you have no heart left, at 30 endless wins or after day 64. Your endless foes are other players' endless builds, and THE
   GOD, the strongest stand-in deck of the day, when none is near and always past day 25. ENDLESS OVER shows your endless
   wins, the day you won the run on and your best (BEST n, kept on your device, never lowered), and YOUR RUNES pages when
   you hold many runes. HOW TO PLAY says it in one sentence.
 - **Smaller words:** a tap on SHIELD in a rig's notes shows SHIELD's own words and no longer POISON's, and VENOM DRIP's
   belt row says its POISON. A saved run that names a piece, rune or hero this build does not know now gets one plain line
   above the title's buttons and a NEW RUN, instead of a CONTINUE that cannot open.
+
+A run saved on 0.9.12 carries on under the new rules and ends at its win: ENDLESS is offered only on runs started in this
+release.
 
 ## 0.9.12: shop cards show a piece's icon and price
 

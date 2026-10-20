@@ -61,6 +61,8 @@
 // BUMP-1E (the scaling-rules release; its one bump): battles change (SCALE_RIGS is on: POISON a keyword, five reworked rigs and seven new,
 // every pool regenerated once, ENDLESS on), so the rules move to bb-0.12.0 (src/sim/content.ts:47); the label stays 0.9.12 here (VERSION,
 // package.json and the lock's two root fields are untouched), and the release lane picks the release's label at staging.
+// 0.9.13 is 0.9.12 with BUMP-1E's rules release (above): the seven rigs that count, POISON, the five reworks and ENDLESS. The rules are
+// bb-0.12.0 (src/sim/content.ts:53) and the label moves to 0.9.13 (STAGE-0913, branch r0913).
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { VERSION } from "../src/version";
@@ -68,10 +70,10 @@ import { RULES_VERSION } from "../src/sim/content";
 
 const json = (f: string) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url), "utf8")) as { version: string; packages?: Record<string, { version?: string }> };
 
-describe("the 0.9.12 label", () => {
-  it("is 0.9.12 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are BUMP-1E's bb-0.12.0 (BUMP-1D's were bb-0.11.0, AZ-BUMP's bb-0.10.0, Z-BUMP's bb-0.9.7, Y7b2's bb-0.9.3, BAL-2's bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6)", () => {
+describe("the 0.9.13 label", () => {
+  it("is 0.9.13 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are BUMP-1E's bb-0.12.0 (BUMP-1D's were bb-0.11.0, AZ-BUMP's bb-0.10.0, Z-BUMP's bb-0.9.7, Y7b2's bb-0.9.3, BAL-2's bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6)", () => {
     const pkg = json("package.json"), lock = json("package-lock.json");
-    expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.9.12", "0.9.12", "0.9.12", "0.9.12"]);
+    expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.9.13", "0.9.13", "0.9.13", "0.9.13"]);
     expect(RULES_VERSION).toBe("bb-0.13.0") /* BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */; // 0.8.6 played PACKS's bb-0.8.6; RUNES changes battles, so it bumps the rules
   });
 });
