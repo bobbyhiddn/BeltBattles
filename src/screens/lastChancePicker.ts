@@ -149,21 +149,22 @@ export function partLines(def: string, tw: number, run: Pick<Run, "hero" | "buil
  *  (REQ-BFG-084, K6): a plain stat rig's rig sentence first (faces.ts RIG_SENTENCE: the trigger its face no longer prints,
  *  as its panel's ⓘ NOTES lead with it). CARD-3 (D5): each sentence an item. */
 export function partInfo(def: string, tw: number, run: Pick<Run, "hero" | "build">, stars = 1, word?: { ench: EnchantId } | null): Items { // CARD-3: exported for the tests
-  const fl = faceLines(def, stars, textOpts(run as Run));
+  const o = textOpts(run as Run); // ENCHANT-2W (REQ-BFG-085; W3): its day (the run's, when the card is drawn in a run) is the word line's day too
+  const fl = faceLines(def, stars, o);
   // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead (faces.ts plainNotes: the rig sentence, as before with PLAIN_RIGS
   // off; SCALE GUARD's carry line after it; BALLAST's own line in its place), then the reminders at the card's star
   const rem = [...plainNotes(def), ...(fl?.reminders ?? []), `FREE. IT GOES TO CARGO AT ★${stars}; PLACE IT AS ANY PART.`];
   const items = rem.map((t) => wrapRich(colourize(icons(t), C.slate4), tw, "3"));
-  const w = word && enchantRules() ? lcWordItem(def, word.ench, tw, stars) : null; // ENCHANT-1: the word it arrives with, first
+  const w = word && enchantRules() ? lcWordItem(def, word.ench, tw, stars, o.day) : null; // ENCHANT-1: the word it arrives with, first
   return w ? [w, ...items] : items;
 }
 
 /** ENCHANT-1 (REQ-BFG-085, E5c, E7): the details' first item for a PART that arrives enchanted: `ENCHANTED: FIERY. ADDS +1 {BURN} TO EACH HIT.` (ENCHANT-2, T4c: was `ITS HIT: {BURN}+1.`),
  *  the word in its colour and its line for this kind of piece at the card's star (enchantFaces.ts wordLine, the panels' own text). Null
- *  for a piece that takes no word. */
-export function lcWordItem(def: string, id: EnchantId, tw: number, stars = 1): RichLine[] | null {
+ *  for a piece that takes no word. ENCHANT-2W (W3): `day`, the run's day (partInfo reads it from the run): RISING's and GROWING's amounts are the day's, as the part's panel gives them; none: day 1's. */
+export function lcWordItem(def: string, id: EnchantId, tw: number, stars = 1, day?: number): RichLine[] | null {
   const kind = enchantKindOf(ITEMS[def]);
-  const line = kind ? wordLine(id, kind, stars) : null;
+  const line = kind ? wordLine(id, kind, stars, day) : null;
   if (!line) return null;
   return wrapRich([{ t: "ENCHANTED: ", c: C.slate4 }, { t: ENCHANT_DEFS[id].name, c: ENCHANT_DEFS[id].color }, { t: ". ", c: C.slate4 }, ...colourize(icons(line), C.slate4)], tw, "3");
 }

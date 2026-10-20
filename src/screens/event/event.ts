@@ -247,7 +247,7 @@ export class EventScreen implements Screen {
       const word = wordOf(this.choices[this.info]);
       if (word) {
         const pr = { x: L.panel.x + 2, y: L.panel.y + 2, w: L.panel.w - 4, h: L.panel.h - 4 };
-        drawWordInfo(g, pr, word);
+        drawWordInfo(g, pr, word, run.day); // ENCHANT-2W (W3): the run's day: RISING's and GROWING's amounts are the day's, as the part's panel gives them
         ui.add({ id: "wordinfo", r: pr, onTap: () => { this.info = -1; }, block: true });
       }
     }

@@ -23,16 +23,18 @@ export function infoButton(card: Rect, k = 0): { btn: Rect; hit: Rect } {
   return { btn, hit: { x: Math.round(x), y: Math.round(y), w, h } };
 }
 
-/** The rows of a word's own card, ready to draw: the title, its colour, and each kind's row as wrapped lines of the 3x5 face within `w` logical px. null for a forged id. */
-export function wordInfoRows(word: string, w: number): { title: string; colour: string; rows: string[][] } | null {
+/** The rows of a word's own card, ready to draw: the title, its colour, and each kind's row as wrapped lines of the 3x5 face within `w` logical px. null for a forged id.
+ *  ENCHANT-2W (REQ-BFG-085; W3): `day`, the run's day (event.ts passes it: the card is drawn during a run), so RISING's and GROWING's amounts are the day's as the part's panel
+ *  gives them; none (the text sheet): day 1's, as before. */
+export function wordInfoRows(word: string, w: number, day?: number): { title: string; colour: string; rows: string[][] } | null {
   if (!isEnchantId(word)) return null;
-  const f = wordFace(word);
+  const f = wordFace(word, day);
   return { title: f.name, colour: f.color, rows: f.lines.map((l) => wrap(`${l.label}: ${icons(l.text)}`, w, "3")) };
 }
 
-/** Draw the word's card inside `r` (the event panel): an ink frame, the word's name in its colour, its rows, and the line that says how to close it. */
-export function drawWordInfo(g: G, r: Rect, word: string): void {
-  const rows = wordInfoRows(word, r.w - 12);
+/** Draw the word's card inside `r` (the event panel): an ink frame, the word's name in its colour, its rows, and the line that says how to close it. `day`: the run's (wordInfoRows). */
+export function drawWordInfo(g: G, r: Rect, word: string, day?: number): void {
+  const rows = wordInfoRows(word, r.w - 12, day);
   if (!rows) return;
   rect(g, r.x, r.y, r.w, r.h, C.ink);
   rect(g, r.x + 1, r.y + 1, r.w - 2, r.h - 2, C.slate0);
