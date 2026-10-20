@@ -525,7 +525,11 @@ export const PLANS: Record<RivalId, RivalPlan> = {
       G(6, "longhaul", 5, 1), P(7),
       M(8, "flak", 0), P(9), G(9, "counterweight", 1, 2),
       soon(7, M2(9, "scatter", 0)), P(9), ...good(soon(8, G(9, "staticbrush", 3, 3))),
-      ...good(T(10, "swivel", 1), X(10, F("dragchain", 6, 1, [8, 1, "U"]))), soon(6, G(10, "grease", 1, 4, 1)),
+      // BUMP-1F P3 D1 (second step, days 3-5): the good-luck grease on day 3 (was 6; the ordinary day 10 and every ordinary deck as they were).
+      // At the merged tip OLD BULWARK read +0.463 / +0.361 / +0.518 on days 3 / 4 / 5 (softer than the Easy slot's mean, +0.374 / +0.394 /
+      // +0.430) while GRIMHOLD and SOOTJAW made the Medium slot HARDER than the Hard slot by 0.003 / 0.011 / 0.013 (rivals.difficulty's
+      // instrument). With it: +0.174 / +0.173 / +0.323, Medium over Hard by +0.038 / +0.016 / +0.015 (thin, in order)
+      ...good(T(10, "swivel", 1), X(10, F("dragchain", 6, 1, [8, 1, "U"]))), soon(3, G(10, "grease", 1, 4, 1)),
     ],
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
