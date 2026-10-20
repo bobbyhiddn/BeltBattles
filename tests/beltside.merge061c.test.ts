@@ -28,6 +28,8 @@ import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the 062b histo
 import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: and with the six more shaped rigs off (in062b)
 import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: and with the six plain stat rigs off (in062b)
 import { SCALE_IDS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: and with the seven scaling rigs and the five reworks off (in062b)
+import { withGates } from "../src/sim/gates"; // BUMP-1F (GATES on by default, RULING-BUMP1F-R5 R5.2): and with the three converters off (in062b, the 0.9.11 fixture test)
+import { withEnchant } from "../src/sim/enchant"; // BUMP-1F (ENCHANT on by default): and with the road bag of ten events (no ASH SHRINE) (in062b, the 0.9.11 fixture test)
 
 const J = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const st = (s: number) => (s > 1 ? { stars: s } : {});
@@ -377,7 +379,9 @@ function in062b<T>(fn: () => T): T {
   const dormant = DORMANT_ITEMS as Set<string>, was = [...dormant];
   dormant.delete("sifter");
   try {
-    return withScaleRigs(() => withPlainRigs(() => withShapes2(() => withShapes(() => withSustain(() => withWave3(fn, false), false), false), false), false), false);
+    // BUMP-1F (GATES and ENCHANT on by default, RULING-BUMP1F-R5 R5.2): and with GATES off (the three converters join the trader's swaps: 61 keys against the capture's 58) and ENCHANT off (the ASH SHRINE is no event of 0.6.2b's bag);
+    // GATES is the outermost of the nest with ENCHANT outside it: the three converters are the last keys of ITEMS after the scaling rigs' seven, so GATES goes off before the scaling switch and comes back after it (the key-order hazard above); was withScaleRigs outermost
+    return withEnchant(() => withGates(() => withScaleRigs(() => withPlainRigs(() => withShapes2(() => withShapes(() => withSustain(() => withWave3(fn, false), false), false), false), false), false), false), false);
   } finally {
     dormant.clear();
     for (const id of was) dormant.add(id);
@@ -441,7 +445,9 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
   // shipped world, where the draws move, has its own pins in the next test. The fixture file is as it was
   it("0.8.0: the live road draws (wave 3's commons in SALVAGE, the per-run draw) are the regenerated fixture's", () => {
     expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on (the fixture is the world before it)
-    withScaleRigs(() => { // BUMP-1E: was bare
+    // BUMP-1F (GATES and ENCHANT on by default, RULING-BUMP1F-R5 R5.2): the 0.9.11 world also has GATES off (the three converters are goods and join the swaps) and ENCHANT off (the ASH SHRINE is in the bag); was withScaleRigs(fn, false) alone.
+    // The order is in062b's: ENCHANT outside, GATES before the scaling switch (the three are the last keys of ITEMS)
+    withEnchant(() => withGates(() => withScaleRigs(() => { // BUMP-1E: was bare
     const live = roadDraws();
     const path = new URL("./fixtures/beltside-062c/roadDraws-080.json", import.meta.url);
     if (process.env.BB_WRITE_ROAD_DRAWS_080) writeFileSync(path, JSON.stringify({ source: "v080-wave3", ...live }, null, 2) + "\n");
@@ -473,7 +479,7 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
     ]);
     // the per-run draw moved the event draws themselves (the run's wares), not only the pools
     expect(roadDraws(true).choices).not.toEqual(live.choices);
-    }, false); // BUMP-1E: the 0.9.11 world (the scaling switch off, back on after)
+    }, false), false), false); // BUMP-1E: the 0.9.11 world (the scaling switch off, back on after); BUMP-1F: and GATES and ENCHANT off
   });
 
   // BUMP-1E (SCALE_RIGS ships on, bb-0.12.0): the shipped world's live draws against the 0.9.11 fixture: 95 of the 108 choices move (wreck 35, smuggler 36, trader 24), the 3 salvage rows,

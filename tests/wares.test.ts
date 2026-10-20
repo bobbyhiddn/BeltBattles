@@ -13,6 +13,8 @@ import { ITEMS, RUN_DAYS, buyableModules, withWave3, type HeroId } from "../src/
 import { SUSTAIN_FIRST_DAY, isSustain } from "../src/sim/content"; // FLIP-X2: the sustain pieces' day-3 hold
 import { DRAW, drawWares, quotas, unlocked, unlockDay, waresOk, type Wares } from "../src/game/wares";
 import { heldPast, seatDay } from "../src/game/wares"; // REDO-X (FIX-ABE F3): the stand-ins' rule
+import { GATES_FIRST_DAY } from "../src/game/wares"; // BUMP-1F (GATES on by default): the three converters are held to the first unlock step after day 1
+import { isGatesPiece } from "../src/sim/gates"; // BUMP-1F (GATES on by default)
 import { SHAPES2_ODDS, isShapedRig } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on): the offer lever b (wares.ts holdShaped)
 import { RARITIES } from "../src/sim/content"; // REDO-X (FIX-ABE F3): the draw's rarity tiers
 import { migrateRun, newRun, rollShop, type Run } from "../src/game/run";
@@ -62,7 +64,9 @@ function standIns(seed: number, w: Wares): number {
   const extra = Object.keys(w).filter((id) => !seats.includes(id));
   expect(seats.filter((id) => !(id in w)), `seed ${seed}: a seat's ware is missing`).toEqual([]);
   expect(extra.map(tier).sort(), `seed ${seed}: the stand-ins' tiers`).toEqual(owed.sort());
-  for (const id of extra) expect(w[id], `seed ${seed}: stand-in ${id}`).toBe(seatDay(held.find((h) => tier(h) === tier(id))!));
+  // BUMP-1F (GATES on by default, RULING-BUMP1F-R5 R5.2 (2); wares.ts unlockDay): a converter stand-in (FUSER, SCATTER MILL, SMELTER) opens on GATES_FIRST_DAY at the earliest, never in day 1's shop, so its day is the later of its slot's
+  // seat day and the gates' hold; was seatDay(...) alone (seed 7920: the stand-in SMELTER opens on day 2, its slot's day is 1)
+  for (const id of extra) expect(w[id], `seed ${seed}: stand-in ${id}`).toBe(Math.max(seatDay(held.find((h) => tier(h) === tier(id))!), isGatesPiece(id) ? GATES_FIRST_DAY : 1));
   return owed.length;
 }
 /** BUMP-1D (SHAPES2 on): the draw before SHAPES2's offer lever (wares.ts holdShaped: SHAPES2_ODDS.minStock shaped rigs among the
@@ -144,7 +148,8 @@ describe("the per-run draw: a run's wares (DESIGN-wave3.md 4.1)", () => {
     expect(SUSTAIN_FIRST_DAY).toBe(3);
     for (const id of buyableModules().map((d) => d.id)) {
       const d = ITEMS[id], u = unlockDay(id, undefined);
-      const want = Math.max(d.rarity === "legendary" ? 4 : d.rarity === "epic" ? 2 : 1, d.merchant === "arcane" ? 3 : 1, isSustain(id) ? 3 : 1);
+      // BUMP-1F (GATES on by default, RULING-BUMP1F-R5 R5.2 (2)): + the three converters' hold, GATES_FIRST_DAY (wares.ts unlockDay: never in day 1's shop); was the rarity, the merchant and the sustain hold alone (fuser: 2 of 1)
+      const want = Math.max(d.rarity === "legendary" ? 4 : d.rarity === "epic" ? 2 : 1, d.merchant === "arcane" ? 3 : 1, isSustain(id) ? 3 : 1, isGatesPiece(id) ? GATES_FIRST_DAY : 1);
       expect(u, id).toBe(want);
     }
     for (const s of SEEDS.slice(0, 60)) {

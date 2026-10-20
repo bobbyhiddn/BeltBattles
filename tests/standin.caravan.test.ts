@@ -39,7 +39,9 @@ const HEROES = ["furnace", "weaver"] as const;
 
 /** BUMP-1E (the regenerated pool, bb-0.12.0): the committed pool's stored picks whose deck holds MORE than their gold spent and their road's drops: the run books a negative sale loss
  *  (player.ts parNpcDay), so spent + drops + the gain = cost exactly. hero|day|position -> the gain in gold. One pick of 192: the loose run of seed 1003 (furnace #3). */
-const SALE_GAIN: Record<string, number> = { "furnace|4|2": 6 };
+// BUMP-1F (F5, BUMP-1E REPORT section 11; RULING-BUMP1F-R5 R5.2): no run books a negative sale loss any more (player.ts parNpcDay books a road placement's gain in roadDrops, soldLoss >= 0 for every run) and the pool is regenerated:
+// no stored pick holds more than its spent gold and its road's drops cover, so the table is empty; was { "furnace|4|2": 6 } (the loose run of seed 1003, furnace #3: cost 71, spent 48, drops 17)
+const SALE_GAIN: Record<string, number> = {};
 
 describe("M2: the caravan population (src/sim/harness/caravan.ts)", () => {
   it("a fixed mix of 1/2 typical, 1/4 sharp, 1/4 loose at every population size; loose is typical with impulse 1", () => {
@@ -144,7 +146,8 @@ describe("M2: the caravan population (src/sim/harness/caravan.ts)", () => {
     }
     expect(n).toBe(240);
     // BUMP-1E: the exact candidate-days whose run books a negative sale loss, measured on this tree over the 240 (furnace #3, the loose run of seed 1003, days 4-9)
-    expect(gains).toEqual([4, 5, 6, 7, 8, 9].map((day, k) => `furnace #3 (loose 1003) d${day}: ${[6, 6, 6, 4, 2, 2][k]}`));
+    // BUMP-1F (F5; RULING-BUMP1F-R5 R5.2): none of the 240 candidate-days books a negative sale loss now; was the six candidate-days of furnace #3 (the loose run of seed 1003), days 4-9: 6, 6, 6, 4, 2, 2
+    expect(gains).toEqual([]);
     expect(policies).toEqual(new Set(["typical", "sharp", "loose"]));
     expect(met).toBeGreaterThan(n / 2);
     // at this base a turret offer that merges into the hull's starting turret is bought, so some decks carry
@@ -390,7 +393,8 @@ describe("M2: --par-band (off by default) and the header command", () => {
 
 describe("M2: deckStats (the dry run's turret and join counts)", () => {
   it("counts merged starting turrets, turrets beyond the starting layout and joins", () => {
-    const p = [1, 2, 3, 4, 5].map((s) => playerBuild("furnace", 3, s)).find((x) => !x.turrets)!;
+    // BUMP-1F (GATES and ENCHANT on by default, RULING-BUMP1F-R5 R5.2): was seeds 1-5; the par player's day-3 decks of seeds 1-5 all hold a turret now (Build.turrets), the first seed without one is 6 (the search is for a deck without one)
+    const p = [1, 2, 3, 4, 5, 6].map((s) => playerBuild("furnace", 3, s)).find((x) => !x.turrets)!;
     // 0.6.2 CAND-A: the par player draws joins, so its deck counts its own; the same deck with its joins cleared counts none
     expect(deckStats(p).joins).toBe(p.routes.filter((r) => r.join !== undefined).length);
     const b = JSON.parse(JSON.stringify(p)) as Build;
@@ -493,7 +497,9 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
         const w = written.find((x) => x.hero === hd.hero && x.day === hd.day && x.i === i)!, m = p.caravan!, at = `${hd.hero} d${hd.day} #${p.idx}`;
         expect(w.spent, at).toBe(spentOf(p));
         expect(w.spent, at).toBe(m.spent);
-        expect(w.spent, at).toBe(p.cost + m.rerollGold + m.soldLoss); // cargoGold is 0: the deck, the rerolls and the sale losses
+        // BUMP-1F (ENCHANT on by default, RULING-BUMP1F-R5 R5.2): + cargoGold, which caravan.ts books as the residual (spent + drops - value - rerolls - sale losses), so it holds the ENCHANTER's gold (PlayerDay.wordGold) now; was
+        // p.cost + m.rerollGold + m.soldLoss with cargoGold 0: the deck, the rerolls and the sale losses (furnace d3 #2: 27 of 23)
+        expect(w.spent, at).toBe(p.cost + m.rerollGold + m.soldLoss + m.cargoGold);
         expect(w.cost, at).toBe(p.cost);
         if (m.spent > p.cost) above++;
       });
@@ -564,13 +570,16 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
     expect(n).toBe(192); // BUMP-1D: 2 heroes x 16 days x 6 decks (was 120: 10 days)
   });
 
-  it("BUMP-1E: the committed pool's one sale-gain pick is the loose run of seed 1003 (furnace d4 #2 = candidate #3 at day 4): its meta books the gain, to the gold", () => {
+  // BUMP-1F (F5; RULING-BUMP1F-R5 R5.2): was "BUMP-1E: the committed pool's one sale-gain pick is the loose run of seed 1003 (furnace d4 #2 = candidate #3 at day 4): its meta books the gain, to the gold" (the stored pick
+  // was candidate #3's deck: cost 71, spent 48, drops 17, soldLoss -6). The regenerated pool holds no sale-gain pick: the same run (candidate #3, the loose run of seed 1003) books no negative sale loss at day 4 (value 65, spent 48,
+  // soldLoss 0), the stored furnace d4 #2 is another deck (cost 48, spent 45), and SALE_GAIN is empty
+  it("BUMP-1F (F5): the committed pool holds no sale-gain pick: BUMP-1E's loose run of seed 1003 (furnace #3) books no negative sale loss at day 4, and SALE_GAIN is empty", () => {
     const e = standInPool("furnace", 4)[2], d = caravanCandidate("furnace", 4, 1, 3, STANDIN_MAX_STARS);
-    expect(caravanCand(3, d).code).toBe(encodeStarred(poolRaw("furnace", 4, 2))); // the stored pick IS this run's day-4 deck
     expect([d.meta.policy, d.meta.seed]).toEqual(["loose", 1003]);
-    expect([e.cost, e.spent, roadDropValue(e.road)]).toEqual([71, 48, 17]);
-    expect([d.value, d.meta.spent, d.meta.soldLoss]).toEqual([71, 48, -6]);
-    expect(SALE_GAIN).toEqual({ "furnace|4|2": -d.meta.soldLoss });
+    expect([d.value, d.meta.spent, d.meta.soldLoss]).toEqual([65, 48, 0]);
+    expect([e.cost, e.spent]).toEqual([48, 45]);
+    expect(caravanCand(3, d).code).not.toBe(encodeStarred(poolRaw("furnace", 4, 2))); // the stored pick is no longer this run's deck
+    expect(SALE_GAIN).toEqual({});
   });
 
   it("the header documents the sixth element: a caravan pool's tuple line and StandInTuple; pool v2.1's lines are unchanged", () => {

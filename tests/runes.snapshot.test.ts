@@ -28,6 +28,10 @@ type Snap = Record<string, unknown> & { build: Build & Record<string, unknown> }
 const POOL = generateSamplePool();
 const SEED = 4242;
 type Road = NonNullable<Parameters<typeof validateUpload>[3]>["road"]; // S8 (RULING-S8-R9): a road log, as validateUpload takes it
+// BUMP-1F (ENCHANT on by default, RULING-BUMP1F-R5 R5.2 (2); ENCHANT-1 E5): a pool ghost made by a par run holds the words it bought or won (`ench` on a part), which the server accepts only for the seed of the run that
+// made them (enchantCheck.ts: the ENCHANTER's offers and the drops derive from the seed), and these rows give the deck their own made-up seed (SEED), so the base deck is the first one that holds no word
+// (was the first deck of its day: weaver d6 sample-weaver-1 holds words now, "a legal day-6 build" refused, 201 -> 422 on the upload, 200 -> 404 on the match)
+const wordless = (s: { build: unknown }): boolean => !JSON.stringify(s.build).includes('"ench"');
 
 // S8 (the pools: road-fed (a48010b), T1e's form; RULING-S8-R9): `road`, given, goes to validateUpload as the server passes
 // a snapshot's road log (server/app.ts POST /v1/ghosts). Was: the seed only (every caller but the pool loop still passes none)
@@ -101,7 +105,7 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
   // sample-weaver-1) is a par-field run's dusk deck now and carries that run's seed, while every row sets its own (SEED, or
   // none for a served ghost), so `base` is the deck without it (was the pool ghost as it is: "the same without its seed"
   // kept the par run's seed and met its offers: [false, false] for [true, true])
-  const { seed: _parSeed, ...base } = POOL.find((s) => s.day === 6 && s.build.upgrades === undefined && (s.build.mods?.length ?? 0) > 0) as unknown as Snap;
+  const { seed: _parSeed, ...base } = POOL.find((s) => s.day === 6 && s.build.upgrades === undefined && (s.build.mods?.length ?? 0) > 0 && wordless(s)) as unknown as Snap; // BUMP-1F: + wordless (see above)
   const hero = base.hero as HeroId;
   const runes = legalRunes(SEED, hero, 6);
   const legal = withRunes(base, runes);
@@ -291,7 +295,8 @@ describe.each(storeBackends().slice(0, 1))("RUNES-1 M3 through POST /v1/ghosts a
     await app.close();
     await backend.teardown();
   });
-  const base = POOL.find((s) => s.day === 4 && s.build.upgrades === undefined) as unknown as Snap;
+  // BUMP-1F (ENCHANT on by default, RULING-BUMP1F-R5 R5.2 (2)): was POOL.find(day 4 && upgrades === undefined): every day-4 pool deck without upgrades holds words now (a par run's), so the base is the first day-4 deck with no word (foundry, with upgrades)
+  const base = POOL.find((s) => s.day === 4 && wordless(s)) as unknown as Snap;
   // HULL-ON (the flip, PICK): `grade: undefined` (JSON leaves it out): the pool deck carries the seed step's grade (written
   // with PICK on), and an upload carries none (the server refuses one: "grade: only the seed pool's ghosts carry a grade")
   // S8 (the pools: a road log is valid only with its own run seed; RULING-S8-R9): and `road: undefined`, as for the grade:

@@ -15,6 +15,7 @@ import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { SCALE_PIECES, SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale";
 import { READER_FEEDERS, hasFeeder, needsFeeder, onCurve, readCtx, readerCount, READ_FED, READ_PAR } from "../src/sim/scaleRating";
 import { ITEMS } from "../src/sim/content";
+import { withEnchant } from "../src/sim/enchant"; // BUMP-1F (ENCHANT on): the off world is the ENCHANT-off one too
 import { effectAt } from "../src/sim/stars";
 import { K, furnaceBench, withMod } from "./wave3.helpers";
 
@@ -187,10 +188,22 @@ describe("SCALE-2d D1: the rating with SCALE_RIGS on", () => {
     const MOVED: Record<string, number[]> = {
       "rival/sootjaw/3": [88.08237751004019, 2300, 112.37572266666669, 2300], // BUMP-1E C3: was [98.65226281124501, 2300, 125.8608093866667, 2300]
       "rival/sootjaw/4": [168.96471165644175, 2660, 212.126208, 2660], // BUMP-1E C3: was [189.24047705521477, 2660, 237.58135296, 2660]
+      // BUMP-1F (P3 D1's two captain-deck steps, src/sim/rivalBuilds.ts, in every world: the captains' decks are not switch-aware; RULING-BUMP1F-R2 R2.4 and R5 R5.2 (2)): BRASSWICK's second factory (the TWIN MOULD) comes
+      // on day 7 (was 5; fa0e336, F7: the day-6 ladder), so his day-5 and day-6 decks rate lower (offense only); OLD BULWARK's good-luck GREASE comes on day 3 (was 6; 0c98513), and a Hard captain's warlord deck is his
+      // good-luck deck, so his day-3, -4 and -5 decks rate other offense numbers (see each line). Measured in this world with ENCHANT and SCALE_RIGS off; the defense and every other key are M0's.
+      // The cause is the two plan steps alone: in a scratch copy of the tree with bump1f-base's rivalBuilds.ts put back, this test passes with the sootjaw entries only (and refitaz.road's all-off digest reads its old pin)
+      "rival/brasswick/5": [60.315104166666664, 3210.1375, 65.69839791666668, 3229.375], // BUMP-1F (F7): was [97.12073414694281, 3210.1375, 104.39747418333334, 3229.375]
+      "rival/brasswick/6": [78.61348314606741, 3583.4, 83.9592, 3605], // BUMP-1F (F7): was [115.7145947565543, 3583.4, 122.65827626666666, 3605]
+      "rival/bulwark/3": [86.70639877627485, 2300, 104.20407130290458, 2300], // BUMP-1F (D1 second step): was [59.62034750400571, 2300, 117.36212038951315, 2300]
+      "rival/bulwark/4": [107.43148668731905, 2660, 137.91965130675345, 2660], // BUMP-1F (D1 second step): was [103.00550944304103, 2660, 167.96590052638615, 2660]
+      "rival/bulwark/5": [141.43333395982492, 3020, 177.45117130675348, 3020], // BUMP-1F (D1 second step): was [147.7279861932939, 3020, 225.26211385971948, 3020]
     };
     const want = { ...pins, ...MOVED };
     expect(Object.keys(want).length).toBe(Object.keys(pins).length); // the two keys are the fixture's own: nothing is added or dropped
-    const rateOff = (): Record<string, number[]> => withScaleRigs(rate, false);
+    // BUMP-1F (ENCHANT on, bb-0.13.0; RULING-BUMP1F-R3.1): M0's pins are the ENCHANT-off world's decks, and with ENCHANT on the rivals carry their own words from day 5 (ENCHANT-2, npcWords.ts:
+    // rivalBuild reads them), which the rating prices, so LOCKJAW's and LONGTOOTH's days 5-10 rated other numbers (offense and defense) with the scaling switch off too; the off world is read with
+    // ENCHANT off as well (was withScaleRigs(rate, false))
+    const rateOff = (): Record<string, number[]> => withEnchant(() => withScaleRigs(rate, false), false);
     expect(rateOff()).toEqual(want);
     withScaleRigs(() => rate()); // the switch on in between
     expect(rateOff()).toEqual(want);

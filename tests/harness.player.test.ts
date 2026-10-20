@@ -1,6 +1,7 @@
 // FB-C (REQ-BFG-026): the par player. playerBuild(hero, day, seed) plays a real run through the game's caravan
 // (rollShop, reroll, buyOffer), so par is what a typical player can actually assemble under shop luck.
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { setShrine } from "../src/game/shrine"; // BUMP-1F (ENCHANT-2 T3): the road-event bag without the ASH SHRINE for the gold identities
 import { ITEMS, REROLL_COST } from "../src/sim/content"; // AZ-BUMP S7: RULES_VERSION is gone with the buy-count tripwire's key
 import { buildCost, maxGoldByDay, unfusedPairs, validateBuild } from "../src/net/validate";
 import { PLAYER_DAYS, knobsOf, playerBuild, playerRun } from "../src/sim/harness/player";
@@ -13,7 +14,7 @@ import { DEFAULT_OPTS, localRunner, runTournament, type Runner, type TourneyOpts
 // 0.6.2 CAND-A
 import { HEROES as HERO_DEFS } from "../src/sim/content";
 import {
-  cloneBuild, connectorClaims, feedOf, gearOn, hullSlots, installTurret, installedTurrets, joinOf, key as K, rigArrows, rigHits,
+  arrowsOf, cloneBuild, connectorClaims, feedOf, gearOn, hullSlots, installTurret, installedTurrets, joinOf, key as K, rigHits,
   rotField, routeInfo, setTurretList, turretSlots, type Build, type Placed, type RouteDef,
 } from "../src/sim/deck";
 import {
@@ -54,7 +55,13 @@ const shapesOff = <T>(fn: () => T): T => withScaleRigs(() => withShapes(() => wi
 // NPC_DAY off, so off both read as before. validateBuild's strict budget line (the shop's gold alone) is left to that rule,
 // as standins.ts writtenProblems leaves it; every other strict line stands.
 const roadBudget = (d: PlayerDay): number => maxGoldByDay(d.day) + runeGrants(d.build.runes, d.day).gold + (d.roadGold ?? 0) + (d.roadDrops ?? 0);
-const goldIn = (d: PlayerDay): number => boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss + (d.cargo ?? 0);
+// BUMP-1F (ENCHANT-2 T3, RULING-BUMP1F-R3.1): the road-event bag is read WITHOUT the ASH SHRINE in this file (setShrine false, the state-B precedent of tests/enchant1.bots; the afterEach puts it back; a file-wide switch because
+// the par-run cache key does not hold it): the shrine's cargo card gives a cargo part away (the par bot's card 1, shrineBot.ts), whose value no PlayerDay field names, so goldIn below breaks after it by that value (furnace s1 d9: 150 of 153;
+// furnace s5 d10: 163 of 173, with a word's gold); was no switch
+beforeEach(() => setShrine(false));
+afterEach(() => setShrine(true)); // the shipped value (ENCHANT-2)
+// BUMP-1F (ENCHANT on by default, RULING-BUMP1F-R5 R5.2 (2); ENCHANT-1 E6.4): + the gold spent at the ENCHANTER (PlayerDay.wordGold, absent with no word bought: it joins the deck's cost); was boughtCost + rerollGold + gold + soldLoss + cargo (furnace s1 d3: 34 of 42)
+const goldIn = (d: PlayerDay): number => boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss + (d.wordGold ?? 0) + (d.cargo ?? 0);
 const strictBut = (b: Build, day: number): string[] => validateBuild(b, day).errors.filter((e) => !(npcDayRules() && e.startsWith("budget: ")));
 
 describe("par player (playerBuild): a real run through the caravan", () => {
@@ -323,7 +330,9 @@ describe("0.6.2 CAND-A: the par player draws joins and aims multi-arrow rigs (RE
     expect(hit, "a two-belt rig").toBeDefined();
     const b = hit!.d.build, [uid] = [...rigRoutes(b)].find(([, rs]) => new Set(rs).size >= 2)!;
     const p = b.items.find((q) => q.uid === uid)!;
-    expect(rigArrows(p.def).length).toBeGreaterThanOrEqual(2);
+    // BUMP-1F (ENCHANT on by default, RULING-BUMP1F-R5 R5.2 (2); ENCHANT-1 WIDE): the placed rig's arrows (arrowsOf: the def's own and WIDE's added one, as rigHits counts them); was rigArrows(p.def), the def's own alone
+    // (the first two-belt rig of the par field is a one-arrow rig with WIDE now: 1 of 2)
+    expect(arrowsOf(p).length).toBeGreaterThanOrEqual(2);
   });
 });
 
