@@ -618,6 +618,85 @@ export function runeListLayout(n: number, avail: number, foot = RUNE_LIST_FOOT_M
   return { h: RUNE_LIST_HEAD + per * RUNE_ROW_H + foot + 2, per, pages: Math.ceil(n / per), foot };
 }
 
+/** ROWS-1 (REQ-BFG-100; F17): a row of the list is the rune's name and day and then its first sentence WHOLE: every line the sentence
+ *  wraps to at text width `tw` (the card's, runeCardTextW), in the 5x7 face. runeTextLines()[0] drew only the first of them, so on a
+ *  phone FORGE WARD's `EACH SLUG FROM YOUR FACTORY: +104 SHIELD.` read `EACH SLUG FROM YOUR FACTORY:` and stopped. Only the first
+ *  sentence: SEARING's and SHATTER SHOT's second sentence stays on the card. Pure (the list, tests). */
+export function runeRowLines(def: RuneDef, tw: number, day?: number): RichLine[] {
+  const first = runeSentenceSpans(def, undefined, day)[0];
+  return first ? wrapRich(first, tw, "5") : [];
+}
+
+/** ROWS-1 (F17): a list row's height for `lines` text lines: RUNE_ROW_H (19: the name's row, 9 for its one line and 1 clear) and
+ *  9 more for each further line, so a two-line row takes two line heights and rows never overlap. Pure. */
+export const runeListRowH = (lines: number): number => RUNE_ROW_H + (Math.max(1, lines) - 1) * 9;
+
+/** ROWS-1 (F17): runeListLayout's answer and where each page starts: `starts` is the first row of each page, then the row count (page p
+ *  holds rows starts[p] .. starts[p + 1] - 1; one page: [0, n]). */
+export interface RuneListPages extends RuneListLayout {
+  starts: number[];
+}
+
+/** ROWS-1 (F17): runeListLayout for rows of any height: `rowHs`, each row's height (runeListRowH). Whole when the list fits `avail`
+ *  (as runeListLayout: RUNE_LIST_HEAD + the rows + 2); else the fewest pages that fit, each holding as many WHOLE rows in order as the
+ *  room under the title and over the foot takes (a row is never split across pages or drawn outside the box), as even as can be (the
+ *  least room that still needs no more pages: 50 one-line rows where 16 fit are 13, 13, 13 and 11, not 16, 16, 16 and 2), the panel as
+ *  tall as its tallest page on every page. With every row RUNE_ROW_H tall it is runeListLayout's answer, field for field
+ *  (tests/rows1.runes.test.ts). Pure. */
+export function runeListPages(rowHs: readonly number[], avail: number, foot = RUNE_LIST_FOOT_MIN): RuneListPages {
+  const n = rowHs.length, whole = RUNE_LIST_HEAD + rowHs.reduce((a, b) => a + b, 0) + 2;
+  if (n <= 0 || whole <= avail) return { h: whole, per: Math.max(1, n), pages: 1, foot: 0, starts: [0, n] };
+  const room = avail - RUNE_LIST_HEAD - foot - 2;
+  // the pages a row room of `cap` px makes, in order, each at least one row (a row taller than the room stands alone)
+  const fill = (cap: number): number[] => {
+    const starts = [0];
+    let used = 0;
+    for (let i = 0; i < n; i++) {
+      if (used > 0 && used + rowHs[i] > cap) { starts.push(i); used = 0; }
+      used += rowHs[i];
+    }
+    starts.push(n);
+    return starts;
+  };
+  const fewest = fill(Math.max(1, room)).length - 1;
+  let lo = Math.max(...rowHs), hi = Math.max(lo, room);
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (fill(mid).length - 1 <= fewest) hi = mid;
+    else lo = mid + 1;
+  }
+  const starts = fill(lo);
+  let tallest = 0, per = 0;
+  for (let p = 0; p + 1 < starts.length; p++) {
+    tallest = Math.max(tallest, rowHs.slice(starts[p], starts[p + 1]).reduce((a, b) => a + b, 0));
+    per = Math.max(per, starts[p + 1] - starts[p]);
+  }
+  return { h: RUNE_LIST_HEAD + tallest + foot + 2, per, pages: starts.length - 1, foot, starts };
+}
+
+/** ROWS-1 (F17): one row of the list as drawn: its rune's index, the y of its name's row, its height and the lines of its first sentence. */
+export interface RuneListRow { index: number; y: number; h: number; lines: RichLine[] }
+/** ROWS-1 (F17): the list as drawn on one page: the panel's box, the page, the layout it came from and the page's rows. */
+export interface RuneListPlan { box: Rect; layout: RuneListPages; page: number; rows: RuneListRow[] }
+
+/** ROWS-1 (REQ-BFG-100; F17): the YOUR RUNES list for `defs` as drawn on page `page` (clamped), at (`x`, `y`), `w` wide, in `avail` px of
+ *  height (the screen under the bar, less a margin; Infinity: the whole list) with a `foot`-tall page foot when it must be paged: the
+ *  panel's box and each row of the page, its lines the rune's first sentence whole (runeRowLines at the card's text width on `day`).
+ *  The rows follow one another by their own heights, so they never overlap, and every row of the page is inside the box (the box is the
+ *  panel's tap target too: it covers every row). drawOver draws exactly this. Pure (tests). */
+export function runeListPlan(defs: readonly RuneDef[], x: number, y: number, w: number, avail: number, foot: number, page: number, day?: number): RuneListPlan {
+  const lines = defs.map((d) => runeRowLines(d, runeCardTextW(w), day));
+  const layout = runeListPages(lines.map((l) => runeListRowH(l.length)), avail, foot);
+  const p = Math.max(0, Math.min(layout.pages - 1, page)), rows: RuneListRow[] = [];
+  let ry = y + RUNE_LIST_HEAD;
+  for (let i = layout.starts[p]; i < layout.starts[p + 1]; i++) {
+    const h = runeListRowH(lines[i].length);
+    rows.push({ index: i, y: ry, h, lines: lines[i] });
+    ry += h;
+  }
+  return { box: { x, y, w, h: layout.h }, layout, page: p, rows };
+}
+
 // ---- the bar on the build screen ---------------------------------------------------------------------------------------
 
 /** The bar's state on one build screen: the chip whose read-out is open (-1 none), or the full list. */
@@ -705,21 +784,22 @@ export class RuneBar {
     } else if (this.list) {
       // ENDLESS-1: the whole list when it fits under the bar (exactly as before), else a page of rows and a foot (runeListLayout)
       // (only a run that carries the endless mark pages: any other run's list is the whole list, as it always was)
-      const LL = runeListLayout(defs.length, endlessMarked(s.run) ? s.game.H - 4 - y : Infinity, Math.max(RUNE_LIST_FOOT_MIN, runeTapOf(s)));
+      // ROWS-1 (REQ-BFG-100; F17): each row is its rune's first sentence WHOLE (runeRowLines: every line it wraps to, was the first
+      // line only), so a row is 19 px for one line and 9 more for each further line (runeListRowH); the pages (runeListPages) hold
+      // whole rows by those heights. A row's words are the card's at this width: on the desk every row is one line, as before
+      const P = runeListPlan(defs, x, y, w, endlessMarked(s.run) ? s.game.H - 4 - y : Infinity, Math.max(RUNE_LIST_FOOT_MIN, runeTapOf(s)), this.page, s.run.day);
+      const LL = P.layout, r = P.box;
       this.pages = LL.pages;
-      this.page = Math.max(0, Math.min(LL.pages - 1, this.page));
-      const r = { x, y, w, h: LL.h };
+      this.page = P.page;
       panel(g, r, "dark");
       drawText(g, `YOUR RUNES ${defs.length}`, r.x + 5, r.y + 5, C.slate4, { font: "3" });
-      const from = this.page * LL.per;
-      defs.slice(from, from + LL.per).forEach((d, j) => {
-        const i = from + j, ry = r.y + RUNE_LIST_HEAD + j * RUNE_ROW_H;
-        drawText(g, d.name, r.x + 5, ry, tierColour(d.tier));
-        drawText(g, `DAY ${i + 1}`, r.x + r.w - 5, ry + 1, C.slate4, { font: "3", align: "right" });
-        const line = runeTextLines(d, runeCardTextW(r.w), s.run.day)[0] ?? []; // Y-FURN: a two-line rune's first sentence, whole
-        drawRich(g, line, r.x + 5, ry + 9, "5");
-      });
-      ui.add({ id: "rune-readout", r, onTap: () => { this.list = false; } });
+      for (const row of P.rows) {
+        const d = defs[row.index];
+        drawText(g, d.name, r.x + 5, row.y, tierColour(d.tier));
+        drawText(g, `DAY ${row.index + 1}`, r.x + r.w - 5, row.y + 1, C.slate4, { font: "3", align: "right" });
+        row.lines.forEach((line, li) => drawRich(g, line, r.x + 5, row.y + 9 + li * 9, "5")); // Y-FURN: a two-line rune's first sentence, whole
+      }
+      ui.add({ id: "rune-readout", r, onTap: () => { this.list = false; } }); // the panel is the tap target: it holds every row of the page
       if (LL.pages > 1) this.drawFoot(g, s, r, LL); // after the panel's region: the last region wins
     } else this.pages = 1;
   }
