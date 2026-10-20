@@ -120,13 +120,15 @@ export async function fetchGhost(
 /**
  * Upload tonight's snapshot, signed by this device's key. Encoding enforces the strict format and
  * the 16 KB cap; the signature covers exactly the bytes sent (x-bb-key, x-bb-sig). A snapshot whose
- * playerId is not identity.playerId is refused here, without a request: the server would refuse it.
+ * playerId is not identity.playerId (or, IDENT-1, the key's own id) is refused here, without a request: the server would refuse it.
  */
 export async function submitGhost(
   baseUrl: string, snapshot: GhostSnapshot, identity: Identity, timeoutMs = 4000,
 ): Promise<SubmitResult> {
   try {
-    if (snapshot.playerId !== identity.playerId) {
+    // IDENT-1: this device's player id is its canonical player's once its key is linked (identity.playerId); the key's own id
+    // (identity.keyId) is the other id the server takes from it. Anything else would be refused by the server as a 403
+    if (snapshot.playerId !== identity.playerId && snapshot.playerId !== identity.keyId) {
       return { ok: false, error: "snapshot.playerId is not this device's player id: not uploaded" };
     }
     const body = new TextEncoder().encode(encodeSnapshot(snapshot));

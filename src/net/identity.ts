@@ -19,6 +19,9 @@
 // Without crypto.subtle (a page on plain http is not a secure context) loadIdentity returns null
 // and the caller must not upload: on a plain-http link the game plays offline.
 
+import { capacitorMirror, MIRROR_JWK, MIRROR_LINK, type IdentityMirror } from "./identityMirror";
+import { browserLinkStorage, encodeLink, linkedPlayer, parseLink, readLink, writeLink, type LinkStorage } from "./linkState";
+
 export const UPLOAD_PREFIX = "bb-ghost-upload-1\n";
 /** PROFILE-UP: the signature domain of PUT /v1/profile. Neither prefix starts with the other, so no body can make a
  *  signature over one domain's message equal one over the other's. */
@@ -59,6 +62,9 @@ export interface KeyStore {
   get(): Promise<CryptoKeyPair | null>;
   /** Store `pair` unless a pair is stored already; a stored pair is never replaced. */
   addIfAbsent(pair: CryptoKeyPair): Promise<void>;
+  /** IDENT-1: forget the stored pair, so the next load makes a new key (DELETE MY ONLINE DATA). Optional: a store without it
+   *  cannot be cleared. */
+  clear?(): Promise<void>;
 }
 
 /** The two header values of one signed upload. */
@@ -68,8 +74,18 @@ export interface SignedUpload {
 }
 
 export interface Identity {
-  /** base64url(SHA-256(raw public key)), no padding: 43 characters. */
+  /**
+   * base64url(SHA-256(raw public key)), no padding: 43 characters. IDENT-1 (REQ-BFG-122): for a key that is LINKED to a player it is
+   * that canonical player's id (the first key's own id), as of the load or the last refresh(); the id every request and snapshot of
+   * the session carries. For an unlinked key, and so for every 0.9.13 device, it is the key's own id, as ever.
+   */
   readonly playerId: string;
+  /** IDENT-1: the key's own id, base64url(SHA-256(raw public key)); equal to playerId while the key is linked to nobody. Absent on
+   *  a hand-made Identity (tests): then playerId is the key's own. */
+  readonly keyId?: string;
+  /** IDENT-1: read the link record again, so playerId follows a link made since the load. The title calls it when a NEW RUN starts:
+   *  a link takes effect at the next new run. Absent on a hand-made Identity. */
+  refresh?(): void;
   /** The raw public key: 65 bytes, uncompressed. */
   readonly publicKey: Uint8Array;
   /** Sign UPLOAD_PREFIX + these exact body bytes; returns the x-bb-key and x-bb-sig values. PROFILE-UP: with a `domain`,
@@ -158,30 +174,115 @@ export async function playerIdFromKey(raw: Uint8Array, subtle: MaybeSubtle = web
  * (a plain-http page) or the key cannot be made, stored or read (for example no IndexedDB): the
  * caller must not upload then. Never throws.
  */
-export async function loadIdentity(store: KeyStore, subtle: MaybeSubtle = webSubtle()): Promise<Identity | null> {
+export async function loadIdentity(store: KeyStore, subtle: MaybeSubtle = webSubtle(), opts: LoadOptions = {}): Promise<Identity | null> {
   if (!subtle) return null;
   const crypto = subtle;
+  // IDENT-1: the native mirror (the phone builds) and the link record. On the web the mirror is null and nothing below it runs:
+  // the key is generated non-extractable and kept in IndexedDB only, exactly as before. A device that was never linked has no
+  // record, so its playerId is its key's own, exactly as before.
+  const mirror = opts.mirror === undefined ? capacitorMirror() : opts.mirror;
+  const linkStore = opts.links === undefined ? browserLinkStorage() : opts.links;
   try {
     let pair = await store.get();
     if (!pair) {
-      await store.addIfAbsent(await crypto.generateKey(KEY_ALG, false, ["sign", "verify"]));
+      // an empty IndexedDB plus a mirrored key: the same key comes back, so the playerId stays (a purged WebView is not a new player)
+      const restored = mirror ? await pairFromMirror(crypto, mirror) : null;
+      await store.addIfAbsent(restored ?? (await newPair(crypto, mirror)));
       pair = await store.get(); // another tab may have stored its pair first: use the stored one
     }
     if (!pair) return null;
     const publicKey = new Uint8Array(await crypto.exportKey("raw", pair.publicKey));
-    const playerId = await playerIdFromKey(publicKey, crypto);
+    const keyId = await playerIdFromKey(publicKey, crypto);
     const key = toBase64Url(publicKey);
     const privateKey = pair.privateKey;
-    return {
-      playerId,
+    if (mirror) await syncLinkWithMirror(mirror, linkStore, keyId);
+    let player = linkedPlayer(keyId, linkStore) ?? keyId; // a link takes effect when the session re-reads it (refresh), at a new run
+    const identity: Identity = {
+      get playerId() {
+        return player;
+      },
       publicKey,
       async sign(body: Uint8Array, domain: SignDomain = UPLOAD_PREFIX): Promise<SignedUpload> {
         const sig = new Uint8Array(await crypto.sign(SIG_ALG, privateKey, uploadMessage(body, domain)));
         return { key, sig: toBase64Url(sig) };
       },
     };
+    // keyId and refresh are not enumerable: the identity's own shape (playerId, publicKey, sign; no private material) is what
+    // tests/net-identity.test.ts pins, and a spread of an identity (a test's) carries the three as ever
+    Object.defineProperties(identity, {
+      keyId: { value: keyId },
+      refresh: { value: () => { player = linkedPlayer(keyId, linkStore) ?? keyId; } },
+    });
+    return identity;
   } catch {
     return null;
+  }
+}
+
+/** IDENT-1: what loadIdentity may be handed (the defaults are the browser's / the phone's). */
+export interface LoadOptions {
+  /** The native key mirror (identityMirror.ts). Default capacitorMirror(): an adapter where the app has Capacitor's Preferences
+   *  plugin, else null. null: the web path, non-extractable and IndexedDB only. */
+  mirror?: IdentityMirror | null;
+  /** Where the link record (beltbattles.link.v1) is read. Default localStorage. null: none. */
+  links?: LinkStorage | null;
+}
+
+/** A new device key. With a mirror: made extractable ONCE, its private JWK goes to the mirror first (so a crash after this leaves a
+ *  key the mirror can restore, never one it can't), and the pair returned is the non-extractable re-import, which is what
+ *  IndexedDB keeps and what signs. Without one: non-extractable from the start, as ever. */
+async function newPair(crypto: SubtleCrypto, mirror: IdentityMirror | null): Promise<CryptoKeyPair> {
+  if (!mirror) return crypto.generateKey(KEY_ALG, false, ["sign", "verify"]);
+  const fresh = await crypto.generateKey(KEY_ALG, true, ["sign", "verify"]);
+  const jwk = await crypto.exportKey("jwk", fresh.privateKey);
+  try {
+    await mirror.set(MIRROR_JWK, JSON.stringify(jwk));
+  } catch {
+    /* the mirror refused it: the key works all the same, from IndexedDB, as it would on the web */
+  }
+  return pairFromJwk(crypto, jwk);
+}
+
+/** The pair a private JWK stands for, with the private key non-extractable (the public half is always exportable). */
+async function pairFromJwk(crypto: SubtleCrypto, jwk: JsonWebKey): Promise<CryptoKeyPair> {
+  const { kty, crv, x, y } = jwk;
+  return {
+    privateKey: await crypto.importKey("jwk", jwk, KEY_ALG, false, ["sign"]),
+    publicKey: await crypto.importKey("jwk", { kty, crv, x, y }, KEY_ALG, true, ["verify"]),
+  };
+}
+
+/** The mirrored key as a pair, or null: nothing mirrored, or a value that is not a P-256 private JWK (then a new key replaces it). */
+async function pairFromMirror(crypto: SubtleCrypto, mirror: IdentityMirror): Promise<CryptoKeyPair | null> {
+  let text: string | null;
+  try {
+    text = await mirror.get(MIRROR_JWK);
+  } catch {
+    return null;
+  }
+  if (text === null) return null;
+  try {
+    const jwk = JSON.parse(text) as JsonWebKey;
+    if (jwk.kty !== "EC" || jwk.crv !== "P-256" || typeof jwk.x !== "string" || typeof jwk.y !== "string" || typeof jwk.d !== "string") return null;
+    return await pairFromJwk(crypto, jwk);
+  } catch {
+    return null;
+  }
+}
+
+/** The link record and its mirror agree: a record the mirror has and this device lost (a purged WebView) comes back; a record this
+ *  device has and the mirror lacks goes in. Only this key's record counts. Never throws. */
+async function syncLinkWithMirror(mirror: IdentityMirror, links: LinkStorage | null, keyId: string): Promise<void> {
+  try {
+    const here = readLink(links);
+    const there = parseLink(await mirror.get(MIRROR_LINK));
+    if (here && here.key === keyId) {
+      if (!there || there.key !== keyId) await mirror.set(MIRROR_LINK, encodeLink(here));
+    } else if (there && there.key === keyId && links) {
+      writeLink(there, links);
+    }
+  } catch {
+    /* the mirror is a safety net: a failure here never stops the identity */
   }
 }
 
@@ -265,6 +366,9 @@ export function memoryKeyStore(): KeyStore {
     async addIfAbsent(pair) {
       if (stored === null) stored = pair;
     },
+    async clear() {
+      stored = null;
+    },
   };
 }
 
@@ -322,6 +426,19 @@ export function indexedDbKeyStore(factory: IDBFactory | undefined = (globalThis 
           };
           tx.oncomplete = () => resolve();
           tx.onabort = () => reject(tx.error ?? new Error("IndexedDB write aborted"));
+        });
+      } finally {
+        db.close();
+      }
+    },
+    async clear() {
+      const db = await open();
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const tx = db.transaction(IDB_STORE, "readwrite");
+          tx.objectStore(IDB_STORE).delete(IDB_KEY);
+          tx.oncomplete = () => resolve();
+          tx.onabort = () => reject(tx.error ?? new Error("IndexedDB delete aborted"));
         });
       } finally {
         db.close();
