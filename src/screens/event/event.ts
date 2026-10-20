@@ -33,6 +33,7 @@ import { TitleScreen } from "../title";
 import { npcDayRules } from "../../sim/npcDay"; // NPC-1 (REQ-BFG-077): REFIT before every dusk
 import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): a hull gain on the day's hull
 import { ENCHANT_DEFS, isEnchantId } from "../../sim/enchant"; // ENCHANT-2 (REQ-BFG-085, T3): the shrine's word in its own colour
+import { shrineOffer } from "../../game/shrine"; // ENCHANT-2W (REQ-BFG-085, W2): word B of the shrine's offer, for its blocked card's would-be line (read only)
 
 const AUTO = 1.9; // seconds after a pick before rolling on to the battle (no REFIT decision)
 /** NPC-1 (REQ-BFG-077; NPC_DAY on): the event's one way on, REFIT before dusk. */
@@ -212,6 +213,8 @@ export class EventScreen implements Screen {
     this.drawHeader(g);
     // choice cards (after a pick: the chosen card slides to the first slot, the rest give way)
     const cv = this.cv;
+    // ENCHANT-2W (REQ-BFG-085; W2): the ASH SHRINE's blocked card 2 draws the line it would have; it needs word B, which the shrine's own offer names (read only). Every other event: none.
+    cv.shrineWord = ev.id === "shrine" ? shrineOffer(run.seed, ev.day)[1] : undefined;
     for (let i = 0; i < this.choices.length; i++) {
       const id = CARD_IDS[i];
       let r = L.cards[i];
@@ -244,7 +247,7 @@ export class EventScreen implements Screen {
       const word = wordOf(this.choices[this.info]);
       if (word) {
         const pr = { x: L.panel.x + 2, y: L.panel.y + 2, w: L.panel.w - 4, h: L.panel.h - 4 };
-        drawWordInfo(g, pr, word);
+        drawWordInfo(g, pr, word, run.day); // ENCHANT-2W (W3): the run's day: RISING's and GROWING's amounts are the day's, as the part's panel gives them
         ui.add({ id: "wordinfo", r: pr, onTap: () => { this.info = -1; }, block: true });
       }
     }

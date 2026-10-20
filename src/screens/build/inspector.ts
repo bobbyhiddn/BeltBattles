@@ -459,6 +459,9 @@ export interface PanelText {
    *  the NOTES (faces.ts enchantNotes). Absent for every plain piece. */
   ench?: EnchantId;
   sub: string;
+  /** ENCHANT-2W (REQ-BFG-085; W5): a FOE's part panel (battleScout.ts faceText's `owner`): the possessive that starts `sub` and `subShort` (`SPARKFANG'S`). Where the desk column is too
+   *  narrow for the whole sub, planPanel puts the owner on a line of its own and the rest of the sub under it, so the sub is never cut; absent for every other panel. */
+  subOwner?: string;
   subColor?: string; // 0.6.2 BELTSIDE: an IDLE rig's sub line warns
   subShort?: string; // 0.6.2 BELTSIDE: the sub line where `sub` doesn't fit beside the portrait strip's buttons
   /** A header-only strip's text (the 360x640 portrait): the fullest that fits, on up to two lines (0.6.2 BELTSIDE's
@@ -1677,6 +1680,13 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
   return o.gaps === false ? planIn(sp, area, families, o, true) : s;
 }
 
+/** ENCHANT-2W (REQ-BFG-085; W5): a sub line as one line, or as two where it is wider than `max` and has a " · " (broken after the last one, as planIn breaks a sub on the desk column) or a full stop. */
+function breakSub(s: string, max: number): string[] {
+  const cut = s.lastIndexOf(" · "), stop = s.lastIndexOf(". ");
+  if (textWidth(s, "3") <= max || (cut <= 0 && stop <= 0)) return [s];
+  return cut > 0 ? [s.slice(0, cut + 2), s.slice(cut + 3)] : [s.slice(0, stop + 1), s.slice(stop + 2)];
+}
+
 /** planPanel's plan; `small` (CARD-3, B's lever 3): the body in the 3x5 face only (planBody's `small`). */
 function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean }, small: boolean): PanelPlan {
   const column = !o.band && area.h >= 70; // landscape column: size to content, the buttons under the text
@@ -1695,10 +1705,15 @@ function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { 
   // 0.6.1r (item 11): a sub-line wider than the desk column breaks after its last " · " onto a second line; 0.6.2rel:
   // or after its last full stop (a joining belt's "JOINS BELT 1. FEEDS TURRET 1.")
   const cut = sp.sub.lastIndexOf(" · "), stop = sp.sub.lastIndexOf(". ");
-  const subs = column && (cut > 0 || stop > 0) && textWidth(sp.sub, "3") > area.w - 27
-    ? cut > 0 ? [sp.sub.slice(0, cut + 2), sp.sub.slice(cut + 3)] : [sp.sub.slice(0, stop + 1), sp.sub.slice(stop + 2)]
-    : [sp.sub];
-  const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 : 0);
+  // ENCHANT-2W (REQ-BFG-085; W5): a foe's sub line that is wider than the column (`SPARKFANG'S HEAVY TURRET IN SLOT 1`, 134 px) puts the owner on a line of its own and the rest of
+  // the sub under it (itself broken at its last " · " or full stop where that is wider than the column too): the sub is never cut, the owner never given way. Any other panel: as before.
+  const wideSub = textWidth(sp.sub, "3") > area.w - 27;
+  const ownerLine = column && wideSub && !!sp.subOwner && sp.sub.startsWith(`${sp.subOwner} `) ? sp.subOwner : null;
+  const subs = ownerLine !== null ? [ownerLine, ...breakSub(sp.sub.slice(ownerLine.length + 1), area.w - 27)]
+    : column && (cut > 0 || stop > 0) && wideSub
+      ? cut > 0 ? [sp.sub.slice(0, cut + 2), sp.sub.slice(cut + 3)] : [sp.sub.slice(0, stop + 1), sp.sub.slice(stop + 2)]
+      : [sp.sub];
+  const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 + 6 * (subs.length - 2) : 0); // a third sub line (the owner's, then a broken sub) takes its 6 px more
   const extra = labels.length ? btnRows * pitch + 3 : 4;
   const headRight = !column && port && !port.shift ? port.rects[0].x - 3 : area.x + area.w - 4;
   const subMax = headRight - (area.x + 23);

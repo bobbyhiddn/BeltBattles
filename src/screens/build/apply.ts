@@ -350,7 +350,7 @@ export function sideWord(s: { run: Run; L: { frame: Parameters<typeof sdir>[0] }
 export function wordSpec(ctx: Ctx, show: WordSel): { icon: HTMLCanvasElement | null; text: PanelText; actions: WordAction[] } | null {
   const info = wordOf(ctx.run, show);
   if (!info) return null;
-  const f = wordFace(info.id), st = applyState(ctx);
+  const f = wordFace(info.id, ctx.run.day), st = applyState(ctx); // ENCHANT-2W (REQ-BFG-085; W3): the run's day: the ENCHANTER's offer, a warlord pick, REFIT's pick strip and APPLY give RISING's and GROWING's amounts on the day, as the part's panel does
   const open = !!st && st.pick === show.pick && st.i === show.i;
   const rows: Block[] = f.lines.map((l): Block => (l.legal
     ? { role: "ability", text: `${l.label}: ${wordText(l.text)}`, brass: `${l.label}:`, keep: !open, rank: 2 }

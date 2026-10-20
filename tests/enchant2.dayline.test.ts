@@ -6,6 +6,9 @@
 //   The ruling: on a PART's panel every DMG amount these two words print goes through the day (hullScale.ts dmgShown: step x stars x D(day), rounded down), on your parts and a
 //   rival's alike; the word's own CARD (the ENCHANTER's offer, a warlord pick, the shrine's ?, APPLY, LAST CHANCE's detail) is about no piece and keeps day 1's numbers.
 //   UI only: no sim change, ENCHANT off byte-identical.
+//   ENCHANT-2W (REQ-BFG-085; W3, cap's review of ENCHANT-2): that last clause is superseded for a card drawn DURING A RUN: it passes the run's day (wordFace(id, day), lcWordItem's `day`),
+//   so the ENCHANTER's GROWING card on day 6 says +10 as the panel does (tests/enchant2w.days.test.ts). A card drawn with NO run (the text sheet's, a glossary) still keeps day 1's
+//   numbers: the card tests below call wordFace and lcWordItem with no day, which is that case.
 import { afterEach, describe, expect, it } from "vitest";
 import { installRaster } from "./raster.helpers";
 import { newRun, type Run } from "../src/game/run";
@@ -84,7 +87,7 @@ describe("ENCHANT-2 T6 fix round: wordLine / pieceLine take the panel's day for 
     });
   });
 
-  it("the word's own CARD keeps day 1's numbers (the ENCHANTER's offer, a warlord pick, the shrine's ?, APPLY: wordFace; LAST CHANCE's detail: lcWordItem): +5 and +1, on every kind", () => {
+  it("the word's own CARD, drawn with NO run (no day: the text sheet's; ENCHANT-2W W3: a card drawn in a run passes its day), keeps day 1's numbers (wordFace; LAST CHANCE's detail: lcWordItem): +5 and +1, on every kind", () => {
     on(() => {
       for (const kind of KINDS) {
         const g = wordFace("growing").lines.find((l) => l.kind === kind), r = wordFace("rising").lines.find((l) => l.kind === kind);

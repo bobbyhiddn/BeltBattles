@@ -4,6 +4,8 @@
 // The T6 fix round (words only; E2-01, E2-01b) adds: card 2 names what it takes with a count (`1 TEMPER`, never at the cost of a name the card showed
 // before), says where the part comes from (OFFER CARGO PART) and what is missing when it is blocked (NOTHING IN CARGO TO OFFER), both word cards say which
 // part gets the word, and every one of those lines fits every card width and the `?` button's corner.
+// ENCHANT-2W (REQ-BFG-085; W1, E2-01): the count reads `1x TEMPER` (the game's own count form, as `3x DMG`; a bare `1 TEMPER` was taken for a star by three of six readers);
+// this file's count tests are rewritten for it, and tests/enchant2w.shrine.test.ts has the new ones (the blocked card's would-be line, the fit table).
 import { describe, expect, it } from "vitest";
 import { G, fresh, installRaster, type RasterCanvas } from "./raster.helpers";
 
@@ -11,7 +13,7 @@ installRaster();
 
 import { ITEMS } from "../src/sim/content";
 import { ENCHANT_DEFS, ENCHANT_IDS } from "../src/sim/enchant";
-import { chipText, choiceLabel, deltaColour, deltaIcon, deltaText, drawChoiceCard, exchangeForm, itemName } from "../src/screens/event/cards";
+import { SHRINE_COUNT, chipText, choiceLabel, deltaColour, deltaIcon, deltaText, drawChoiceCard, exchangeForm, itemName } from "../src/screens/event/cards";
 import { eventLayout } from "../src/screens/event/layout";
 import { infoButton } from "../src/screens/event/wordInfo";
 import { SHRINE_HULL, SHRINE_NOTE, SHRINE_NO_PART, SHRINE_NO_TAKER } from "../src/game/shrine";
@@ -80,8 +82,9 @@ describe("T6 fix round (words only): card 2 names what it takes, with a count", 
   const temper: Delta = { k: "item", def: "temper", uid: 1, from: "cargo" };
   const card = (def: string, word = "wide"): Choice => ({ label: "OFFER A PART", cost: [{ k: "item", def, uid: 1, from: "cargo" }], gain: [{ k: "ench", word }], note: SHRINE_NOTE });
 
-  it("a card that gains a word reads the part it takes as `1 TEMPER`; every other chip is deltaText, as before", () => {
-    expect(chipText(temper, true, 4, false, true)).toBe("1 TEMPER");
+  it("a card that gains a word reads the part it takes as `1x TEMPER` (W1: the game's own count form; was `1 TEMPER`); every other chip is deltaText, as before", () => {
+    expect(SHRINE_COUNT).toBe("1x");
+    expect(chipText(temper, true, 4, false, true)).toBe("1x TEMPER");
     expect(chipText(temper, true, 4, true, true)).toBe(""); // the icon alone (bare): the T3 fallback
     expect(chipText(temper, true, 4, false)).toBe("TEMPER"); // a card that gains no word (the TRADER's, every ENCHANT-off card)
     expect(chipText({ k: "item", def: "temper" }, false, 4, false, true)).toBe("TEMPER"); // a part a card GIVES carries no count
@@ -100,8 +103,8 @@ describe("T6 fix round (words only): card 2 names what it takes, with a count", 
     const order = ["bare", "name", "count"];
     expect(seq.map((f) => order.indexOf(f))).toEqual(seq.map((f) => order.indexOf(f)).sort((a, b) => a - b)); // monotone: more room never shows less
     expect(new Set(seq)).toEqual(new Set(order));
-    // the count costs exactly its own glyphs: the `name` band is as wide as `1 ` is
-    expect(seq.filter((f) => f === "name").length).toBe(textWidth(`1 ${itemName(longest)}`, "3") - textWidth(itemName(longest), "3"));
+    // the count costs exactly its own glyphs: the `name` band is as wide as `1x ` is
+    expect(seq.filter((f) => f === "name").length).toBe(textWidth(`${SHRINE_COUNT} ${itemName(longest)}`, "3") - textWidth(itemName(longest), "3"));
   });
 
   it("no card shows a name less than T3 showed: the cards that fall to the icon alone are exactly the ones that did before the count", () => {
@@ -117,11 +120,11 @@ describe("T6 fix round (words only): card 2 names what it takes, with a count", 
     }
   });
 
-  it("on the cards the pictures use (the desk's 152 px and the phone's 193 px) the TEMPER card says `1 TEMPER`, and on the narrowest cards it does too", () => {
+  it("on the cards the pictures use (the desk's 152 px and the phone's 193 px) the TEMPER card says `1x TEMPER`, and on the narrowest cards it does too", () => {
     for (const w of [138, 152, 160, 182, 190, 193]) for (const id of ENCHANT_IDS) expect(exchangeForm(card("temper", id), w - 10, 4), `${id}@${w}`).toBe("count");
   });
 
-  it("the count is drawn: the card's exchange band holds the glyph `1` more than the same card one px narrower (name form), nothing else moves", () => {
+  it("the count is drawn: the card's exchange band holds the glyphs `1x` more than the same card one px narrower (name form), nothing else moves", () => {
     // the longest name of a part with no grid plate (a plate takes room from the exchange line, which this test measures by the card's width)
     const longest = CARGO_PARTS.filter((d) => !hasGrid(d)).sort((a, b) => textWidth(itemName(b), "3") - textWidth(itemName(a), "3"))[0];
     // the widest room at which the card is still in its name form, and the narrowest at which it is in its count form (r.w - 10 is the room)
@@ -139,7 +142,7 @@ describe("T6 fix round (words only): card 2 names what it takes, with a count", 
     };
     const redIn = (c: RasterCanvas, w: number): number => colourPx(c, 3, 4, w, C.red);
     const one = fresh(10, 10);
-    drawText(G(one), "1", 1, 1, C.red, { font: "3" });
+    drawText(G(one), SHRINE_COUNT, 1, 1, C.red, { font: "3" });
     let glyph = 0;
     for (let i = 0; i < one.px.length; i++) if (one.px[i] === C.red) glyph++;
     expect(glyph).toBeGreaterThan(3);

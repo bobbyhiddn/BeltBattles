@@ -43,9 +43,10 @@ import { EXTRA_BELT_LEFT, KEPT_WIDE } from "../src/game/fuse"; // ENCHANT-1 (run
 import { newRun, type Run } from "../src/game/run"; // ENCHANT-2 (T4): the ASH SHRINE's cards, made on a real run
 import { makeEvent } from "../src/game/events"; // ENCHANT-2 (T4)
 import type { Choice, Delta, EventState } from "../src/game/eventDefs"; // ENCHANT-2 (T4)
-import { SHRINE_ID, SHRINE_NO_TAKER, shrineChoices } from "../src/game/shrine"; // ENCHANT-2 (T3): the cards and the reason a card is blocked
-import { warlordDropTable } from "../src/game/road"; // ENCHANT-2 (T2): a rival's drop table, its lines carrying the word
-import { cardNote, choiceLabel, deltaIcon, deltaText, itemName } from "../src/screens/event/cards"; // ENCHANT-2 (T3): the card's strings and the widths its chips take
+import { SHRINE_ID, SHRINE_NO_TAKER, shrineChoices, shrineOffer } from "../src/game/shrine"; // ENCHANT-2 (T3): the cards and the reason a card is blocked; ENCHANT-2W (W2): word B of the offer
+import { EASY_PAY_LATE, MATRIARCH_GOLD, REWARD_GOLD, warlordDropTable } from "../src/game/road"; // ENCHANT-2 (T2): a rival's drop table, its lines carrying the word; ENCHANT-2W (W4): the warlords' reward gold
+import { goldLineParts, goldLineText } from "../src/screens/warlordHud"; // ENCHANT-2W (W4): the victory card's gold line
+import { cardNote, chipText, choiceLabel, deltaIcon, deltaText, exchangeForm, ghostForm, ghostText, ghostWidth, isShrineBlockedPart, itemName } from "../src/screens/event/cards"; // ENCHANT-2 (T3): the card's strings and the widths its chips take; ENCHANT-2W: the count form, the blocked card's would-be line
 import { eventLayout } from "../src/screens/event/layout"; // ENCHANT-2 (T3): the card widths the event screen lays out
 import { wordInfoRows } from "../src/screens/event/wordInfo"; // ENCHANT-2 (T3): the word card behind a card's `?`
 import { cutName, dropCardText, dropListHeader, dropListText, dropWord, fitWordName, NO_DROP } from "../src/screens/fork/drops"; // ENCHANT-2 (T2): the drop list and the victory card
@@ -126,7 +127,8 @@ function sheet(): string {
   out.push("", "Rune reminders: " + Object.entries(RUNE_REMINDER).map(([k, v]) => `${k} \`${v}\``).join("; "), "");
   out.push("## Captains", "");
   for (const id of RIVAL_IDS) out.push(`- ${RIVALS[id].name}: trick \`${RIVALS[id].trick}\`, blurb \`${RIVALS[id].blurb}\`${id === "karsk" ? " — SUS-B" : ""}`);
-  if (enchantRules()) enchantSection(out); // ENCHANT-1 (REQ-BFG-085): with --enchant only; without it the sheet is the base's, line for line
+  victoryGoldSection(out); // ENCHANT-2W (W4): the warlord victory card's gold line: base text, so this section is in the sheet with ENCHANT off too
+  if (enchantRules()) enchantSection(out); // ENCHANT-1 (REQ-BFG-085): with --enchant only; without it the sheet is the base's, line for line (plus ENCHANT-2W's gold-line section above)
   return out.join("\n") + "\n";
 }
 
@@ -304,33 +306,42 @@ function shrineAt(cargo: string[], day: number): { run: Run; ev: EventState } {
   return { run, ev: makeEvent(SHRINE_SEED, day, SHRINE_ID) };
 }
 
-/** cards.ts chipWidth: a chip is its icon, 2 px and its text, then 5 px; a part's chip is its icon alone when `bare`. */
-const chipW = (d: Delta, cost: boolean, day: number, bare: boolean): number => {
-  const text = bare && d.k === "item" ? "" : deltaText(d, cost, day), icon = deltaIcon(d).width;
+/** cards.ts chipWidth: a chip is its icon, 2 px and its text, then 5 px; a part's chip is its icon alone when `bare`; `count`: the part a word card takes reads `1x NAME` (cards.ts chipText; ENCHANT-2W W1). */
+const chipW = (d: Delta, cost: boolean, day: number, bare: boolean, count = false): number => {
+  const text = chipText(d, cost, day, bare, count), icon = deltaIcon(d).width;
   return (text ? icon + 2 + textWidth(text, "3") : icon) + 5;
 };
 /** cards.ts exchange's `need`: the cost chips (or FREE and 4 px), the arrow's 7 px, the gain chips (NOTHING's own width where there is no gain: it is drawn, not counted there). */
-const exchangeNeed = (c: Choice, day: number, bare: boolean): number =>
-  (c.cost.length ? c.cost.reduce((n, d) => n + chipW(d, true, day, bare), 0) : textWidth("FREE", "3") + 4) + 7
+const exchangeNeed = (c: Choice, day: number, bare: boolean, count = false): number =>
+  (c.cost.length ? c.cost.reduce((n, d) => n + chipW(d, true, day, bare, count), 0) : textWidth("FREE", "3") + 4) + 7
   + (c.gain.length ? c.gain.reduce((n, d) => n + chipW(d, false, day, false), 0) : textWidth("NOTHING", "3") + 5);
-/** The exchange line as text: the cost chips (a part as [icon] when `bare`) or FREE, the arrow, the gain chips or NOTHING. */
-const exchangeText = (c: Choice, day: number, bare: boolean): string =>
-  `${c.cost.length ? c.cost.map((d) => (bare && d.k === "item" ? "[icon]" : deltaText(d, true, day))).join(" ") : "FREE"} → ${c.gain.length ? c.gain.map((d) => deltaText(d, false, day)).join(" ") : "NOTHING"}`;
+/** The exchange line as text in `form` (cards.ts chipText: the part a word card takes reads `1x TEMPER` in the count form and `[icon]` where it is the icon alone): the cost chips or FREE, the arrow, the gain chips or NOTHING. */
+const exchangeText = (c: Choice, day: number, form: ExForm): string =>
+  `${c.cost.length ? c.cost.map((d) => (form === "bare" && d.k === "item" ? "[icon]" : chipText(d, true, day, false, form === "count"))).join(" ") : "FREE"} → ${c.gain.length ? c.gain.map((d) => deltaText(d, false, day)).join(" ") : "NOTHING"}`;
 
-/** How the exchange line sits on a card `cw` px wide (cards.ts exchange): its room (the card less 10 px, and a shaped part's plate), what the whole line takes, what it takes
- *  when a card that gains a word draws its part as an icon alone (`bare`, as exchange decides it: the whole line wider than the room). */
-function exchangeFit(c: Choice, day: number, cw: number): { whole: number; used: number; room: number; bare: boolean } {
+/** The three forms cards.ts exchangeForm gives a card that gains a word: the count (`1x TEMPER`), the name alone, the part as its icon alone; null for any other card. */
+type ExForm = "count" | "name" | "bare" | null;
+
+/** How the exchange line sits on a card `cw` px wide (cards.ts exchange): its room (the card less 10 px, and a shaped part's plate), what the whole line takes (every part named, no count),
+ *  and what it takes in the form cards.ts exchangeForm picks (the count `1x NAME` where it fits, else the name, else the icon alone). ENCHANT-2W (W2): `wordB`, word B of the shrine's offer, for the
+ *  shrine's BLOCKED card 2, which draws the line it would have (cards.ts isShrineBlockedPart, ghostForm): `[crate] 1x CARGO PART → WORD`. */
+function exchangeFit(c: Choice, day: number, cw: number, wordB?: string): { text: string; whole: number; used: number; room: number; form: ExForm } {
   const shaped = [...c.gain, ...c.cost].find((d): d is Extract<Delta, { k: "item" }> => d.k === "item" && hasGrid(d.def));
   const room = cw - 10 - (shaped ? shapeGridSize(shaped.def).w + 2 + 4 : 0);
-  const need = exchangeNeed(c, day, false), bare = c.gain.some((d) => d.k === "ench") && need > room;
-  return { whole: need - 5, used: (bare ? exchangeNeed(c, day, true) : need) - 5, room, bare };
+  if (wordB !== undefined && isShrineBlockedPart(c)) {
+    const word: Delta = { k: "ench", word: wordB }, gf = ghostForm(wordB, room, day), gain = chipW(word, false, day, false);
+    return { text: `[crate]${ghostText(gf) ? ` ${ghostText(gf)}` : ""} → ${deltaText(word, false, day)}`, whole: ghostWidth("count") + 7 + gain - 5, used: ghostWidth(gf) + 7 + gain - 5, room, form: gf };
+  }
+  const form = exchangeForm(c, room, day);
+  return { text: exchangeText(c, day, form), whole: exchangeNeed(c, day, false) - 5, used: exchangeNeed(c, day, form === "bare", form === "count") - 5, room, form };
 }
 
 /** One card as a sheet line: its label (5x7, to the `?` button where it has one), its exchange line (3x5) and its note (3x5). */
-function cardRow(where: string, c: Choice, i: number, cw: number, day: number): string {
-  const word = c.gain.some((d) => d.k === "ench"), f = exchangeFit(c, day, cw);
+function cardRow(where: string, c: Choice, i: number, cw: number, day: number, wordB?: string): string {
+  const word = c.gain.some((d) => d.k === "ench"), f = exchangeFit(c, day, cw, wordB), ghost = wordB !== undefined && isShrineBlockedPart(c);
   const label = choiceLabel(c.label), note = cardNote(c), at = `${where}, card ${i + 1}`;
-  return `  - card ${i + 1}: label \`${label}\` (${pxFit(`${at} label`, textWidth(label, "5"), cw - 16 - (word ? 14 : 4))}); exchange \`${exchangeText(c, day, f.bare)}\` (${pxFit(`${at} exchange`, f.used, f.room)}${f.bare ? `; the whole line would take ${f.whole}: the part is its icon alone` : ""}); ${note ? `note \`${note}\` (${pxFit(`${at} note`, textWidth(note, "3"), cw - 10)})` : "no note"}`;
+  const how = f.form === "bare" ? `; the whole line would take ${f.whole}: the ${ghost ? "cargo part" : "part"} is its icon alone` : f.form === "name" ? `; the count would not fit: the ${ghost ? "cargo part" : "part"} is named without it` : "";
+  return `  - card ${i + 1}: label \`${label}\` (${pxFit(`${at} label`, textWidth(label, "5"), cw - 16 - (word ? 14 : 4))}); exchange \`${f.text}\` (${pxFit(`${at} exchange`, f.used, f.room)}${how}${ghost ? "; dim: the line the card would have" : ""}); ${note ? `note \`${note}\` (${pxFit(`${at} note`, textWidth(note, "3"), cw - 10)})` : "no note"}`;
 }
 
 /**
@@ -341,12 +352,13 @@ function cardRow(where: string, c: Choice, i: number, cw: number, day: number): 
  */
 function shrineCardsSection(out: string[]): void {
   out.push("", "### The ASH SHRINE's cards (ENCHANT-2 T3; as the event screen draws them: label, exchange line, note; the word card behind each `?`)", "");
-  out.push("Read off the game: game/shrine.ts shrineChoices on a FURNACE run (seed 4242, day 4, a TEMPER in cargo), the labels through cards.ts choiceLabel, the chips through deltaText and the notes through cardNote. Widths are the art px each text takes. The label is drawn in the 5x7 face from the card's x+16 to its `?` button; the exchange line in the 3x5 face across the card less 10 px (a chip is its icon, 2 px and its text, then 5 px; the arrow takes 7): a card that gains a word draws a part's chip as its icon alone when the whole line does not fit, and the word never gives way (cards.ts exchange); the note in the 3x5 face from x+5, the card less 10 px wide. A text wider than its room is an OVERFLOW (counted in the summary below).", "");
+  out.push("Read off the game: game/shrine.ts shrineChoices on a FURNACE run (seed 4242, day 4, a TEMPER in cargo), the labels through cards.ts choiceLabel, the chips through deltaText and the notes through cardNote. Widths are the art px each text takes. The label is drawn in the 5x7 face from the card's x+16 to its `?` button; the exchange line in the 3x5 face across the card less 10 px (a chip is its icon, 2 px and its text, then 5 px; the arrow takes 7): a card that gains a word draws the part it takes as `1x NAME` (the count; ENCHANT-2W W1) where the whole line fits with it, else the name alone, else its icon alone, and the word never gives way (cards.ts exchange, exchangeForm); the blocked card 2 (nothing in cargo) draws the line it WOULD have, dim: the crate, `1x CARGO PART`, the arrow, word B (ENCHANT-2W W2; cards.ts ghostForm); the note in the 3x5 face from x+5, the card less 10 px wide. A text wider than its room is an OVERFLOW (counted in the summary below).", "");
   const { run, ev } = shrineAt(["temper"], SHRINE_DAY);
   const cards = shrineChoices(run, ev);
   const empty = shrineAt([], SHRINE_DAY);
   const noPart = shrineChoices(empty.run, empty.ev)[1];
   const noTaker: Choice = { ...cards[0], blocked: SHRINE_NO_TAKER };
+  const wordB = shrineOffer(SHRINE_SEED, SHRINE_DAY)[1]; // ENCHANT-2W (W2): the shrine's own word B, for the blocked card's would-be line
   const widest = ENCHANT_IDS.reduce((a, b) => (textWidth(ENCHANT_DEFS[b].name, "3") > textWidth(ENCHANT_DEFS[a].name, "3") ? b : a));
   const longest = Object.values(ITEMS).filter((d) => d.kind !== "turret" && d.kind !== "supply" && d.merchant)
     .sort((a, b) => textWidth(itemName(b.id), "3") - textWidth(itemName(a.id), "3") || (a.id < b.id ? -1 : 1)).slice(0, 6);
@@ -354,7 +366,7 @@ function shrineCardsSection(out: string[]): void {
     const L = eventLayout(v.W, v.H, v.portrait, 3), cw = L.cards[0].w, ch = L.cards[0].h;
     out.push(`- ${v.name} (event layout ${v.W}x${v.H}; cards ${cw} x ${ch} px)`);
     cards.forEach((c, i) => out.push(cardRow(v.name, c, i, cw, SHRINE_DAY)));
-    out.push(cardRow(`${v.name}, nothing in cargo`, noPart, 1, cw, SHRINE_DAY), cardRow(`${v.name}, no part takes the word`, noTaker, 0, cw, SHRINE_DAY));
+    out.push(cardRow(`${v.name}, nothing in cargo`, noPart, 1, cw, SHRINE_DAY, wordB), cardRow(`${v.name}, no part takes the word`, noTaker, 0, cw, SHRINE_DAY));
     // the price on the day's hull (cards.ts deltaText: hullShown), the widest word: the word chip must still fit on card 1
     const hull = [1, 4, 10, 18].map((day) => {
       const c: Choice = { ...cards[0], gain: [{ k: "ench", word: widest }] }, f = exchangeFit(c, day, cw);
@@ -364,7 +376,7 @@ function shrineCardsSection(out: string[]): void {
     // the longest part names (the cargo's parts: no turret, no supply) with the widest word: the line when the name is kept, and as the icon alone when it must give way
     const names = longest.map((d) => {
       const c: Choice = { ...cards[1], cost: [{ k: "item", def: d.id, uid: 1, from: "cargo" }], gain: [{ k: "ench", word: widest }] }, f = exchangeFit(c, SHRINE_DAY, cw);
-      return `${itemName(d.id)} ${f.bare ? `${f.whole} px whole, icon alone ` : ""}(${pxFit(`${v.name}, ${cards[1].label} with ${itemName(d.id)} and ${ENCHANT_DEFS[widest].name}`, f.used, f.room)})`;
+      return `${itemName(d.id)} ${f.form === "bare" ? `${f.whole} px whole, icon alone ` : f.form === "name" ? "name without the count " : ""}(${pxFit(`${v.name}, ${cards[1].label} with ${itemName(d.id)} and ${ENCHANT_DEFS[widest].name}`, f.used, f.room)})`;
     });
     out.push(`  - the longest part names on card 2, with the widest word (${ENCHANT_DEFS[widest].name}): ${names.join("; ")}`);
     // the word card behind a `?` (wordInfo.ts drawWordInfo): the event panel less 2 px each side, rows wrapped 12 px in, 8 px a row from 17 px down, TAP TO CLOSE 9 px up from the foot
@@ -376,8 +388,36 @@ function shrineCardsSection(out: string[]): void {
     });
     out.push(`  - the word card behind a \`?\` (the event panel ${pw} x ${ph} px; room for ${most} rows): rows by word: ${rows.join(", ")}`);
   }
-  out.push("", "The word cards behind the `?` (wordInfo.ts wordInfoRows: one row for each kind the word goes on, the card's own text; the rows are the same on every view):", "");
+  out.push("", "The word cards behind the `?` (wordInfo.ts wordInfoRows: one row for each kind the word goes on, the card's own text; the rows are the same on every view). The sheet has no run, so RISING's and GROWING's amounts are day 1's (+1, +5); a card drawn during a run gives the run's day's (ENCHANT-2W W3, the lines below):", "");
   for (const id of ENCHANT_IDS) out.push(`- ${ENCHANT_DEFS[id].name}: ${wordFace(id).lines.map((l) => `\`${plain(`${l.label}: ${l.text}`)}\``).join(" · ")}`);
+  // ENCHANT-2W (W3): the two words whose card moves with the run's day (wordFace(id, day): step x D(day), rounded down, as the part's panel gives it); the other six ignore the day
+  out.push("", "In a run the cards of RISING and GROWING give the run's day's amounts (wordFace(id, day): the step x D(day), rounded down, as a part's panel does); the other six words' cards ignore the day:", "");
+  for (const id of ["rising", "growing"] as const) out.push(`- ${ENCHANT_DEFS[id].name}, on a rig: ${[1, 6, 8, 12, 16, 24].map((day) => `day ${day} \`${plain(wordFace(id, day).lines[0].text)}\``).join("; ")}`);
+}
+
+/**
+ * ENCHANT-2W (REQ-BFG-085, REQ-BFG-089; W4): the warlord victory card's GOLD LINE, base text (the same with ENCHANT off: this section is in the sheet either way). Read off warlordHud.ts goldLineText
+ * (the total and, with a bounty paid, its two parts) and goldLineParts (one 5x7 line where it fits beside the SABOTAGED tag, else the total in 5x7 and its parts in 3x5), on the views the victory card
+ * is measured on (VICTORY_VIEWS: the card is min(W - 10, 214) px wide).
+ */
+function victoryGoldSection(out: string[]): void {
+  out.push("", "## Warlord victory card: the gold line (ENCHANT-2W W4; base text, the same with ENCHANT off)", "");
+  out.push("Read off the game: warlordHud.ts goldLineText (the total, and with a bounty paid its two parts, the win's gold and the bounty: `WarlordOutcome.gold` is the reward plus the bounty, road.ts finishWarlord; a bounty is paid on a Hard win only) and goldLineParts (one 5x7 line where it fits, else the total in 5x7 and its parts in 3x5). The card is min(W - 10, 214) px wide; the line runs from the card's x+10 to x+cw-10 and shares its row with the SABOTAGED tag (3x5, 6 px clear) on a sabotaged fight. A loss or a draw draws no gold line (REWARD FORFEIT). A line wider than its room is an OVERFLOW.", "");
+  const cases: [string, number, number][] = [
+    [`a Hard win, no bounty (reward ${REWARD_GOLD.hard})`, REWARD_GOLD.hard, 0],
+    [`a Medium win, no bounty (reward ${REWARD_GOLD.medium})`, REWARD_GOLD.medium, 0],
+    [`an Easy win, no bounty (reward ${EASY_PAY_LATE} from day 4)`, EASY_PAY_LATE, 0],
+    [`a Hard win with the staked bounty (reward ${REWARD_GOLD.hard} + bounty 10)`, REWARD_GOLD.hard + 10, 10],
+    [`the Iron Matriarch with the staked bounty (reward ${MATRIARCH_GOLD} + bounty 10)`, MATRIARCH_GOLD + 10, 10],
+  ];
+  for (const [what, gold, bounty] of cases) {
+    const fit = VICTORY_VIEWS.flatMap((v) => [false, true].map((sab) => {
+      const room = Math.min(v.W - 10, 214) - 20 - (sab ? textWidth("SABOTAGED", "3") + 6 : 0), p = goldLineParts(gold, bounty, room);
+      const used = textWidth(p.big, "5") + 1 + (p.small ? 1 + textWidth(p.small, "3") : 0);
+      return `${v.name}${sab ? ", sabotaged" : ""}: ${p.small ? "5x7 total + 3x5 parts" : "one 5x7 line"}, ${pxFit(`victory card gold line, ${what} (${v.name}${sab ? ", sabotaged" : ""})`, used, room)}`;
+    }));
+    out.push(`- ${what}: \`${goldLineText(gold, bounty)}\` (${fit.join("; ")})`);
+  }
 }
 
 /** The drop list's panel (drops.ts drawDropList: min(W - 8, 220) wide) on the views the sheet measures. */

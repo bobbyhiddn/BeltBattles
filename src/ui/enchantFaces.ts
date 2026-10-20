@@ -97,13 +97,16 @@ const KIND_WORD: Record<EnchantKind, string> = { rig: "RIG", factory: "FACTORY",
 
 /** The tap panel's content for the word `id`: `ON A RIG: ...`, `ON A FACTORY: ...`, `ON A TURRET: ...` for each kind it goes on, then
  *  ENCHANT_NOTES. ENCHANT-1b (N1): MASSIVE has ONE line, `ONLY ON A TURRET: ...`, and SWIFT `ONLY ON A FACTORY: ...`: no `NOT ON ...`
- *  rows. Each line is at star 1 (a word's own card is about no piece), in the panels' markup (panelText). */
-export function wordFace(id: EnchantId): WordFace {
+ *  rows. Each line is at star 1 (a word's own card is about no piece), in the panels' markup (panelText).
+ *  ENCHANT-2W (REQ-BFG-085; W3, E2-05's carry-over): `day`, the run's day when the card is drawn DURING a run (the ENCHANTER's offer and its tap panel, a warlord pick and REFIT's
+ *  pick strip, the shrine's `?` card, APPLY): RISING's and GROWING's amounts are the day's, as the part's own panel gives them (wordLine). No `day` (the text sheet's cards, any
+ *  glossary: no run): day 1's numbers, +1 and +5, as before. The other six words' lines ignore the day. */
+export function wordFace(id: EnchantId, day?: number): WordFace {
   const d = ENCHANT_DEFS[id];
   const only = d.kinds.length === 1;
   const lines: WordFaceLine[] = [];
   for (const kind of ["rig", "factory", "turret"] as const) {
-    const text = wordLine(id, kind, 1);
+    const text = wordLine(id, kind, 1, day);
     if (text !== null) lines.push({ kind, legal: true, label: `${only ? "ONLY " : ""}ON A ${KIND_WORD[kind]}`, text });
   }
   return { id, name: d.name, color: d.color, lines, notes: ENCHANT_NOTES };
@@ -116,7 +119,8 @@ export function wordFace(id: EnchantId): WordFace {
  *  amounts are DAMAGE, and a damage amount a player reads shows what lands on that day (HULL-1d: battle.ts impact takes D(day) on the whole hit, the flat the
  *  word adds included), as the panel's stat row and its LEVELS already do: the step x stars x D(day), rounded down (hullScale.ts dmgShown). On day 6 GROWING at
  *  one star says +10 (was +5, so a reader's 40 + 3 x 5 did not meet the row's 70), on day 8 RISING says +2. D is never under 1.0, so no line says +0. A word's own
- *  CARD (the ENCHANTER's offer, a warlord pick, the shrine's ?, APPLY, LAST CHANCE's detail) is about no piece and gives no day: day 1's numbers, +5 and +1. */
+ *  CARD gave no day in that round: day 1's numbers, +5 and +1. ENCHANT-2W (W3): a card drawn during a run (the ENCHANTER's offer, a warlord pick, the shrine's ?, APPLY, LAST
+ *  CHANCE's detail) passes its run's day, so on day 6 the GROWING card says +10 as the part's panel does; a card drawn with no run (the text sheet's) gives none: +5 and +1. */
 export function wordLine(id: EnchantId, kind: EnchantKind, stars = 1, day?: number): string | null {
   const raw = enchantLine(id, kind);
   if (raw === null) return null;
