@@ -126,7 +126,7 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
     expect(lcHullNow(runOf("furnace", 5), 500, 5)).toEqual([2100, 2600]);
     expect(on(() => lcHullNow(runOf("furnace", 5), 500, 5))).toEqual([5880, 7280]);
     expect(lcToast("hull", offer, 5)).toBe(lcToast("hull", offer));
-    expect(on(() => lcToast("hull", offer, 5))).toMatch(/^MAX HULL \+1400 /);
+    expect(on(() => lcToast("hull", offer, 5))).toBe("MAX HULL +1400"); // PRESENT-1 (REQ-BFG-081): no heart after it (was toMatch(/^MAX HULL \+1400 /), "MAX HULL +1400 ♥")
   }, false));
 
   it("the road event's hull amounts (PLATING, RIDE THROUGH and the hull costs): the card chips and the outcome line", () => withHullScale(() => {

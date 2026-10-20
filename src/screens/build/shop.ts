@@ -7,7 +7,7 @@ import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): the A
 import type { ShopBadge } from "../../game/run";
 import { C, RARITY_COLOR } from "../../render/palette";
 import { frame, makeCanvas, rect, type G } from "../../render/pixel";
-import { ICON, drawText, icons, textWidth, wrap } from "../../render/font";
+import { drawText, icons, textWidth, wrap } from "../../render/font"; // PRESENT-1: ICON left with the pack's heart
 import { coinIcon, itemIcon } from "../../render/sprites";
 import type { Rect } from "../../ui/ui";
 import { colourize, drawRich, lineWidth, wrapRich, type RichLine } from "../../ui/richText"; // 0.6.2t (T4, T5)
@@ -438,11 +438,20 @@ export function drawReroll(g: G, r: Rect, enabled: boolean, hover: boolean, pres
 /** bb-0.8.6 (REQ-BFG-051, PACKS P5): a pack's amount as its slot shows it: "+4 BELT", "+25 HULL" (the ITEMS entry's).
  *  NUM-2 (REQ-BFG-047; NUM-1's question 1, cap's answer): the ARMOR PACK's is its number and the hull icon, "+250 ♥" (the
  *  stat form of docs/TEXT-STYLE.md; RIVETER's face draws the same icon): NUM-1's "+250 HULL" (34 px of the 3x5 font)
- *  overflowed the narrowest slots (32 and 34 px). No layout change. */
+ *  overflowed the narrowest slots (32 and 34 px). No layout change.
+ *  PRESENT-1 (REQ-BFG-081; REVIEW-SC0912 "For later", REVIEW-SC0912B item 3): HULL in words again, never the heart (readers take
+ *  it for the run's hearts: families.ts:78-80), "+250 HULL": the tall face's two lines ("+250" over "HULL", as "+4" over "BELT");
+ *  the short face's one line where it fits, else its number alone (packShortAmount). Was `+250 ${ICON.HULL}`, "+250 ♥". */
 export function packAmount(id: PackId, day?: number): string {
   const s = ITEMS[PACK_ITEM[id]].supply!;
-  return s.belt ? `+${s.belt} BELT` : `+${hullShown(s.hull!, day)} ${ICON.HULL}`; // HULL-1a (REQ-BFG-079): the day's number
+  return s.belt ? `+${s.belt} BELT` : `+${hullShown(s.hull!, day)} HULL`; // HULL-1a (REQ-BFG-079): the day's number
 }
+
+/** PRESENT-1 (REQ-BFG-081): the short face's one amount line in a slot `w` px wide: the amount where it fits (w - 2 px of the 3x5 face),
+ *  else the number alone: "+250 HULL" is 34 px, past the 28-32 px a 30-34 px slot gives it (NUM-1's overflow), so a desk's short ARMOR
+ *  PACK slot shows "+250" under its icon and the word stays in its hover tooltip ("+250 HULL FOR THE RUN."); "+4 BELT" (27 px) fits
+ *  every slot, as before. Pure (tests). */
+export const packShortAmount = (amount: string, w: number): string => (textWidth(amount, "3") <= w - 2 ? amount : amount.split(" ")[0]);
 
 /** bb-0.8.6 (PACKS P5): a slot this tall or taller shows the tall face (icon, two short amount lines, price inside REROLL's
  *  frame: the price ends 38 px down); a shorter one (20 px or more) the short face. */
@@ -478,7 +487,7 @@ export function drawPack(g: G, r: Rect, id: PackId, enabled: boolean, hover: boo
     rect(g, r.x + 1, y + 1, r.w - 2, 1, enabled ? C.amber : C.slate1);
     g.drawImage(itemIcon(d.id), r.x + 2, top + 2);
     drawText(g, price, r.x + 16, top + 4, pc, { outline: C.ink });
-    drawText(g, amount, cx, top + 14, tc, { font: "3", align: "center" });
+    drawText(g, packShortAmount(amount, r.w), cx, top + 14, tc, { font: "3", align: "center" }); // PRESENT-1: the words where they fit
   }
   if (hover && enabled) frame(g, r.x - 1, y - 1, r.w + 2, r.h + 2, C.bone);
 }

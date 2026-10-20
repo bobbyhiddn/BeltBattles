@@ -1096,7 +1096,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   // "BELT 24 TILES")
   beltcrate: (e) => rules([{ text: `+${fmtCount(e.supply!.belt!)} BELT TILES FOR THE RUN.` }]),
   // HULL-1a (REQ-BFG-079): the day's number with HULL_SCALE on (x.day: the run's day); off, the pack's own
-  plating: (e, x) => rules([{ text: `+${fmtDmg(hullShown(e.supply!.hull!, x.day))} {HULL} FOR THE RUN.` }]),
+  // PRESENT-1 (REQ-BFG-081; REVIEW-SC0912B item 3): HULL in words, never the heart (families.ts:78-80; was "+250 {HULL} FOR THE RUN.")
+  plating: (e, x) => rules([{ text: `+${fmtDmg(hullShown(e.supply!.hull!, x.day))} HULL FOR THE RUN.` }]),
 };
 
 // ------------------------------------------------------------------------------- U2b: the interim lines (F5, F6)

@@ -42,7 +42,7 @@ import { faceLines } from "../../ui/faces"; // U2c group 0 fix 3: the packs' fac
 import { cargoGlow, drawMergePrompt, drawPick, drawWagon, glow, wordHits } from "./enchantStrip"; // ENCHANT-1 (REQ-BFG-085): the ENCHANTER's wagon, the warlord pick, the merge pick, APPLY's glow
 
 /** bb-0.8.6 (PACKS P5; U2c group 0 fix 3): a pack slot's tooltip text: the pack's face ("+4 BELT TILES FOR THE RUN.",
- *  "+250 {HULL} FOR THE RUN."), else its first sentence. AZ-PREP (REQ-BFG-079; REVIEW-HULL1D Q3): on the run's day
+ *  "+250 HULL FOR THE RUN.": PRESENT-1, was {HULL}), else its first sentence. AZ-PREP (REQ-BFG-079; REVIEW-HULL1D Q3): on the run's day
  *  (textOpts: with HULL_SCALE on the ARMOR PACK's hull x M(d), as its slot and its panel read it); it read day 1's. With
  *  the switch off, or on day 1, the same text as before. */
 export function packTip(def: string, run: Run): string {
@@ -338,7 +338,7 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
   const ph = s.refit || c ? -1 : PACK_IDS.findIndex((id) => ui.hover === `pack-${id}`);
   if (ph >= 0) {
     const def = PACK_ITEM[PACK_IDS[ph]];
-    // U2c group 0 fix 3: the pack's face, "+4 BELT TILES FOR THE RUN." and "+25 {HULL} FOR THE RUN." (the tooltip's layout
+    // U2c group 0 fix 3: the pack's face, "+4 BELT TILES FOR THE RUN." and "+25 HULL FOR THE RUN." (PRESENT-1: was {HULL}) (the tooltip's layout
     // as before: one line of its 3x5 text)
     drawTooltip(g, packRects(L)[ph], ITEMS[def], L.W, packTip(def, s.run));
   }

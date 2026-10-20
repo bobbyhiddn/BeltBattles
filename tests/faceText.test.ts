@@ -476,7 +476,8 @@ describe("U2c group 0: cap's fixes 1-5 on the 0.8.7 rune build", () => {
   it("fix 3: the packs' tooltips read their faces (chrome.ts), one line of the tooltip's 3x5 text each", () => {
     // AZ-PREP (REVIEW-HULL1D Q3): with the run's day (chrome.ts packTip; was faceLines(def, 1)?.rules[0]?.text, day 1's)
     expect(readFileSync("src/screens/build/chrome.ts", "utf8")).toContain("faceLines(def, 1, textOpts(run))?.rules[0]?.text");
-    expect(stripIcons(faceLines("plating", 1)!.rules[0].text)).toBe(`+${fmtDmg(ITEMS.plating.supply!.hull!)} ${ICON.HULL} FOR THE RUN.`);
+    // PRESENT-1 (REQ-BFG-081): HULL in words, never the heart (was `+250 ${ICON.HULL} FOR THE RUN.`)
+    expect(stripIcons(faceLines("plating", 1)!.rules[0].text)).toBe(`+${fmtDmg(ITEMS.plating.supply!.hull!)} HULL FOR THE RUN.`);
     for (const def of ["beltcrate", "plating"]) expect(textWidth(faceLines(def, 1)!.rules[0].text, "3"), def).toBeLessThanOrEqual(150); // shop.ts TOOLTIP_TEXT_W
   });
 
