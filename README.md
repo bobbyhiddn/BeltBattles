@@ -14,7 +14,7 @@
 
 ## How a run works
 
-1. **Pick a hero.** FURNACE and WEAVER are open from the start, and more unlock as you play. Each hero brings a hull, starting turrets and a signature factory.
+1. **Pick a hero.** Four heroes are open from the start: FURNACE, WEAVER, FOUNDRY and BASTION. Each hero brings a hull, starting turrets and a signature factory.
 2. **Dawn: the caravan.** Buy rigs, factories and turrets. Drop them on your deck and drag belts between them. Merging copies of a part raises its stars.
 3. **The road.** Each day you choose one stop: a road event, or a fight with a warlord at Easy, Medium or Hard.
 4. **Dusk: the ghost.** You fight another player's build from the same day of their own run. When none fits, a rival captain stands in, so the game also plays fully offline.
@@ -81,7 +81,7 @@ Each release is staged and checked as described in `deploy/RUNBOOK.md`: the full
 
 - **The next battle rules (`bb-0.13.0`):** gates and enchantments.
 - **One player ID across devices:** link a phone, a PC or the web to the same player with a one-time code.
-- **Store builds:** iPhone and Android through Capacitor, Steam on desktop, and a free web version.
+- **Store builds:** iPhone and Android through Capacitor, Steam on desktop, and a free web version, most likely on itch.io.
 
 ## License
 
