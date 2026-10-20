@@ -64,6 +64,22 @@ describe.each(["jsonl", "tigris"] as Kind[])("the canonical-player check on %s",
     expect(sibling.status).toBe(403); // the player's own key may not post as a linked key either: only its own id or the player's
   });
 
+  it("linking relaxes no deck rule: an over-budget deck under the player is the same refusal an unlinked key gets", async () => {
+    const rig = await openRig(kind);
+    await link(rig, A, B);
+    const fat = (id: Identity, player: string) => {
+      const s = uploadFor(id, player, { runId: "run-fat" });
+      return { ...s, build: { ...s.build, hullBonus: s.build.hullBonus + 50000 } };
+    };
+    const unlinked = await postGhost(rig, C, fat(C, C.playerId));
+    const linked = await postGhost(rig, B, fat(B, A.playerId));
+    expect(unlinked.status).toBe(422);
+    expect(linked.status).toBe(422);
+    expect(linked.json!.error).toBe("deck failed validation");
+    expect(linked.json!.errors).toEqual(unlinked.json!.errors);
+    expect((await postGhost(rig, B, uploadFor(B, A.playerId, { runId: "run-fine" }))).status).toBe(201); // and a legal one under the same link still passes
+  });
+
   it("links survive a restart: the new process reads them from the store", async () => {
     const rig = await openRig(kind);
     await link(rig, A, B);
