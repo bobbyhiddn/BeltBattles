@@ -1688,6 +1688,14 @@ async function customizeView(browsers, origin, vname) {
     const row = !!(h && o && cu) && near(h.y, o.y) && near(o.y, cu.y) && near(h.h, o.h) && near(o.h, cu.h)
       && near(o.x, h.x + h.w + 4 * c) && near(cu.x, o.x + o.w + 4 * c) && cu.w >= 40 * c - 0.05 && !overlap(h, o) && !overlap(o, cu);
     check(row, `${V}: CUSTOMIZE is the third button of the HOW TO PLAY / OPTIONS row (one row ${h ? h.h.toFixed(1) : "?"} CSS px tall, 4 px apart, left to right), ${cu ? (cu.w / c).toFixed(0) : "?"} px wide (at least 40: its word and the NEW dot)`);
+    // PRESENT-1 T3 TITLE-TAP (REVIEW-CUSTOM2B ruling 2, backlog #372): on a phone (every touch view of this section: the 360x640 @2 and 375x667 @2 phones among
+    // them) the row's three buttons are finger-tall targets, TAP_CSS CSS px, and overlap no other button's target (NEW RUN, CONTINUE, each other)
+    if (touch) {
+      const three = [h, o, cu], others = [nw, R.cont].filter(Boolean);
+      const tall = three.every((r) => !!r && r.h >= TAP_CSS - 0.01);
+      const clear = three.every((r, i) => !!r && three.every((q, j) => i === j || !!q && !overlap(r, q)) && others.every((q) => !overlap(r, q)));
+      check(tall && clear, `${V}: TITLE-TAP: HOW TO PLAY ${h ? h.h.toFixed(1) : "?"}, OPTIONS ${o ? o.h.toFixed(1) : "?"} and CUSTOMIZE ${cu ? cu.h.toFixed(1) : "?"} CSS px tall (each at least ${TAP_CSS}), and no target of the three overlaps another's or NEW RUN's${R.cont ? " or CONTINUE's" : ""}`);
+    }
     const u = (x) => Math.ceil(x * T.k - 1e-9), bw0 = Math.min(T.W - 24, Math.max(u(132), 2 * u(64) + 4)), hw = Math.floor((bw0 - 4) / 2);
     const P = T.panel, inside = (b) => b.x >= P.x && b.y >= P.y && b.x + b.w <= P.x + P.w && b.y + b.h <= P.y + P.h;
     const wide = !!(h && o && cu && nw) && near(h.w, hw * c) && near(o.w, hw * c) && near(nw.x, h.x) && near(nw.x + nw.w, cu.x + cu.w)

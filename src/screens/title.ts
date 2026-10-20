@@ -26,7 +26,8 @@ import { rect, type G } from "../render/pixel";
 import { drawText, icons, textWidth } from "../render/font";
 import { titleArt } from "../render/sprites";
 import { defaultScale } from "../core/io";
-import { button, panel, para } from "../ui/ui";
+import { button, panel, para, tapRect, type Rect } from "../ui/ui";
+import { isPhone, tapPx } from "../ui/tap"; // TITLE-TAP (PRESENT-1): a finger's target for the small row
 import { optionsCard } from "../ui/hud";
 import { helpCard, titleLayout, titleScale, type TitleLayout } from "./titleLayout";
 import { HeroScreen } from "./hero";
@@ -274,12 +275,19 @@ export class TitleScreen implements Screen {
         onTap: () => this.gate(() => this.continueRun()),
       });
     }
+    // TITLE-TAP (PRESENT-1, REQ-BFG-038 backlog #372; REVIEW-CUSTOM2B ruling 2): the small row's three buttons (font "3", 18-31 CSS px
+    // tall on a phone) take a finger's target (ui/tap.ts tapPx, 44 CSS px) through button()'s `hit`, as CUSTOMIZE's BACK does
+    // (customize.ts:190): grown evenly about the drawn button, kept below NEW RUN / CONTINUE's bottom edge (their targets are
+    // their drawn rects) and above the screen's bottom edge, the row's own columns wide. It draws nothing different.
+    const tap = game.view && isPhone(game.view) ? tapPx(game.view) : 0;
+    const above = b.cont ?? b.new;
+    const rowHit = (r: Rect): Rect | undefined => (tap > 0 ? tapRect(r, tap, { x: r.x, y: above.y + above.h, w: r.w, h: H - (above.y + above.h) }) : undefined);
     button(ui, g, "help", b.help, this.help ? "CLOSE" : "HOW TO PLAY", {
-      font: "3", active: this.help, onTap: () => this.gate(() => { this.help = !this.help; }),
+      font: "3", active: this.help, hit: rowHit(b.help), onTap: () => this.gate(() => { this.help = !this.help; }),
     });
-    button(ui, g, "options", b.options, "OPTIONS", { font: "3", onTap: () => this.gate(() => { this.menu = true; }) });
+    button(ui, g, "options", b.options, "OPTIONS", { font: "3", hit: rowHit(b.options), onTap: () => this.gate(() => { this.menu = true; }) });
     // CUSTOM-2a (REQ-BFG-072, Q5): CUSTOMIZE, the third button of the row, with a NEW dot while an unlocked style is unseen
-    button(ui, g, "customize", b.customize, "CUSTOMIZE", { font: "3", onTap: () => this.gate(() => game.go(new CustomizeScreen(game))) });
+    button(ui, g, "customize", b.customize, "CUSTOMIZE", { font: "3", hit: rowHit(b.customize), onTap: () => this.gate(() => game.go(new CustomizeScreen(game))) });
     if (this.newStyle) newDot(g, b.customize);
     game.soundButton(g, L.sound);
     drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });

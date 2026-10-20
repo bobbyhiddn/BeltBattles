@@ -3,7 +3,7 @@
 //      the whole layout to ArenaMotion.setLanes (battleLayout.ts laneSpec, as battle.ts:439 and replay.ts:171 do); the title passed its
 //      gap alone (0.9.6's lanes), so on the desk and the laptop its landscape surge had no edge cap. Now the title's lanes ARE
 //      laneSpec's for its own layout, on every view.
-// (T2 and T3's rows are below T1's, in this file.)
+// (T2's rows are in tests/intro.title.test.ts, re-pinned there; T3's, TITLE-TAP, in tests/present1.titletap.test.ts.)
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { computeView } from "../src/core/io";
 import { laneSpec, minGap } from "../src/game/battleLayout";
