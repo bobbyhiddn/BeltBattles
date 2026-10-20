@@ -621,7 +621,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // row 85 px of the 225 px band). Forms measured (px, ★1): "... DESTROYS 1 SLUG ON IT." 295, "... KNOCKS 1 SLUG OFF IT." 289, "... DESTROYS 1
     // FOE SLUG." 285, "... DESTROYS THE NEAREST SLUG." 321, "... RIPS 1 SLUG AND DESTROYS IT." 329, "... RIPS 1 SLUG: IT IS DESTROYED." 331, "...
     // RIPS 1 SLUG OFF IT FOR GOOD." 327 (was "... RIPS 1 SLUG.", 239). The ⓘ ladder and the SHOT note keep RIPS (LEVELS RIPS 1/2/3; not in this job)
-    return rules([shot(`A HIT ON A FOE BELT OR RIG DESTROYS ${rip} SLUG${s(n)} NEAR IT.`)], [["rip", `RIPS ${rip}`]]);
+    // PRESENT-1 (REQ-BFG-081; REVIEW-READ14 fix 2, FATE-ASK 3 of 12: three readers listed the ladder's RIPS and read it as destroys): the
+    // ⓘ ladder says DESTROYS, the face's verb (was `RIPS ${rip}`: "RIPS 1/2/3", "NEXT ★2: RIPS 2")
+    return rules([shot(`A HIT ON A FOE BELT OR RIG DESTROYS ${rip} SLUG${s(n)} NEAR IT.`)], [["rip", `DESTROYS ${rip}`]]);
   },
   tesla: (e, x) => {
     const n = c(e, x).arcs!, arcs = fmtCount(n), t = c(e, x).stall!, stun = fmtSec(t);

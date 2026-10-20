@@ -566,7 +566,7 @@ describe("U2d F1 (cap's answer to U2c question 1): NEXT★ shows every number th
     const [offText, offAdd] = withScaleRigs(() => [stripIcons(faceNext("spallcatcher", 1)!.text), effectAt("spallcatcher", 2).mod!.spall!.add] as const, false);
     expect(offText).toBe(`NEXT ★2: +${fmtDmg(offAdd)} `);
     expect(stripIcons(faceNext("spotter", 1)!.text)).toBe(`NEXT ★2: ${fmtCount(effectAt("spotter", 2).mod!.rerolls!)} MORE AIMS`);
-    expect(stripIcons(faceNext("grapnel", 2, { k: 1 })!.text)).toBe(`NEXT ★3: RIPS ${fmtCount(effectAt("grapnel", 3).core!.rip!)}`);
+    expect(stripIcons(faceNext("grapnel", 2, { k: 1 })!.text)).toBe(`NEXT ★3: DESTROYS ${fmtCount(effectAt("grapnel", 3).core!.rip!)}`); // PRESENT-1 (REQ-BFG-081): was `NEXT ★3: RIPS n`
     expect(faceAt("armorpress", 1)!.nums.find(([key]) => key === "every")![1]).toBe(`EVERY ${fmtSec(effectAt("armorpress", 1).factory!.plate!.every)}{SEC}`);
   });
 
