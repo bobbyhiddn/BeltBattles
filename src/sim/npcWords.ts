@@ -10,7 +10,7 @@
 //
 // HAND-PICKED, NOT COMPUTED: each line is a literal with the reason beside it. They were picked from the bots' score on that rival's deck for that
 // day (tools/enchant2/npcPick.ts prints it: enchantBot.ts wordGain, the change in a piece's route damage), then for IDENTITY (the rival's trick,
-// blurb and hero), and tiered: the Easy captains carry the gentler words (ECHOING, BRACED, SWIFT), the Hard ones the sharper (FIERY, MASSIVE).
+// blurb and hero), and tiered: the Easy captains carry the gentler words (ECHOING, BRACED; BUMP-1F, RULING-BUMP1F-Q2: SWIFT was RATCHET's kiln and is gone), the Hard ones the sharper (FIERY, MASSIVE).
 // The bench (tools/enchant2/rivals.ts, REPORT T5a) holds par's win rate against them within 5 points of ENCHANT off; T5's levers are, in
 // order, NPC_WORD_DAYS, then which pieces and words, then the shrine's hull price.
 //
@@ -73,7 +73,7 @@ export const NPC_WORDS: Readonly<Record<RivalId, readonly NpcGrant[]>> = {
   ],
   ratchet: [ // OVERCLOCK: overdrive belt, calibrated gun (furnace, tier 1)
     { from: D1, def: "scrapcannon", word: "rising" }, // calibrated: each shot lands harder than the last
-    { from: D2, def: "kiln", word: "swift" }, // overclocked: the kiln works twice as often
+    { from: D2, def: "kiln", word: "braced" }, // overclocked: the kiln keeps its pace under stun. BUMP-1F: was SWIFT (the kiln worked twice as often), which put the Easy slot below Medium on days 9-16 by rivals.difficulty's instrument (d9 -0.040, d10 -0.034; RATCHET's margin -0.139 / -0.312) (RULING-BUMP1F-Q2: the word changes, the day and the piece stay; BRACED on a kiln is legal and other rivals hold it from day 5, so npcDropPairs and firstDay keep their pins)
     { from: D3, def: "temper", word: "fiery" }, // the hot belt
   ],
   emberlyn: [ // EMBER WEAVE: a temper on every belt, every hit burns (weaver, tier 2)

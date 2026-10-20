@@ -53,7 +53,7 @@ describe("ENCHANT-2 T2: what the pairs and the bound are", () => {
     }
     for (const id of RIVAL_IDS) for (const g of NPC_WORDS[id]) expect(npcDropPairs(npcGrantDay(id, g)).has(`${g.def}:${g.word}${g.enchDir !== undefined ? `/${g.enchDir}` : ""}`), `${id} ${g.def}`).toBe(true);
     expect(npcDropWords(16).has("growing" as never), "no rival holds GROWING").toBe(false);
-    expect([...npcDropWords(16)].sort()).toEqual(["braced", "echoing", "fiery", "rising", "swift", "wide"]); // the table after T5a: no rival holds MASSIVE (KARSK's was cut) or GROWING
+    expect([...npcDropWords(16)].sort()).toEqual(["braced", "echoing", "fiery", "rising", "wide"]); // the table after T5a: no rival holds MASSIVE (KARSK's was cut) or GROWING. BUMP-1F: was [... "swift" ...] (RULING-BUMP1F-Q2: no rival holds SWIFT; RATCHET's kiln grant is BRACED)
   });
 
   it("the drop bound is one a day from day 5; maxEnchantsByDay and freeEnchantsByDay take it as their extra and keep ENCHANT-1's numbers at 0", () => {
