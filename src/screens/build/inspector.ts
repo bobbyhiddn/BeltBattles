@@ -689,6 +689,17 @@ export function offerMergeNote(run: Run, def: string): string | null {
   return b?.kind === "merge" ? mergeLine(run, def) : b ? OWNED_NOTE : null;
 }
 
+/** PRESENT-1 (REQ-BFG-081, REQ-BFG-115; the cold read's PR-06, 4 of 6: two readers took the card's merge mark for its star and left its sale
+ *  mark at "can't tell"; the one fix round, words only): a shop offer on sale says so in words in its panel and its hover tooltip, with the
+ *  list price it fell from: `ON SALE: WAS 3G.` (the price now is the card's and the button's). The buy button can say it only when
+ *  nothing else claims it (offerLabel: `SALE: BUY 2G`; a merge wins the label, and no label says both within 60 px), and the desk's tooltip
+ *  has no button, so a sale that merges, and every sale on a desk, was said by the marks alone. The sale is the game's own test (run.ts
+ *  priceOf, chrome.ts drawShop's `sale`, offerLabel): an unsold offer under its list price. null: not on sale, or sold. Pure (offerPanel, the tooltip, tests). */
+export function offerSaleNote(o: { def: string; price: number; sold?: boolean }): string | null {
+  const list = ITEMS[o.def].price;
+  return !o.sold && o.price < list ? `ON SALE: WAS ${list}G.` : null;
+}
+
 /**
  * SHOPCARD-1e (REQ-BFG-081, REQ-BFG-115; READ-12 round S, E3 and E4): a shop offer's buy button, in words.
  * - E3, a sale: the panel read `BUY 6G` (GANTRY PRESS, list 7) or `BUY 2G` (WHETSTONE, list 3), and all six round S readers read a
@@ -726,7 +737,9 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
   const one = cardEffect(d.id, opts); // BUMP-1D P6: was cardText(d.id, opts); cardEffect is cardText byte for byte wherever cardText has a line, and a plain rig's stat row where it has none (the twelve of PLAIN_RIGS and SHAPES2, on since bb-0.11.0: the 360x640 strip drew no effect for them)
   // U2e step 4 (REQ-BFG-070): no MERGES INTO line on the face: the card's MERGE ★2 badge and BUY+MERGE say it merges, and
   // the ⓘ view's NEXT★ line what the merge gives (mergeBlock and mergeLine stay for tools; no panel draws them)
+  const sale = offerSaleNote(o); // PRESENT-1 (PR-06): a sale, in words (lime, the sale mark's colour), the first line of the body
   const body: Block[] = [
+    ...(sale ? [{ role: "note", text: sale, colour: C.lime, keep: true } as Block] : []),
     ...abilityBlocks(d.id, 1, opts),
     ...flavourBlocks(d.id, 1, opts.k ?? 1),
     hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true, d.id, touch)),

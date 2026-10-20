@@ -47,12 +47,13 @@ describe("PRESENT-1 S3: hull in words, never the heart", () => {
   it("the ARMOR PACK: its slot (tall face: +250 over HULL; short face: the words where they fit, else +250) and its face say HULL", () => withHullScale(() => {
     expect(packAmount("armor")).toBe("+250 HULL"); // was "+250 ♥"
     expect(packAmount("belt")).toBe("+4 BELT");
-    // the short face (a desk's slot, 30-34 px wide): "+250 HULL" is 34 px of the 3x5 face, past the 28-32 px it has: the number alone
+    // the short face (a desk's slot, 30-34 px wide): "+250 HULL" is 34 px of the 3x5 face, past the 28-32 px it has. At the tip (the fix round,
+    // tests/present1.words2.test.ts) it keeps the word without the plus where that fits (30 px: a 32-34 px slot), else the number alone
+    // (was: the number alone in every one of these slots)
     expect(textWidth("+250 HULL", "3")).toBe(34);
-    for (const w of [30, 31, 32, 33, 34]) {
-      expect(packShortAmount(packAmount("armor"), w)).toBe("+250");
-      expect(packShortAmount(packAmount("belt"), w)).toBe("+4 BELT");
-    }
+    for (const w of [30, 31]) expect(packShortAmount(packAmount("armor"), w)).toBe("+250");
+    for (const w of [32, 33, 34]) expect(packShortAmount(packAmount("armor"), w)).toBe("250 HULL");
+    for (const w of [30, 31, 32, 33, 34]) expect(packShortAmount(packAmount("belt"), w)).toBe("+4 BELT");
     expect(packShortAmount(packAmount("armor"), 36)).toBe("+250 HULL");
     const plating = faceLines("plating", 1)!.rules[0].text;
     expect(plating).toBe("+250 HULL FOR THE RUN."); // was "+250 ♥ FOR THE RUN." (the panel and the desk tooltip)

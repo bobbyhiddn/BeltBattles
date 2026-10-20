@@ -450,11 +450,17 @@ export function packAmount(id: PackId, day?: number): string {
   return s.belt ? `+${s.belt} BELT` : `+${hullShown(s.hull!, day)} HULL`; // HULL-1a (REQ-BFG-079): the day's number
 }
 
-/** PRESENT-1 (REQ-BFG-081): the short face's one amount line in a slot `w` px wide: the amount where it fits (w - 2 px of the 3x5 face),
- *  else the number alone: "+250 HULL" is 34 px, past the 28-32 px a 30-34 px slot gives it (NUM-1's overflow), so a desk's short ARMOR
- *  PACK slot shows "+250" under its icon and the word stays in its hover tooltip ("+250 HULL FOR THE RUN."); "+4 BELT" (27 px) fits
- *  every slot, as before. Pure (tests). */
-export const packShortAmount = (amount: string, w: number): string => (textWidth(amount, "3") <= w - 2 ? amount : amount.split(" ")[0]);
+/** PRESENT-1 (REQ-BFG-081): the short face's one amount line in a slot `w` px wide: the most words that fit (w - 2 px of the 3x5 face):
+ *  the amount whole; else (PRESENT-1's fix round, the cold read's PR-05: the desk's ARMOR PACK slot read "+550" with no word, 0 of 3 desk
+ *  readers could say hull) the amount without its plus, the word kept: "250 HULL" is 30 px against "+250 HULL"'s 34 (a desk's 32-34 px slot
+ *  holds it while the number has three digits; with the hull scale on that is day 6 and earlier); else the number alone ("+1100": four
+ *  digits, 34 px either way, past the 28-32 px a 30-34 px slot gives it: NUM-1's overflow), and the word stays in the hover tooltip
+ *  ("+250 HULL FOR THE RUN."); "+4 BELT" (27 px) fits every slot, as before. Pure (tests). */
+export function packShortAmount(amount: string, w: number): string {
+  if (textWidth(amount, "3") <= w - 2) return amount;
+  const bare = amount.replace(/^\+/, "");
+  return textWidth(bare, "3") <= w - 2 ? bare : amount.split(" ")[0];
+}
 
 /** bb-0.8.6 (PACKS P5): a slot this tall or taller shows the tall face (icon, two short amount lines, price inside REROLL's
  *  frame: the price ends 38 px down); a shorter one (20 px or more) the short face. */
