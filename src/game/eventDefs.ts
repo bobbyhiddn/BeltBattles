@@ -4,9 +4,11 @@
 // gold on average and none of them wins a run by itself.
 
 import { ITEMS, buyableModules, type GateEffect, type ItemDef, type Rarity } from "../sim/content";
+import { enchantRules } from "../sim/enchant"; // ENCHANT-2 (REQ-BFG-085, T3): the shrine joins the bag only under ENCHANT (eventIds, bagIds)
 import { fusible, starField, starsOf, valueOf } from "../sim/stars";
 import { mergePreview } from "./fuse";
 import type { Run } from "./run";
+import { SHRINE_ID, shrineChoices, shrineInBag } from "./shrine"; // ENCHANT-2 (REQ-BFG-085, T3): the ASH SHRINE's cards (a new file)
 import { unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: road grants draw from the run's unlocked wares
 
 /**
@@ -19,7 +21,7 @@ import { unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: road grants draw
 type WareRun = { wares?: Wares; day: number };
 const inWares = (run: WareRun | undefined, ids: string[]): string[] => (run?.wares ? ids.filter((id) => unlocked(run, id, run.day)) : ids);
 
-export type EventId = "wreck" | "cache" | "trader" | "dice" | "dock" | "herald" | "sappers" | "scout" | "storm" | "smuggler";
+export type EventId = "wreck" | "cache" | "trader" | "dice" | "dock" | "herald" | "sappers" | "scout" | "storm" | "smuggler" | "shrine"; // ENCHANT-2 (T3): + "shrine"
 
 /** One line item of a choice. Costs are paid, gains are received (for a gamble only on a win). */
 export type Delta =
@@ -32,7 +34,8 @@ export type Delta =
   | { k: "sabotage" } // SABOTAGE: your next warlord fights with its day - 1 deck (run.sabotage)
   | { k: "reveal" } // SCOUT: tonight's dusk foe is picked and stored now, its deck shown
   | { k: "discount"; n: number } // next caravan: every price -n (min 1)
-  | { k: "reroll"; n: number }; // next caravan: n free rerolls
+  | { k: "reroll"; n: number } // next caravan: n free rerolls
+  | { k: "ench"; word: string }; // ENCHANT-2 (REQ-BFG-085, T3): the ASH SHRINE's gain: a free word for a part of your choice (opens APPLY: enchanter.ts openShrineWord)
 
 export interface Choice {
   label: string;
@@ -53,6 +56,7 @@ export interface EventState {
   won?: boolean;
   item?: string; // deck equipment the pick put in cargo (offers REFIT, also after a reload)
   reveal?: boolean; // SCOUT's SPY: tonight's dusk deck was revealed (offers REFIT, also after a reload)
+  gave?: string; // ENCHANT-2 (REQ-BFG-085, T3): the cargo part the ASH SHRINE's second card took (so the resolved card still names it after a reload)
 }
 
 export interface EventDef {
@@ -327,11 +331,27 @@ export const EVENTS: Record<EventId, EventDef> = {
       return [smugglerChoice("BURN", [gold(2)], burn), smugglerChoice("SHOCK", [gold(3)], shock), moveOn()]; // Y4 (S3)
     },
   },
+  // ENCHANT-2 (REQ-BFG-085, T3): the 11th event, only under ENCHANT (eventIds/bagIds below). Three cards: a word for max hull, a word
+  // for one cargo part, MOVE ON (shrine.ts shrineChoices). The gain {k: "ench"} opens APPLY (enchanter.ts openShrineWord).
+  shrine: {
+    id: "shrine", title: "ASH SHRINE", kind: "SHRINE",
+    text: ["AN ASH-BLACK SHRINE SMOULDERS BY THE ROAD.", "ITS FLAME MARKS A PART, FOR A PRICE."],
+    choices: (run, ev) => shrineChoices(run, ev),
+  },
 };
 
-export const EVENT_IDS = Object.keys(EVENTS) as EventId[];
+/** The events of the ENCHANT-off world, in catalogue order: the ten the game had before ENCHANT-2. Every consumer that does not ask the rules
+ *  world (tools, the art digests, the scorecard) reads this list and sees no shrine; eventIds() adds it under ENCHANT. */
+export const EVENT_IDS = (Object.keys(EVENTS) as EventId[]).filter((id) => id !== SHRINE_ID);
 /** Events that act on warlords (0.6.0b, decision 5): the ELITE BOUNTY and SABOTAGE. They never
  *  touch a dusk ghost, which runs exactly as submitted. */
 export const WARLORD_EVENT_IDS: EventId[] = ["herald", "sappers"];
-/** The events a run can draw on the road: all of them (0.6.0b puts herald and sappers back). */
+/** The events a run can draw on the road: all of them (0.6.0b puts herald and sappers back). ENCHANT-2 (T3): the OFF world's bag; bagIds() is the
+ *  rules world's (this one plus the ASH SHRINE while ENCHANT is on). */
 export const BAG_IDS: EventId[] = [...EVENT_IDS];
+
+/** ENCHANT-2 (REQ-BFG-085, T3): the events of the rules world: EVENT_IDS, plus the ASH SHRINE while ENCHANT is on (the same array with it off). */
+export const eventIds = (): EventId[] => (shrineInBag() ? [...EVENT_IDS, SHRINE_ID] : EVENT_IDS);
+/** ENCHANT-2 (REQ-BFG-085, T3): the bag of the rules world: BAG_IDS, plus the ASH SHRINE while ENCHANT is on, so each bag holds 11 events and
+ *  the shrine comes once a bag. With ENCHANT off it is BAG_IDS itself, so every bag and eventSequence is byte for byte what it was. */
+export const bagIds = (): EventId[] => (shrineInBag() ? [...BAG_IDS, SHRINE_ID] : BAG_IDS);

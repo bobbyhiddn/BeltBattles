@@ -110,6 +110,7 @@ import { lastChanceWord } from "../enchantSources";
 import { botWarlordPick, buyPlan, casualWarlordPick, casualWordBuys, chooserFor, enchanterPlans, settleMergePick, wordPick, wordValue, type WordExtras, type WordPlan } from "./enchantBot";
 import { setPieceWord } from "../../game/fuse";
 import { pendingEnchantPick } from "../../game/enchanter";
+import { botShrine, type ShrineVisit } from "./shrineBot"; // ENCHANT-2 (REQ-BFG-085, T3): the bots at the ASH SHRINE
 
 // ---------------------------------------------------------------- the deck rating (what the player reads)
 
@@ -272,6 +273,7 @@ export interface PlayerRoad {
   drop: string | null; // the seeded drop (warlordDrop; null: no win, or the roll dropped nothing)
   placed: boolean; // the drop went onto the deck (a merge, a spot or the REFIT swap); false: in cargo, or no drop
   declined?: string; // a capped run's (maxStars below FUSE_MAX) seeded drop it declined: it would merge above the cap
+  shrine?: ShrineVisit; // ENCHANT-2 (REQ-BFG-085, T3): the day's event was the ASH SHRINE (ENCHANT on): the card the bot took and the word it opened (shrineBot.ts); absent otherwise
 }
 
 type Kind = "rig" | "gear" | "core" | "factory" | "plating" | "crate" | "turret" | "upgrade" | "word" | "converter"; // GATES-1 (REQ-BFG-052, G6): "converter", a gate on a belt tile; ENCHANT-1 (E8): "word" (BUMP-1F: both)
@@ -2042,7 +2044,8 @@ function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: nu
     const i = where === "cargo" ? run.inventory.findIndex((it) => it.uid === at) : -1;
     if (i >= 0 && ITEMS[drop]?.merchant) {
       const [copy] = run.inventory.splice(i, 1);
-      placed = placeFreePart(run, copy.def, new Rng(hashSeed("par-npcday-place", run.hero, run.seed, run.day)), pol, starsOf(copy)).placed;
+      // ENCHANT-2 (REQ-BFG-085, T2): the cargo copy came with the word its rival held (road.ts finishWarlord); it goes to placeFreePart as LAST CHANCE's word does
+      placed = placeFreePart(run, copy.def, new Rng(hashSeed("par-npcday-place", run.hero, run.seed, run.day)), pol, starsOf(copy), enchantRules() && copy.ench !== undefined ? enchantField(copy) : undefined).placed;
     } else placed = where !== "cargo";
   }
   // ENCHANT-1 (E5b/E8): a warlord win's pick of 1 of 2 words (it opens only on a Hard win, which par never fights: PAR_ROAD_TIER is Medium;
@@ -2059,7 +2062,10 @@ function parNpcDay(run: Run, pol: PolicyKnobs, spent: { reroll: number; sold: nu
   const net = before + res.gold + roadDropValue(roadLog(run.warlords.slice(logged))) - worth();
   if (net >= 0) spent.sold += net;
   else spent.gain = (spent.gain ?? 0) - net;
-  return { id: w.id, outcome: res.outcome, time: res.time, gold: res.gold, drop, placed, ...(declined ? { declined } : {}) };
+  // ENCHANT-2 (REQ-BFG-085, T3): the day's event after the fight, when it is the ASH SHRINE (ENCHANT on; shrineBot.ts): a card, and the word it opens on a part.
+  // After the sale loss above (and F5's booking of it), so a part given up is no sale. Null on every other day, and off. (RULING-BUMP1F-R3.2)
+  const shrine = enchantRules() ? botShrine(run, { casual: pol.wordBuy !== undefined, rate: rateOn, minRel: pol.minRel, extras: wordExtras(run) }) : null;
+  return { id: w.id, outcome: res.outcome, time: res.time, gold: res.gold, drop, placed, ...(declined ? { declined } : {}), ...(shrine ? { shrine } : {}) };
 }
 
 // ---------------------------------------------------------------- LC-1 (REQ-BFG-073): LAST CHANCE's cards for the bots

@@ -208,6 +208,10 @@ export interface WordExtras {
   nextUid?: number;
   /** WIDE on a factory: the rating gain (a fraction of `base`, the deck's rating value) of the best belt the bots would lay into the new slot of `after` (-Infinity: none). */
   wideFactory?: (after: Build, base: number) => number;
+  /** ENCHANT-2 (REQ-BFG-085, T5a): a spot the GAME would refuse is skipped, so the bot plans the next-best legal one instead of throwing in buyPlan / botWarlordPick
+   *  (the long run's day 11+ par runs met `TAKE ITS EXTRA BELT OFF FIRST`: SWIFT planned over a WIDE factory whose extra belt is in use, fuse.ts wideBeltProblem).
+   *  Set by enchanterPlans and botWarlordPick from the run (game/enchanter.ts applyProblem); absent: every enchantProblem-legal spot counts, as before. */
+  legal?: (target: WordTarget, word: string) => boolean;
 }
 
 /** A word's worth on a piece: the relative rating gain and, for WIDE on a rig, the side that earns it. */
@@ -398,6 +402,7 @@ export function bestWordFor(s: WordState, word: string, x: WordExtras = {}): Wor
   for (const p of pieces) {
     if (enchantProblem(p.def, word) !== null || p.held === word) continue;
     if (wideLocked(s.build, p, word)) continue; // BUMP-1F P2: the game refuses it (EXTRA_BELT_LEFT), so the bot never plans it
+    if (ex.legal && !ex.legal(p.target, word)) continue; // ENCHANT-2 (T5a): the game would refuse this spot (RULING-BUMP1F-R3.2: both skip lines stay)
     const m = p.held ? modelOf(stripped(s.build, p), s.day) : main;
     const g = wordGain(m, p, word, 0, ex);
     const old = p.held ? wordGain(m, p, p.held, p.grow, ex).value : 0;
@@ -500,7 +505,7 @@ export function enchanterPlans(run: Run, x: WordExtras = {}): { slot: number; pr
   const out: { slot: number; price: number; plan: WordPlan }[] = [];
   w.offers.forEach((o, slot) => {
     if (o.sold || o.price > run.gold || !isEnchantId(o.ench)) return;
-    const spot = bestWordFor(run, o.ench, x);
+    const spot = bestWordFor(run, o.ench, { legal: (t, wd) => applyProblem(run, t, wd) === null, ...x }); // ENCHANT-2 (T5a): + legal, the game's own refusals
     if (spot) out.push({ slot, price: o.price, plan: { word: o.ench as EnchantId, spot } });
   });
   return out;
@@ -522,7 +527,7 @@ export function botWarlordPick(run: Run, x: WordExtras = {}): { took: EnchantId;
   if (!pk) return null;
   let best: { i: number; word: EnchantId; spot: WordSpot } | undefined;
   pk.words.forEach((w, i) => {
-    const spot = isEnchantId(w) ? bestWordFor(run, w, x) : null;
+    const spot = isEnchantId(w) ? bestWordFor(run, w, { legal: (t, wd) => applyProblem(run, t, wd) === null, ...x }) : null; // ENCHANT-2 (T5a): + legal
     if (spot && spot.value > (best?.spot.value ?? 1e-9)) best = { i, word: w as EnchantId, spot };
   });
   if (!best) {
@@ -575,7 +580,7 @@ function turretUid(run: Run, slot: number): number | undefined {
 export function casualWarlordPick(run: Run, rng: Rng): boolean {
   const pk = pendingEnchantPick(run);
   if (!pk) return false;
-  const i = rng.int(2), list = casualTargets(run, pk.words[i]);
+  const i = rng.int(pk.words.length), list = casualTargets(run, pk.words[i]); // ENCHANT-2 (T3): a warlord pick has 2 words (rng.int(2), as before); the ASH SHRINE's has 1
   if (!list.length) {
     skipWarlordWord(run);
     return false;

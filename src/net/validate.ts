@@ -490,7 +490,7 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   const bought: Build = grant.hull || grant.belt ? { ...b, hullBonus: b.hullBonus - grant.hull, beltCap: b.beltCap - grant.belt } : b;
   const errors: string[] = [];
   const h = HEROES[b.hero];
-  const enchFree = enchantFreeWords(day, lc); // ENCHANT-1 (REQ-BFG-085, E6.4): the held words the free sources can have given (buildCost prices the rest)
+  const enchFree = enchantFreeWords(day, lc, ctx.seed); // ENCHANT-1 (REQ-BFG-085, E6.4): the held words the free sources can have given (buildCost prices the rest); ENCHANT-2: + the drops and the shrine visits (the seed counts them)
 
   // items exist, uids unique (deck.ts helpers throw on unknown defs, so stop here if not)
   const uids = new Set<number>();

@@ -34,12 +34,15 @@ import { openWarlordPick, pendingEnchantPick } from "../src/game/enchanter";
 import { validateBuild, validateUpload } from "../src/net/validate";
 import { decodeSnapshot, encodeSnapshot, SNAPSHOT_V3 } from "../src/net/snapshot";
 import { floorRecord } from "../src/net/records";
+import { setNpcWords, withNpcWords } from "../src/sim/npcWords"; // ENCHANT-2: state B
+import { setShrine, withShrine } from "../src/game/shrine"; // ENCHANT-2: state B
 import { seedGhost } from "../tools/samplePool";
 
 vi.setConfig({ testTimeout: 240_000 }); // ENCHANT-1 (run 3): these sweeps play many seeded runs; under a loaded host (24 cores shared with other lanes) the 30 s default is a time-only red
 
-afterEach(() => setEnchant(ENCHANT));
-const on = <T>(fn: () => T): T => withEnchant(fn, true);
+afterEach(() => { setEnchant(ENCHANT); setNpcWords(true); setShrine(true); });
+// ENCHANT-2: this file pins ENCHANT-1's bots (state B): the rivals' words, the drops that keep them and the ASH SHRINE are out (tests/enchant2.*)
+const on = <T>(fn: () => T): T => withEnchant(() => withNpcWords(() => withShrine(fn, false), false), true);
 
 // ---------------------------------------------------------------- fixtures
 

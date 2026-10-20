@@ -21,6 +21,8 @@ import {
   ENCHANTER_PRICE, enchanterWords, freeEnchantsByDay, lastChanceWord, maxEnchantsByDay, possibleWords, warlordPickWords,
 } from "../src/sim/enchantSources";
 import { lastChanceOffer, lastChanceParts, lastChancePartStars, type TakenLastChance } from "../src/sim/lastChance";
+import { setNpcWords, withNpcWords } from "../src/sim/npcWords"; // ENCHANT-2: state B for this file's ENCHANT-on helper
+import { setShrine, withShrine } from "../src/game/shrine"; // ENCHANT-2: state B keeps the ASH SHRINE out of the bag too
 import { valueOf } from "../src/sim/stars";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
@@ -37,8 +39,11 @@ import { withDawnRunes } from "./runeFill";
 
 vi.setConfig({ testTimeout: 240_000 }); // ENCHANT-1 (run 3): these sweeps play many seeded runs; under a loaded host (24 cores shared with other lanes) the 30 s default is a time-only red
 
-afterEach(() => setEnchant(ENCHANT)); // the shipped value (off)
-const on = <T>(fn: () => T): T => withEnchant(fn, true);
+afterEach(() => { setEnchant(ENCHANT); setNpcWords(true); setShrine(true); }); // the shipped values (ENCHANT off; the rivals' words in, ENCHANT-2)
+// ENCHANT-2 (REQ-BFG-085): this file pins ENCHANT-1's rules, the PLAYER's sources alone (the ENCHANTER, the warlord picks, LAST CHANCE): it runs in state B,
+// with the rivals' words and the drops that keep them out (npcWords.ts withNpcWords(false): its drop slots and bound are 0) and the ASH SHRINE out of the bag
+// (shrine.ts withShrine(false)). The drop slots and the shrine's are tests/enchant2.server.test.ts's and tests/enchant2.shrine.server.test.ts's.
+const on = <T>(fn: () => T): T => withEnchant(() => withNpcWords(() => withShrine(fn, false), false), true);
 const off = <T>(fn: () => T): T => withEnchant(fn, false);
 
 const PLATE = ITEMS.plating.supply!.hull!;
@@ -501,10 +506,12 @@ describe("ENCHANT-1 E6.4: gold - every word past the free sources' bound costs 4
     expect(on(() => buildCost(b, 9)).total).toBe(buildCost(b).total);
     expect(on(() => enchantGold(b, 0))).toBe(16);
     expect(off(() => enchantGold(b, 0))).toBe(0);
-    expect(enchantFreeWords(4, undefined)).toBe(0);
-    expect(enchantFreeWords(5, undefined)).toBe(1);
-    expect(enchantFreeWords(10, lcPart())).toBe(freeEnchantsByDay(10, true));
-    expect(enchantFreeWords(10, { day: 2, boon: "rune", id: "x" })).toBe(freeEnchantsByDay(10, false));
+    on(() => { // ENCHANT-2: the free count is ENCHANT-1's in state B (enchantFreeWords adds the drops' extra only with the rivals' words in)
+      expect(enchantFreeWords(4, undefined)).toBe(0);
+      expect(enchantFreeWords(5, undefined)).toBe(1);
+      expect(enchantFreeWords(10, lcPart())).toBe(freeEnchantsByDay(10, true));
+      expect(enchantFreeWords(10, { day: 2, boon: "rune", id: "x" })).toBe(freeEnchantsByDay(10, false));
+    });
   });
 
   it("the player mode: a deck exactly at maxHonestSpend passes with its bought words, 1 G over is refused, and the same supplies without the words pass", () => {
@@ -763,8 +770,10 @@ describe("ENCHANT-1b N4(c): a LAST CHANCE part that cannot carry a word (gear) a
 
   it("the free count: a gear part adds none (as no part), a rig part one; the count bound says the same", () => {
     for (const day of [3, 5, 8, 10]) {
-      expect(enchantFreeWords(day, gearLc()), `day ${day} gear`).toBe(freeEnchantsByDay(day, false));
-      expect(enchantFreeWords(day, lcPart()), `day ${day} rig part`).toBe(freeEnchantsByDay(day, true));
+      on(() => { // ENCHANT-2: state B (see `on`)
+        expect(enchantFreeWords(day, gearLc()), `day ${day} gear`).toBe(freeEnchantsByDay(day, false));
+        expect(enchantFreeWords(day, lcPart()), `day ${day} rig part`).toBe(freeEnchantsByDay(day, true));
+      });
     }
     const day = 5, most = maxEnchantsByDay(day, false), six = handWords(most + 1);
     expect(most + 1, "the hand deck can hold one past the bound").toBeLessThanOrEqual(6);
@@ -930,6 +939,8 @@ describe("ENCHANT-1 E6 PIN: the client's shape check, the strict decoder, the cl
   });
 
   it("each fixture: shape (client = decoder), the full check, and the server's status agree; the verdict is the listed one with ENCHANT on, a refusal with it off", async () => {
+    setNpcWords(false); // ENCHANT-2: state B, ENCHANT-1's world (async, so no withNpcWords: the afterEach puts it back)
+    setShrine(false);
     const fx = pinFixtures();
     const me = await testIdentity(0);
     const rows: string[] = [];

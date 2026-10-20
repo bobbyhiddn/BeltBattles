@@ -188,19 +188,20 @@ export function bannerRect(L: Pick<BuildLayout, "cards" | "reroll" | "tags">): R
 
 /** The pick strip inside the banner: tall (a phone's two-row block): the heading, the two cards side by side, NO THANKS under them;
  *  wide (the desk's one row): the heading, the cards, then NO THANKS at the right. `tap`: a finger's target (a phone). Pure (tests). */
-export function pickRects(L: Pick<BuildLayout, "cards" | "reroll" | "tags">, tap = 0): PickRects {
+export function pickRects(L: Pick<BuildLayout, "cards" | "reroll" | "tags">, tap = 0, n = 2): PickRects { // ENCHANT-2 (T3): `n`, the cards of the pick (2: a warlord's; 1: the ASH SHRINE's word)
   const r = bannerRect(L);
   const cw = Math.min(CARD_W - 2, Math.floor((r.w - 3 * GAP) / 2)), tall = r.h >= 70;
+  const idx = Array.from({ length: n }, (_, i) => i);
   if (tall) {
     const ch = Math.min(CARD_H, r.h - 26 - Math.max(0, tap - 22)), cy = r.y + 11;
-    const total = 2 * cw + GAP, x = Math.round(r.x + r.w / 2 - total / 2);
-    const cards = [0, 1].map((i): Rect => ({ x: x + i * (cw + GAP), y: cy, w: cw, h: ch }));
+    const total = n * cw + (n - 1) * GAP, x = Math.round(r.x + r.w / 2 - total / 2);
+    const cards = idx.map((i): Rect => ({ x: x + i * (cw + GAP), y: cy, w: cw, h: ch }));
     const bh = Math.max(15, tap), skip = { x: r.x + 6, y: Math.min(r.y + r.h - 2 - bh, cy + ch + 3), w: r.w - 12, h: bh };
     return { r, head: { x: Math.round(r.x + r.w / 2), y: r.y + 4 }, cards, hits: cards.map((c) => (tap ? tapRect(c, tap, r, tap) : c)), skip, skipHit: skip };
   }
   const ch = Math.min(r.h - 8, CARD_H + 4), cy = r.y + Math.round((r.h - ch) / 2);
   const x = r.x + 74;
-  const cards = [0, 1].map((i): Rect => ({ x: x + i * (cw + GAP), y: cy, w: Math.min(cw, 56), h: ch }));
+  const cards = idx.map((i): Rect => ({ x: x + i * (cw + GAP), y: cy, w: Math.min(cw, 56), h: ch }));
   const sw = 64, bh = Math.max(15, Math.min(r.h - 12, Math.max(tap, 22)));
   const skip = { x: r.x + r.w - sw - 8, y: r.y + Math.round((r.h - bh) / 2), w: sw, h: bh };
   return { r, head: { x: r.x + 8, y: r.y + Math.round(r.h / 2) - 6 }, cards, hits: cards.map((c) => (tap ? tapRect(c, tap, r, tap) : c)), skip, skipHit: skip };
@@ -210,7 +211,7 @@ export function pickRects(L: Pick<BuildLayout, "cards" | "reroll" | "tags">, tap
 export function pickView(s: BuildScreen): { lay: PickRects; cards: WordCardView[] } | null {
   const pk = enchantRules() ? pendingEnchantPick(s.run) : null;
   if (!pk || !s.refit) return null;
-  const lay = pickRects(s.L, s.fingerPx);
+  const lay = pickRects(s.L, s.fingerPx, pk.words.length); // ENCHANT-2 (T3): a one-word pick (the ASH SHRINE's) has one card
   const cards = pk.words.map((w, i): WordCardView => ({ pick: true, i, id: w as EnchantId, price: null, sold: false, rect: lay.cards[i], hit: lay.hits[i] }));
   return { lay, cards };
 }
@@ -303,9 +304,10 @@ export function drawPick(g: G, s: BuildScreen): void {
   panel(g, lay.r, "dark");
   ui.add({ id: "refitbanner", r: lay.r, block: true });
   const tall = lay.r.h >= 70;
-  if (tall) drawText(g, "PICK ONE FREE ENCHANTMENT", lay.head.x, lay.head.y, C.yellow, { font: "3", align: "center" }); // run 5, E10's fix round: was PICK A WORD
+  const shrine = pendingEnchantPick(s.run)?.no === 3; // ENCHANT-2 (T3): the ASH SHRINE's word, a pick of 1
+  if (tall) drawText(g, shrine ? "THE SHRINE'S FREE ENCHANTMENT" : "PICK ONE FREE ENCHANTMENT", lay.head.x, lay.head.y, C.yellow, { font: "3", align: "center" }); // run 5, E10's fix round: was PICK A WORD
   else {
-    drawText(g, "PICK ONE FREE", lay.head.x, lay.head.y, C.yellow, { font: "3" });
+    drawText(g, shrine ? "SHRINE'S FREE" : "PICK ONE FREE", lay.head.x, lay.head.y, C.yellow, { font: "3" });
     drawText(g, "ENCHANTMENT", lay.head.x, lay.head.y + 7, C.yellow, { font: "3" });
   }
   for (const c of v.cards) {

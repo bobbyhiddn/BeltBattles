@@ -67,7 +67,7 @@ import { WINDOW_TIME } from "../sim/content"; // Y4 (release Y; DESIGN-Y row 37)
 import { isPlainRig as isPlainSix } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the six plain stat rigs (PLAIN-1F M1: renamed here; faces.ts's own isPlainRig is the face test, and it holds them while they are in ITEMS)
 import { shotFloor } from "../sim/deck"; // ENCHANT-1 (REQ-BFG-085): the least a slug deals, for a MASSIVE or SWIFT factory's DMG
 import { enchantRate, enchantRules, isEnchantId } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): the word's rate, the switch
-import { ENCHANT_NOTES, grownDmg, slugDmg, type WordOn } from "./enchantFaces"; // ENCHANT-1 (REQ-BFG-085): the NOTES, the word's numbers
+import { grownDmg, partNotes, slugDmg, type WordOn } from "./enchantFaces"; // ENCHANT-1 (REQ-BFG-085): the NOTES, the word's numbers; ENCHANT-2 (T4b): partNotes, line 1 by word
 
 /**
  * The engine's numbers a reminder needs that no spec carries (as abilityText.ts SIM): each quoted from its source.
@@ -1211,9 +1211,11 @@ export function plainNotes(def: string): string[] {
 
 /** ENCHANT-1 (REQ-BFG-085; E7): an enchanted piece's NOTES, in plainNotes' and shapeNotes' form: default rules text behind the hover or the
  *  tap (inspector.ts explainPanel; enchantFaces.ts ENCHANT_NOTES: what an enchantment is, and that a new one replaces it). `word`: the
- *  word the piece holds (an ENCHANT_IDS id); [] for a piece with none, and for everything with the switch off. */
+ *  word the piece holds (an ENCHANT_IDS id); [] for a piece with none, and for everything with the switch off.
+ *  ENCHANT-2 (REQ-BFG-085; T4b): line 1 of a PART's NOTES is the word's own (enchantFaces.ts partNotes: it adds where the numbers above the word's
+ *  line come from); a word's own CARD keeps ENCHANT_NOTES (wordFace). */
 export function enchantNotes(word: string | undefined): string[] {
-  return enchantRules() && isEnchantId(word) ? [...ENCHANT_NOTES] : [];
+  return enchantRules() && isEnchantId(word) ? partNotes(word) : [];
 }
 
 /** A stat row's pair for `pair`'s icon: it replaces that icon's pair (the place kept), else it goes at the row's end. */

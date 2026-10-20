@@ -79,7 +79,7 @@ export function faceBlocks(def: string, stars: number, o: TextOpts, w?: WordOn):
   // ENCHANT-1 (REQ-BFG-085; E7): a piece holding a word (`w`): its stat rows carry the word's stat or changed numbers in the word's colour (the
   // rows are faces.ts wordRows'), and its one line (a LINE word) goes under the piece's own lines. Without `w` every block below is as before
   const wr = w ? wordRows(def, stars, o, w) : null;
-  const wline = wordLineBlocks(w);
+  const wline = wordLineBlocks(w, o.day); // ENCHANT-2 (T6 fix round): on the panel's day
   if (plainRig) return [...(wr ? wordStatBlocks(wr, w!, false) : [{ role: "ability", text: statRow(plainRig), keep: true } as Block]), ...own, ...wline];
   // CARD-2 (REQ-BFG-081, K4): a turret's row in words (RATE 55  HOLDS 2  GEAR SLOTS 1), from the sim at this star; the
   // ladder stays in LEVELS, the phone shop chip keeps {RATE}n (chips.ts), and faceLines (the face data) is unchanged
@@ -132,15 +132,16 @@ function wordStatBlocks(wr: WordRows, w: WordOn, turret: boolean, onlyHued = fal
 /** ENCHANT-1 (E7): the one line a word says under the piece's own line, at the piece's stars, in the word's colour and always shown
  *  (kept: it is this piece's own ability); [] for a plain piece and for no word. ENCHANT-1b (N2): FIERY has its line too (`ITS HIT: {BURN}+1.`);
  *  ENCHANT-1c (C1): that line is where its number shows, once (the row no longer repeats it). */
-export function wordLineBlocks(w: WordOn | undefined): Block[] {
-  const text = w ? pieceLine(w.id, w.kind, w.stars) : null;
+export function wordLineBlocks(w: WordOn | undefined, day?: number): Block[] {
+  // ENCHANT-2 (REQ-BFG-085; T6 fix round, cap's ruling 2d9c4479a18adbf5): `day`, the panel's: RISING's and GROWING's damage amounts are the day's, as the stat rows are
+  const text = w ? pieceLine(w.id, w.kind, w.stars, day) : null;
   return w && text ? [{ role: "ability", text: icons(text), keep: true, colour: wordColour(w.id) }] : [];
 }
 
 /** ENCHANT-1 (E7): the blocks of a piece with no face (its kept sentences) with its word: a stat row of the pairs the word adds or changes,
  *  the sentences as they are, the word's line last. */
 export function wordOnSentences(blocks: Block[], def: string, stars: number, o: TextOpts, w: WordOn): Block[] {
-  return [...wordStatBlocks(wordRows(def, stars, o, w), w, false, true), ...blocks, ...wordLineBlocks(w)];
+  return [...wordStatBlocks(wordRows(def, stars, o, w), w, false, true), ...blocks, ...wordLineBlocks(w, o.day)]; // ENCHANT-2 (T6 fix round): on the panel's day
 }
 
 /** The NEXT★ block (C7), or null: no face, or the top star. A line whose numbers say nothing of the perk that star brings

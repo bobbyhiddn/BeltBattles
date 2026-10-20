@@ -10,7 +10,8 @@ import {
 } from "../src/sim/deck";
 import { FUSE_MAX } from "../src/sim/stars";
 import { MATRIARCH_DAY, warlordPool, DIFFICULTIES } from "../src/sim/rivals";
-import { EVENTS, EVENT_IDS, UPGRADE, salvagePool, smugglerPool, tradeGood, type EventState } from "../src/game/eventDefs";
+import { EVENTS, EVENT_IDS, UPGRADE, eventIds, salvagePool, smugglerPool, tradeGood, type EventState } from "../src/game/eventDefs";
+import { withEnchant } from "../src/sim/enchant"; // ENCHANT-2 (REQ-BFG-085, T3): the ASH SHRINE is a road event only under ENCHANT
 import { ROAD_PICKS, warlordDeck, warlordDeckDay, warlordReward } from "../src/game/road";
 import { newRun, storeTurret } from "../src/game/run";
 import { gainModule } from "../src/game/fuse";
@@ -234,7 +235,8 @@ describe("062m recheck 2: the superset property with validateBuild's turret and 
 
 describe("062m recheck 3: the D4 guard on 7bcde98", () => {
   it("the road content is still the reviewed model (no new event, Delta kind, fork pick or reward field since 3fbd553)", () => {
-    expect([...EVENT_IDS].sort()).toEqual(Object.keys(MODELLED_EVENTS).sort());
+    expect([...EVENT_IDS].sort()).toEqual(Object.keys(MODELLED_EVENTS).filter((e) => e !== "shrine").sort()); // ENCHANT off: the ten events of 7bcde98
+    withEnchant(() => expect([...eventIds()].sort()).toEqual(Object.keys(MODELLED_EVENTS).sort())); // ENCHANT-2 (T3): on, plus the ASH SHRINE, which the model reviews
     expect([...ROAD_PICKS]).toEqual([...MODELLED_PICKS]);
     expect(() => roadOptions()).not.toThrow();
   });

@@ -18,6 +18,7 @@ import { resolve } from "node:path";
 import { RULES_VERSION, type HeroId } from "../../src/sim/content";
 import { enchantRules, withEnchant } from "../../src/sim/enchant";
 import { maxEnchantsByDay } from "../../src/sim/enchantSources";
+import { enchantExtraWords } from "../../src/net/enchantCheck"; // ENCHANT-2 (REQ-BFG-085, T2): the warlord drops add to the bound
 import { encodeStarred as loaderEncode, decodeStarred as loaderDecode } from "../../src/sim/standInPool";
 import { decodeStarred, encodeStarred } from "../../src/sim/harness/standinCode";
 import { decodeStandInCode, standInCodeOf } from "../../src/sim/harness/standins";
@@ -90,7 +91,7 @@ withEnchant(() => {
           findings.push(`${tag}: SNAPSHOT: ${(e as Error).message}`);
         }
         const n = wordCount(d.build);
-        if (n > maxEnchantsByDay(day, false)) findings.push(`${tag}: ${n} words but day ${day} allows ${maxEnchantsByDay(day, false)}`);
+        if (n > maxEnchantsByDay(day, false, enchantExtraWords(day))) findings.push(`${tag}: ${n} words but day ${day} allows ${maxEnchantsByDay(day, false, enchantExtraWords(day))}`); // ENCHANT-2: + the drops
         byDay.set(day, [...(byDay.get(day) ?? []), n]);
         rows.push({ hero, seed, day, words: n, list: held.map((w) => `${w.word}@${w.def}${w.grow ? `:${w.grow}` : ""}`).join(" "), code });
       }

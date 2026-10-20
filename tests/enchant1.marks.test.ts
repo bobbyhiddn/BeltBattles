@@ -396,9 +396,11 @@ describe("ENCHANT-1 E7: the cards that print no name: the spark at the top-right
     }
     expect(readFileSync("src/game/run.ts", "utf8")).toMatch(/gainModule\(run, id, undefined, offer\.partStars \?\? 1, word \? \{ word \} : undefined\)/); // LAST CHANCE's part: the one source that hands over a word
     // so the cards that list them draw the plain icon: none imports the marks
-    for (const p of ["src/screens/warlordHud.ts", "src/screens/fork/drops.ts", "src/screens/fork/cards.ts", "src/screens/fork/fork.ts", "src/screens/event/cards.ts"]) {
+    for (const p of ["src/screens/warlordHud.ts", "src/screens/fork/drops.ts", "src/screens/fork/cards.ts", "src/screens/fork/fork.ts"]) {
       expect(readFileSync(p, "utf8"), p).not.toMatch(/enchantMarks|enchantArt|drawEnchantSpark|drawSparkAt/);
     }
+    // ENCHANT-2 (REQ-BFG-085, T3): the road-event cards now draw ONE word, the ASH SHRINE's gain chip (the word's icon, enchantIcon), and never a piece's spark or marks
+    expect(readFileSync("src/screens/event/cards.ts", "utf8")).not.toMatch(/enchantMarks|drawEnchantSpark|drawSparkAt/);
   });
 
   it("the carried piece: the tile's top-right corner shows the spark; the carry reads its piece from the deck, cargo or turret slot", () => {

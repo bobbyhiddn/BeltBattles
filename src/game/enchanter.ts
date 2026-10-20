@@ -204,24 +204,44 @@ export function openWarlordPick(run: Run, w: { tier: string; id: string; day: nu
   run.enchPick = { day: w.day, no, words: warlordPickWords(run.seed, w.day) };
 }
 
-/** The open warlord pick (two words), or null. */
-export const pendingEnchantPick = (run: Pick<Run, "enchPick">): { day: number; no: 1 | 2; words: [string, string] } | null => (enchantRules() ? run.enchPick ?? null : null);
+/**
+ * ENCHANT-2 (REQ-BFG-085, T3): the ASH SHRINE's gain {k: "ench", word} (events.ts receive): a free word for a part of your choice, held in
+ * run.enchShrine until it is applied or declined (NO THANKS), saved with the run as the warlord pick is (an optional Run field, no version
+ * bump). It shows in REFIT as a pick of 1 word (pendingEnchantPick), after any warlord pick that is still open. Off: nothing.
+ */
+export function openShrineWord(run: Run, word: string): void {
+  if (!enchantRules() || !isEnchantId(word)) return;
+  run.enchShrine = { day: run.day, word };
+}
 
-/** Take word `i` (0 or 1) of the open pick and put it on the piece at `t`: free. Closes the pick on success; a refusal changes nothing. */
+/**
+ * The open pick, or null: the warlord pick (two words) while one is open, else the ASH SHRINE's word (a pick of 1 word, `no` 3). One pick is
+ * shown and answered at a time; the shrine's waits behind a warlord pick that is still open (ENCHANT-2, T3).
+ */
+export const pendingEnchantPick = (run: Pick<Run, "enchPick" | "enchShrine">): { day: number; no: 1 | 2 | 3; words: string[] } | null =>
+  !enchantRules() ? null : run.enchPick ?? (run.enchShrine ? { day: run.enchShrine.day, no: 3, words: [run.enchShrine.word] } : null);
+
+/** Close the open pick the way pendingEnchantPick names it: the warlord pick first, else the shrine's word. */
+const closePick = (run: Run): void => {
+  if (run.enchPick) delete run.enchPick;
+  else delete run.enchShrine;
+};
+
+/** Take word `i` (0 or 1; the shrine's pick has only 0) of the open pick and put it on the piece at `t`: free. Closes the pick on success; a refusal changes nothing. */
 export function takeWarlordWord(run: Run, i: number, t: EnchantTarget, opts: ApplyOpts = {}): ApplyResult {
   const pk = pendingEnchantPick(run);
   if (!pk) return { ok: false, reason: "NO PICK OPEN" };
   const word = pk.words[i];
   if (!word) return { ok: false, reason: "NO SUCH WORD" };
   const r = applyWord(run, t, word, opts);
-  if (r.ok) delete run.enchPick;
+  if (r.ok) closePick(run);
   return r;
 }
 
 /** NO THANKS: the open pick closes and the word is lost. False when no pick is open. */
 export function skipWarlordWord(run: Run): boolean {
-  if (!run.enchPick) return false;
-  delete run.enchPick;
+  if (!run.enchPick && !run.enchShrine) return false;
+  closePick(run);
   return true;
 }
 
