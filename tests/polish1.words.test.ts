@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { installRaster } from "./raster.helpers";
 import { viewWithSub } from "../src/game/viewGrid";
 import { ENCHANT, ENCHANT_DEFS, ENCHANT_IDS, enchantLine, setEnchant, withEnchant, type EnchantId, type EnchantKind } from "../src/sim/enchant";
-import { RISING_RESETS, pieceLine, wordFace, wordLine } from "../src/ui/enchantFaces";
+import { RISING_CARD_RESETS, RISING_RESETS, pieceLine, wordFace, wordLine } from "../src/ui/enchantFaces";
 import { duskLine, resultRows } from "../src/screens/battleHud";
 import { roadLine } from "../src/screens/warlordHud";
 import { replayLine } from "../src/screens/replay";
@@ -15,7 +15,7 @@ import { fmtClockSec } from "../src/ui/statFormat";
 import { TIER_LABEL } from "../src/ui/captain";
 import { gist, abilityText, shieldText } from "../src/ui/abilityText";
 import { deltaText } from "../src/screens/event/cards";
-import { textWidth } from "../src/render/font";
+import { icons, textWidth, wrap } from "../src/render/font";
 
 installRaster();
 afterEach(() => setEnchant(ENCHANT));
@@ -48,13 +48,27 @@ describe("POLISH-1 P3a: RISING's line says the climb starts over each fight (dis
     });
   });
 
-  it("the word's card says it once, on its last row (three rows with it do not keep whole in the phone's band)", () => {
+  it("the word's card says it once, on its last row (three rows with it do not keep whole in the phone's band), for all three rows: `ALL THREE RESET EACH FIGHT.` (fix round, PW-01)", () => {
     on(() => {
       const rows = wordFace("rising", 8).lines;
       expect(rows.map((l) => l.kind)).toEqual(["rig", "factory", "turret"]);
-      expect(rows.filter((l) => l.text.includes(RISING_RESETS)).map((l) => l.kind)).toEqual(["turret"]);
-      expect(rows[2].text).toBe("EACH SHOT: +2 {DMG} MORE THAN THE LAST. IT STARTS OVER EACH FIGHT.");
+      expect(rows.filter((l) => l.text.includes(RISING_CARD_RESETS)).map((l) => l.kind)).toEqual(["turret"]);
+      expect(rows.filter((l) => l.text.includes(RISING_RESETS)).map((l) => l.kind), "the part's own sentence is not on the card").toEqual([]);
+      expect(rows[2].text).toBe("EACH SHOT: +2 {DMG} MORE THAN THE LAST. ALL THREE RESET EACH FIGHT.");
+      expect(rows[1].text).toBe("EACH SLUG IT MAKES: +2 {DMG} MORE THAN THE LAST.");
       expect(rows[0].text).toBe("EACH SLUG IT HITS: +2 {DMG} MORE THAN THE LAST.");
+      // a part's own panel (one row) keeps `IT STARTS OVER EACH FIGHT.`: unchanged
+      expect(pieceLine("rising", "turret", 1, 8)).toBe("EACH SHOT: +2 {DMG} MORE THAN THE LAST. IT STARTS OVER EACH FIGHT.");
+    });
+  });
+
+  it("the card's last row keeps its two lines in the phone band's 225 px text width (235 px band - 10) and the sentence is one letter longer than the part's own (enchant2w.days's fit test holds the whole panel)", () => {
+    on(() => {
+      const rows = wordFace("rising", 8).lines;
+      const last = `${rows[2].label}: ${icons(rows[2].text)}`, own = `${rows[2].label}: ${icons(rows[2].text.replace(RISING_CARD_RESETS, RISING_RESETS))}`;
+      expect(wrap(last, 225, "5")).toHaveLength(2);
+      expect(wrap(own, 225, "5")).toHaveLength(2);
+      expect(textWidth(last, "5") - textWidth(own, "5")).toBe(6); // ALL THREE RESET (3 + 5 + 5 letters) against IT STARTS OVER (2 + 6 + 4): one letter, one px of advance
     });
   });
 });

@@ -110,8 +110,13 @@ export function wordFace(id: EnchantId, day?: number): WordFace {
     if (text !== null) lines.push({ kind, legal: true, label: `${only ? "ONLY " : ""}ON A ${KIND_WORD[kind]}`, text });
   }
   // POLISH-1 (P3a): RISING's reset sentence stands ONCE on its card, on the last row (the three rows with it do not keep whole in the phone's 235 x 57 px band: O/logs/p1fit.log);
-  // a part's own panel (pieceLine) has the one row and says it there.
-  if (id === "rising") for (let i = 0; i < lines.length - 1; i++) lines[i].text = lines[i].text.replace(` ${RISING_RESETS}`, "");
+  // a part's own panel (pieceLine) has the one row and says it there. FIX ROUND (the cold read's PW-01, 3 of 6 FULL: three readers took `IT STARTS OVER EACH FIGHT.` on the TURRET row
+  // for a turret-only rule and said they could not tell for a rig or a factory): on the card the last row says it for all three rows above it, `ALL THREE RESET EACH FIGHT.` (one more
+  // letter than IT STARTS OVER EACH FIGHT. in the 5x7 face: the row keeps its two lines in the phone band's 225 px text width, tests/polish1.words.test.ts)
+  if (id === "rising") {
+    const last = lines.length - 1, all = lines.length === 3 ? RISING_CARD_RESETS : RISING_RESETS;
+    lines.forEach((l, i) => { l.text = l.text.replace(` ${RISING_RESETS}`, i === last ? ` ${all}` : ""); });
+  }
   return { id, name: d.name, color: d.color, lines, notes: ENCHANT_NOTES };
 }
 
@@ -119,6 +124,8 @@ export function wordFace(id: EnchantId, day?: number): WordFace {
  *  RISING's line gains, said here in the display layer (sim/enchant.ts enchantLine, a generator file, is as it was): it starts over in every fight (the climb is
  *  the fight's own: the count of slugs or shots a rig, factory or turret has sent in THIS fight). Every surface that prints the line goes through wordLine. */
 export const RISING_RESETS = "IT STARTS OVER EACH FIGHT.";
+/** POLISH-1 (fix round; REQ-BFG-085): what the word CARD's last row says instead, for the three rows above it (wordFace). A part's own panel keeps RISING_RESETS. */
+export const RISING_CARD_RESETS = "ALL THREE RESET EACH FIGHT.";
 
 /** The word's line on a kind of piece at `stars`, in the panels' markup: enchantLine's text with the numbers that scale with the stars
  *  at THIS piece's stars (RISING's and GROWING's step, FIERY's BURN and BRACED's stuns: the generic line prints star 1's). null where the

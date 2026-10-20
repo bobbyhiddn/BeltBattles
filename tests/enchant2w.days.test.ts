@@ -36,9 +36,10 @@ import type { Ctx } from "../src/screens/build/actions";
 import { setTipsForTests } from "../src/ui/tips";
 import { ENCHANT, ENCHANT_DEFS, ENCHANT_IDS, ENCHANT_NUM, setEnchant, withEnchant, type EnchantId, type EnchantKind } from "../src/sim/enchant";
 import { dmgMulTenths, withHullScale } from "../src/sim/hullScale";
-import { ENCHANT_NOTES, RISING_RESETS, pieceLine, wordFace, wordLine } from "../src/ui/enchantFaces";
-/** POLISH-1 (P3a): a card row is wordLine's, but RISING's reset sentence stands once on its card, on the LAST row (all three rows do not keep whole in the phone band). */
-const cardRow = (id: string, i: number, n: number, line: string | null): string | null => (id === "rising" && line !== null && i < n - 1 ? line.replace(` ${RISING_RESETS}`, "") : line);
+import { ENCHANT_NOTES, RISING_CARD_RESETS, RISING_RESETS, pieceLine, wordFace, wordLine } from "../src/ui/enchantFaces";
+/** POLISH-1 (P3a): a card row is wordLine's, but RISING's reset sentence stands once on its card, on the LAST row (all three rows do not keep whole in the phone band); FIX ROUND (the cold
+ *  read's PW-01): there it says `ALL THREE RESET EACH FIGHT.` for the three rows above it (RISING_CARD_RESETS), not the part's own `IT STARTS OVER EACH FIGHT.`. */
+const cardRow = (id: string, i: number, n: number, line: string | null): string | null => (id === "rising" && line !== null ? line.replace(` ${RISING_RESETS}`, i < n - 1 ? "" : ` ${n === 3 ? RISING_CARD_RESETS : RISING_RESETS}`) : line);
 import { lineText } from "../src/ui/richText";
 import { icons, textWidth } from "../src/render/font";
 import { ITEMS } from "../src/sim/content";

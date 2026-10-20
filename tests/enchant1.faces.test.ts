@@ -36,7 +36,7 @@ import {
 } from "../src/sim/enchant";
 import { makeEnchantState, slugMadeFx } from "../src/sim/enchantFx";
 import {
-  ENCHANT_NOTES, RISING_RESETS, enchantedTitle, nameSpans, panelText, partNotes, pieceLine, slugDmg, wordFace, wordLine, wordOn,
+  ENCHANT_NOTES, RISING_CARD_RESETS, RISING_RESETS, enchantedTitle, nameSpans, panelText, partNotes, pieceLine, slugDmg, wordFace, wordLine, wordOn,
 } from "../src/ui/enchantFaces";
 import { carryStats, enchantNotes, factoryStats, plainRigStats, turretStats, wordRows } from "../src/ui/faces";
 import { statRow } from "../src/ui/icons";
@@ -608,7 +608,8 @@ describe("ENCHANT-1 E7: THE NOTES (behind the hover or the tap) and the word car
         expect(l.label, `${id} ${l.kind}`).toBe(`${goes.length === 1 ? "ONLY " : ""}ON A ${l.kind.toUpperCase()}`);
         expect(l.label, `${id} ${l.kind}: no NOT ON row any more`).not.toMatch(/^NOT ON/);
         // POLISH-1 (P3a): RISING's reset sentence stands once on its card, on the last row (three rows with it do not keep whole in the phone band)
-        expect(l.text, `${id} ${l.kind}`).toBe(id === "rising" && i < f.lines.length - 1 ? wordLine(id, l.kind, 1)!.replace(` ${RISING_RESETS}`, "") : wordLine(id, l.kind, 1));
+        // FIX ROUND (the cold read's PW-01): and on the last row `ALL THREE RESET EACH FIGHT.` (RISING_CARD_RESETS) for the three rows above it, not the part's own sentence
+        expect(l.text, `${id} ${l.kind}`).toBe(id === "rising" ? wordLine(id, l.kind, 1)!.replace(` ${RISING_RESETS}`, i < f.lines.length - 1 ? "" : ` ${f.lines.length === 3 ? RISING_CARD_RESETS : RISING_RESETS}`) : wordLine(id, l.kind, 1));
         expect(l.text).not.toMatch(/[[\]]/);
         expect(l.text).not.toMatch(/(?<!\{)\bDMG\b(?!\})/);
       }
