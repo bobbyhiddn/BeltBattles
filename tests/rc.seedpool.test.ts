@@ -52,9 +52,10 @@ import { checkPool, seedStore } from "../server/seed";
 import { JsonlStore } from "../server/store";
 import { runAdmin } from "../server/ghostAdmin";
 import {
-  FLOOR_VARIANT, RACE_SEED_HEROES, RACE_VARIANTS, floorGhosts, generateSamplePool, raceDeck, raceGhosts, sampleGhosts, samplePoolJson,
+  FLOOR_VARIANT, RACE_SEED_HEROES, RACE_VARIANTS, raceDeck, samplePoolJson,
   SAMPLE_VARIANTS, softPicked, type RaceDeck, // SOFT-1 (REQ-BFG-092): the race part's variant 0 and 1 decks
 } from "../tools/samplePool";
+import { floorGhosts, generateSamplePool, raceGhosts, sampleGhosts, softDeckOf } from "./helpers/poolCache"; // CACHE-1: the cached twins, and the generator's own deckOf (the copy below was this function)
 import type { FakeS3 } from "../tools/fakeS3";
 import { FAKE_CREDS, startFake, tigrisFor } from "./netStores";
 import { testIdentity } from "./netIdentity";
@@ -130,10 +131,8 @@ const RACE_PART_SHA256 = "d353afdfecd634a1dd1beffca6a1082c8fc9a93b0d242613768159
 /** SOFT-1 (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): a race seed deck as generateSamplePool's deckOf gives it in the
  *  shipped world: variant 0 and 1 from SOFT1_PICKS (softPicked: a par-field run's dusk deck, its field seed and road log),
  *  the floor variant (2) from raceDeck as before. */
-const softDeckOf = (h: HeroId, d: number, v: number): RaceDeck => {
-  const c = v < SAMPLE_VARIANTS ? softPicked(h, d)?.[v] : undefined;
-  return c ? { build: c.build, seed: c.seed!, ...(c.road ? { road: c.road } : {}) } : raceDeck(h, d, v);
-}; // FLIP-X2: the par player with its runes (was 94e26280... at PACKS; NUM-3 pinned b3c0ea31..., /10)
+// CACHE-1: softDeckOf is tests/helpers/poolCache.ts's now (this very function, marked pure so raceGhosts(undefined, softDeckOf) is cached and shared)
+// FLIP-X2: the par player with its runes (was 94e26280... at PACKS; NUM-3 pinned b3c0ea31..., /10)
 
 // Y7b2 (the bump, the pools): title bb-0.9.1 -> bb-0.9.3, and Y7b2's regeneration added (was "... again at REDO-X and BAL-2; ...")
 // Z-BUMP (the bump, the pools): title bb-0.9.3 -> bb-0.9.7, and Z-BUMP's regeneration added (was "... again at REDO-X, BAL-2 and Y7b2; ...")
@@ -172,7 +171,7 @@ describe("the bb-0.12.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, 
     expect(STANDIN_PART.every((s) => s.hero === "furnace" || s.hero === "weaver")).toBe(true);
     expect(POOL_RULES).toBe(RULES_VERSION); // FLIP-X2: nothing carried (was "bb-0.8.6")
     expect(sha(samplePoolJson(STANDIN_PART))).toBe(STANDIN_PART_SHA256);
-  });
+  }, 600_000); // CACHE-1: 600 s (was the 30-s default). POOL now comes from the pool cache, so the par runs and casual runs this test reads (sampleGhosts, floorGhosts) are no longer warm from the import-time build: a host timeout, not the rule
 
   it("each FOUNDRY and BASTION ghost is the par player's dusk deck of its day from a par-field run; three distinct decks per hero and day", () => {
     // SOFT-1 (REQ-BFG-092): over the softer picks' decks (softDeckOf, the generator's deckOf); was raceGhosts() (raceDeck's)
@@ -202,7 +201,7 @@ describe("the bb-0.12.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, 
         if (variantOf(s) === FLOOR_VARIANT) expect({ wins: s.wins, lives: s.lives }).toEqual(floorRecord(day));
       }
     }
-  });
+  }, 600_000); // CACHE-1: 600 s (was the 30-s default). The 24 par runs softDeckOf and playerBuild read are no longer warm from the import-time build (POOL comes from the pool cache): a host timeout, not the rule
 
   it("every ghost passes the upload check: the strict decoder, validateUpload (player mode), the reachable record and the rules gate; under 0.7.0's rules FOUNDRY and BASTION can't travel", () => {
     const branch = { sustain: 0, standIn: 0, heroGate: 0 };
@@ -274,7 +273,7 @@ describe("the bb-0.12.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, 
       return d;
     };
     expect(() => raceGhosts(96, rich)).toThrow(/sample ghost bastion v1 day 4 is invalid|fails validateUpload/); // BUMP-1D: 96, the race part's first createdAt index (was 60)
-  });
+  }, 600_000); // CACHE-1: 600 s (was the 30-s default). `rich` is not pure, so raceGhosts runs for real, and its par runs are no longer warm from the import-time build (POOL comes from the pool cache): a host timeout, not the rule
 });
 
 /** One store as the admin tool and the seed see it. */

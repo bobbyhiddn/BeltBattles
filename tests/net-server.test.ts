@@ -13,7 +13,7 @@ import { SCALE_RIGS, setScaleRigs } from "../src/sim/scale"; // BUMP-1E: the swi
 import { KEY_HEADER, SIG_HEADER, type Identity } from "../src/net/identity";
 import { encodeSnapshot, ghostId, type GhostSnapshot } from "../src/net/snapshot";
 import { createGhostServer, servedSnapshot, type GhostServer } from "../server/app"; // SOFT-1: + servedSnapshot (FIX-6)
-import { sampleGhosts } from "../tools/samplePool";
+import { sampleGhosts } from "./helpers/poolCache";
 import { snap, upSnap } from "./netHelpers";
 import { identitiesFor, ownedBy, signedHeaders, testIdentity, TEST_NAME } from "./netIdentity";
 import { storeBackends } from "./netStores";

@@ -9,7 +9,7 @@ import * as net from "../src/net/snapshot";
 import { START_LIVES } from "../src/sim/content";
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the pool's records are on 10 hearts
 import { LONG_RUN_MAX_DAY } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): the day bound of the out-of-bounds variant
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 
 const POOL = generateSamplePool();
 

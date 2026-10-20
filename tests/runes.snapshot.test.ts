@@ -12,7 +12,7 @@ import { offlineGhost, STAND_IN_HEROES } from "../src/net/fallback";
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import { RUNE_LIST, RUNES, runeGrants, runeOffer } from "../src/sim/runes";
 import type { Build } from "../src/sim/deck";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import { ghostOf } from "../src/game/day";
 import { newRun } from "../src/game/run";
 import { servedSnapshot, type GhostServer } from "../server/app";

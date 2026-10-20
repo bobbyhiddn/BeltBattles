@@ -29,7 +29,7 @@ import { validateBuild, validateUpload } from "../src/net/validate";
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { checkPool } from "../server/seed";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import { newRun, pendingRune, takeRune, type Run } from "../src/game/run";
 import { ghostOf } from "../src/game/day";
 import { Online, stopOnline, type OnlineDeps } from "../src/game/online";

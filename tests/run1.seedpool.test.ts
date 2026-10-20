@@ -37,9 +37,10 @@ import { parRunSeed } from "../src/sim/harness/player"; // BUMP-1D: the floor gh
 import {
   CASUAL_FLOOR_SEED, FLOOR_PICKS, // BUMP-1D: the chosen casual floor runs
   FLOOR_VARIANT, MIN_ELIGIBLE, RACE_SEED_HEROES, RACE_VARIANTS, SAMPLE_VARIANTS, SOFT1_PICKS, SOFT1_PICKS_FILE_ENV, SOFT1_WORLD,
-  drawRecord, drawnLabel, floorGhosts, poolDepth, raceDeck, raceGhosts, sampleDeckOf, sampleEntry, sampleGhosts, seedSlot, softDecks, softPickKey, softPickRows, softPicked,
+  drawRecord, drawnLabel, poolDepth, raceDeck, sampleDeckOf, sampleEntry, seedSlot, softDecks, softPickKey, softPickRows, softPicked,
   softStaleCheck, statedLosses, uncoveredStates, type RaceDeck,
 } from "../tools/samplePool";
+import { floorGhosts, raceGhosts, sampleGhosts, softDeckOf } from "./helpers/poolCache"; // CACHE-1: the cached twins, and the generator's own deckOf (the copy below was this function)
 
 const EPOCH = Date.UTC(2026, 8, 23, 19, 22); // samplePool.ts's fixed createdAt origin
 const without = (s: GhostSnapshot | Record<string, unknown>): Record<string, unknown> => { const { grade: _g, ...rest } = s as Record<string, unknown>; return rest; };
@@ -111,10 +112,7 @@ describe("T8: the generator's depth", () => {
 // file ignored) inside withLongRun(fn, false), against what the generator makes, since there is no 10-day file left to equal.
 describe("T8: in the shipped world the generator is the committed pool; with the switch off it is the 10-day pool", () => {
   /** generateSamplePool's own deckOf in the shipped world: a variant 0 or 1 deck is SOFT1_PICKS' pick (softPicked), the floor variant raceDeck's. */
-  const softDeckOf = (h: HeroId, d: number, v: number): RaceDeck => {
-    const c = v < SAMPLE_VARIANTS ? softPicked(h, d)?.[v] : undefined;
-    return c ? { build: c.build, seed: c.seed!, ...(c.road ? { road: c.road } : {}) } : raceDeck(h, d, v);
-  };
+  // CACHE-1: softDeckOf is tests/helpers/poolCache.ts's now (this very function, marked pure so raceGhosts(undefined, softDeckOf) is cached and shared)
 
   it("the ungraded sample, floor and race ghosts are the committed file's lines minus their grades (the full cmp is T8-proof.md): 192 ghosts, days 1-16, each stating its losses", () => {
     expect(longRunRules()).toBe(true); // BUMP-1D: was toBe(false), the switch off the default world; the committed file is the long world's now

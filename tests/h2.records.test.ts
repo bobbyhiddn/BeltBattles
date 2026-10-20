@@ -45,7 +45,7 @@ import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
 import type { TigrisStore } from "../server/tigrisStore";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import { storeBackends } from "./netStores";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 

@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import * as local from "../src/game/ghostSnapshot";
 import * as net from "../src/net/snapshot";
 import { UPGRADE_MAX } from "../src/sim/content";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 
 const POOL = generateSamplePool();
 

@@ -22,9 +22,10 @@ import { floorRecord } from "../src/net/records";
 import { MAX_DAY, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { checkPool } from "../server/seed";
 import {
-  CASUAL_FLOOR_SEED, CASUAL_FLOOR_TRIES, FLOOR_PICKS, FLOOR_VARIANT, RACE_SEED_HEROES, RACE_VARIANTS, SAMPLE_VARIANTS, floorGhosts, floorHash, generateSamplePool,
-  raceDeck, raceGhosts, sampleGhosts, softPicked, type RaceDeck, // BUMP-1D: + FLOOR_PICKS, floorHash and the shipped pool's parts
+  CASUAL_FLOOR_SEED, CASUAL_FLOOR_TRIES, FLOOR_PICKS, FLOOR_VARIANT, RACE_SEED_HEROES, RACE_VARIANTS, SAMPLE_VARIANTS, floorHash,
+  raceDeck, softPicked, type RaceDeck, // BUMP-1D: + FLOOR_PICKS, floorHash and the shipped pool's parts
 } from "../tools/samplePool";
+import { floorGhosts, generateSamplePool, raceGhosts, sampleGhosts, softDeckOf } from "./helpers/poolCache"; // CACHE-1: the cached twins, and the generator's own deckOf (the copy below was this function)
 import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content"; // BUMP-1D: ITEMS (bb0100 puts its key order back); BUMP-1E: RULES_VERSION (the string the old pools' digests put back)
 import { SCALE_RIGS, scaleRules, setScaleRigs, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on (the bb-0.10.0 and bb-0.11.0 worlds are read with them off)
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip): the five switches, through their own with..()
@@ -252,10 +253,7 @@ describe("LOSS-1 P2: the seed pool's floor ghosts carry the casual player's deck
     allOn();
     // the shipped pool without its grades: sampleGhosts, floorGhosts and raceGhosts over generateSamplePool's own deckOf (SOFT1_PICKS' variant 0 and 1 decks), PICK on
     // (generateSamplePool with PICK off is not the shipped world: worldKey() leaves SOFT1_WORLD, so neither the soft picks nor FLOOR_PICKS would apply)
-    const softDeckOf = (h: HeroId, d: number, v: number): RaceDeck => {
-      const c = v < SAMPLE_VARIANTS ? softPicked(h, d)?.[v] : undefined;
-      return c ? { build: c.build, seed: c.seed!, ...(c.road ? { road: c.road } : {}) } : raceDeck(h, d, v);
-    };
+    // CACHE-1: softDeckOf is tests/helpers/poolCache.ts's now (this very function, marked pure so raceGhosts(undefined, softDeckOf) is cached and shared)
     const build = (): GhostSnapshot[] => [...sampleGhosts(), ...floorGhosts(), ...raceGhosts(undefined, softDeckOf)];
     const pool = build();
     expect(pool).toHaveLength(192); // 4 heroes x 16 days x 3 variants

@@ -6,7 +6,7 @@ import { S3Client, S3Error, parseListV2 } from "../server/s3";
 import { amzDate, sha256Hex, signV4 } from "../server/sigv4";
 import { bucketPrefix, objectKey, parseKey, poolPrefix, storableRules, TigrisStore } from "../server/tigrisStore";
 import { StorageError } from "../server/store";
-import { generateSamplePool, sampleGhosts } from "../tools/samplePool";
+import { generateSamplePool, sampleGhosts } from "./helpers/poolCache";
 import type { FakeS3 } from "../tools/fakeS3";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { FAKE_CREDS, s3For, startFake, tigrisFor } from "./netStores";

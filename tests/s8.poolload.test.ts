@@ -17,7 +17,7 @@ import { floorRecord } from "../src/net/records";
 import { SNAPSHOT_V3, SNAPSHOT_VERSION } from "../src/net/snapshot";
 import { loadGhostPool } from "../src/net/fallback";
 import { SeedError, checkPool } from "../server/seed";
-import { raceGhosts } from "../tools/samplePool";
+import { raceGhosts } from "./helpers/poolCache";
 
 afterEach(() => {
   // the shipped values (AZ-BUMP's flip); a test that needs a switch off sets it off itself

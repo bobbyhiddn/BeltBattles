@@ -11,7 +11,7 @@ import { CAPTAIN_RUNES } from "../src/sim/rivalBuilds";
 import { RIVAL_IDS, standInBuild } from "../src/sim/rivals";
 import { SNAPSHOT_V3 } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import type { Build } from "../src/sim/deck";
 
 /** The deck's rune problem under the exact count (the upload's rule), or null. */

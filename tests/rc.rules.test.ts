@@ -37,7 +37,7 @@ import { foeNote, online, onlineMode } from "../src/game/session";
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
-import { floorGhosts, sampleGhosts } from "../tools/samplePool";
+import { floorGhosts, sampleGhosts } from "./helpers/poolCache";
 import { storeBackends } from "./netStores";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 
