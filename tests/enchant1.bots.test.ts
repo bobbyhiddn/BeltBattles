@@ -261,7 +261,7 @@ describe("ENCHANT-1 E8: the valuation reproduces the rules of thumb", () => {
       expect(ENCHANT_IDS.map((w) => rankWords({ build: b, day: 6 }, w).map((s) => s.value))).toEqual(a);
       expect(modelOf(b, 6).turrets.size).toBe(3);
     });
-    expect(bestWordFor({ build: heroStartBuild("weaver", 1), day: 5 }, "fiery")).toBeNull(); // ENCHANT off: no word is worth anything
+    expect(withEnchant(() => bestWordFor({ build: heroStartBuild("weaver", 1), day: 5 }, "fiery"), false)).toBeNull(); // ENCHANT off: no word is worth anything. BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 2): was bare (ENCHANT off by default; the default is ON now)
   });
 });
 
@@ -470,7 +470,7 @@ describe("ENCHANT-1 E8: the casual player, the warlord pick and LAST CHANCE", ()
       expect(bought).toBeLessThan(offered * 4); // not every offer: the coin is CASUAL_WORD_RATE
       expect(casualOpts("c5").tune?.wordBuy).toBe(CASUAL_WORD_RATE);
     });
-    expect(casualOpts("c5").tune).toEqual(CASUAL_TUNES.c5); // off: the knobs exactly as before, no word knob
+    expect(withEnchant(() => casualOpts("c5").tune, false)).toEqual(CASUAL_TUNES.c5); // off: the knobs exactly as before, no word knob. BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 3): was bare (ENCHANT off by default; the ON tune adds wordBuy)
   }, 180_000);
 
   it("a warlord pick: the par player takes the word that gains most on its best piece for nothing, or says NO THANKS when none gains", () => {
@@ -536,23 +536,39 @@ describe("ENCHANT-1 E8: the casual player, the warlord pick and LAST CHANCE", ()
 
   it("LAST CHANCE's part arrives with its word and the harness run keeps it; the bot's pick counts the word in the part's rating", () => {
     on(() => {
-      let kept = 0, rated = 0, tried = 0;
-      for (const hero of ["furnace", "weaver", "foundry"] as const) {
-        for (let seed = 1; seed <= 10 && kept < 2; seed++) {
-          const run = newRun(hero, parRunSeed(hero, seed));
-          const part = lastChanceOffer(run.seed, 3, hero, [], true).part;
-          const word = part ? lastChanceWord(run.seed, 3, part) : null;
-          if (!part || !word) continue;
-          tried++;
-          const days = playerRun(hero, 4, seed, { lastChance: { day: 3, boon: "part" } });
-          const held = [...days[3].build.items, ...(days[3].build.turrets ?? [])].filter((p) => p.def === part);
-          if (!held.length) continue; // the part found no spot (it waits in cargo)
-          if (held.some((p) => p.ench === word.ench)) kept++;
-          else expect(held.some((p) => p.ench !== undefined), `${hero} ${seed}: the part's word must not vanish`).toBe(true); // merged into a twin holding another word
+      let kept = 0, rated = 0, tried = 0, lostOnLift = 0;
+      // BUMP-1F (RULING-BUMP1F-R6 R6.3, TRIAGE-R34 line 4): KNOWN LIMITATION "bots lose a word when a belt redraw lifts its rig", shipped as is (the REPORT's section; src/ is not edited). Shopper.reseat puts a
+      // lifted rig back with placeRig(.., keep) (src/sim/harness/shopper.ts:281), which calls placeRigAt (src/sim/beltside.ts:587) and builds a fresh piece without ench / enchDir / grow: the harness run
+      // loses the part's word. This test is NARROWED here and only here. "arrives with its word" stays STRICT (`kept` > 0 below; the rating below). "The harness run keeps it" now accepts a missing word
+      // ONLY on a rig that a belt redraw lifted while it bore that word by dusk of day 4 (the spy: a placeRig call whose `keep` is a rig of the part's def holding the part's word, at Shopper.day <= 4),
+      // counted in `lostOnLift`; every other loss, a gun's included (a gun is never lifted), still fails as it did. The spy also sees the shopper's trial lifts, so it narrows by piece and word, not by effect.
+      // SENTINEL: `lostOnLift` must be > 0 (measured: furnace seed 1, TROPHY CHAIN's GROWING, 1 of the 7 runs this loop plays). THE NEXT RULES RELEASE fixes placeRig(keep) (copy ench / enchDir / grow, 3 lines);
+      // then no run loses a word on a lift, the sentinel goes red ON PURPOSE, and whoever sees it restores this test (it was :551) to strict: delete `lifts`, `lostOnLift` and the `else if` below, leave the plain `else expect`.
+      // (Checked by simulating the fix on placeRig(keep) in a throwaway edit: the loop then plays 5 runs, 2 keep their word, none loses it, every strict check passes and only this sentinel is red.)
+      const lifts = vi.spyOn(Shopper.prototype, "placeRig"); // calls through; restored below
+      try {
+        for (const hero of ["furnace", "weaver", "foundry"] as const) {
+          for (let seed = 1; seed <= 10 && kept < 2; seed++) {
+            const run = newRun(hero, parRunSeed(hero, seed));
+            const part = lastChanceOffer(run.seed, 3, hero, [], true).part;
+            const word = part ? lastChanceWord(run.seed, 3, part) : null;
+            if (!part || !word) continue;
+            tried++;
+            lifts.mockClear();
+            const days = playerRun(hero, 4, seed, { lastChance: { day: 3, boon: "part" } }); // the key is this test's alone, so the run executes in the spy window
+            expect(lifts.mock.calls.length, `${hero} ${seed}: the run executed inside the spy window (a cached run makes no call)`).toBeGreaterThan(0);
+            const lifted = new Set(lifts.mock.calls.flatMap((c, i) => { const k = c[4]; return k && k.def === part && k.ench === word.ench && (lifts.mock.contexts[i] as Shopper).day <= 4 ? [k.uid] : []; }));
+            const held = [...days[3].build.items, ...(days[3].build.turrets ?? [])].filter((p) => p.def === part);
+            if (!held.length) continue; // the part found no spot (it waits in cargo)
+            if (held.some((p) => p.ench === word.ench)) kept++;
+            else if (held.every((p) => p.ench === undefined) && held.some((p) => lifted.has(p.uid))) lostOnLift++; // KNOWN LIMITATION: the redraw lift rebuilt the rig without its word
+            else expect(held.some((p) => p.ench !== undefined), `${hero} ${seed}: the part's word must not vanish`).toBe(true); // merged into a twin holding another word
+          }
         }
-      }
+      } finally { lifts.mockRestore(); }
       expect(tried).toBeGreaterThan(0);
       expect(kept).toBeGreaterThan(0);
+      expect(lostOnLift, "KNOWN LIMITATION (RULING-BUMP1F-R6): no run lost its word on a redraw lift. If the next rules release fixed placeRig(keep) (copy ench / enchDir / grow), restore this test to strict: drop the lift branch and this sentinel").toBeGreaterThan(0);
       // the rating: the same offer on the same board, with the word and without
       for (const hero of ["furnace", "weaver", "foundry"] as const) {
         for (let seed = 1; seed <= 8 && rated < 2; seed++) {
@@ -574,9 +590,13 @@ describe("ENCHANT-1 E8: the casual player, the warlord pick and LAST CHANCE", ()
 describe("ENCHANT-1 E8: authored decks stay legal; the generators carry `~<code>`", () => {
   it("captains' and warlords' decks, the heroes' start and reference decks: no word, and the same verdict with ENCHANT on as off", () => {
     const decks: { name: string; day: number; build: Build }[] = [];
-    for (const id of RIVAL_IDS) for (const day of [1, 3, 5, 8, 10]) decks.push({ name: id, day, build: rivalBuild(id, day) });
-    for (const h of HEROES4) for (const day of [1, 4, 7, 10]) decks.push({ name: `${h} ref`, day, build: heroRefBuild(h, day) }, { name: `${h} start`, day, build: heroStartBuild(h, day) });
-    const off = decks.map((d) => validateBuild(d.build, d.day, "strict").errors);
+    // BUMP-1F (RULING-BUMP1F-R3.1, RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 5): the rival decks are built inside on() (ENCHANT-1's world: the rivals' own words are out); built bare they carry
+    // ENCHANT-2's grants (sootjaw day 5 temper FIERY, npcWords.ts), which is intended and pinned in tests/enchant2.*. The `off` verdicts run under withEnchant(false) (this local `off` is the verdicts).
+    on(() => {
+      for (const id of RIVAL_IDS) for (const day of [1, 3, 5, 8, 10]) decks.push({ name: id, day, build: rivalBuild(id, day) });
+      for (const h of HEROES4) for (const day of [1, 4, 7, 10]) decks.push({ name: `${h} ref`, day, build: heroRefBuild(h, day) }, { name: `${h} start`, day, build: heroStartBuild(h, day) });
+    });
+    const off = withEnchant(() => decks.map((d) => validateBuild(d.build, d.day, "strict").errors), false);
     on(() => {
       decks.forEach((d, i) => {
         expect([...d.build.items, ...(d.build.turrets ?? [])].some((p) => p.ench !== undefined || p.grow !== undefined), `${d.name} day ${d.day}`).toBe(false);
@@ -636,23 +656,26 @@ describe("ENCHANT-1 E8: authored decks stay legal; the generators carry `~<code>
 
 describe("ENCHANT-1 E8: with ENCHANT off every bot is what it was", () => {
   it("par and casual runs carry no word, no field, no ENCHANTER gold, and are the same twice and after an ENCHANT-on run", () => {
-    const sig = (days: readonly PlayerDay[]): string => JSON.stringify(days);
-    const before = HEROES4.map((h) => sig(playerRun(h, 10, 3))), cas = sig(casualRun("weaver", 10, 3));
-    on(() => { for (const h of HEROES4) playerRun(h, 10, 3); casualRun("weaver", 10, 3); }); // the cache keeps the worlds apart ("|en")
-    expect(HEROES4.map((h) => sig(playerRun(h, 10, 3)))).toEqual(before);
-    expect(sig(casualRun("weaver", 10, 3))).toBe(cas);
-    for (const s of [...before, cas]) {
-      expect(s).not.toContain("\"ench\"");
-      expect(s).not.toContain("wordGold");
-      expect(s).not.toContain("\"word\"");
-      expect(s).not.toContain("ench:");
-    }
-    expect(wordCount(playerRun("weaver", 10, 1)[9].build)).toBe(0);
-    expect(rateOn(heroStartBuild("furnace", 1), 3)).toBeGreaterThan(0);
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 6): was bare (ENCHANT off by default; the default is ON now, so these runs bought words); the off world is the whole body but the on() half, under withEnchant(false)
+    withEnchant(() => {
+      const sig = (days: readonly PlayerDay[]): string => JSON.stringify(days);
+      const before = HEROES4.map((h) => sig(playerRun(h, 10, 3))), cas = sig(casualRun("weaver", 10, 3));
+      on(() => { for (const h of HEROES4) playerRun(h, 10, 3); casualRun("weaver", 10, 3); }); // the cache keeps the worlds apart ("|en")
+      expect(HEROES4.map((h) => sig(playerRun(h, 10, 3)))).toEqual(before);
+      expect(sig(casualRun("weaver", 10, 3))).toBe(cas);
+      for (const s of [...before, cas]) {
+        expect(s).not.toContain("\"ench\"");
+        expect(s).not.toContain("wordGold");
+        expect(s).not.toContain("\"word\"");
+        expect(s).not.toContain("ench:");
+      }
+      expect(wordCount(playerRun("weaver", 10, 1)[9].build)).toBe(0);
+      expect(rateOn(heroStartBuild("furnace", 1), 3)).toBeGreaterThan(0);
+    }, false);
   });
 
   it("the ENCHANT-on world is its own: the same seed buys words, and its decks differ from the switch-off decks", () => {
-    const off = JSON.stringify(playerRun("weaver", 10, 1).map((d) => d.build));
+    const off = withEnchant(() => JSON.stringify(playerRun("weaver", 10, 1).map((d) => d.build)), false); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 7): was bare (ENCHANT off by default; the default run equals the state-B run for weaver seed 1)
     const onRun = on(() => JSON.stringify(playerRun("weaver", 10, 1).map((d) => d.build)));
     expect(onRun).not.toBe(off);
     expect(onRun).toContain("\"ench\"");

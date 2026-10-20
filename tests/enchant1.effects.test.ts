@@ -16,6 +16,8 @@ import { SEED, barge, furnaceBench, item, K } from "./wave3.helpers";
 
 afterEach(() => setEnchant(ENCHANT));
 const on = <T>(fn: () => T): T => withEnchant(fn, true);
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 lines 38-41): the shipped default is ENCHANT on (it was off here), so every "with ENCHANT off" half below runs under off()
+const off = <T>(fn: () => T): T => withEnchant(fn, false);
 
 interface Seen { id: number; flat: number; burn: number; mult: number }
 
@@ -299,7 +301,7 @@ describe("ENCHANT-1 E3: GROWING grows after each dusk fight (a win, a loss or a 
   it("with ENCHANT off nothing grows", () => {
     const run = newRun("furnace", 12);
     run.build.items.push({ uid: 300, def: "whetstone", x: 1, y: 5, ench: "growing" });
-    finishDay(run, 0, 20, side(), side());
+    off(() => finishDay(run, 0, 20, side(), side())); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 38): was a bare finishDay (ENCHANT off by default; the default grows now)
     expect(run.build.items.find((p) => p.uid === 300)!.grow).toBeUndefined();
   });
 });
@@ -350,7 +352,7 @@ describe("ENCHANT-1 E3: payload math in one place (every key of Payload has a ru
       slugMadeFx(r, p); slugMadeFx(r, p);
       expect(p.flat).toBe(ENCHANT_NUM.risingStep * 1 * 2 + ENCHANT_NUM.risingStep * 2 * 2); // step x 1 x 2, then step x 2 x 2
     });
-    expect(makeEnchantState({ ench: "fiery" }, 1)).toBeUndefined(); // off: no state
+    expect(off(() => makeEnchantState({ ench: "fiery" }, 1))).toBeUndefined(); // off: no state. BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 39): was bare (ENCHANT off by default)
   });
 });
 
@@ -365,17 +367,20 @@ describe("ENCHANT-1: with ENCHANT off a deck holding words fights exactly as the
       while (bt.t < 20 && !bt.over) { bt.step(); for (const e of bt.drainEvents()) log.push(JSON.stringify(e)); }
       return `${log.length}|${log.join("")}|${bt.sides[0].hull.hp}|${bt.sides[1].hull.hp}`;
     };
-    const a = trace(plain), b = trace(dressed);
+    const a = off(() => trace(plain)), b = off(() => trace(dressed)); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 40): was bare (ENCHANT off by default; the dressed deck fights with its words now)
     expect(b.length).toBeGreaterThan(1000);
     expect(b).toBe(a);
     // and with it on the same deck is not the same fight
     expect(on(() => trace(dressed))).not.toBe(a);
   });
   it("every word, every kind: the switch off builds no state", () => {
-    for (const id of ENCHANT_IDS) {
-      const bt = new Battle({ ...rigDeck(1, { ench: id, enchDir: id === "wide" ? 2 : undefined, grow: undefined }), }, barge(), SEED);
-      expect(bt.sides[0].gates.every((g) => g.ench === undefined), id).toBe(true);
-      expect(bt.sides[0].factories.every((f) => f.ench === undefined), id).toBe(true);
-    }
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 41): was bare (ENCHANT off by default); the loop runs under off()
+    off(() => {
+      for (const id of ENCHANT_IDS) {
+        const bt = new Battle({ ...rigDeck(1, { ench: id, enchDir: id === "wide" ? 2 : undefined, grow: undefined }), }, barge(), SEED);
+        expect(bt.sides[0].gates.every((g) => g.ench === undefined), id).toBe(true);
+        expect(bt.sides[0].factories.every((f) => f.ench === undefined), id).toBe(true);
+      }
+    });
   });
 });

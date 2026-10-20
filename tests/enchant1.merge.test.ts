@@ -12,6 +12,8 @@ import { pieceAt, sellWarning } from "../src/game/enchanter";
 
 afterEach(() => setEnchant(ENCHANT));
 const on = <T>(fn: () => T): T => withEnchant(fn, true);
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 lines 53-54): the shipped default is ENCHANT on (it was off here), so every "with ENCHANT off" half below runs under off()
+const off = <T>(fn: () => T): T => withEnchant(fn, false);
 
 /** A furnace run on day 3 with 50 G and nothing else but its start; uids from 200 up are ours. */
 function fresh(seed = 5): Run {
@@ -125,12 +127,15 @@ describe("ENCHANT-1 E4: a merge keeps one word", () => {
     });
   });
   it("with ENCHANT off the words are inert in a merge: the survivor's fields are what they were, the other's word is not carried", () => {
-    const run = fresh();
-    deckRig(run, 200);
-    cargo(run, 201, "whetstone", { stars: 2, ench: "rising" });
-    gainModule(run, "whetstone");
-    expect(rig(run, 200)).toEqual({ uid: 200, def: "whetstone", x: 1, y: 5, stars: 3 });
-    expect(run.enchMerge).toBeUndefined();
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 53): was a bare body (ENCHANT off by default; the cargo word is carried now); the body runs under off()
+    off(() => {
+      const run = fresh();
+      deckRig(run, 200);
+      cargo(run, 201, "whetstone", { stars: 2, ench: "rising" });
+      gainModule(run, "whetstone");
+      expect(rig(run, 200)).toEqual({ uid: 200, def: "whetstone", x: 1, y: 5, stars: 3 });
+      expect(run.enchMerge).toBeUndefined();
+    });
   });
 });
 
@@ -217,7 +222,7 @@ describe("ENCHANT-1 E4: selling loses the word, adds nothing to the price, and a
     cargo(run, 200, "whetstone", { ench: "fiery" });
     deckRig(run, 201, { ench: "rising" });
     const t = turretList(run.build)[0];
-    expect(sellWarning(run, { kind: "cargo", uid: 200 })).toBeNull(); // off: nothing sees it
+    expect(off(() => sellWarning(run, { kind: "cargo", uid: 200 }))).toBeNull(); // off: nothing sees it. BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 54): was bare (ENCHANT off by default)
     on(() => {
       expect(sellWarning(run, { kind: "cargo", uid: 200 })).toBe("SELL? FIERY IS LOST");
       expect(sellWarning(run, { kind: "item", uid: 201 })).toBe(sellAskText("rising"));

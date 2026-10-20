@@ -21,6 +21,8 @@ vi.setConfig({ testTimeout: 240_000 }); // ENCHANT-1 (run 3): these sweeps play 
 
 afterEach(() => setEnchant(ENCHANT));
 const on = <T>(fn: () => T): T => withEnchant(fn, true);
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 lines 58-61): the shipped default is ENCHANT on (it was off here), so every "off" half below runs under off()
+const off = <T>(fn: () => T): T => withEnchant(fn, false);
 
 function dayRun(day: number, seed = 7, hero: "furnace" | "weaver" = "furnace"): Run {
   const run = newRun(hero, seed);
@@ -117,7 +119,7 @@ describe("ENCHANT-1 E5a: the wagon in the caravan", () => {
       if (enchanterDay(day)) {
         expect(run.shop.enchanter, `day ${day}`).toEqual({ day, offers: enchanterWords(run.seed, day).map((ench) => ({ ench, price: 4, sold: false })) });
       } else expect(run.shop.enchanter, `day ${day}`).toBeUndefined();
-      expect(dayRun(day).shop.enchanter, `off, day ${day}`).toBeUndefined();
+      expect(off(() => dayRun(day)).shop.enchanter, `off, day ${day}`).toBeUndefined(); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 58): was a bare dayRun(day) (ENCHANT off by default)
     }
   });
   it("a REROLL keeps the wagon exactly as it is (a bought word stays sold), and no discount touches its price", () => {
@@ -140,7 +142,7 @@ describe("ENCHANT-1 E5a: the wagon in the caravan", () => {
     for (let seed = 1; seed <= 300; seed++) {
       const hero = seed % 2 ? "furnace" : "weaver";
       for (let day = 1; day <= 12; day++) {
-        const off = JSON.stringify(dayRun(day, seed, hero).shop.wagons);
+        const off = withEnchant(() => JSON.stringify(dayRun(day, seed, hero).shop.wagons), false); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2); green for the wrong reason, not a TRIAGE line): was a bare dayRun (ENCHANT off by default), which is ON now and made this on-versus-on; the local `off` is the string, so the switch is set with withEnchant
         const withIt = on(() => JSON.stringify(dayRun(day, seed, hero).shop.wagons));
         if (withIt !== off) throw new Error(`seed ${seed} day ${day}: the regular wagons moved`);
       }
@@ -285,7 +287,7 @@ describe("ENCHANT-1 E5a: buying is applying", () => {
       expect(buyEnchant(run, 0, { kind: "item", uid: 200 })).toEqual({ ok: false, reason: REFIT_NO_SHOP });
     });
     run.stage = "caravan";
-    expect(buyEnchant(run, 0, { kind: "item", uid: 200 }).reason).toBe("NO ENCHANTMENTS"); // the switch is off
+    expect(off(() => buyEnchant(run, 0, { kind: "item", uid: 200 }).reason)).toBe("NO ENCHANTMENTS"); // the switch is off. BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 59): was bare (ENCHANT off by default)
     function rigAt(r: Run, uid: number): void { r.build.items.push({ uid, def: "whetstone", x: 1, y: 5 }); }
   });
   it("enchantChoices lists every piece APPLY can show: glowing (reason null) or the reason, in a fixed order", () => {
@@ -375,10 +377,13 @@ describe("ENCHANT-1 E5b: the warlord pick", () => {
       expect(q.warlord!.id).toBe("matriarch");
       expect(q.enchPick).toBeUndefined();
     });
-    const off = dayRun(6, 3);
-    winHard(off);
-    expect(off.enchPick).toBeUndefined();
-    expect(pendingEnchantPick(off)).toBeNull();
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 60): was a bare run (ENCHANT off by default); the whole off run is under the switch now
+    withEnchant(() => {
+      const off = dayRun(6, 3);
+      winHard(off);
+      expect(off.enchPick).toBeUndefined();
+      expect(pendingEnchantPick(off)).toBeNull();
+    }, false);
   });
   it("taking a word puts it on a legal piece for free and closes the pick; a refusal keeps it open; the word is the seed's", () => {
     on(() => {
@@ -418,7 +423,7 @@ describe("ENCHANT-1 E5c: LAST CHANCE's part arrives enchanted (a rig or a turret
         const run2 = run;
         const take = (): ReturnType<typeof takeLastChance> => takeLastChance(run2, "part");
         const offer = pendingLastChance(run2)!;
-        const res = live ? on(take) : take();
+        const res = live ? on(take) : off(take); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 61): was `take()` bare for the off half (ENCHANT off by default)
         expect(res.ok).toBe(true);
         const part = offer.part!;
         const kept = res.gain!.where === "cargo" ? run2.inventory.find((i) => i.uid === res.gain!.survivor) : undefined;

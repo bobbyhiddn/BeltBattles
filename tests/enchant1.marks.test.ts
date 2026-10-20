@@ -50,6 +50,8 @@ import type { Run } from "../src/game/run";
 installRaster();
 afterEach(() => setEnchant(ENCHANT));
 const on = <T>(fn: () => T): T => withEnchant(fn, true);
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 lines 20-28): the shipped default is ENCHANT on (it was off here), so every "the switch off" half below runs under off()
+const off = <T>(fn: () => T): T => withEnchant(fn, false);
 /** The words that go on a kind of piece (ENCHANT-1b N1: MASSIVE goes on a turret only, SWIFT on a factory only; the marks ignore a word on any other kind). */
 const WORDS = (kind: EnchantKind): EnchantId[] => ENCHANT_IDS.filter((id) => ENCHANT_DEFS[id].kinds.includes(kind));
 
@@ -115,13 +117,14 @@ describe("ENCHANT-1 E7: the board's marks: off, every frame is as it was", () =>
 
   it("a deck holding words and counters draws exactly as the same deck without them, on every facing (the switch off)", () => {
     const b = deck(words, turrets);
-    for (const [name, f] of FRAMES) expect(sig(draw(b, f)), name).toBe(sig(draw(plain(b), f)));
-    expect(wordMark(b.items.find((p) => p.uid === 10), "whetstone"), "off: no mark").toBeUndefined();
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 20): was bare (ENCHANT off by default); the dressed deck and the mark run under off()
+    for (const [name, f] of FRAMES) expect(off(() => sig(draw(b, f))), name).toBe(sig(draw(plain(b), f)));
+    expect(off(() => wordMark(b.items.find((p) => p.uid === 10), "whetstone")), "off: no mark").toBeUndefined();
   });
 
   it("with the switch on, a deck with no word draws as it does with the switch off (the switch alone moves no pixel)", () => {
     const b = plain(deck(words, turrets));
-    for (const [name, f] of FRAMES) expect(sig(on(() => draw(b, f))), name).toBe(sig(draw(b, f)));
+    for (const [name, f] of FRAMES) expect(sig(on(() => draw(b, f))), name).toBe(sig(off(() => draw(b, f)))); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2); green for the wrong reason, not a TRIAGE line): was a bare draw(b, f) on the right (ENCHANT off by default), which is ON now and made this on-versus-on
   });
 
   it("with the switch on, the same deck's words DO draw (so the checks above are not vacuous)", () => {
@@ -239,7 +242,7 @@ describe("ENCHANT-1 E7: the spark: the top-right corner of the piece, in its wor
       drawCard(G(c), { x: 2, y: 2, w: 64, h: 52 }, ITEMS.whetstone, 3, "ironmonger", { sold: false, affordable: true, selected: false, hover: false, pulse: false, hidden: false, shake: 0, badge: null }, 0);
       return c;
     };
-    expect(sig(on(card))).toBe(sig(card()));
+    expect(sig(on(card))).toBe(sig(off(card))); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2); green for the wrong reason, not a TRIAGE line): was `sig(card())` bare (ENCHANT off by default), which is ON now and made this on-versus-on
     expect(readFileSync("src/screens/build/shop.ts", "utf8")).not.toMatch(/enchantMarks|enchantArt|drawEnchantSpark|drawSparkAt/);
   });
 });
@@ -314,7 +317,7 @@ describe("ENCHANT-1 E7 (REQ-BFG-050): GROWING's counter", () => {
     expect(below(withWord(rig, "growing")), "grow absent: the spark only").toBe(0);
     expect(below(withWord(rig, "growing", 0)), "grow 0: the spark only").toBe(0);
     expect(below(withWord(rig, "fiery", 5)), "a stray grow on another word: none").toBe(0);
-    expect(wordMark({ ench: "growing", grow: 4 }, "whetstone"), "the switch off: nothing at all").toBeUndefined();
+    expect(off(() => wordMark({ ench: "growing", grow: 4 }, "whetstone")), "the switch off: nothing at all").toBeUndefined(); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 21): was bare (ENCHANT off by default)
     expect(on(() => wordMark({ ench: "growing", grow: 4 }, "whetstone"))).toEqual({ id: "growing", color: ENCHANT_DEFS.growing.color, grow: 4 });
   });
 
@@ -386,7 +389,7 @@ describe("ENCHANT-1 E7: the cards that print no name: the spark at the top-right
       expect(enchantKindOf(gear)).toBeUndefined();
       expect(markColour({ ench: "fiery" }, gear), "a stray word on gear").toBeUndefined();
     });
-    expect(markColour({ ench: "fiery" }, "press"), "switch off").toBeUndefined();
+    expect(off(() => markColour({ ench: "fiery" }, "press")), "switch off").toBeUndefined(); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 22): was bare (ENCHANT off by default)
   });
 
   it("no drop card, drop list, warlord pick or road-event card can show a word in this job: a drop, a pick and an event's item arrive plain (only LAST CHANCE's part carries one)", () => {
@@ -423,7 +426,7 @@ describe("ENCHANT-1 E7: the cards that print no name: the spark at the top-right
       expect(carriedMark(run, { src: { from: "mount", index: 1 }, def: "scrapcannon", uid: 90 })).toBe(ENCHANT_DEFS.braced.color);
       expect(carriedMark(run, { src: { from: "offer" }, def: "whetstone", uid: -1 }), "a shop card is never enchanted").toBeUndefined();
     });
-    expect(carriedMark(run, { src: { from: "deck" }, def: "whetstone", uid: 10 }), "switch off").toBeUndefined();
+    expect(off(() => carriedMark(run, { src: { from: "deck" }, def: "whetstone", uid: 10 })), "switch off").toBeUndefined(); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 23): was bare (ENCHANT off by default)
   });
 });
 
@@ -478,7 +481,7 @@ describe("ENCHANT-1 E5c, E7: the LAST CHANCE PART card that arrives enchanted: t
     setTipsForTests("done");
     const { run, word } = enchantedOffer();
     const sc = lcScreen(run);
-    const off = sc.frame(new LastChancePicker());
+    const off = withEnchant(() => sc.frame(new LastChancePicker()), false); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 24): was bare (ENCHANT off by default); this local `off` is the frame, so the switch is set with withEnchant here
     const onF = on(() => sc.frame(new LastChancePicker()));
     const card = onF.ui.regions.find((r) => r.id === "lcpick-part")!.r;
     expect(off.ui.regions.find((r) => r.id === "lcpick-part")!.r, "the card's box").toEqual(card);
@@ -489,14 +492,14 @@ describe("ENCHANT-1 E5c, E7: the LAST CHANCE PART card that arrives enchanted: t
     const diff = diffPx(onF.c, off.c); // the word before the part's name: the head row's name changed, in the word's colour; under the head only the corner changed
     expect(outside(diff, sx, sy, sx + 3, sy + 3).filter(([, y]) => y > card.y + 17), "nothing under the head").toEqual([]);
     expect(diff.some(([x, y]) => x >= card.x + 31 && y >= card.y + 6 && y <= card.y + 16 && onF.c.at(x, y) === col), "the word first, in its colour").toBe(true);
-    expect(lcWord(run, pendingLastChance(run)!), "the switch off: no word").toBeNull();
+    expect(withEnchant(() => lcWord(run, pendingLastChance(run)!), false), "the switch off: no word").toBeNull(); // BUMP-1F (TRIAGE-R34 line 24): was bare
     expect(on(() => lcWord(run, pendingLastChance(run)!))?.ench).toBe(word);
   });
 
   it("its details (the ⓘ) name the word in its colour and say what it does on this kind of piece; with the switch off, the details are as they were", () => {
     const { run, part, word } = enchantedOffer();
-    const tw = 200, plainInfo = partInfo(part, tw, run);
-    expect(partInfo(part, tw, run, 1, { ench: word }), "off").toEqual(plainInfo);
+    const tw = 200, plainInfo = off(() => partInfo(part, tw, run)); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 25): was bare (ENCHANT off by default); the "as they were" details are the switch-off ones
+    expect(off(() => partInfo(part, tw, run, 1, { ench: word })), "off").toEqual(plainInfo); // BUMP-1F (TRIAGE-R34 line 25): was bare
     const items = on(() => partInfo(part, tw, run, 1, { ench: word }));
     expect(items.length).toBe(plainInfo.length + 1);
     const first = items[0].flat();
@@ -520,7 +523,7 @@ describe("ENCHANT-1 E7: the battle world and the scouted foe draw the same marks
     for (const s of [0, 1] as const) { a.drawn[s].dx = 40; a.drawn[s].dy = 70; }
     const v = a.views[0], f = a.drawn[0];
     const render = (): RasterCanvas => { const c = fresh(SIDE, SIDE); drawMachinery(G(c), v); drawTurrets(G(c), v); return c; };
-    const live = on(render), off = render();
+    const live = on(render), off = withEnchant(render, false); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 26): was `off = render()` bare (ENCHANT off by default); this local `off` is the picture, so the switch is set with withEnchant here
     const m = pieceMarkAt(f, rig), col = ENCHANT_DEFS.growing.color;
     expect(hasColour(live, m.spark.x, m.spark.y, 3, 3, col), "the rig's spark in the battle world").toBe(true);
     expect(live.at(m.counter.x, m.counter.y), "its counter's frame, in the word's colour").toBe(col); // ENCHANT-1b (N5): the frame is the word's colour, the number inside white on ink
@@ -550,7 +553,7 @@ describe("ENCHANT-1 E7: the battle world and the scouted foe draw the same marks
       const c = on(() => draw(foe, f, { skin: DEFAULT_SKIN })), m = pieceMarkAt(f, last);
       expect(sig(c), name).not.toBe(sig(draw(plain(foe), f, { skin: DEFAULT_SKIN })));
       expect(hasColour(c, m.spark.x, m.spark.y, 3, 3, ENCHANT_DEFS.swift.color), name).toBe(true);
-      expect(sig(draw(foe, f, { skin: DEFAULT_SKIN })), `${name}: off`).toBe(sig(draw(plain(foe), f, { skin: DEFAULT_SKIN })));
+      expect(off(() => sig(draw(foe, f, { skin: DEFAULT_SKIN }))), `${name}: off`).toBe(sig(draw(plain(foe), f, { skin: DEFAULT_SKIN }))); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 27): was bare (ENCHANT off by default)
     }
   });
 });
@@ -584,7 +587,7 @@ describe("ENCHANT-1 E3, E7: the battle's line for a swallowed STUN", () => {
       expect(p.length, `${kind}: one pop`).toBe(1);
       expect(p[0].color, kind).toBe(ENCHANT_DEFS.braced.color);
       const quiet = on(() => new Arena(b, barge(), SEED, null)); // off: the same event handed to react draws nothing new
-      react(quiet, ev[0]);
+      off(() => react(quiet, ev[0])); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 28): was a bare react(quiet, ev[0]) (ENCHANT off by default)
       expect(pops(quiet).filter((q) => q.text === "BRACED"), `${kind}: switch off`).toEqual([]);
     }
   });
