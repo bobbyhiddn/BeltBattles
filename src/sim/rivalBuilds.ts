@@ -942,7 +942,10 @@ export const PLANS: Record<RivalId, RivalPlan> = {
     // REFIT-AZ road: the road fill (kit-refitaz capsearch rfill, every switch on): the par player's rating's best gain per gold among common
     // parts, another star, an ARMOR PACK to FURNACE's par count, within the allowance (BRIEF-REFIT-AZ "The parts"); from round 4 also
     // rare and epic parts within the luck caps + ROADN (rulings 388faa07f0f451d1 and b77171cd5288623a)
-    road: [P(4), M2(4, "anvil", 0), G2(6, "tollbooth", 3, 1), P(7), G(8, "temper", 5, 3, 3), P(10), G(10, "tollbooth", 3, 5, 1), { ...G(10, "staticbrush", 5, 5), dusk: true }],
+    // BUMP-1G G2 (BRIEF-BUMP1G P3, the one allowed GRIMHOLD step "on its runes or anvil core"; kit-1g/g2grim.sh, K 24 on the FURNACE par field): the road's second ANVIL core (M2, fused into the day-2 one) comes on day 6 (was 4). With it
+    // on day 4 GRIMHOLD, a Medium captain, was the strongest captain of days 4 and 5 (margin -0.416 and -0.260, below every Hard captain's, the Hard slot's mean +0.103 and +0.204); now +0.180 and +0.346, the Medium slot's mean +0.248 and
+    // +0.343, the Medium over Hard gap +0.145 and +0.139 (was +0.026 and +0.018). From day 6 on it is the plan as before (fusing on day 8 put the Medium slot above the Easy slot on days 6 and 7, and never fusing it did so on days 6, 7 and 9-16: neither taken).
+    road: [P(4), M2(6, "anvil", 0), G2(6, "tollbooth", 3, 1), P(7), G(8, "temper", 5, 3, 3), P(10), G(10, "tollbooth", 3, 5, 1), { ...G(10, "staticbrush", 5, 5), dusk: true }],
   },
   // SHIELD WALL: a wall of plate on the bulwark belt, broken into damage. Synergy: a PLATE BREAKER on the bulwark belt
   // from day 5 (each payload takes a plating for 4 more damage); at good luck a SHIELD WALL on the bulwark belt from day 9
