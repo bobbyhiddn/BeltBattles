@@ -4197,7 +4197,12 @@ CHANGELOG commit e894e6d8415d; and the release record (deploy/GAME_BUILD.txt and
   src/sim/gates.ts:74 minStock 3), but a day's caravan shows only the offers its draw picks: **a 0.9.14 save names a gate when one is on the deck, in cargo or among that
   day's offers, so whether a given save from day 2 on meets the aside line on 0.9.13 is the day's draw, not every save**;
   a save without a gate loads as an ordinary run (an enchantment is an unknown optional field, ignored; the word does nothing on 0.9.13), and one in ENDLESS plays on with its hearts.
-  **Read in a browser** by the STAGE's rollback probe (kit0914/rbprobe; 0.9.14's page and 0.9.13's page): the STAGE's closing docs.
+  **Read in a browser** by the STAGE's rollback probe (kit0914/rbprobe/rbprobe.sh; six saves written by 0.9.14's own code, each opened on 0.9.14's page as the control and on 0.9.13's page; O/browser/rbprobe-*.log and their stills;
+  0 console errors in all 12 runs): the control loads and CONTINUEs every save. **On 0.9.13's page a save with a FUSER on its deck, with a FUSER only among the caravan's offers, or an ENDLESS run whose caravan holds a gate**
+  shows the title's aside line (THE SAVED RUN NEEDS A NEWER VERSION OF THE GAME. START A NEW RUN.) and no CONTINUE; the save stays in storage untouched, and NEW RUN works. **A save with a word on a deck part and no gate,
+  an ENDLESS run with no gate in its caravan, and a won run kept for its RUN WON offer** load there: CONTINUE works (the day-12 build screen; the day-15 endless run with its 3 endless wins; the summary) and so does NEW RUN.
+  One side effect: 0.9.13's CONTINUE saves such a run again without its `wares` map (its migrateRun drops a map that names the gates, which it does not know: src/game/save.ts:300-302; with the three gate ids taken out by hand it kept
+  all 64 entries), and a run opened again in 0.9.14 after that has no wares, so every module is on sale for it (src/game/wares.ts:202): rolling back and forward again within one run changes that run's shops. Nothing is lost on the server.
 
 **The release command** (`node /app/dist/ghost-server.mjs seed`) finds the live store holding bb-0.12.0's 192 pool ghosts
 (days 1-16, 12 a day) and the uploads made under it, and nothing under bb-0.13.0; this commit's bundle carries the new pool
@@ -4315,7 +4320,10 @@ the seed rehearsal 8 PASS (the launch seed `192 written, 0 unchanged, 0 removed`
 the boot; the Tigris rehearsal's steps a to e PASS; server/dist against v25's (eight of nine differ or are gone, above); the six generated files' bytes SAME; and no file of the
 stand-in generators' closure (102 files) changed after bump1f-accepted. **The suite at this commit's tree: ALL GREEN, 525 files** (6,419 tests declared: 6,408 passed and 11 skipped; the hull lane's 525 files match file by file, and the four more tests are the P7 probe rows), after seven
 time-outs under load in the first round (two 600 s limits, four 30 s limits and the known memo-hit bound of tests/bump1e.warm) that all passed in the second round at a quiet host (O/logs/suite-<commit>-rr*.log). The
-canary, the browser block and the mutants are recorded in O/STAGE-REPORT.md as the STAGE runs them.
+canary is green (tests/net-pool 5 of 5). **The browser block so far** (run on T's built pages): the page smoke 4 of 4 on the offline and on the online page at 0 console errors and 0 NOT HONEST; touchcheck
+noprof 2,409 of 2,409 (0.9.13's 2,323 + the ride's two new sections, apply 68 and gatesplit 18; the six scout rows that read the enemy LOOM's face title needed a one-line scripts fix, fefab254, because a rival's word now comes first: RISING LOOM);
+card3check 13, stylecheck 180, explaincheck 35, surge 4, mirror, asynccheck 62 of 62 and rcruns 32 and 44 (0.9.13's counts); the field and scout stills and the LAST CHANCE shots; the rollback probe above. The mixed touch run, the pixel comparison, the motion and
+still checks, the mutants and the rest are recorded in O/STAGE-REPORT.md as the STAGE runs them.
 
 ## Troubleshooting
 
