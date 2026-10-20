@@ -230,7 +230,10 @@ export class BattleCounters {
         by = gun.y + BOX_H + 1;
       }
       const box = keepOnScreen(ax, ay, bx, by, w, BOX_H, W, H);
-      if (!box || this.covers(box, keep, m) || d.guns.some((q) => overlap(box, q.r))) { d.skipped++; continue; }
+      // ROWS-1 (REQ-BFG-100; F11): a badge keeps off a belt's counter box as it keeps off a gun's (badgeOverChip): drawn later, it sat on top
+      // of belt 0's second chip on the phone (op690, motion-c1 fight A at 10 s: POWDER KEG's badge over `cnt:belt0:1`), hiding its count
+      // and taking the tap meant for the chip
+      if (!box || this.covers(box, keep, m) || badgeOverChip(box, d.guns, d.belts)) { d.skipped++; continue; }
       g.drawImage(this.badgeImage(text), box.x, box.y);
       d.badges.push({ kind: bd.kind, ref: bd.ref, r: box, text });
       const ref = bd.kind === "rig" ? bd.ref : 1000 + bd.ref;
@@ -508,6 +511,13 @@ export function deckOnScreen(a: Arena, m: Pick<ArenaMotion, "localToScreen">, si
 function union(a: Rect, b: Rect): Rect {
   const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
   return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
+}
+
+/** ROWS-1 (REQ-BFG-100; F11): does a C8 badge's `box` cover a counter box drawn this frame: a gun's (C6: as it always kept off,
+ *  SCALE-2c) or a belt's (C5: new)? Then the badge is not drawn this frame (skipped), as a gun's box has always kept it off; the
+ *  chips are drawn first, so the chip keeps its place, its count and its tap. Pure (tests). */
+export function badgeOverChip(box: Rect, guns: readonly { r: Rect }[], belts: readonly { r: Rect }[]): boolean {
+  return guns.some((q) => overlap(box, q.r)) || belts.some((q) => overlap(box, q.r));
 }
 
 /** Where finger targets overlap, the group a tap at (x, y) means: the one whose box (`anchor`) holds the point, else the
