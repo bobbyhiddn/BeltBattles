@@ -8,7 +8,9 @@
 //   revalidate                --rules <bb-x.y.z> [--apply] every upload through the strict decoder (with the rules
 //                                                          gate), the exact rules, validateUpload in the player mode and
 //                                                          the reachable-record check (src/net/records.ts), plus its id
-//                                                          and key; each failure listed with its reasons
+//                                                          and key; each failure listed with its reasons. S1: a stored
+//                                                          ENDLESS snapshot past day 25 (ENDLESS_ONLINE_LAST_DAY) gets no
+//                                                          deck check (too slow; POST refuses that day now): one line says so
 //   wipe-uploads              --rules <bb-x.y.z> [--apply] [--pool]   every upload of that rules version
 //   remove-player <playerId>  --rules <bb-x.y.z> [--apply] every upload by that player
 //
@@ -25,6 +27,7 @@
 import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { RULES_VERSION } from "../src/sim/content";
+import { ENDLESS_ONLINE_LAST_DAY } from "../src/sim/endless"; // S1: the last day an endless snapshot's deck is checked (here and in POST /v1/ghosts)
 import { endlessRecordProblem, isReachable } from "../src/net/records"; // ENDLESS-1: an endless snapshot's record
 import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
 import { parseRules, rulesGateProblem } from "../src/net/rulesGate";
@@ -221,8 +224,9 @@ export function openAdmin(cfg: StoreConfig, log: (line: string) => void = () => 
  * strict decoder, which carries the rules gate; the exact rules; validateUpload in the player mode), the reachable-record
  * check the seed applies (records.ts), and the record's own integrity: its id, and on Tigris its key. The upload's
  * signature can't be checked again: the server keeps neither the key nor the signature.
+ * S1 (BRIEF-S1): `onSkip`, when given, is told (ref, day) of a record whose deck check was skipped (see below); every other check still runs on it.
  */
-export function uploadProblems(r: StoredRecord, rules: string): string[] {
+export function uploadProblems(r: StoredRecord, rules: string, onSkip?: (ref: string, day: number) => void): string[] {
   if (r.badKey) return [`key: ${r.ref} is not a ghost key (ghosts/<rules>/dDD/player/<id>.json)`];
   let rec: unknown;
   try {
@@ -259,9 +263,17 @@ export function uploadProblems(r: StoredRecord, rules: string): string[] {
   // FIRSTDAY-1 (REQ-BFG-004, F4): a first run's flag rides with its seed, as POST /v1/ghosts checked it (absent on every
   // other upload, which is validated exactly as before)
   const fr = s.firstRun ? { firstRun: true } : {};
-  const v = s.road ? validateUpload(s.build, s.day, s.rules, { seed: s.seed, ...(lc ? { lastChance: lc } : {}), road: s.road, ...fr })
-    : lc ? validateUpload(s.build, s.day, s.rules, { seed: s.seed, lastChance: lc, ...fr }) : validateUpload(s.build, s.day, s.rules, s.firstRun ? fr : undefined);
-  if (!v.ok) out.push(`validateUpload: ${v.errors.join("; ")}`);
+  // S1 (BRIEF-S1; LAUNCH-0 run 3, REPORT 1.4 item 6): a stored ENDLESS snapshot past ENDLESS_ONLINE_LAST_DAY gets NO deck check here. POST
+  // /v1/ghosts refuses such a day now, before its own deck check, because the check grows about x1.11 a day (7.7 s of CPU at day 33, 26 s and
+  // 221 MB at day 41, per record): a hand-built ghost stored before S1 would otherwise hold this tool for that long, and on the 256 MB machine
+  // kill it. Every other check below still runs on it (id, key, rules, gate, the endless record, the name), so a forged one is still found;
+  // `onSkip` reports it, and runAdmin prints one line. The game never uploads such a day, so no honest record is skipped.
+  if (s.mode === "endless" && s.day > ENDLESS_ONLINE_LAST_DAY) onSkip?.(r.ref, s.day);
+  else {
+    const v = s.road ? validateUpload(s.build, s.day, s.rules, { seed: s.seed, ...(lc ? { lastChance: lc } : {}), road: s.road, ...fr })
+      : lc ? validateUpload(s.build, s.day, s.rules, { seed: s.seed, lastChance: lc, ...fr }) : validateUpload(s.build, s.day, s.rules, s.firstRun ? fr : undefined);
+    if (!v.ok) out.push(`validateUpload: ${v.errors.join("; ")}`);
+  }
   // RUN-1 (R1.2, T3c): and its `losses` when it states them (a long run's upload; v3, taken under those rules only), as POST checks
   // it: an honest long-run record is kept, one whose losses contradict its hearts is found. Without `losses`: as before
   // ENDLESS-1 (REQ-BFG-059): an endless snapshot (stored on its own day, up to ENDLESS_LAST_DAY, in the same bucket keys) is judged on the
@@ -352,23 +364,26 @@ export interface Plan {
   args: AdminArgs;
   delete: PlanEntry[];
   keep: { pool: number; uploads: number };
+  /** S1: revalidate's uploads whose deck check was skipped (a stored endless snapshot past ENDLESS_ONLINE_LAST_DAY), as (ref, day). */
+  skipped: { ref: string; day: number }[];
 }
 
 /** The plan for revalidate, wipe-uploads or remove-player over one rules version's records. The seed pool is in it only
  *  for wipe-uploads with --pool. */
 export function makePlan(args: AdminArgs, h: Holdings): Plan {
   const del: PlanEntry[] = [];
+  const skipped: { ref: string; day: number }[] = []; // S1: deck check skipped (uploadProblems' onSkip)
   for (const r of h.records) {
     let why: string | null = null;
     if (args.command === "wipe-uploads") why = r.kind === "upload" || args.pool ? `wipe-uploads${r.kind === "pool" ? " --pool" : ""}` : null;
     else if (r.kind !== "upload") why = null; // revalidate and remove-player never touch the seed pool
-    else if (args.command === "revalidate") why = uploadProblems(r, args.rules).join(" | ") || null;
+    else if (args.command === "revalidate") why = uploadProblems(r, args.rules, (ref, day) => skipped.push({ ref, day })).join(" | ") || null;
     else if (args.command === "remove-player") why = r.playerId === args.playerId ? `player ${args.playerId}` : null;
     if (why) del.push({ record: r, why });
   }
   const gone = new Set(del.map((d) => d.record));
   const kept = h.records.filter((r) => !gone.has(r));
-  return { args, delete: del, keep: { pool: kept.filter((r) => r.kind === "pool").length, uploads: kept.filter((r) => r.kind === "upload").length } };
+  return { args, delete: del, keep: { pool: kept.filter((r) => r.kind === "pool").length, uploads: kept.filter((r) => r.kind === "upload").length }, skipped };
 }
 
 export interface DayCount {
@@ -440,6 +455,8 @@ export async function runAdmin(argv: readonly string[], env: Env, out: (line: st
     const plan = makePlan(args, h);
     out(`plan: delete ${plan.delete.length} record(s) of ${args.rules}; keep ${plan.keep.pool} seed-pool ghost(s) and ${plan.keep.uploads} upload(s)`);
     for (const d of plan.delete) out(`  delete ${describe(d.record)}  (${d.why})`);
+    // S1: the one line for the stored endless snapshots whose deck check was skipped (revalidate only; it lists at most five)
+    if (plan.skipped.length) out(`  deck check skipped for ${plan.skipped.length} stored endless snapshot(s) past day ${ENDLESS_ONLINE_LAST_DAY} (too slow; POST /v1/ghosts refuses such a day): ${plan.skipped.slice(0, 5).map((x) => `${x.ref} (day ${x.day})`).join(", ")}${plan.skipped.length > 5 ? ", ..." : ""}`);
     if (args.command === "wipe-uploads" && !args.pool && plan.keep.pool) out(`  the seed pool (${plan.keep.pool}) stays: --pool would delete it too`);
     if (h.other.length) out(`  ${h.other.length} other record(s) here, never touched`);
     if (!args.apply) {
