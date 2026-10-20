@@ -266,7 +266,7 @@ export class Shopper {
   /**
    * H2: put a rig to work on tile ti of route ri: the free cell beside it and the rotation with the most hits
    * on connected belts (ties: the first candidate in D3 order), among placements `accept` allows. A lifted rig
-   * (`keep`) keeps its uid and stars: it is moved, not gained, so it never merges. A new copy with stars on is
+   * (`keep`) keeps its uid, stars and word (ench, enchDir, grow; BUMP-1G B1): it is moved, not gained, so it never merges. A new copy with stars on is
    * gained through the game's gainModule at that spot and rotation (v2's placeGate): if a same-def, same-star
    * twin is placed it fuses into that twin instead, and the twin keeps its cell and rotation (P16); the
    * survivor is returned. Stars off: v2's raw push (the next uid), at the H2 spot. null when no cell beside
@@ -278,7 +278,16 @@ export class Shopper {
   placeRig(def: string, ri: number, ti: number, accept?: Accept, keep?: Placed): Placed | null {
     const s = this.rigSpot(def, ri, ti, accept, !!keep);
     if (!s) return null;
-    if (keep) return placeRigAt(this.b, keep.uid, def, s, keep.stars);
+    if (keep) {
+      // BUMP-1G B1 (RULING-BUMP1F-R6, the KNOWN LIMITATION "bots lose a word when a belt redraw lifts its rig"): a lifted rig is MOVED, so it keeps its word and its counter. placeRigAt builds a fresh
+      // piece { uid, def, x, y, stars, rot }; ench, enchDir (WIDE's added side) and grow (GROWING's counter) are copied back from the lifted piece, in the order a word is written (deck.ts Placed).
+      // Only this bots' class reaches here (a human's rig is moved by the game's own code, which never rebuilds it), and without a word on `keep` the piece is exactly what it was.
+      const q = placeRigAt(this.b, keep.uid, def, s, keep.stars);
+      if (keep.ench !== undefined) q.ench = keep.ench;
+      if (keep.enchDir !== undefined) q.enchDir = keep.enchDir;
+      if (keep.grow !== undefined) q.grow = keep.grow;
+      return q;
+    }
     if (this.stars) {
       const g = gainInto(this, this.b, def, { x: s.x, y: s.y, rot: s.rot }, this.cargo);
       return this.b.items.find((p) => p.uid === g.survivor) ?? null;
