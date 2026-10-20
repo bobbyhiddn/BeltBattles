@@ -143,6 +143,33 @@ export class Audio {
     if (this.ctx.state === "suspended") void this.ctx.resume();
   }
 
+  /** C1 (BRIEF-C1 item 3): audio was unlocked (a first tap made the context). Before that there is nothing to pause or resume. */
+  get unlocked(): boolean {
+    return this.ctx !== null;
+  }
+
+  /** C1: suspend the WebAudio context: the page is hidden (bindPageAudio) or the phone wrapper's app went to the background
+   *  (pauseAudio, called from Capacitor's appStateChange by job M1). Nothing sounds and the context's clock stands still, so
+   *  the music carries on from the same beat when resume() runs. No-op before unlock(). */
+  pause(): void {
+    const ctx = this.ctx;
+    if (!ctx || ctx.state === "closed") return;
+    try {
+      void Promise.resolve(ctx.suspend()).catch(() => undefined);
+    } catch { /* a context that cannot suspend stays as it is */ }
+  }
+
+  /** C1: undo pause(): resume the context only if audio was unlocked and the player's sound mode is on (not OFF: nothing
+   *  would sound, and a suspended context saves the phone's battery; the next tap's unlock() resumes it, as it always did).
+   *  The context's own `state` is not asked: a suspend still in flight would read "running", and the resume must win. */
+  resume(): void {
+    const ctx = this.ctx;
+    if (!ctx || this.mode === 2 || ctx.state === "closed") return;
+    try {
+      void Promise.resolve(ctx.resume()).catch(() => undefined);
+    } catch { /* the next tap's unlock() tries again */ }
+  }
+
   cycleMode(): number {
     this.mode = (this.mode + 1) % 3;
     try { localStorage.setItem("beltbattles.sound", String(this.mode)); } catch { /* ignore */ }
@@ -349,4 +376,39 @@ export class Audio {
       this.nextTime += stepDur;
     }
   }
+}
+
+// ---------------------------------------------------------------- C1 (BRIEF-C1 item 3): audio follows the page's visibility
+
+/** The part of `document` read here (tests pass a fake). */
+export interface VisibilityHost {
+  visibilityState?: string;
+  addEventListener(type: "visibilitychange", listener: () => void): void;
+  removeEventListener(type: "visibilitychange", listener: () => void): void;
+}
+
+/** What the page's pause and resume act on: the Game's Audio, once bindPageAudio has been given it. */
+let pageAudio: Pick<Audio, "pause" | "resume"> | null = null;
+
+/** Suspend the page's audio (nothing before the Game has bound one). Exported for the phone wrapper (job M1): Capacitor's
+ *  `App.addListener("appStateChange", ({ isActive }) => (isActive ? resumeAudio() : pauseAudio()))`. */
+export function pauseAudio(): void {
+  pageAudio?.pause();
+}
+
+/** Resume the page's audio after pauseAudio, if it was unlocked and the player's sound mode is on (Audio.resume). */
+export function resumeAudio(): void {
+  pageAudio?.resume();
+}
+
+/** Make `audio` the page's audio (pauseAudio and resumeAudio act on it) and keep it in step with the page: suspended while the
+ *  page is hidden, resumed when it is visible again (Audio.resume's rules). Returns a function that undoes both. */
+export function bindPageAudio(audio: Pick<Audio, "pause" | "resume">, doc: VisibilityHost | undefined = typeof document === "undefined" ? undefined : document): () => void {
+  pageAudio = audio;
+  const onChange = () => (doc?.visibilityState === "hidden" ? audio.pause() : audio.resume());
+  doc?.addEventListener("visibilitychange", onChange);
+  return () => {
+    doc?.removeEventListener("visibilitychange", onChange);
+    if (pageAudio === audio) pageAudio = null;
+  };
 }

@@ -41,6 +41,7 @@ import { ArenaMotion } from "../game/arenaMotion";
 import { minGap } from "../game/battleLayout";
 import { settings } from "../core/settings";
 import { currentName } from "../game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063): the name screen comes first
+import { OFFLINE_LINE, offlineMode } from "../game/session"; // C1 (BRIEF-C1 item 1): the title's offline line
 import { HEART_COST_FROM, HEART_COSTS, HEARTS_START, heartsRules } from "../sim/hearts"; // RETUNE-1 run 2: the rules card's hearts
 
 
@@ -277,6 +278,10 @@ export class TitleScreen implements Screen {
     if (this.newStyle) newDot(g, b.customize);
     game.soundButton(g, L.sound);
     drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });
+    // C1 (BRIEF-C1 item 1): one small line at the bottom left while the device has no network and the game would have asked the
+    // ghost server (read live every frame, so the online and offline events need no state here): the foes are stand-ins. Drawn
+    // on the version line's row, clear of the panel (which ends 8 px or more above it) and of the version line (a test pins it)
+    if (offlineMode()) drawText(g, OFFLINE_LINE, 4, H - 8, C.slate4, { font: "3", outline: C.ink });
     // BUMP-1E P6 E.2: the saved run was set aside (it names something this build does not know): one plain line, just above the panel (the
     // portrait panel sits at the bottom edge, so there is no room under it), on a dark strip like the logo band's
     const aside = saveProblem();
@@ -288,7 +293,8 @@ export class TitleScreen implements Screen {
       lines.forEach((ln, i) => drawText(g, ln, W / 2, y0 + i * lh, C.yellow, { font: "3", align: "center", outline: C.ink }));
     }
     if (this.help) this.drawHelp(g);
-    if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; }, this.k);
+    // C1 (BRIEF-C1 item 4): the title's OPTIONS card alone carries the FULLSCREEN choice (where the browser can do it)
+    if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; }, this.k, { fullscreen: true });
   }
 
   private drawHelp(g: G): void {

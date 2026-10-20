@@ -6,6 +6,9 @@ interface ImportMetaEnv {
   /** MOTION-2 (REQ-BFG-071): "1" makes a test build with the motion dev knobs (?motion, ?sway, ?sea, ?perf; src/render/
    *  motion.ts MOTION_KNOBS) for the scripts' pages. Unset (every player build), the knobs are not in the bundle. */
   readonly VITE_MOTION_KNOBS?: string;
+  /** C1 (BRIEF-C1 item 5): "1" makes the free demo's build (`npm run build:demo`, into dist-demo/; src/demo.ts DEMO). Unset (every
+   *  other build) DEMO is false. Nothing reads it yet: job D3 builds the demo on top of it. */
+  readonly VITE_DEMO?: string;
   /** Vite's own: true under the dev server and vitest, false in a build. */
   readonly DEV: boolean;
 }
