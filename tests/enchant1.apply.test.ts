@@ -592,19 +592,21 @@ describe("ENCHANT-1 step 7: APPLY", () => {
   it("the switch off: no word card, no APPLY, no sell confirm (a stray `ench` field is ignored), the editor sees every press", () => {
     const run = on(() => dayRun());
     run.inventory.find((i) => i.uid === 901)!.ench = "fiery"; // a save from a build with the switch on, read with it off
-    const r = rig(run, "desk"); // the switch is off here
-    frame(r);
-    expect(wagonView(r.screen)).toBeNull();
-    expect(wordCardAt(r.screen, 5, 30)).toBeNull();
-    r.screen.select({ kind: "cargo", uid: 901 });
-    frame(r);
-    expect(sellLabelFor(r.screen, r.screen.sel)).toBeNull();
-    const gold = run.gold;
-    press(r, "sell");
-    expect(run.inventory.some((i) => i.uid === 901)).toBe(false); // sold on the first press
-    expect(run.gold).toBeGreaterThan(gold);
-    expect(r.screen.applyInfo()).toBeNull();
-    expect(r.screen.wordTargets()).toEqual([]);
+    withEnchant(() => { // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 25): was bare ("the switch is off here", the switch shipped off); ENCHANT is on by default now, so the screen is built, framed and read under ENCHANT off
+      const r = rig(run, "desk"); // the switch is off here
+      frame(r);
+      expect(wagonView(r.screen)).toBeNull();
+      expect(wordCardAt(r.screen, 5, 30)).toBeNull();
+      r.screen.select({ kind: "cargo", uid: 901 });
+      frame(r);
+      expect(sellLabelFor(r.screen, r.screen.sel)).toBeNull();
+      const gold = run.gold;
+      press(r, "sell");
+      expect(run.inventory.some((i) => i.uid === 901)).toBe(false); // sold on the first press
+      expect(run.gold).toBeGreaterThan(gold);
+      expect(r.screen.applyInfo()).toBeNull();
+      expect(r.screen.wordTargets()).toEqual([]);
+    }, false);
   });
 
   it("a part that holds a word asks REPLACES FIERY first; CANCEL leaves everything; the confirm replaces it and takes the gold", () => {

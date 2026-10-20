@@ -107,7 +107,7 @@ describe("ENCHANT-1 run 5: a factory using WIDE's extra belt keeps WIDE", () => 
       expect(extraBeltInUse(plain, 200)).toBe(false); // no WIDE
       expect(extraBeltInUse(runWith(outs + 1), 1)).toBe(false); // the KILN holds no WIDE
     });
-    expect(extraBeltInUse(runWith(outs + 1), 200)).toBe(false); // switch off: nothing sees a word
+    expect(withEnchant(() => extraBeltInUse(runWith(outs + 1), 200), false)).toBe(false); // switch off: nothing sees a word (BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 55): was a bare call; true under the new default ENCHANT = true)
   });
   it("APPLY: another word is refused with the reason, no gold is taken, the offer stays, the glow is off; the same word and a free slot are not affected", () => {
     on(() => {

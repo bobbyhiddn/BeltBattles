@@ -1,6 +1,7 @@
 // ENCHANT-1 (REQ-BFG-085; BRIEF-ENCHANT1 E1, E2; step 2): the switch, the rules gate, the legal kinds, the data (Placed.ench / enchDir,
 // BuildTurret.ench, cargo, GROWING's `grow`), the snapshot (the strict decoder and the client's check, in both switch states and under
 // older rules), the stand-in word `~<code>` (both codecs) and the validators. ENCHANT ships off: every switch-off pin is untouched.
+// (BUMP-1F, RULING-BUMP1F-R5 R5.2 (2): it ships ON since bb-0.13.0 (ENCHANT_RULES); the switch-off pins below run under off(), the shipped value is pinned as on.)
 // ENCHANT-1b (N1): MASSIVE goes on a TURRET only and SWIFT on a FACTORY only (the other six keep rig, factory and turret): the other kinds
 // refuse them with `ONLY ON A TURRET` / `ONLY ON A FACTORY`, and enchantLine is null there.
 import { afterEach, describe, expect, it } from "vitest";
@@ -58,9 +59,10 @@ const withTurret = (b: Build, f: Record<string, unknown> = {}): Build => ({ ...b
 const KILN = heroStartBuild("furnace").items.find((p) => p.def === ITEMS.kiln.id)!.uid; // the signature factory
 
 describe("ENCHANT-1 E1: the eight words and the switch", () => {
-  it("ENCHANT ships off, and the eight ids, two-letter codes and legal kinds are the brief's", () => {
-    expect(ENCHANT).toBe(false);
-    expect(enchantRules()).toBe(false);
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 32): was "ENCHANT ships off, and the eight ids ..." with expect(ENCHANT).toBe(false) and expect(enchantRules()).toBe(false); the switch ships ON since bb-0.13.0 (enchant.ts: BUMP-1F: was false)
+  it("ENCHANT ships on, and the eight ids, two-letter codes and legal kinds are the brief's", () => {
+    expect(ENCHANT).toBe(true);
+    expect(enchantRules()).toBe(true);
     expect([...ENCHANT_IDS]).toEqual(["fiery", "rising", "growing", "echoing", "massive", "swift", "wide", "braced"]);
     expect(ENCHANT_IDS.map((id) => ENCHANT_DEFS[id].code)).toEqual(["fi", "ri", "gr", "ec", "ma", "sw", "wi", "br"]);
     expect(new Set(ENCHANT_IDS.map((id) => ENCHANT_DEFS[id].code)).size).toBe(8);
@@ -78,14 +80,22 @@ describe("ENCHANT-1 E1: the eight words and the switch", () => {
   });
 
   it("setEnchant / withEnchant: the switch comes back, even on a throw", () => {
-    expect(enchantRules()).toBe(false);
-    expect(on(() => enchantRules())).toBe(true);
-    expect(enchantRules()).toBe(false);
-    expect(() => on(() => { throw new Error("x"); })).toThrow("x");
-    expect(enchantRules()).toBe(false);
-    setEnchant(true);
-    expect(off(() => enchantRules())).toBe(false);
-    expect(enchantRules()).toBe(true);
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 33): was expect(enchantRules()).toBe(false) from the start (the switch shipped off), then setEnchant(true) and off(). It ships ON now, so the
+    // test starts from the shipped value (`was`) and runs the old sequence from BOTH starting states: the switch comes back to where it was, on or off, even on a throw
+    const was = ENCHANT;
+    expect(enchantRules()).toBe(was);
+    for (const start of [was, !was]) {
+      setEnchant(start);
+      expect(enchantRules()).toBe(start);
+      expect(on(() => enchantRules())).toBe(true);
+      expect(enchantRules()).toBe(start);
+      expect(() => on(() => { throw new Error("x"); })).toThrow("x");
+      expect(enchantRules()).toBe(start);
+      expect(off(() => enchantRules())).toBe(false);
+      expect(enchantRules()).toBe(start);
+      expect(() => off(() => { throw new Error("x"); })).toThrow("x");
+      expect(enchantRules()).toBe(start);
+    }
   });
 
   it("every line is one stat or one short line in core words, whole numbers, and none starts with YOUR, START or AT DAWN", () => {
@@ -173,7 +183,7 @@ describe("ENCHANT-1 E1: the eight words and the switch", () => {
 
 describe("ENCHANT-1 E1: the rules gate", () => {
   it("ENCHANT_RULES is today's literal; features, gate problem and world follow SHAPES2's form", () => {
-    expect(ENCHANT_RULES).toBe("bb-0.11.0");
+    expect(ENCHANT_RULES).toBe("bb-0.13.0"); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 34): was "bb-0.11.0" (rulesGate.ts ENCHANT_RULES moved with the bump)
     expect(ENCHANT_RULES).toBe(RULES_VERSION); // the release's bump writes its own literal here
     const plain = deck(), held = deck({ ench: { 10: { ench: "fiery" } } });
     expect(enchantFeatures(plain)).toEqual([]);
@@ -182,13 +192,14 @@ describe("ENCHANT-1 E1: the rules gate", () => {
     for (const none of [null, 7, "x", { items: "x" }, {}]) expect(enchantFeatures(none)).toEqual([]);
     // off: "not in this rules version yet"; on: only at or after ENCHANT_RULES
     expect(enchantGateProblem(RULES_VERSION, plain)).toBeNull();
-    expect(enchantGateProblem(RULES_VERSION, held)).toBe("enchantments (ench, enchDir, grow): not in this rules version yet");
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 34, and its masked literal at the old :187): the two "off" lines below ran bare (the switch shipped off); it ships on now, so they run under off(). The "older rules" text was "predate bb-0.11.0 ... need bb-0.11.0 or later"
+    expect(off(() => enchantGateProblem(RULES_VERSION, held))).toBe("enchantments (ench, enchDir, grow): not in this rules version yet");
     expect(on(() => enchantGateProblem(RULES_VERSION, held))).toBeNull();
-    expect(on(() => enchantGateProblem("bb-0.10.0", held))).toBe("rules bb-0.10.0 predate bb-0.11.0: enchantments (ench, enchDir, grow) need bb-0.11.0 or later");
+    expect(on(() => enchantGateProblem("bb-0.10.0", held))).toBe("rules bb-0.10.0 predate bb-0.13.0: enchantments (ench, enchDir, grow) need bb-0.13.0 or later");
     expect(on(() => enchantGateProblem("bb-garbled", held))).toContain("is not a bb-MAJOR.MINOR.PATCH version");
     expect(on(() => enchantWorld(RULES_VERSION))).toBe(true);
     expect(on(() => enchantWorld("bb-0.10.0"))).toBe(false);
-    expect(enchantWorld(RULES_VERSION)).toBe(false);
+    expect(off(() => enchantWorld(RULES_VERSION))).toBe(false);
     expect(rulesAtLeast(RULES_VERSION, ENCHANT_RULES)).toBe(true);
   });
 });
@@ -210,13 +221,15 @@ describe("ENCHANT-1 E2: the snapshot, both checks, both switch states", () => {
   ];
 
   it("off: every fixture with a key is refused by both checks (unknown field), a plain deck passes", () => {
-    for (const f of fixtures()) {
-      expect(refuses(f.s), `strict ${f.name}`).toMatch(/unknown field|not allowed|not in this rules version|expected|only with|predate/);
-      expect(isSnapshot(JSON.parse(JSON.stringify(f.s))), `client ${f.name}`).toBe(false);
-    }
-    const plain = snap(deck());
-    expect(refuses(plain)).toBeNull();
-    expect(isSnapshot(JSON.parse(JSON.stringify(plain)))).toBe(true);
+    off(() => { // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 35): was bare (the switch shipped off); on by default now, refuses(f.s) was null and .toMatch(null) threw a TypeError
+      for (const f of fixtures()) {
+        expect(refuses(f.s), `strict ${f.name}`).toMatch(/unknown field|not allowed|not in this rules version|expected|only with|predate/);
+        expect(isSnapshot(JSON.parse(JSON.stringify(f.s))), `client ${f.name}`).toBe(false);
+      }
+      const plain = snap(deck());
+      expect(refuses(plain)).toBeNull();
+      expect(isSnapshot(JSON.parse(JSON.stringify(plain)))).toBe(true);
+    });
   });
 
   it("on: the strict decoder and the client's check say the same on every fixture, the listed verdict", () => {
@@ -479,20 +492,20 @@ describe("ENCHANT-1 E1/E6.1: the validators, both switch states", () => {
     bad(deck({ ench: { 10: { ench: "wide" } } }), /has WIDE but no side/);
     bad(deck({ ench: { 11: { ench: "wide", enchDir: 1 } } }), /only WIDE on a rig has a side/);
     // off: the keys are unknown fields (a shape error), whatever the piece
-    const v = validateBuild(deck({ ench: { 10: { ench: "fiery" } } }), 5, "strict");
+    const v = off(() => validateBuild(deck({ ench: { 10: { ench: "fiery" } } }), 5, "strict")); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 36): was bare (the switch shipped off)
     expect(v.ok).toBe(false);
     expect(v.errors[0]).toMatch(/^shape: .*ench: unknown field/);
   });
 
   it("validateUpload: the gate speaks first off and under older rules; given the right rules the word is judged", () => {
     const b = withDawnRunes(deck({ ench: { 10: { ench: "fiery" } } }), 5);
-    const off1 = validateUpload(b, 5, RULES_VERSION, {});
+    const off1 = off(() => validateUpload(b, 5, RULES_VERSION, {})); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 37): was bare (the switch shipped off)
     expect(off1.ok).toBe(false);
     expect(off1.errors[0]).toBe("rules: enchantments (ench, enchDir, grow): not in this rules version yet");
     on(() => {
       const old = validateUpload(b, 5, "bb-0.10.0", {});
       expect(old.ok).toBe(false);
-      expect(old.errors[0]).toMatch(/^rules: rules bb-0\.10\.0 predate bb-0\.11\.0: enchantments/);
+      expect(old.errors[0]).toMatch(/^rules: rules bb-0\.10\.0 predate bb-0\.13\.0: enchantments/); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 37): was predate bb-0\.11\.0 (ENCHANT_RULES is bb-0.13.0)
       const judge = (build: Build) => validateUpload(withDawnRunes(build, 5), 5, RULES_VERSION, {});
       const bad = judge(deck({ ench: { 10: { ench: "massive" } } }));
       expect(bad.errors.join(" | ")).toMatch(/can't take MASSIVE: ONLY ON A TURRET/);

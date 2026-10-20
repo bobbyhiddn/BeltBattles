@@ -76,10 +76,12 @@ describe("ENCHANT-1: words in whole fights (seeded par decks of every hero, day 
     expect(changed, "the words changed the fights").toBeGreaterThan(total / 2);
   });
   it("with ENCHANT off a dressed deck fights tick for tick as the plain deck (every case)", () => {
-    for (const c of cases) {
-      const me = playerBuild(c.hero, c.day, c.seed), foe = playerBuild(c.hero === "furnace" ? "weaver" : "furnace", c.day, c.seed + 100);
-      const { dressed } = dress(me, c.day, new Rng(c.seed * 7919 + c.day));
-      expect(digest(dressed, foe, 9000 + c.seed, c.day), `${c.hero} day ${c.day} seed ${c.seed}`).toBe(digest(me, foe, 9000 + c.seed, c.day));
-    }
+    withEnchant(() => { // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 43): was bare (the switch shipped off); ENCHANT is on by default now, so the par decks held real words and the two digests differed. Whole body under ENCHANT off
+      for (const c of cases) {
+        const me = playerBuild(c.hero, c.day, c.seed), foe = playerBuild(c.hero === "furnace" ? "weaver" : "furnace", c.day, c.seed + 100);
+        const { dressed } = dress(me, c.day, new Rng(c.seed * 7919 + c.day));
+        expect(digest(dressed, foe, 9000 + c.seed, c.day), `${c.hero} day ${c.day} seed ${c.seed}`).toBe(digest(me, foe, 9000 + c.seed, c.day));
+      }
+    }, false);
   });
 });

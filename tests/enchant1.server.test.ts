@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { cloneBuild, setTurretList, turretList, type Build } from "../src/sim/deck";
-import { ENCHANT, enchantProblem, freeSides, setEnchant } from "../src/sim/enchant";
+import { ENCHANT, enchantProblem, freeSides, setEnchant, withEnchant } from "../src/sim/enchant"; // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 57): + withEnchant
 import { SHAPE_ARROWS, rigShape } from "../src/sim/content";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { validateUpload } from "../src/net/validate";
@@ -23,14 +23,16 @@ import { isSnapshot } from "../src/game/ghostSnapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 
-afterEach(() => setEnchant(ENCHANT)); // the shipped value (off)
+afterEach(() => setEnchant(ENCHANT)); // the shipped value (BUMP-1F: on since bb-0.13.0; was off)
 
 /** The fixtures both checks judge: a day-10 WEAVER par deck (made with ENCHANT off: no words) with a word put on pieces it already
  *  holds (no purchase, so the gold is the par deck's own); `ok` is the verdict with ENCHANT on, under this build's rules. */
 function fixtures(): { name: string; s: GhostSnapshot; ok: boolean }[] {
   const hero: HeroId = "weaver", day = 10, seed = 1;
   const rec = reachableRecords(day).find((r) => r.wins === day - 1) ?? reachableRecords(day)[0];
-  const par = playerRun(hero, day, seed)[day - 1].build;
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 57, named question (b)): was playerRun(hero, day, seed) bare, which is ENCHANT-on now (the default): the par deck held a GROWING piece with its counter, and put() overwrote
+  // `ench` and left that stale `grow` ("build.items[1].grow: not in this rules version yet"). Built under ENCHANT off as the doc above says (no words); the refusal itself (snapshot.ts) is right
+  const par = withEnchant(() => playerRun(hero, day, seed), false)[day - 1].build;
   const snap = (name: string, build: Build, o: { rules?: string; day?: number; wins?: number; lives?: number } = {}): GhostSnapshot => {
     const rules = o.rules ?? RULES_VERSION, d = o.day ?? day, wins = o.wins ?? rec.wins;
     return {
@@ -76,7 +78,7 @@ function fixtures(): { name: string; s: GhostSnapshot; ok: boolean }[] {
   }
   // a record from before the words: a day-1 deck holding a word under bb-0.9.7 (day 1, no wins, 5 lives, the old rules' own record)
   // (without its rigs: a shaped rig's own gate, bb-0.10.0, would speak first under bb-0.9.7)
-  const d1 = playerRun(hero, 1, seed)[0].build;
+  const d1 = withEnchant(() => playerRun(hero, 1, seed), false)[0].build; // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 57): was bare; the same ENCHANT-off world as `par` above
   d1.items = d1.items.filter((p) => ITEMS[p.def].kind !== "gate");
   const f1 = d1.items.find((p) => ITEMS[p.def].kind === "factory")!;
   out.push({ name: "swift-day1-old-rules", s: snap("old", { ...cloneBuild(d1), items: d1.items.map((p) => (p.uid === f1.uid ? { ...p, ench: "swift" } : p)) }, { rules: "bb-0.9.7", day: 1, wins: 0, lives: 5 }), ok: false });

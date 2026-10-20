@@ -61,6 +61,6 @@ describe("ENCHANT-1: a ghost made from the run carries the words, and only the E
     expect(JSON.stringify(g.build)).toBe(JSON.stringify(run.build));
     const snap = JSON.parse(JSON.stringify(g));
     expect(withEnchant(() => isSnapshot(snap))).toBe(true);
-    expect(isSnapshot(snap)).toBe(false); // the switch off: `ench` is an unknown field
+    expect(withEnchant(() => isSnapshot(snap), false)).toBe(false); // the switch off: `ench` is an unknown field (BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 56): was a bare isSnapshot(snap); the switch ships on now)
   });
 });

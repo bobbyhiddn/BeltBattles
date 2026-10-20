@@ -861,11 +861,15 @@ describe("ENCHANT-1 E7: with the switch OFF every panel is the plain piece's, de
     });
   });
 
-  it("the shipped state is off: no panel of any piece carries a word (ENCHANT false, setEnchant never called here)", () => {
-    expect(ENCHANT).toBe(false);
-    const [t] = panelOf("rig", "cargo", "fiery");
-    expect(t.ench).toBeUndefined();
-    expect(texts(t.body).join(" ")).not.toContain("BURN");
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 42): was "the shipped state is off: no panel of any piece carries a word (ENCHANT false, setEnchant never called here)" with expect(ENCHANT).toBe(false) and the
+  // panel read bare; the switch ships ON since bb-0.13.0, so the shipped value is pinned as on and "no panel carries a word" is the switch-off half (off())
+  it("the shipped state is on (ENCHANT true, setEnchant never called here); with the switch off no panel of any piece carries a word", () => {
+    expect(ENCHANT).toBe(true);
+    off(() => {
+      const [t] = panelOf("rig", "cargo", "fiery");
+      expect(t.ench).toBeUndefined();
+      expect(texts(t.body).join(" ")).not.toContain("BURN");
+    });
   });
 
   it("a plain piece's panel with the switch ON is the plain panel too (the word's code touches only a piece that holds one)", () => {

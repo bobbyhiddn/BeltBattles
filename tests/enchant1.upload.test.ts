@@ -18,7 +18,7 @@ import { canPlaceItem, cloneBuild, turretList, type Build, type BuildTurret, typ
 import { GRID, HEROES, ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { ENCHANT, ENCHANT_IDS, enchantProblem, freeSides, setEnchant, withEnchant } from "../src/sim/enchant";
 import {
-  ENCHANTER_PRICE, enchanterWords, freeEnchantsByDay, lastChanceWord, maxEnchantsByDay, possibleWords, warlordPickWords,
+  ENCHANTER_PRICE, enchanterWords, freeEnchantsByDay, lastChanceWord, maxEnchantsByDay, possibleWords, shrineWords, warlordPickWords, // BUMP-1F (RULING-BUMP1F-R7.4): + shrineWords
 } from "../src/sim/enchantSources";
 import { lastChanceOffer, lastChanceParts, lastChancePartStars, type TakenLastChance } from "../src/sim/lastChance";
 import { setNpcWords, withNpcWords } from "../src/sim/npcWords"; // ENCHANT-2: state B for this file's ENCHANT-on helper
@@ -27,7 +27,7 @@ import { valueOf } from "../src/sim/stars";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload, type ValidateContext } from "../src/net/validate";
-import { enchantFreeWords, enchantGold, enchantProblems, firstGrowingDay, lcPartCarriesWord } from "../src/net/enchantCheck";
+import { enchantFreeWords, enchantGold, enchantProblems, firstGrowingDay, lcPartCarriesWord, shrineDays } from "../src/net/enchantCheck"; // BUMP-1F (RULING-BUMP1F-R7.4): + shrineDays
 import { maxHonestSpend } from "../src/net/roadCap";
 import { ENCHANT_RULES, longRunFor } from "../src/net/rulesGate";
 import { reachableRecords } from "../src/net/records";
@@ -39,12 +39,14 @@ import { withDawnRunes } from "./runeFill";
 
 vi.setConfig({ testTimeout: 240_000 }); // ENCHANT-1 (run 3): these sweeps play many seeded runs; under a loaded host (24 cores shared with other lanes) the 30 s default is a time-only red
 
-afterEach(() => { setEnchant(ENCHANT); setNpcWords(true); setShrine(true); }); // the shipped values (ENCHANT off; the rivals' words in, ENCHANT-2)
+afterEach(() => { setEnchant(ENCHANT); setNpcWords(true); setShrine(true); }); // the shipped values (BUMP-1F: ENCHANT on since bb-0.13.0, was off; the rivals' words in, ENCHANT-2)
 // ENCHANT-2 (REQ-BFG-085): this file pins ENCHANT-1's rules, the PLAYER's sources alone (the ENCHANTER, the warlord picks, LAST CHANCE): it runs in state B,
 // with the rivals' words and the drops that keep them out (npcWords.ts withNpcWords(false): its drop slots and bound are 0) and the ASH SHRINE out of the bag
 // (shrine.ts withShrine(false)). The drop slots and the shrine's are tests/enchant2.server.test.ts's and tests/enchant2.shrine.server.test.ts's.
 const on = <T>(fn: () => T): T => withEnchant(() => withNpcWords(() => withShrine(fn, false), false), true);
 const off = <T>(fn: () => T): T => withEnchant(fn, false);
+/** BUMP-1F (RULING-BUMP1F-R7.4): the SHIPPED world (ENCHANT on, the rivals' words and the ASH SHRINE in the bag), for the one test that must see the shrine the server's check counts. */
+const shipped = <T>(fn: () => T): T => withEnchant(() => withNpcWords(() => withShrine(fn, true), true), true);
 
 const PLATE = ITEMS.plating.supply!.hull!;
 const names = (v: { errors: string[] }): string => v.errors.join(" | ");
@@ -93,7 +95,9 @@ const runs = new Map<string, Build[]>();
 /** The par player's deck of `day` for (hero, seed), made with ENCHANT off (no words): runes and gold are the run's own. */
 function par(hero: HeroId, seed: number, day: number): Build {
   const key = `${hero}-${seed}`;
-  if (!runs.has(key)) runs.set(key, playerRun(hero, 10, seed).map((d) => d.build));
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 lines 62-72): was playerRun(hero, 10, seed) bare, which is ENCHANT-on now (the default), so the "wordless" deck held the bots' own words
+  // and assign() put the honest words on top of them; built under off() it is the deck the doc says (and its playerRun cache entry is the ENCHANT-off one, no "|en")
+  if (!runs.has(key)) runs.set(key, off(() => playerRun(hero, 10, seed).map((d) => d.build)));
   return cloneBuild(runs.get(key)![day - 1]);
 }
 type Target = { item: number } | { turret: number };
@@ -640,7 +644,8 @@ describe("ENCHANT-1 E6: off, or under rules without ENCHANT, every ench, enchDir
     for (const [name, b] of fixtures()) {
       const v = on(() => validateUpload(withDawnRunes(b, 5), 5, "bb-0.10.0", {}));
       expect(v.ok, name).toBe(false);
-      expect(v.errors[0], name).toMatch(/^rules: rules bb-0\.10\.0 predate bb-0\.11\.0: enchantments \(ench, enchDir, grow\) need bb-0\.11\.0 or later$/);
+      // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 66): was predate bb-0.11.0 ... need bb-0.11.0 or later (ENCHANT_RULES is bb-0.13.0 now; line 639 above pins it to RULES_VERSION)
+      expect(v.errors[0], name).toMatch(/^rules: rules bb-0\.10\.0 predate bb-0\.13\.0: enchantments \(ench, enchDir, grow\) need bb-0\.13\.0 or later$/);
     }
   });
 
@@ -812,13 +817,36 @@ describe("ENCHANT-1b N4(c): a LAST CHANCE part that cannot carry a word (gear) a
 
 describe("ENCHANT-1b N4(d): with the seed, GROWING's counter is at most the dusk fights since the first day GROWING could have reached the deck", () => {
   it("firstGrowingDay agrees with the set test: GROWING is possible by `day` exactly when some source offered it (300 seeds x days 1-12)", () => {
-    for (let seed = 1; seed <= 300; seed++) {
-      for (let day = 1; day <= 12; day++) {
-        const f = firstGrowingDay(seed, day);
-        expect(f !== undefined, `seed ${seed} day ${day}`).toBe(possibleWords(seed, day).has("growing"));
-        if (f !== undefined) expect(f >= 3 && f <= day, `seed ${seed} day ${day}: ${f}`).toBe(true); // the first source is the ENCHANTER's day 3
+    // BUMP-1F (RULING-BUMP1F-R7.4): was possibleWords(seed, day).has("growing") alone, run bare. The server's check counts the ASH SHRINE in all four steps (enchantCheck.ts: the count, the offered
+    // set, the one-to-one match, firstGrowingDay), while possibleWords stays ENCHANT-1's set (the ENCHANTER, the picks, LAST CHANCE) on purpose. So in the shipped world the set to compare with is the
+    // server's own: possibleWords PLUS both words of each shrine visit by `day` (npcDropWords never holds GROWING: tests/enchant2.server.test.ts); all 3,600 pairs agree, the shrine pairs included
+    // (161 pairs at bb-0.13.0 have GROWING from the shrine alone). ENCHANT-1's form follows as the second case, in this file's state B (no shrine in the bag).
+    let viaShrine = 0;
+    shipped(() => {
+      for (let seed = 1; seed <= 300; seed++) {
+        for (let day = 1; day <= 12; day++) {
+          const f = firstGrowingDay(seed, day);
+          const visits = shrineDays(seed, day), shrineGrowing = visits.filter((d) => shrineWords(seed, d).includes("growing"));
+          const serverSet = new Set<string>(possibleWords(seed, day));
+          for (const d of visits) for (const w of shrineWords(seed, d)) serverSet.add(w);
+          expect(f !== undefined, `seed ${seed} day ${day}`).toBe(serverSet.has("growing"));
+          // the first source is the ENCHANTER's day 3, or an earlier shrine day that offered GROWING
+          if (f !== undefined) expect(f >= Math.min(3, ...shrineGrowing) && f <= day, `seed ${seed} day ${day}: ${f}`).toBe(true);
+          if (shrineGrowing.length && !possibleWords(seed, day).has("growing")) viaShrine++;
+        }
       }
-    }
+    });
+    expect(viaShrine, "the shrine alone gives GROWING in many (seed, day) pairs (161 of the 3,600 at bb-0.13.0), so the shrine words in the set are what is tested").toBeGreaterThan(100);
+    on(() => { // BUMP-1F (RULING-BUMP1F-R7.4): ENCHANT-1's own form, the set test with possibleWords alone, in a world with no shrine in the bag
+      for (let seed = 1; seed <= 300; seed++) {
+        for (let day = 1; day <= 12; day++) {
+          expect(shrineDays(seed, day), `seed ${seed} day ${day}: no shrine in state B`).toEqual([]);
+          const f = firstGrowingDay(seed, day);
+          expect(f !== undefined, `seed ${seed} day ${day}`).toBe(possibleWords(seed, day).has("growing"));
+          if (f !== undefined) expect(f >= 3 && f <= day, `seed ${seed} day ${day}: ${f}`).toBe(true); // the first source is the ENCHANTER's day 3
+        }
+      }
+    });
   });
 
   it("day - first passes, one more is refused naming the day (a rig, a factory and a turret); without the seed only the brief's day - 1 bound is read", () => {
@@ -845,6 +873,9 @@ describe("ENCHANT-1b N4(d): with the seed, GROWING's counter is at most the dusk
 
   it("every honest deck the bots' runs make still passes: par's real runs (ENCHANT on, the game's caravan), every day of 4 heroes x 6 seeds, no enchant error (the counters grow after each dusk)", () => {
     let decks = 0, growing = 0, counters = 0, words = 0;
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 71): the runs are made and judged in the SAME state (this file's state B, `on`). playerRun's cache key (player.ts) ignores the test-only npcWords/shrine
+    // toggles, so a run cached in another state (par() above was built bare, in the full world) was judged here in state B, where a dropped FIERY looks unoffered; par() is built under off() now (its entry has
+    // no "|en"), so this is the only ENCHANT-on playerRun of the process and it is made, cached and judged in state B.
     on(() => {
       for (const hero of HEROS) {
         for (let seed = 1; seed <= 6; seed++) {
