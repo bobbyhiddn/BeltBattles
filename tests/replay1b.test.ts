@@ -29,6 +29,7 @@ import { simulate } from "../src/sim/battle";
 import { DROP_STARS, npcDayRules, withNpcDay } from "../src/sim/npcDay";
 import { RUN_DAYS } from "../src/sim/content";
 import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the first view's dusk is also read with it off
+import { withEnchant } from "../src/sim/enchant"; // BUMP-1F (RULING-BUMP1F-R11 R11.1): and with ENCHANT off, the world before ENCHANT-2's rival words (the first view's dusk)
 import { UI, type Rect } from "../src/ui/ui";
 import { isPhone, tapPx } from "../src/ui/tap";
 import type { G } from "../src/render/pixel";
@@ -383,7 +384,9 @@ const DRAW_PINS: Record<string, string> = {
   // BUMP-1E: the dusk card of the first view reads "679ef2b17c8b52b3" (was "453cc4992673a68c"): the day-8 fight against LONGTOOTH, whose VENOM DRIP puts POISON on
   // with the scaling rules and lengthens no BURN, so the card's foe BURN 2392 -> 1495 and foe damage 10540 -> 10099 (the test below reads the old digest back with
   // the switch off); the other nineteen pins are unchanged again (the later dusks meet the run's own saved ghost, a kiln-only deck)
-  "402x690@3 dusk": "679ef2b17c8b52b3", "402x690@3 warlord": "90125b5a27c241db",
+  // BUMP-1F (RULING-BUMP1F-R11 R11.1): the dusk card of the first view reads "31ac8d9de99bea42" (was "679ef2b17c8b52b3"): the same day-8 fight against LONGTOOTH moved twice, POISON_DPS 3 -> 2 (fb2a51b: "dc20eb457fdf1dca")
+  // and ENCHANT-2's rival words (041ae8b: this digest); the test below reads each step; the other nineteen pins are unchanged again
+  "402x690@3 dusk": "31ac8d9de99bea42", "402x690@3 warlord": "90125b5a27c241db",
   "390x844@3 dusk": "a9e4673a34f2d29c", "390x844@3 warlord": "deb11fdf6d15c600",
   "430x932@3 dusk": "b70c1e1846ca0070", "430x932@3 warlord": "d5c3a8adf2883978",
   "360x780@3 dusk": "1b833baef9910d3b", "360x780@3 warlord": "8732239750bb1762",
@@ -462,24 +465,39 @@ describe("REPLAY-1b (b): the card's primary has a finger's target on a phone, it
   // stand-in LONGTOOTH (rivalBuilds.ts); a later fight on the same store meets the run's own saved ghost, which is why the other nineteen pins did not move.
   // His road deck holds a VENOM DRIP, and with the scaling rules it puts POISON on instead of lengthening BURN (scale.ts SCALE_DEFS.venom: no burnPlus), so
   // the two foe numbers on the card (its BURN and its damage, resultRows) moved and nothing else did: this reads the same fight in both worlds
+  // BUMP-1F (RULING-BUMP1F-R11 R11.1; R5.2 (2)): the card moved twice, and each move has one cause (kit-1f/r6r1bsoft.sh at the commits of bump1f: green at 0c985133af5b, red from fb2a51b on):
+  //  (1) fb2a51b (P3 D2, POISON_DPS 3 -> 2, RULING-BUMP1F-R2 R2.3): with the scaling rules his VENOM DRIP's POISON hurts the hull less: the foe's damage 10099 -> 9947 and the card "679ef2b17c8b52b3" -> "dc20eb457fdf1dca"
+  //      (the foe's BURN 1495 and the scaling-off side did not move);
+  //  (2) 041ae8b (the ENCHANT-2 merge, RULING-BUMP1F-R3.1): the rivals carry words of their own (npcWords.ts), LONGTOOTH among them, in BOTH worlds: scaling off 10540 -> 9719 (card "7a2e466c54eb809f"), scaling on
+  //      9947 -> 10340 (card "31ac8d9de99bea42", DRAW_PINS'), and the two fights are no longer the same to the tick (13.3167 s against 13.2667 s: the word's effect meets the scaling rules).
+  // So this reads each world with ENCHANT off (the world before the merge: the test's original claims, with the POISON number) and with ENCHANT on (as shipped)
   it("the first view's dusk card is the day-8 fight against LONGTOOTH: with the scaling rules only the foe's BURN and damage numbers move (his VENOM DRIP); with the switch off it is the old drawing", () => {
     expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on
-    const first = (scaling: boolean) => withScaleRigs(() => {
+    const first = (scaling: boolean, enchant: boolean) => withEnchant(() => withScaleRigs(() => { // BUMP-1F: + withEnchant outside (was withScaleRigs alone)
       store = new MapStore();
       vi.stubGlobal("localStorage", store); // a fresh localStorage: the day's first fight, as the drawing test's first view has it
       const { game, s, run } = make("dusk", LATER);
       toCard(s);
       return { digest: cardDraw(game, run, "dusk", 0).digest, r: run.history[run.history.length - 1], venom: s.arena.b.sides[1].build.items.some((p) => p.def === "venom") };
-    }, scaling);
-    const was = first(false), now = first(true);
+    }, scaling), enchant);
+    // the world before ENCHANT-2's rival words (ENCHANT off)
+    const was = first(false, false), now = first(true, false);
     expect(was.digest).toBe("453cc4992673a68c"); // the pin before the flip, read in its own world
-    expect(now.digest).toBe(DRAW_PINS["402x690@3 dusk"]);
+    expect(now.digest).toBe("dc20eb457fdf1dca"); // BUMP-1F D2 (POISON_DPS 2): was "679ef2b17c8b52b3" (BUMP-1E)
     expect(now.digest).not.toBe(was.digest);
     for (const x of [was, now]) expect([x.r.foe, x.r.ghost, x.r.outcome, x.venom], x.digest).toEqual(["LONGTOOTH", false, "loss", true]);
     // the same fight to the tick, your side's numbers the same; the foe's BURN (VENOM DRIP's lengthening gone) and its damage are the card's two that differ
     expect([now.r.time, now.r.player]).toEqual([was.r.time, was.r.player]);
     expect([was.r.enemy.burnDealt, was.r.enemy.damage]).toEqual([2392, 10540]);
-    expect([now.r.enemy.burnDealt, now.r.enemy.damage]).toEqual([1495, 10099]); // BUMP-1E: was 2392 and 10540
+    expect([now.r.enemy.burnDealt, now.r.enemy.damage]).toEqual([1495, 9947]); // BUMP-1F D2: was 10099 (BUMP-1E: was 2392 and 10540)
+    // as shipped (ENCHANT on): the rival's word moves the foe's damage in both worlds, and the shipped card is DRAW_PINS'
+    const wasE = first(false, true), nowE = first(true, true);
+    expect(wasE.digest).toBe("7a2e466c54eb809f");
+    expect(nowE.digest).toBe(DRAW_PINS["402x690@3 dusk"]);
+    for (const x of [wasE, nowE]) expect([x.r.foe, x.r.ghost, x.r.outcome, x.venom], x.digest).toEqual(["LONGTOOTH", false, "loss", true]);
+    expect([wasE.r.enemy.burnDealt, wasE.r.enemy.damage]).toEqual([2392, 9719]);
+    expect([nowE.r.enemy.burnDealt, nowE.r.enemy.damage]).toEqual([1495, 10340]);
+    expect([wasE.r.time, nowE.r.time]).toEqual([13.266666666666906, 13.316666666666908]);
   });
 
   it("primaryTap: down first (the card's margin, then over resultbg), then up into the gap, never over VIEW BATTLEFIELD's floor nor off the screen; the button itself where it is tall enough", () => {

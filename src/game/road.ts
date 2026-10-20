@@ -23,11 +23,13 @@ import { starsOf, valueOf } from "../sim/stars";
 import { beginDayEvent, beginRoad, eventFor } from "./events";
 import { longRun } from "../sim/longRun"; // RUN-1 (REQ-BFG-059): a long run's events
 import { gainModule } from "./fuse";
+import { openWarlordPick } from "./enchanter"; // ENCHANT-1 (REQ-BFG-085, E5b)
 import type { EventId } from "./eventDefs";
 import { queueFuseAnim, type Run, type RoadPick, type WarlordFight, type WarlordOutcome, type WarlordReward } from "./run";
 // NPC-1 (REQ-BFG-077, REQ-BFG-078): the NPC day and the drops, behind NPC_DAY (off: every function here is 0.9.7's)
-import { DROP_CHANCE, DROP_STARS, dropTable, expectedDropValue, npcDayRules, rollDrop, type DropTable } from "../sim/npcDay";
+import { DROP_CHANCE, DROP_STARS, dropLineWord, dropTable, expectedDropValue, npcDayRules, rollDrop, type DropTable } from "../sim/npcDay";
 import { warlordPool, MATRIARCH_DAY } from "../sim/rivals";
+import { dropWordOf } from "../sim/npcWords"; // ENCHANT-2 (REQ-BFG-085, T2): a drop keeps the word its rival's copy held
 
 export const ROAD_PICKS: readonly RoadPick[] = ["event", "easy", "medium", "hard"];
 /** NPC-1 (REQ-BFG-077): the fork's picks now: ROAD_PICKS, or with NPC_DAY on the three warlords only (the day's event
@@ -132,7 +134,7 @@ export function topParts(b: Build, n: number): string[] {
   for (const p of b.items) if (!SIGNATURE.has(p.def)) see(p.def, valueOf(p.def, starsOf(p)));
   for (const m of b.mods) see(m.def, valueOf(m.def, starsOf(m)));
   return [...best.keys()]
-    .filter((d) => ITEMS[d] && ITEMS[d].kind !== "supply" && !SIGNATURE.has(d))
+    .filter((d) => ITEMS[d] && ITEMS[d].kind !== "supply" && ITEMS[d].kind !== "converter" && !SIGNATURE.has(d)) // GATES-1 (REQ-BFG-052): a beaten deck's GATE is no reward (out of scope)
     .sort((a, c) => best.get(c)! - best.get(a)! || (a < c ? -1 : a > c ? 1 : 0))
     .slice(0, n);
 }
@@ -170,7 +172,7 @@ export function warlordReward(id: RivalId, tier: Difficulty, deck: Build, deckDa
 export function warlordDropTable(id: RivalId, tier: Difficulty, deck: Build): DropTable {
   if (id === "matriarch") {
     const p = topParts(deck, 1)[0];
-    return p ? { chance: 1, lines: [{ def: p, cls: "legendary", odds: 1 }] } : { chance: 0, lines: [] };
+    return p ? { chance: 1, lines: [{ def: p, cls: "legendary", odds: 1, ...dropLineWord(deck, p) }] } : { chance: 0, lines: [] }; // ENCHANT-2 (T2): + her copy's word
   }
   return dropTable(tier, deck);
 }
@@ -273,15 +275,17 @@ export function finishWarlord(run: Run, winner: 0 | 1 | -1, time: number): Warlo
   let took: string | null = null;
   if (won && w.reward.legendary && w.reward.parts.length) {
     took = w.reward.parts[0];
-    queueFuseAnim(run, gainModule(run, took)); // 0.6.1a: a 1-star copy to cargo, then merged
+    queueFuseAnim(run, gainModule(run, took, undefined, 1, dropWordOpts(w.build, took))); // 0.6.1a: a 1-star copy to cargo, then merged; ENCHANT-2 (T2): with the word her copy held
   } else if (won && npcDayRules()) {
     // NPC-1 (REQ-BFG-078): every other win rolls its drop once (seeded by the run and the day: a reload never re-rolls,
     // and this result is stored, so the call is idempotent); the part goes to cargo at its tier's star, then merged
     took = warlordDrop(run.seed, run.day, w.id, w.tier, w.build);
     // HULL-1b (REQ-BFG-078): at its tier's star (npcDay.ts DROP_STARS: Hard's at ★2)
-    if (took) queueFuseAnim(run, gainModule(run, took, undefined, DROP_STARS[w.tier]));
+    // ENCHANT-2 (REQ-BFG-085, T2): and with the word the rival's copy of that part held that day (the odds don't change; ENCHANT off: no word, as before)
+    if (took) queueFuseAnim(run, gainModule(run, took, undefined, DROP_STARS[w.tier], dropWordOpts(w.build, took)));
   }
   if (won && w.id === "matriarch") run.matriarchBeatenOn = run.day;
+  openWarlordPick(run, w, won); // ENCHANT-1 (REQ-BFG-085, E5b): a Hard win from day 5 (and the Iron Matriarch's) opens a pick of 1 of 2 words; the gold and the drop above are untouched
   w.result = { outcome, time, gold, bountyPaid, parts: won ? [...w.reward.parts] : [], took };
   run.warlords.push({
     day: run.day, tier: w.tier, id: w.id, name: w.name, outcome, time, gold, part: took,
@@ -290,6 +294,13 @@ export function finishWarlord(run: Run, winner: 0 | 1 | -1, time: number): Warlo
     ...(w.sabotaged && npcDayRules() ? { sabotaged: true as const } : {}),
   });
   return w.result;
+}
+
+/** ENCHANT-2 (REQ-BFG-085, T2): gainModule's options for a drop of `def` from the deck the warlord fought with: its cargo copy arrives with the word and side
+ *  the rival's copy held (npcWords.ts dropWordOf); undefined (no options at all) with ENCHANT off or a plain copy, so those calls are what they were. */
+function dropWordOpts(deck: Build, def: string): { word: { ench: string; enchDir?: number } } | undefined {
+  const w = dropWordOf(deck, def);
+  return w ? { word: { ench: w.ench, ...(w.enchDir !== undefined ? { enchDir: w.enchDir } : {}) } } : undefined;
 }
 
 /** A Hard win's part pick (index into the offered parts): the part goes to cargo. */

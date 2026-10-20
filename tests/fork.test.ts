@@ -1,7 +1,7 @@
 // The road fork (0.6.0b, REQ-BFG-010, spec §19): every day 1-10 offers the day's road event and
 // the three warlords of warlordOffer, all fixed by the run seed; the player picks one stop a day.
 import { describe, expect, it } from "vitest";
-import { BAG_IDS, type EventId } from "../src/game/eventDefs";
+import { bagIds, type EventId } from "../src/game/eventDefs"; // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2): was BAG_IDS (the 10); the rules world's bag holds the ASH SHRINE too
 import { eventFor } from "../src/game/events";
 import { ROAD_PICKS, forkFor, leaveCaravan, pickRoad, roadChosen } from "../src/game/road";
 import { newRun, reroll, rollShop, type Run } from "../src/game/run";
@@ -32,7 +32,7 @@ describe("the road fork: what each day offers", () => {
           const f = forkFor(run);
           expect(f.day).toBe(day);
           expect(f.event).toBe(eventFor(seed, day, long));
-          expect(BAG_IDS).toContain(f.event);
+          expect(bagIds()).toContain(f.event); // BUMP-1F (RULING-BUMP1F-R3.1): was BAG_IDS
           expect(f.warlords).toEqual(warlordOffer(seed, day, undefined));
           expect(f.warlords).toEqual(warlordOffer(seed, day, run.matriarchBeatenOn ?? undefined));
           // another run on the same seed (another run id), with a rerolled caravan: the same fork

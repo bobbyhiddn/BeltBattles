@@ -4,6 +4,7 @@
 // loss costs a life, a draw none; 0 lives loses the run, surviving day 10's dusk completes it.
 
 import { HEROES, RULES_VERSION, RUN_DAYS, START_LIVES, incomeFor } from "../sim/content";
+import { growPieces } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): GROWING's counter goes up after each dusk fight
 import type { Side, SideStats } from "../sim/battle";
 import { pickGhost, standInFoe, type GhostSnapshot } from "./ghosts";
 import { currentName, playerId, SNAPSHOT_V3 } from "./ghostSnapshot";
@@ -227,6 +228,7 @@ export function finishDay(run: Run, winner: Side | -1, time: number, player: Sid
   // run's, an endless win is counted apart, a loss costs ONE heart on every day, no LAST CHANCE and no refund
   if (inEndless(run)) return finishEndlessDay(run, res, outcome, income);
   if (outcome === "win") run.wins++;
+  growPieces(run.build); // ENCHANT-1 (REQ-BFG-085, E3): after each dusk fight (a win, a loss or a draw) every GROWING piece on the deck grows by 1
   // RETUNE-1 (REQ-BFG-096): a hearts run (hearts.ts heartsRun: started with HEARTS on) takes the hearts step instead: a
   // loss costs heartCost(day), LAST CHANCE at the first loss leaving 1 heart or fewer sets the hearts to 1, no refund
   if (heartsRun(run)) return finishHeartsDay(run, res, outcome, income);

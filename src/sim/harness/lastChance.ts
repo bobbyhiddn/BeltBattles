@@ -19,6 +19,8 @@ import { ITEMS, PACK_ITEM, RUN_DAYS, type HeroId } from "../content";
 import { cloneBuild, type Build } from "../deck";
 import { RUNES, runeGrants } from "../runes";
 import type { Boon, LastChanceOffer } from "../lastChance";
+import { enchantField, enchantRules } from "../enchant"; // ENCHANT-1 (REQ-BFG-085, E5c): the part's word
+import { lastChanceWord } from "../enchantSources";
 import { newRun, type Run } from "../../game/run";
 import { partSaleHull, placeFreePart, rateOn } from "./player";
 import { scaleRules } from "../scale"; // SCALE-2e E1 (REQ-BFG-098): the mirror's hearts lost, SCALE_RIGS on only
@@ -135,11 +137,16 @@ export function botLastChancePick(offer: LastChanceOffer, hero: HeroId, board: B
   let part = -Infinity, placed: boolean | undefined;
   if (offer.part) {
     const run = boardRun(board, hero, day, opts.run);
-    const r = placeFreePart(run, offer.part, new Rng(hashSeed("lastchance-place", hero, run.seed, day)), undefined, offer.partStars ?? 1); // HULL-1d: at its star
+    // ENCHANT-1 (REQ-BFG-085, E5c/E8): the card's part arrives with its seeded word (a rig or turret; gear arrives plain): the bot places it
+    // enchanted and rates the board WITH the word (placeFreePart's `worth`: the word's relative gain on the piece it ended on); off, as before
+    const lw = enchantRules() ? lastChanceWord(run.seed, day, offer.part) : null;
+    const r = placeFreePart(run, offer.part, new Rng(hashSeed("lastchance-place", hero, run.seed, day)), undefined, offer.partStars ?? 1, lw ? enchantField(lw) : undefined); // HULL-1d: at its star
     placed = r.placed;
-    part = rateOn(run.build, day);
+    part = rateOn(run.build, day) * (1 + (r.worth ?? 0));
     // BUMP-1E C2 (S8 item 7): a part is never worth less than its sale spent on ARMOR PACKs (player.ts partSaleHull); a part that finds
     // no spot (cargo, the board unchanged) rated "no gain" and so lost to every other card by construction
+    // BUMP-1F (PACKET-BUMP-0130 section 4, SEMANTIC): ENCHANT's `worth` first, then C2's sale floor. A sold part loses its word, so the
+    // floor takes no worth: the floor is the plain sale
     const sold = cloneBuild(board);
     sold.hullBonus += partSaleHull(offer.part, offer.partStars ?? 1);
     part = Math.max(part, rateOn(sold, day));

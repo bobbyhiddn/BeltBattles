@@ -9,7 +9,7 @@ import { encodeSnapshot, ghostId, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnaps
 import { createGhostServer, type GhostServer } from "../server/app";
 import { JsonlStore, type GhostStore } from "../server/store";
 import type { FakeS3 } from "../tools/fakeS3";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import { snap, upSnap } from "./netHelpers";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { startFake, tigrisFor } from "./netStores";

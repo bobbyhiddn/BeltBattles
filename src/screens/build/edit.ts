@@ -29,6 +29,7 @@ import { JOIN_PACE_PCT } from "../../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE
 import { freeJoinsRules } from "../../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): no pace words with FREE_JOINS on
 import { ITEMS, UPGRADE_MAX } from "../../sim/content";
 import { FUSE_MAX, gradeOf, isSignatureFactory, outputsAt } from "../../sim/stars";
+import { wideSlots } from "../../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): WIDE on a factory is +1 belt slot
 import { C } from "../../render/palette";
 import { cellAt, footX, footY } from "../../render/frame";
 import { inside } from "../../ui/ui";
@@ -75,7 +76,7 @@ export function fullNotice(name: string, belts: number, grade: number, signature
 export function freeOutputs(b: Build, uid: number): number {
   const f = itemByUid(b, uid);
   if (!f || defOf(f).kind !== "factory") return 0;
-  return (outputsAt(f.def, gradeOf(b, f)) || 1) - routesOf(b, uid).length;
+  return (outputsAt(f.def, gradeOf(b, f)) || 1) + wideSlots(f) - routesOf(b, uid).length; // ENCHANT-1 (REQ-BFG-085): + WIDE's belt slot
 }
 
 /** shoptap (REQ-BFG-035): the fitted pieces of turret slot t that a touch tap on the selected turret steps through: its
@@ -204,6 +205,11 @@ export class Editor {
     if (!t) return;
     this.lift({ src: { from: "mount", index }, def: t.def, uid: t.uid });
     this.h.select({ kind: "turret", index });
+  }
+
+  /** ENCHANT-1 (REQ-BFG-085): what a press at (x, y) lands on, by this editor's own hit test (APPLY, apply.ts targetAt, reads it). */
+  pickAt(x: number, y: number): Src | null {
+    return this.pick(x, y);
   }
 
   private pick(x: number, y: number): Src | null {
@@ -430,7 +436,8 @@ export class Editor {
     const b = run.build;
     // SHAPES-1 (REQ-BFG-086 S3): a shaped piece a finger or pen lifts is a touch carry (its ghost above the finger, the snap,
     // the floating ROTATE button); every other carry is exactly as before
-    const touch = (def: string) => (direct(kind) && shapedPiece(def) ? { touch: true } : {});
+    // GATES-1 (REQ-BFG-057): and a gate (kind "converter"): its ghost stands above the finger and its drop snaps to a belt tile
+    const touch = (def: string) => (direct(kind) && (shapedPiece(def) || ITEMS[def]?.kind === "converter") ? { touch: true } : {});
     switch (src.from) {
       case "offer": {
         const o = run.shop.wagons[src.wagon]?.offers[src.slot];
@@ -492,7 +499,7 @@ export class Editor {
     const f = itemByUid(b, uid);
     if (!f) return;
     const d = defOf(f);
-    const outs = outputsAt(f.def, gradeOf(b, f)) || 1; // 0.6.1a: outputs at its stars (= routeCheck.ts, validate.ts)
+    const outs = (outputsAt(f.def, gradeOf(b, f)) || 1) + wideSlots(f); // 0.6.1a: outputs at its stars (= routeCheck.ts, validate.ts); ENCHANT-1: + WIDE's slot
     const mine = routesOf(b, uid);
     // bb-0.8.3 (REQ-BFG-044 D6): every slot in use: nothing is drawn, as 0.8.0's full GANTRY PRESS (no factory has one
     // slot now, so none moves its belt); the warning says so, and what opens one more (a star, or the hero's upgrade)

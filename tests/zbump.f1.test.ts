@@ -12,7 +12,7 @@ import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { BOONS, lastChanceOffer, type Boon } from "../src/sim/lastChance";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { ghostId, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
-import { inShapesWorld, validateUpload } from "../src/net/validate"; // SHAPES-1 flip: an older record's deck in its shapes world
+import { inEnchantWorld, inGatesWorld, inScaleWorld, inShapes2World, inShapesWorld, validateUpload } from "../src/net/validate"; // SHAPES-1 flip: an older record's deck in its shapes world; BUMP-1F: and in the other worlds validate.ts nests (inWorld)
 import { isReachable, reachableRecords, recordHasLastChance } from "../src/net/records";
 import { LAST_CHANCE_RULES } from "../src/net/rulesGate";
 import { parseArgs, uploadProblems, UsageError, type StoredRecord } from "../server/ghostAdmin";
@@ -30,6 +30,12 @@ const OLD = "bb-0.9.3"; // release Y's rules (0.9.3-0.9.5), the last without LAS
 const D = 6;
 const PLATE = ITEMS.plating.supply!.hull!;
 
+/** BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): GATES and ENCHANT ship on; was inShapesWorld alone): run `fn` in the world `rules` were played in, the worlds validate.ts nests for a stored record's
+ *  deck (gates outermost, then shapes, shapes2, scale, enchant innermost), each off for rules before its own (with this build's rules nothing is switched): a bb-0.9.3 deck holds no
+ *  converter and no word, which the strict decoder refuses first ("snapshot.build.items[0].ench: unknown field") before the LAST CHANCE gate and the record model these tests read. */
+const inWorld = <T,>(rules: string, fn: () => T): T =>
+  inGatesWorld(rules, () => inShapesWorld(rules, () => inShapes2World(rules, () => inScaleWorld(rules, () => inEnchantWorld(rules, fn)))));
+
 /** `s` as the store holds an upload (JSON lines: {id, at, snapshot}). */
 const stored = (s: GhostSnapshot, id = ghostId(s)): StoredRecord => ({
   ref: "ghosts.jsonl:1", kind: "upload", day: s.day, id, playerId: s.playerId, text: encodeRecord(id, 5, s), keyed: false,
@@ -40,7 +46,7 @@ const stored = (s: GhostSnapshot, id = ghostId(s)): StoredRecord => ({
 function plain(rules: string): GhostSnapshot {
   // SHAPES-1 flip (step 8): the deck is made in its rules' shapes world (validate.ts inShapesWorld: SHAPES off under
   // bb-0.9.3, as the validator judges it); with SHAPES on the par player buys shaped rigs, which bb-0.9.3 refuses
-  const build = inShapesWorld(rules, () => playerRun("furnace", 6, 5)[5].build);
+  const build = inWorld(rules, () => playerRun("furnace", 6, 5)[5].build); // BUMP-1F: and its gates, scale and enchant worlds too (was inShapesWorld(rules, ...) alone)
   return {
     v: SNAPSHOT_V3, rules, hero: "furnace", day: 6, wins: 0, lives: 1, build,
     runId: "zbump-f1-plain", playerId: "p-zbump", createdAt: 1_790_000_000_000, name: TEST_NAME, seed: parRunSeed("furnace", 5),
@@ -71,7 +77,7 @@ function honest(boon: Boon, hero: HeroId): GhostSnapshot {
 
 describe("Z-BUMP F1 (REVIEW-ZPREP): revalidate's record check knows the record's rules", () => {
   it("LAST CHANCE's row is bb-0.9.7 and this build's rules are at or after it (BUMP-1D: bb-0.11.0; AZ-BUMP: bb-0.10.0); bb-0.9.3 predates it, so its records are read without LAST CHANCE", () => {
-    expect([RULES_VERSION, LAST_CHANCE_RULES]).toEqual(["bb-0.12.0", "bb-0.9.7"]); // BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was ["bb-0.10.0", "bb-0.9.7"]; AZ-BUMP: was ["bb-0.9.7", "bb-0.9.7"])
+    expect([RULES_VERSION, LAST_CHANCE_RULES]).toEqual(["bb-0.13.0", "bb-0.9.7"]); // BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was ["bb-0.10.0", "bb-0.9.7"]; AZ-BUMP: was ["bb-0.9.7", "bb-0.9.7"])
     expect([recordHasLastChance(RULES_VERSION), recordHasLastChance(OLD), recordHasLastChance(undefined), recordHasLastChance("nope")]).toEqual([true, false, true, false]);
     // the model under bb-0.9.3 is the one before the flip: 1 life at dusk 6 after five losses; under bb-0.9.7 the loss at
     // dusk 5 fires LAST CHANCE, so that run carries 2 lives, never 1
@@ -116,8 +122,11 @@ describe("Z-BUMP F1 (REVIEW-ZPREP): revalidate's record check knows the record's
         expect(uploadProblems(rec, RULES_VERSION), `${hero} ${boon}`).toEqual([]);
         // the same stored text with its rules string set to bb-0.9.3 (the encoder refuses to write such a snapshot, so the
         // text is edited as a store could hold it): the decoder's gate refuses the field, before any other check
-        const old: StoredRecord = { ...rec, text: rec.text.replace(`"rules":"${RULES_VERSION}"`, `"rules":"${OLD}"`) };
-        expect(old.text, `${hero} ${boon}`).not.toBe(rec.text);
+        // BUMP-1F (GATES and ENCHANT ship on): the edited copy's deck is the honest run made in OLD's world (inWorld), holding no word and no converter, so the decoder's first
+        // refusal is still the LAST CHANCE gate's (was rec's own text: the shipped-world deck's words were refused first, "snapshot.build.items[0].ench: unknown field")
+        const recOld = stored(inWorld(OLD, () => honest(boon, hero)));
+        const old: StoredRecord = { ...recOld, text: recOld.text.replace(`"rules":"${RULES_VERSION}"`, `"rules":"${OLD}"`) };
+        expect(old.text, `${hero} ${boon}`).not.toBe(recOld.text);
         expect(uploadProblems(old, OLD), `${hero} ${boon}`)
           .toEqual([`strict decode: snapshot.lastChance: rules ${OLD} predate ${LAST_CHANCE_RULES}: LAST CHANCE (snapshot.lastChance) needs ${LAST_CHANCE_RULES} or later`]); // AZ-BUMP (the bump): the row's own version (it equalled RULES_VERSION until the bump)
       }

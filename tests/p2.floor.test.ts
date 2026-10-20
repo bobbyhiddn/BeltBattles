@@ -22,9 +22,10 @@ import { floorRecord } from "../src/net/records";
 import { MAX_DAY, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { checkPool } from "../server/seed";
 import {
-  CASUAL_FLOOR_SEED, CASUAL_FLOOR_TRIES, FLOOR_PICKS, FLOOR_VARIANT, RACE_SEED_HEROES, RACE_VARIANTS, SAMPLE_VARIANTS, floorGhosts, floorHash, generateSamplePool,
-  raceDeck, raceGhosts, sampleGhosts, softPicked, type RaceDeck, // BUMP-1D: + FLOOR_PICKS, floorHash and the shipped pool's parts
+  CASUAL_FLOOR_SEED, CASUAL_FLOOR_TRIES, FLOOR_PICKS, FLOOR_VARIANT, RACE_SEED_HEROES, RACE_VARIANTS, SAMPLE_VARIANTS, floorHash,
+  raceDeck, softPicked, type RaceDeck, // BUMP-1D: + FLOOR_PICKS, floorHash and the shipped pool's parts
 } from "../tools/samplePool";
+import { floorGhosts, generateSamplePool, raceGhosts, sampleGhosts, softDeckOf } from "./helpers/poolCache"; // CACHE-1: the cached twins, and the generator's own deckOf (the copy below was this function)
 import { ITEMS, RULES_VERSION, type HeroId } from "../src/sim/content"; // BUMP-1D: ITEMS (bb0100 puts its key order back); BUMP-1E: RULES_VERSION (the string the old pools' digests put back)
 import { SCALE_RIGS, scaleRules, setScaleRigs, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on (the bb-0.10.0 and bb-0.11.0 worlds are read with them off)
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip): the five switches, through their own with..()
@@ -35,6 +36,8 @@ import { withGuard } from "../src/sim/guard";
 import { withPick } from "../src/net/pick";
 import { withOpenRunes } from "../src/sim/openRunes";
 import { withFreeJoins } from "../src/sim/freeJoins";
+import { withGates } from "../src/sim/gates"; // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2)): the rolled-back worlds below have neither GATES nor ENCHANT (both bb-0.13.0)
+import { withEnchant } from "../src/sim/enchant"; // BUMP-1F
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 // SHAPES-1 flip (step 8): SHAPES joins "every switch": off in allOff (283cfaf's world had no shaped piece), on in allOn
@@ -62,7 +65,9 @@ const scalingOff = <T>(fn: () => T): T => withScaleRigs(() => {
   const lf = ladderFixRules();
   setLadderFix(!lf);
   setLadderFix(lf);
-  return fn();
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): GATES and ENCHANT ship on, both bb-0.13.0): the world before the scaling rules is the world before them too (the converters and the words did not exist in bb-0.12.0 and
+  // earlier): off for the call, back after it (was fn() alone)
+  return withGates(() => withEnchant(fn, false), false);
 }, false);
 
 /** sha256 of JSON.stringify(generateSamplePool()) with every switch off at 283cfaf, the hull release's work tip before P2
@@ -94,7 +99,9 @@ const scalingOff = <T>(fn: () => T): T => withScaleRigs(() => {
 // measured at the tip it landed on (BUMP-1E run 5; raceGhosts() alone: the stand-in pool and the picks are not in it)
 const POOL_OFF_SHA256_BB0100 = "e9accebca818eed8c3455328e1b52731a3cad4b2505272d6a526dd992494afca";
 const POOL_OFF_SHA256_BB0110 = "3a5f3e16491c3e79079b7e71e59883c3747a595e0341bd40642b710125ec40e6"; // BUMP-1E: BUMP-1D's POOL_OFF_SHA256, read in the bb-0.11.0 world
-const POOL_OFF_SHA256 = "2bc4a2fdd1b148a9cab75e606934f42e4a1d958c35d8f1c86bbdbb9143cf560a"; // BUMP-1E: was 3a5f3e16491c3e79079b7e71e59883c3747a595e0341bd40642b710125ec40e6 (the bb-0.11.0 world)
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): GATES and ENCHANT ship on, with the F-fixes, POISON_DPS 2, the braced RATCHET and OLD BULWARK's GREASE): the shipped world's NPC_DAY-off pool moved: was 2bc4a2fd... (BUMP-1E's). PROOF that the world alone moved it: the two rolled-back tests below
+// reproduce BUMP-1E's and BUMP-1D's pins EXACTLY once GATES and ENCHANT are off in scalingOff (the bb-0.10.0 world: e9accebc..., the bb-0.11.0 world: 3a5f3e16...); this digest is measured with the shipped switches (this test's own world)
+const POOL_OFF_SHA256 = "848b6f35d054036cde292bca9c05521fbc6786d1360bcf04c540ecd2b4934df4"; // BUMP-1E: was 3a5f3e16491c3e79079b7e71e59883c3747a595e0341bd40642b710125ec40e6 (the bb-0.11.0 world)
 /** BUMP-1D: `fn` in the bb-0.10.0 world: the 10-day run, without PLAIN_RIGS and SHAPES2 (each put back after it, even on a throw). */
 // Turning PLAIN_RIGS and SHAPES2 off and on again re-inserts their twelve pieces at the end of ITEMS (plainRigs.ts setPlainRigs, shapes2.ts setShapes2), in the
 // other order when SHAPES2 comes back first, and the shop's picks walk the catalogue in key order: a pool built after the toggle differs from one built before it
@@ -252,10 +259,7 @@ describe("LOSS-1 P2: the seed pool's floor ghosts carry the casual player's deck
     allOn();
     // the shipped pool without its grades: sampleGhosts, floorGhosts and raceGhosts over generateSamplePool's own deckOf (SOFT1_PICKS' variant 0 and 1 decks), PICK on
     // (generateSamplePool with PICK off is not the shipped world: worldKey() leaves SOFT1_WORLD, so neither the soft picks nor FLOOR_PICKS would apply)
-    const softDeckOf = (h: HeroId, d: number, v: number): RaceDeck => {
-      const c = v < SAMPLE_VARIANTS ? softPicked(h, d)?.[v] : undefined;
-      return c ? { build: c.build, seed: c.seed!, ...(c.road ? { road: c.road } : {}) } : raceDeck(h, d, v);
-    };
+    // CACHE-1: softDeckOf is tests/helpers/poolCache.ts's now (this very function, marked pure so raceGhosts(undefined, softDeckOf) is cached and shared)
     const build = (): GhostSnapshot[] => [...sampleGhosts(), ...floorGhosts(), ...raceGhosts(undefined, softDeckOf)];
     const pool = build();
     expect(pool).toHaveLength(192); // 4 heroes x 16 days x 3 variants

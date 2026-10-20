@@ -24,7 +24,7 @@ import { PLAYABLE_HEROES, heroRefBuild, heroStartBuild } from "../src/sim/heroBu
 import { PAR_FIELD_HEROES, parRefs, parSourceFor } from "../src/sim/harness/par";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
 import { STAND_IN_HEROES } from "../src/net/fallback";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import { FUSE_MULT, SYNC_WINDOW } from "../src/sim/races/foundry";
 import { fmtPct } from "../src/ui/statFormat"; // NUM-4 (REQ-BFG-047): FUSE_MULT as a whole %
 import { PLATE_CAP, PLATE_PER_SLUG } from "../src/sim/races/bastion";

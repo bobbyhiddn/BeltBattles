@@ -57,7 +57,10 @@ describe("the wave-1 mods and the star perks (0.6.1p)", () => {
     expect(perks.size).toBeGreaterThanOrEqual(10);
     for (const f of readdirSync(dir).filter((x) => x.endsWith(".ts"))) {
       const src = readFileSync(dir + f, "utf8");
-      expect(/\.levels\b|\.pending\b|\bpendingAt\b|\beffectAt\b/.test(src), `${f} reads star values itself`).toBe(false);
+      // BUMP-1F (RULING-BUMP1F-R11 R11.3): enchantBot.ts may call the game's own pure reader effectAt (stars.ts), the route this file's header allows (lines 2-3: the harness reaches star values only through the game's code), so no star value is copied
+      // there; .levels, .pending and pendingAt stay banned for every file of the harness, enchantBot.ts included
+      const banned = f === "enchantBot.ts" ? /\.levels\b|\.pending\b|\bpendingAt\b/ : /\.levels\b|\.pending\b|\bpendingAt\b|\beffectAt\b/;
+      expect(banned.test(src), `${f} reads star values itself`).toBe(false);
       for (const p of perks) expect(src.includes(p), `${f} names the perk ${p}`).toBe(false);
     }
   });

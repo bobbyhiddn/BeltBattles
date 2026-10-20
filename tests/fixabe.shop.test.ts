@@ -3,7 +3,7 @@
 // merchant's day 1-2 pool one short: seed 187's day-1 caravan (reroll 2) had 4 offers (SCRAPPER + ALCHEMIST, MENDING LOOM in
 // an ALCHEMIST slot), and seed 17's TINKER (WARD BELL in a slot) echoed the owned GREASE on day 1. The slot now goes to the
 // tier's next ware open with it (wares.ts drawWares), and the held piece still joins on its own day.
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { newRun, reroll, rollShop } from "../src/game/run";
 import { ITEMS, OFFERS, SUSTAIN_FIRST_DAY, SUSTAIN_IDS, itemsSoldBy, sustainLive, type MerchantId } from "../src/sim/content";
 import { DRAW, drawWares, heldPast, seatDay, unlockDay, unlocked } from "../src/game/wares";
@@ -12,6 +12,10 @@ import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: A's and B's re
 import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: ... and the plain rigs off
 import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: ... and the six more shaped rigs off
 import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: ... and the scaling rules off (the seven new rigs, the five reworks), the outermost switch
+import { GATES, setGates } from "../src/sim/gates"; // BUMP-1F (GATES default): this file's world is the one before the three converters
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): was no hook; this file's fixtures and pins are the world before the three converters, so every test runs with GATES off, as its pins were measured, and the afterEach puts the shipped value back (even if the test throws)
+beforeEach(() => { setGates(false); });
+afterEach(() => { setGates(GATES); });
 
 /** BUMP-1D: release X's catalogue (88 modules) for a call: the three shaped rigs (SHAPES), the six plain rigs (PLAIN_RIGS) and the six
  *  more shaped rigs (SHAPES2) all off, `on` true: all on, the shipped world (was withShapes(fn, on)). The nesting puts the switches

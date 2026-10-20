@@ -227,7 +227,7 @@ export function withCatalogue<T>(v: Variant, fn: () => T): T {
 
 export type Kind = "rig" | "factory" | "core" | "mod" | "turret";
 export const KINDS: readonly Kind[] = ["rig", "factory", "core", "mod", "turret"];
-export const kind = (id: string): Kind => (ITEMS[id].kind === "gate" ? "rig" : (ITEMS[id].kind as Kind));
+export const kind = (id: string): Kind => (ITEMS[id].kind === "gate" || ITEMS[id].kind === "converter" ? "rig" : (ITEMS[id].kind as Kind)); // GATES-1 (REQ-BFG-052): a GATE (kind converter, GATES on only) is tallied with the rigs, so no count is NaN
 
 /** REQ-BFG-022's count: ITEMS without supplies and hero signatures (each hero's own factory), in ITEMS order. */
 export function counted(): string[] {

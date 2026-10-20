@@ -7,8 +7,8 @@
 // through its setter and put back after each test. BUMP-1D: it ships ON (bb-0.11.0), so each test starts in the 10-day world on purpose
 // (the beforeEach below puts the switch off, as it stood when the switch shipped off) and a long half turns it on itself (withLongRun).
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BAG_IDS, blockReason, eventFor, eventSequence } from "../src/game/events";
-import { WARLORD_EVENT_IDS, type Choice } from "../src/game/eventDefs";
+import { blockReason, eventFor, eventSequence } from "../src/game/events"; // BUMP-1F: BAG_IDS no longer read here (the bag is bagIds() below)
+import { WARLORD_EVENT_IDS, bagIds, type Choice } from "../src/game/eventDefs"; // BUMP-1F: + bagIds (the rules world's bag)
 import { forkFor } from "../src/game/road";
 import { chooseFoe, ghostOf } from "../src/game/day";
 import { newRun, pendingRune } from "../src/game/run";
@@ -78,7 +78,10 @@ describe("RUN-1 D5: the road past day 10 (events, captains, the Matriarch)", () 
     for (let seed = 1; seed <= 80; seed++) {
       const seq = eventSequence(seed, 40, true);
       expect(seq).toHaveLength(40);
-      for (let b = 0; b < 4; b++) expect([...seq.slice(b * BAG_IDS.length, (b + 1) * BAG_IDS.length)].sort(), `seed ${seed} bag ${b}`).toEqual([...BAG_IDS].sort());
+      // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2: the ASH SHRINE joins the road's bag, so a bag is bagIds().length = 11 events with ENCHANT on; BAG_IDS is the ENCHANT-off bag of 10): the full bags of 40 days are 3 (days 1-33), each
+      // holding every event of the rules world once (was b < 4 over BAG_IDS: "expected [ 'cache', 'dice', 'herald', ... ] to deeply equal [ 'cache', 'dice', 'dock', ... ]" once the shrine sat in the bag)
+      const bag = bagIds();
+      for (let b = 0; b < Math.floor(40 / bag.length); b++) expect([...seq.slice(b * bag.length, (b + 1) * bag.length)].sort(), `seed ${seed} bag ${b}`).toEqual([...bag].sort());
       seq.forEach((id, i) => { if (i) expect(id, `seed ${seed} day ${i + 1}`).not.toBe(seq[i - 1]); });
       expect(eventSequence(seed, 12, true), `seed ${seed}: prefix-stable`).toEqual(seq.slice(0, 12));
       for (let d = 1; d <= 40; d++) expect(eventFor(seed, d, true)).toBe(seq[d - 1]);

@@ -19,7 +19,8 @@ import { isReachable } from "../src/net/records";
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import type { TigrisStore } from "../server/tigrisStore";
-import { generateSamplePool, raceDeck, softPicked } from "../tools/samplePool"; // SOFT-1 (REQ-BFG-092): + softPicked
+import { raceDeck, softPicked } from "../tools/samplePool"; // SOFT-1 (REQ-BFG-092): + softPicked
+import { generateSamplePool } from "./helpers/poolCache"; // CACHE-1: the cached twin
 import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip, FREE_JOINS): the FOUNDRY deck's join
 import { storeBackends } from "./netStores";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
@@ -64,7 +65,7 @@ function expected(rules: string, deck: keyof typeof DECKS): { status: number; er
   // the hero gate's threshold: FOUNDRY travels from bb-0.8.0 on (rulesGate.ts HEROES_RULES), under BELTS's rules too
   if (deck === "foundry" && !rulesAtLeast(rules, "bb-0.8.0")) return { status: 400, error: /^snapshot\.hero: rules .* accept only FURNACE, WEAVER, not FOUNDRY$/ };
   // BUMP-1D: the server names this build's rules, bb-0.11.0 (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
-  return { status: 422, error: new RegExp(`^rules ${rules.replace(/[.]/g, "\\.")} not accepted: this server validates bb-0\\.12\\.0$`) }; // BUMP-1E: the bump (was bb-0.11.0).
+  return { status: 422, error: new RegExp(`^rules ${rules.replace(/[.]/g, "\\.")} not accepted: this server validates bb-0\\.13\\.0$`) }; // BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the server names bb-0.13.0 (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0).
 }
 
 /** FLIP-X2: the pool decks now hold their day's runes (v3, with a run seed), and rules before bb-0.8.7 (or unreadable)
@@ -86,12 +87,17 @@ function runeless(s: GhostSnapshot): GhostSnapshot {
   delete out.losses; // BUMP-1D (LONG_RUN ships on): the seed ghost states its dusks lost (bb-0.11.0), which an older client never sends and a v2 snapshot cannot hold ("snapshot.losses: not allowed in a v2 snapshot": 400 on "bb-0.8.1" plain, was 422)
   out.lives = Math.min(s.lives, START_LIVES); // HULL-ON (the flip, HEARTS): an older rules string's 5-lives scale
   delete out.build.runes;
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), the regenerated pool on bb-0.13.0 holds enchantments): and the words (`ench`, `enchDir`, `grow`) of ENCHANT, which no client before bb-0.13.0 sent and
+  // the decoder refuses under an older rules string ("snapshot.build.items[i].ench: unknown field", 400, before the exact check this file is about): the copy drops them, as it drops the runes
+  const noWords = <P extends object>(list: P[] | undefined): P[] | undefined => list?.map((p) => { const { ench: _e, enchDir: _d, grow: _g, ...rest } = p as Record<string, unknown>; return rest as P; });
+  out.build.items = noWords(out.build.items)!;
+  if (out.build.turrets) out.build.turrets = noWords(out.build.turrets)!;
   return out;
 }
 
 describe("H2 M1b: the near-miss rules strings (pure)", () => {
   it("are all different from RULES_VERSION, and the three decks are honest bb-0.8.3 seed decks with a reachable record", () => {
-    expect(RULES_VERSION).toBe("bb-0.12.0") /* BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.13.0") /* BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     for (const r of NEAR) expect(r).not.toBe(RULES_VERSION);
     expect(new Set(NEAR).size).toBe(NEAR.length);
     for (const s of Object.values(DECKS)) expect([s.rules, isReachable(s.day, s.wins, s.lives)]).toEqual([RULES_VERSION, true]);

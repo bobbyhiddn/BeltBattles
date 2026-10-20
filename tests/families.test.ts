@@ -70,8 +70,9 @@ describe("the seven families and each module's tags (ui/families.ts)", () => {
     // SPIKE, GRUDGE ROD, TROPHY CHAIN; src/sim/scale.ts SCALE_ITEMS) join them: 103 + 7 = 110 (the 0.9.11 world, read with the switch off, is 103)
     expect(SCALE_RIGS).toBe(true);
     expect(SCALE_IDS).toHaveLength(7);
-    expect(withScaleRigs(() => buyableModules().length, false)).toBe(103);
-    expect(MODULES.length).toBe(110); // BUMP-1E: was 103
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): + the three converters (FUSER, SCATTER MILL, SMELTER: tags FORGE and BURST, SWARM, FORGE): 103 -> 106 with the scaling switch off, 110 -> 113 shipped
+    expect(withScaleRigs(() => buyableModules().length, false)).toBe(106); // BUMP-1F: was 103
+    expect(MODULES.length).toBe(113); // BUMP-1F: was 110; BUMP-1E: was 103
     const counts = [0, 0, 0, 0];
     for (const d of MODULES) {
       const f = familiesOf(d.id);
@@ -91,7 +92,8 @@ describe("the seven families and each module's tags (ui/families.ts)", () => {
     // BUMP-1E: the seven scaling rigs' tags (scale.ts SCALE_ITEMS, each its nearest piece's): GRUDGE ROD FORGE (1 family); CINDER MAIL
     // FORGE and PLATE, ROT GAUGE SWARM and FORGE, LEECH COIL SWARM and PLATE, CROWD PRESS SWARM and FORGE, AEGIS SPIKE PLATE and FORGE,
     // TROPHY CHAIN FORGE and BURST (2 families each): [0, 43, 56, 4] -> [0, 44, 62, 4]; the five reworks keep their tags
-    expect(counts).toEqual([0, 44, 62, 4]); // BUMP-1E: was [0, 43, 56, 4]
+    // BUMP-1F (cause: GATES default; the tags in gates.ts GATES_DEFS): + SCATTER MILL (SWARM) and SMELTER (FORGE), 1 family each, and FUSER (FORGE, BURST), 2: [0, 44, 62, 4] -> [0, 46, 63, 4]
+    expect(counts).toEqual([0, 46, 63, 4]); // BUMP-1F: was [0, 44, 62, 4]; BUMP-1E: was [0, 43, 56, 4]
     for (const d of Object.values(ITEMS)) for (const t of d.tags ?? []) expect(V2, `${d.id}: ${t}`).toContain(t);
     for (const id of ["zz-none", "constructor", "toString", "__proto__", "hasOwnProperty", ""]) {
       expect(familiesOf(id), id).toEqual([]);

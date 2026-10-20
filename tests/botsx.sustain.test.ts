@@ -278,7 +278,9 @@ describe("BOTS-X step 2: the bots' rules (player.ts, SUSTAIN-1 4.8 rules 2-6; th
     withSustain(() => {
       let picks = 0, held = 0;
       const perGold = (o: PlayerOffer) => o.rel / Math.max(1, o.price);
-      const rolled = (o: PlayerOffer) => o.kind !== "plating" && o.kind !== "crate" && o.kind !== "upgrade";
+      // BUMP-1F (ENCHANT on by default, RULING-BUMP1F-R5 R5.2 (2); ENCHANT-1 E8): + the ENCHANTER's word offers (kind "word", wagon -3: outside the shop, like the packs at -2 and the upgrades at -1), which sustainRule's open set
+      // (wagon >= 0) never counts; was plating, crate and upgrade alone (bastion s3 d7: wardbell against ench:echoing)
+      const rolled = (o: PlayerOffer) => o.kind !== "plating" && o.kind !== "crate" && o.kind !== "upgrade" && o.kind !== "word";
       for (const hero of HEROES4) for (let seed = 1; seed <= 8; seed++) {
         const days = playerRun(hero, 10, seed, {
           onDecide: (run, cands, pick) => {

@@ -10,7 +10,7 @@ import { battleRecordFor } from "../src/net/replay";
 import { openReplay, replayAt, REPLAY_BROKEN } from "../src/game/replays";
 import { chooseFoe, onlineFoe } from "../src/game/day";
 import { newRun, type DayResult } from "../src/game/run";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 
 const W = (b: Build, ...ids: string[]): Build => ({ ...cloneBuild(b), runes: [...(b.runes ?? []), ...ids.map((id) => ({ id }))] });
 const due = W(heroStartBuild("furnace"), "warlords_due"), foe = heroStartBuild("weaver");

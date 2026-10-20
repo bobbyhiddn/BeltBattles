@@ -36,6 +36,7 @@ import { footOf, footTurns } from "../foot"; // SHAPES-1 (REQ-BFG-086 S4): a sha
 import { starsOf } from "../stars";
 import { upgradeWord, upgradesOf } from "../standInPool"; // bb-0.8.3 (REQ-BFG-043 D10): the levels' head word
 import { headWords, runeWord, runesOf } from "../standInPool"; // BOTS-X (REQ-BFG-058): the runes' head word
+import { enchantOfWord, enchantWord } from "../standInPool"; // ENCHANT-1 (REQ-BFG-085, E2): the `~<code>` word, shared with the loader's codec
 
 const cellCode = (x: number, y: number): string => `${y}${x}`;
 const suffix = (p: { stars?: number }): string => (starsOf(p) > 1 ? `*${starsOf(p)}` : "");
@@ -53,7 +54,7 @@ function turretSection(b: Build): string | undefined {
   const words = [...b.turrets].sort((x, y) => x.slot - y.slot).map((t) => {
     if (!/^[a-z]+$/.test(t.def)) throw new Error(`stand-in code: turret id "${t.def}" is not lowercase letters`);
     if (!Number.isInteger(t.slot) || t.slot < 0) throw new Error(`stand-in code: turret slot ${t.slot} is not a slot index`);
-    return `${t.def}${t.slot}${suffix(t)}${t.free ? "!" : ""}`;
+    return `${t.def}${t.slot}${suffix(t)}${enchantWord(t)}${t.free ? "!" : ""}`; // ENCHANT-1: `~<code>` after the stars, before `!`
   }).join(" ");
   const start = startingTurrets(b.hero).map((t) => `${t.def}${t.slot}!`).join(" ");
   return words === start ? undefined : words;
@@ -67,7 +68,7 @@ export function encodeStarred(b: Build): string {
     if (!/^[a-z]+$/.test(p.def)) throw new Error(`stand-in code: item id "${p.def}" is not lowercase letters`);
     no.set(p.uid, i + 1);
     const rot = rotOf(p);
-    return `${p.def}${cellCode(p.x, p.y)}${rot ? `r${rot}` : ""}${suffix(p)}`;
+    return `${p.def}${cellCode(p.x, p.y)}${rot ? `r${rot}` : ""}${suffix(p)}${enchantWord(p)}`; // ENCHANT-1: `~<code>` after the stars
   });
   const routes = b.routes.map((r) => {
     const f = no.get(r.factory);
@@ -94,11 +95,11 @@ export function decodeStarred(hero: HeroId, code: string): Build {
   const words = (s: string | undefined) => (s ? s.split(" ").filter(Boolean) : []);
   const star = (s: string | undefined) => (s ? { stars: Number(s) } : {});
   const items: Placed[] = words(itemPart).map((w, i) => {
-    const m = /^([a-z]+)(\d)(\d)(?:r([1-3]))?(?:\*([23]))?$/.exec(w);
+    const m = /^([a-z]+)(\d)(\d)(?:r([1-3]))?(?:\*([23]))?(?:~([a-z]{2})(\d+)?)?$/.exec(w); // ENCHANT-1: + the optional `~<code>[digits]` after the stars
     if (!m || !ITEMS[m[1]]) throw new Error(`stand-in code: bad item "${w}"`);
     // SHAPES-1 (REQ-BFG-086 S4): a shaped factory (one whose footprint changes when turned) carries its rot too
     if (m[4] && ITEMS[m[1]].kind !== "gate" && footTurns(footOf(ITEMS[m[1]])) === 1) throw new Error(`stand-in code: "${w}" is not a rig and can't have a rotation`);
-    return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]), ...(m[4] ? { rot: Number(m[4]) } : {}), ...star(m[5]) };
+    return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]), ...(m[4] ? { rot: Number(m[4]) } : {}), ...star(m[5]), ...enchantOfWord(m[6], m[7], w, ITEMS[m[1]].kind === "gate") };
   });
   const routes: RouteDef[] = words(routePart).map((w) => {
     const m = /^(\d+):((?:\d\d)+)(?:>(\d)(\d))?$/.exec(w);
@@ -121,10 +122,10 @@ export function decodeStarred(hero: HeroId, code: string): Build {
   for (const t of startingTurrets(hero)) own.set(t.def, [...(own.get(t.def) ?? []), t.uid]);
   let next = items.length + mods.length;
   const list: BuildTurret[] = words(turretPart).map((w) => {
-    const m = /^([a-z]+)(\d+)(?:\*([23]))?(!)?$/.exec(w);
+    const m = /^([a-z]+)(\d+)(?:\*([23]))?(?:~([a-z]{2})(\d+)?)?(!)?$/.exec(w); // ENCHANT-1: + the optional `~<code>` before `!`
     if (!m || !ITEMS[m[1]] || ITEMS[m[1]].kind !== "turret") throw new Error(`stand-in code: bad turret "${w}"`);
-    const uid = (m[4] ? own.get(m[1])?.shift() : undefined) ?? ++next;
-    return { slot: Number(m[2]), def: m[1], uid, ...star(m[3]), ...(m[4] ? { free: true } : {}) };
+    const uid = (m[6] ? own.get(m[1])?.shift() : undefined) ?? ++next;
+    return { slot: Number(m[2]), def: m[1], uid, ...star(m[3]), ...(m[6] ? { free: true } : {}), ...enchantOfWord(m[4], m[5], w, false) };
   });
   setTurretList(b, list);
   return Object.assign(b, upgradesOf(up), runesOf(rw));

@@ -58,11 +58,17 @@ import { rigArrowCells } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 R2): a lon
 import { shapesRules } from "../sim/shapes"; // SHAPES-1: the shaped pieces' faces, lines and notes (SHAPES on only)
 import { isShapes2Piece, shapes2Rules } from "../sim/deck"; // SHAPES-2 (REQ-BFG-114; deck.ts re-exports shapes2.ts: faceText.test.ts reads import paths as string literals, and a digit is not allowed in them): the six more shaped plain rigs: the same stat-row face path as PLAIN-1's six
 import { scaleRules } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): VENOM DRIP's plain POISON face (SCALE_RIGS on only)
+import { isConverterItem } from "../sim/split"; // BUMP-1F (RULING-BUMP1F-R11 R11.3): the three gates' desk-card effect line is their star-1 stat row (cardEffect)
 import { POISON_DPS } from "../sim/content"; // SCALE-2b: POISON's hull damage a second (its reminder)
-import { readerClause } from "./readerClause"; // ROWS-1 (REQ-BFG-098; F2): the reader faces' clause, shared with the belt timeline's row
+import { readerClause } from "./readerClause"; // ROWS-1 (REQ-BFG-098; F2): the reader faces' clause, shared with the belt timeline's row (it holds READ_WORDS, so ReadCount's import is not needed here)
+import { isGatesPiece } from "../sim/deck"; // GATES-1 (REQ-BFG-052; deck.ts re-exports gates.ts): the three gates' faces, while they are in ITEMS (GATES on)
+import { shareWord } from "./abilityText"; // GATES-1: a pellet's share in words, HALF or the whole %
 import { SLOT_EVERY_CELLS, SLOT_FROM_CELLS, footBox, footCount, footSlots, isShaped } from "../sim/foot"; // SHAPES-1: the type line's shape, the size rule
 import { WINDOW_TIME } from "../sim/content"; // Y4 (release Y; DESIGN-Y row 37): ROTARY BREECH's load time, % sooner
 import { isPlainRig as isPlainSix } from "../sim/plainRigs"; // PLAIN-1 (REQ-BFG-084): the six plain stat rigs (PLAIN-1F M1: renamed here; faces.ts's own isPlainRig is the face test, and it holds them while they are in ITEMS)
+import { shotFloor } from "../sim/deck"; // ENCHANT-1 (REQ-BFG-085): the least a slug deals, for a MASSIVE or SWIFT factory's DMG
+import { enchantRate, enchantRules, isEnchantId } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): the word's rate, the switch
+import { grownDmg, partNotes, slugDmg, type WordOn } from "./enchantFaces"; // ENCHANT-1 (REQ-BFG-085): the NOTES, the word's numbers; ENCHANT-2 (T4b): partNotes, line 1 by word
 
 /**
  * The engine's numbers a reminder needs that no spec carries (as abilityText.ts SIM): each quoted from its source.
@@ -136,20 +142,28 @@ const showsBelts = (def: string): boolean => !fusible(def) || [1, 2, 3].some((n)
 /** A factory's stat pairs at `stars` (MIMIC FORGE's for `hero`): its stamp's cadence, its slug's damage and, where it
  *  shows them, its belts. The slug damage is its dies' (FactorySpec.base), else its ammo's (Battle.stamp), and a
  *  SCRAPPER's scrapFlat on top (NUM-3: Battle.stamp adds it to each slug it stamps). */
-export function factoryStats(def: string, stars = 1, hero?: HeroId): Stat[] {
+export function factoryStats(def: string, stars = 1, hero?: HeroId, w?: WordOn): Stat[] {
   const fs = effectAt(def, stars).factory!;
-  let speed = fs.speed, dmg = (fs.base ?? AMMO[fs.ammo].base) + (fs.scrapFlat ?? 0); // NUM-4 (REQ-BFG-047): its SPEED (RATE)
+  let speed = fs.speed, base = fs.base ?? AMMO[fs.ammo].base, flat = fs.scrapFlat ?? 0, ammo = fs.ammo; // NUM-4 (REQ-BFG-047): its SPEED (RATE)
   if (def === "mimic") {
     // Battle.factoryDef: the hero's ammo at its own factory's interval x intervalMul; no hero, no cadence to show
     const h = hero ? HEROES[hero] : undefined, sig = h ? ITEMS[h.factory]?.factory : undefined;
     if (!h || !sig) return [["BELT", fmtCount(outputsAt(def, stars))]];
     speed = factorySpeed(def, fs, hero!); // NUM-2: the hero factory's speed x its rate %, rounded once
-    dmg = AMMO[h.ammo].base;
+    base = AMMO[h.ammo].base;
+    flat = 0;
+    ammo = h.ammo;
   }
+  // ENCHANT-1 (REQ-BFG-085; E7): `w`, the word the piece holds: MASSIVE and SWIFT work it at the other rate and share its slug's DMG (the
+  // battle's: enchant.ts enchantRate, enchantFx.ts scaleShare, which slugDmg reads), GROWING adds its grown DMG, WIDE one belt slot.
+  // Without a word every number below is the plain piece's, as before
+  let dmg = w ? slugDmg(w, base, flat, shotFloor(ammo)) : base + flat;
+  if (w) speed = enchantRate(w.id, speed);
   // Y2 (release Y; DESIGN-Y row 13): a LIMPET WORKS' DMG is its charge's blast (its base is 0: the 20 on impact joined the
   // blast)
   if (fs.round?.kind === "limpet") dmg += fs.round.blast;
-  return [speedPair(speed), ["DMG", fmtDmg(dmgNow(dmg))], ...(showsBelts(def) ? [["BELT", fmtCount(outputsAt(def, stars))] as Stat] : [])];
+  const wide = w?.id === "wide" ? 1 : 0; // ENCHANT-1: WIDE's belt slot (enchant.ts wideSlots)
+  return [speedPair(speed), ["DMG", fmtDmg(dmgNow(dmg))], ...(showsBelts(def) || wide ? [["BELT", fmtCount(outputsAt(def, stars) + wide)] as Stat] : [])];
 }
 
 /**
@@ -190,9 +204,12 @@ export function carryStats(def: string, stars = 1, hero?: HeroId): Stat[] | null
 }
 
 /** A turret's stat pairs at `stars`: how often it fires, the loads its chamber holds, its gear slots (deck.ts). */
-export function turretStats(def: string, stars = 1): Stat[] {
+export function turretStats(def: string, stars = 1, w?: WordOn): Stat[] {
   const t = effectAt(def, stars).turret!;
-  return [speedPair(t.speed), ["SLUG", fmtCount(t.window)], ["GEAR", fmtCount(gearSlotsOf(def, stars))]]; // NUM-4: its SPEED (RATE)
+  // ENCHANT-1 (REQ-BFG-085; E7): `w`, the word the turret holds: MASSIVE and SWIFT fire it at the other rate (enchant.ts enchantRate, as
+  // deck.ts resolveSlots patches the battle's), WIDE gives one more gear slot (resolveSlots' gearSlots)
+  const rate = w ? enchantRate(w.id, t.speed) : t.speed, wide = w?.id === "wide" ? 1 : 0;
+  return [speedPair(rate), ["SLUG", fmtCount(t.window)], ["GEAR", fmtCount(gearSlotsOf(def, stars) + wide)]]; // NUM-4: its SPEED (RATE)
 }
 
 /** U2b: a rig's stat pairs (R1 C4: "Rigs and gear: none"): a rig's numbers are its rule's. This is the rig kind's one
@@ -278,7 +295,7 @@ export const REMINDER: Record<KeywordName, (n?: number) => string> = {
   HEAL: () => "{*HEAL}: GIVES BACK HULL, NEVER PAST FULL.",
   REGEN: () => "{*REGEN}: GIVES BACK THIS MUCH HULL EACH SEC.",
   // SCALE-2b (REQ-BFG-108; REPORT-SCALE1 section 2, the design's keyword text in CARD-3's words, BURN's form): battle.ts
-  // hullEffects, POISON_DPS (3) a POISON at each whole second x D(d) (dmgNow, as BURN's tick), no decay until the fight
+  // hullEffects, POISON_DPS (2; 3 until BUMP-1F P3 D2, RULING-BUMP1F-R13 R13.5) a POISON at each whole second x D(d) (dmgNow, as BURN's tick), no decay until the fight
   // ends; stacks add (impact); straight to hp, never absorb() ({*PLATE}: the soak layer, SHIELD to the player). Read only
   // while SCALE_RIGS is on (KEYWORDS holds POISON then: VENOM DRIP's face, its glossary row, the status row's chip). The
   // design's UNTIL THE FIGHT ENDS is UNTIL THE END: the whole text must fit the glossary's 2 lines of 5x7 at 225 px, and
@@ -1191,6 +1208,79 @@ export function plainNotes(def: string): string[] {
   return g?.slugPlate ? [RIG_SENTENCE, CARRY_LINE] : [RIG_SENTENCE];
 }
 
+// ------------------------------------------------------------ ENCHANT-1 (REQ-BFG-085; BRIEF-ENCHANT1 E7): an enchanted piece's face
+
+/** ENCHANT-1 (REQ-BFG-085; E7): an enchanted piece's NOTES, in plainNotes' and shapeNotes' form: default rules text behind the hover or the
+ *  tap (inspector.ts explainPanel; enchantFaces.ts ENCHANT_NOTES: what an enchantment is, and that a new one replaces it). `word`: the
+ *  word the piece holds (an ENCHANT_IDS id); [] for a piece with none, and for everything with the switch off.
+ *  ENCHANT-2 (REQ-BFG-085; T4b): line 1 of a PART's NOTES is the word's own (enchantFaces.ts partNotes: it adds where the numbers above the word's
+ *  line come from); a word's own CARD keeps ENCHANT_NOTES (wordFace). */
+export function enchantNotes(word: string | undefined): string[] {
+  return enchantRules() && isEnchantId(word) ? partNotes(word) : [];
+}
+
+/** A stat row's pair for `pair`'s icon: it replaces that icon's pair (the place kept), else it goes at the row's end. */
+const withPair = (row: readonly Stat[], pair: Stat): Stat[] =>
+  row.some(([k]) => k === pair[0]) ? row.map((st) => (st[0] === pair[0] ? pair : st)) : [...row, pair];
+
+/** ENCHANT-1: a rig's stat row with its word: GROWING's grown DMG joins the row's DMG (WHETSTONE's) or ends the row, once it has grown (a hit's
+ *  DMG is the rig's flat plus +5 x the dusk fights x the stars). ENCHANT-1c (C1): FIERY adds nothing here: its [BURN]+n shows once, in its line
+ *  (enchantFaces.ts pieceLine), so a rig with its own BURN (TEMPER's) keeps that number in its row as it is. */
+function rigWordRow(def: string, stars: number, w: WordOn, plain: Stat[]): Stat[] {
+  const g = effectAt(def, stars).gate, has = (k: string): boolean => plain.some(([n]) => n === k);
+  let row = plain;
+  if (w.id === "growing" && w.grow > 0) row = withPair(row, ["DMG", `+${fmtDmg(dmgNow((has("DMG") ? g?.flat ?? 0 : 0) + grownDmg(w)))}`]);
+  return row;
+}
+
+/** ENCHANT-1: a turret's stat row with its word's added stat at the end: GROWING's grown DMG, once it has grown (ENCHANT-1c C1: FIERY adds none,
+ *  its [BURN]+n is in its line). */
+function turretWordRow(row: Stat[], w: WordOn): Stat[] {
+  if (w.id === "growing" && w.grow > 0) return [...row, ["DMG", `+${fmtDmg(dmgNow(grownDmg(w)))}`]];
+  return row;
+}
+
+/** ENCHANT-1 (E7): an INSTALLED turret's stat row (inspector.ts turretPanel: its own numbers, the gear, the core and the TURRET SPEED level
+ *  in, which already carry MASSIVE's and SWIFT's rate and WIDE's gear slot, as deck.ts resolveSlots patches them) with its word's stat at
+ *  the end; `nums`: the indexes of the pairs the word changed or added, whose numbers are drawn in the word's colour. */
+export function wordTurretRow(row: Stat[], w: WordOn): { row: Stat[]; nums: number[] } {
+  const out = turretWordRow(row, w);
+  const rate = w.id === "massive" || w.id === "swift", wide = w.id === "wide";
+  return { row: out, nums: out.flatMap(([k], i) => (i >= row.length || (rate && k === "RATE") || (wide && k === "GEAR") ? [i] : [])) };
+}
+
+/** An enchanted piece's stat rows: `rows` as the word leaves them (a rig's one row, a turret's, a factory's two), `hue` for each row the
+ *  indexes of its pairs the word added or changed, whose numbers are drawn in the word's colour (found by comparing the plain piece's row). */
+export interface WordRows {
+  rows: Stat[][];
+  hue: number[][];
+}
+
+/**
+ * ENCHANT-1 (REQ-BFG-085; E7): the stat rows of a piece holding the word `w`, at `stars` on `o`'s day and hero. A number the word CHANGES is
+ * shown changed: MASSIVE's and SWIFT's RATE and a factory's DMG (the battle's: factoryStats, turretStats), GROWING's DMG with the grown
+ * amount, WIDE's {BELT} or {GEAR} slots. ENCHANT-1c (C1): no word adds a stat of its own to a row any more (FIERY's [BURN]+n is in its line
+ * only). A row the plain piece has not (a rule rig has no stat row) is made of the word's own pairs alone.
+ */
+export function wordRows(def: string, stars: number, o: TextOpts, w: WordOn): WordRows {
+  return shownOn(o.day, () => {
+    let plain: Stat[][], word: Stat[][];
+    if (w.kind === "turret") {
+      plain = [turretStats(def, stars)];
+      word = [turretWordRow(turretStats(def, stars, w), w)];
+    } else if (w.kind === "factory") {
+      plain = [factoryStats(def, stars, o.hero), carryStats(def, stars, o.hero) ?? []];
+      word = [factoryStats(def, stars, o.hero, w), carryStats(def, stars, o.hero) ?? []];
+    } else {
+      const p = plainRigStats(def, stars, o.day) ?? [];
+      plain = [p];
+      word = [rigWordRow(def, stars, w, p)];
+    }
+    const same = (r: number, i: number, st: Stat): boolean => !!plain[r][i] && plain[r][i][0] === st[0] && plain[r][i][1] === st[1];
+    return { rows: word, hue: word.map((row, r) => row.flatMap((st, i) => (same(r, i, st) ? [] : [i]))) };
+  });
+}
+
 /** PLAIN-1F (REQ-BFG-089, M3; cap's call on run 2's F5): the desk's wide shop card's effect line (chrome.ts drawCaravan):
  *  abilityText's cardText, else a plain rig's stat row at ★1 on the run's day (plainRigStats, in glyphs), so a plain rig
  *  with no kept text (the six) draws the wide face with its own numbers, not the narrow face inside the wide card (shop.ts
@@ -1199,7 +1289,11 @@ export function cardEffect(def: string, o: TextOpts = {}): string {
   const t = cardText(def, o);
   if (t) return t;
   const plain = plainRigStats(def, 1, o.day);
-  return plain ? statRow(plain) : "";
+  if (plain) return statRow(plain);
+  // BUMP-1F (RULING-BUMP1F-R11 R11.3; GATES-1's converters, REQ-BFG-052, REQ-BFG-115): a gate (FUSER, SCATTER MILL, SMELTER) has no cardText and no plain stat row, so the tap panel's one-line effect on the 360x640 strip
+  // (inspector.ts, headerOnly) had none; its effect line is its own star-1 face stat row (faceLines(def, 1): statRow of the face's stats), as the plain rigs' is. No number, rule or sim code changes
+  if (isConverterItem({ def })) return faceLines(def, 1, o)?.stats ?? "";
+  return "";
 }
 
 // ------------------------------------------------------------- Y2 (release Y): the STUN pieces with the switch on
@@ -1290,6 +1384,61 @@ const PLAIN_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   pickaxe: sixReminders,
 };
 
+// ------------------------------------------------- GATES-1 (REQ-BFG-052, REQ-BFG-089, REQ-BFG-087): the three gates
+
+/** A gate's numbers (the face reads the spec at its stars). */
+const cvs = (e: ItemDef) => e.converter!;
+
+/** A gate's stat row (PIECES-1 6.3; the mock ref/pieces1/cards-phone.png card 5): slugs in and out `{SLUG}2>1`, what it adds
+ *  `{DMG}+50%` (FUSER) or `{BURN}+2` (SMELTER, in place of the slugs), and the time it costs `1{SEC}`. */
+export function converterStats(def: string, stars = 1): Stat[] {
+  const c = effectAt(def, stars).converter;
+  if (!c) throw new Error(`converterStats: ${def} is not a gate`);
+  const secs: Stat = ["SEC", fmtSec(c.secs)];
+  if (c.how === "smelt") return [["BURN", `+${fmtCount(c.burn ?? 0)}`], secs];
+  const io: Stat = ["SLUG", `${fmtCount(c.in)}>${fmtCount(c.out)}`];
+  return c.how === "fuse" ? [io, ["DMG", `+${fmtPct((c.bonus ?? 0) / 100)}`], secs] : [io, secs];
+}
+
+/**
+ * The gates' own lines, always on the face (REQ-BFG-089: a per-piece ability stays visible; PIECES-1 6.3's plainer words):
+ * FUSER `2 SLUGS IN, 1 OUT: IT DEALS BOTH, +50%.`, SCATTER MILL `1 SLUG IN, 3 OUT, EACH AT HALF {DMG}.` (the share's whole % when
+ * it isn't half: ★2), SMELTER `THE {SLUG} GAINS +2 {*BURN}.` with BURN's reminder. The numbers are the stat row's too, keyed so
+ * two stars' faces diff (NEXT★, the ⓘ ladder). The general rule (A GATE: ...) is gateNotes, behind the hover or tap.
+ */
+const CONVERTER_FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
+  fuser: (e) => {
+    // its number is the stat row's {DMG}+50% too, so the rule keys none (NEXT★ and the ⓘ ladder read the row once)
+    return rules([{ text: `${fmtCount(cvs(e).in)} SLUGS IN, ${fmtCount(cvs(e).out)} OUT: IT DEALS BOTH, +${fmtPct(cvs(e).bonus! / 100)}.` }]);
+  },
+  scattermill: (e) => rules(
+    [{ text: `${fmtCount(cvs(e).in)} SLUG IN, ${fmtCount(cvs(e).out)} OUT, EACH AT ${shareWord(cvs(e).share!)} {DMG}.` }],
+    [["share", fmtPct(cvs(e).share! / 100)]], // the pellets are the stat row's {SLUG}1>3; the share is only the rule's
+  ),
+  smelter: (e) => {
+    const n = fmtCount(cvs(e).burn!);
+    return rules([{ text: `THE {SLUG} GAINS +${n} {*BURN}.` }], [], [REMINDER.BURN()]); // its number is the stat row's {BURN}+2 too
+  },
+};
+
+/** GATES-1 (REQ-BFG-089, REQ-BFG-087; PIECES-1 6.3): the gate rule, default rules text behind the hover or tap (EXPLAIN-1's NOTES lead). */
+export const GATE_RULE = "A GATE: DROP IT ON A BELT. THE BELT SPLITS AROUND IT.";
+/** GATES-1b (BRIEF-GATES1B B4; the cold read's readers all asked what the outlined tiles are while a gate is carried): the carried gate
+ *  outlines the tiles after it, in its rarity colour (cues.ts drawSplitGhost). NOTES only: behind the hover or tap (REQ-BFG-089). */
+export const GATE_OUTLINE = "THE OUTLINED TILES ARE THE BELT AFTER THE GATE.";
+/** GATES-1: what a conversion costs, in the gate's seconds. */
+export const gateWait = (secs: number): string => `EACH SLUG WAITS ${fmtSec(secs)} SEC INSIDE IT.`;
+/** GATES-1: the FUSER's placement puzzle (the fused slug rides on as two: convert.ts fusePayload). */
+export const FUSER_ORDER = "RIGS BEFORE IT COUNT TWICE. RIGS AFTER IT COUNT ONCE.";
+
+/** GATES-1: a gate's NOTES sentences (the gate rule, GATES-1b's outlined tiles, the wait, and for the FUSER its order); [] for every
+ *  other piece and with GATES off (no gate exists). */
+export function gateNotes(def: string): string[] {
+  const d = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
+  if (!d || d.kind !== "converter" || !d.converter) return [];
+  return [GATE_RULE, GATE_OUTLINE, gateWait(d.converter.secs), ...(d.converter.how === "fuse" ? [FUSER_ORDER] : [])];
+}
+
 /** The pieces with a new face, in redesign.json's groups' order (tests and tools). */
 export const FACE_IDS: readonly string[] = [
   ...Object.keys(FACES),
@@ -1301,7 +1450,7 @@ export const FACE_IDS: readonly string[] = [
 export function hasFace(def: string): boolean {
   // PLAIN-1 (REQ-BFG-084): a plain stat rig of the six has its face while it is in ITEMS (PLAIN_RIGS on)
   return FACE_IDS.includes(def) || (shapesRules() && Object.prototype.hasOwnProperty.call(SHAPE_FACES, def))
-    || ((isPlainSix(def) || isShapes2Piece(def)) && Object.prototype.hasOwnProperty.call(ITEMS, def)) // SHAPES-2: the six more while in ITEMS (SHAPES2 on)
+    || ((isPlainSix(def) || isShapes2Piece(def) || isGatesPiece(def)) && Object.prototype.hasOwnProperty.call(ITEMS, def)) // SHAPES-2: the six more while in ITEMS (SHAPES2 on); GATES-1: and the three gates (GATES on) (BUMP-1F: both sides' ORs)
     || (scaleRules() && Object.prototype.hasOwnProperty.call(SCALE_FACES, def)); // SCALE-2c: the seven new readers, switch on
 }
 
@@ -1504,9 +1653,10 @@ export function faceAt(def: string, stars = 1, o: TextOpts = {}): Face | null {
 
 function faceOn(def: string, stars: number, o: TextOpts): Face {
   const e = effectAt(def, stars), x: X = { stars, k: o.k ?? 1, hero: o.hero, day: o.day }; // HULL-1a: the day
-  const body = e.kind === "turret" ? TURRET_FACE() : (FACES[def] ?? SHAPE_FACES[def] ?? PLAIN_FACES[def] ?? SCALE_FACES[def])(e, x); // SHAPES-1: SHAPE_FACES; PLAIN-1: the six's; SCALE-2c: SCALE_FACES (BUMP-1E: both sides' tables)
+  const body = e.kind === "turret" ? TURRET_FACE() : (FACES[def] ?? SHAPE_FACES[def] ?? PLAIN_FACES[def] ?? SCALE_FACES[def] ?? CONVERTER_FACES[def])(e, x); // SHAPES-1: SHAPE_FACES; PLAIN-1: the six's; SCALE-2c: SCALE_FACES (BUMP-1E: both sides' tables); GATES-1: the gates' (BUMP-1F: CONVERTER_FACES last)
   const stats = e.kind === "turret" ? turretStats(def, stars) : e.kind === "factory" ? factoryStats(def, stars, o.hero)
     : e.kind === "core" ? coreStats(def, stars, x.k) : e.kind === "gate" ? rigStats(def, stars) : e.kind === "mod" ? gearStats(def, stars)
+    : e.kind === "converter" ? converterStats(def, stars) // GATES-1: a gate's slugs in and out, what it adds, what it costs
     : supplyStats(def); // U2b: the rig, gear and supply kinds' data functions
   // U2b F5: the interim caveats (one table)
   const caveats = INTERIM_CAVEATS.filter((cv) => cv.applies(e)).map((cv) => cv.text(e));

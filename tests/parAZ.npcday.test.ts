@@ -4,7 +4,7 @@
 // which the bots place as a free part (placeFreePart: a merge, a spot, the REFIT swap, else cargo); a loss pays nothing and
 // costs no life; no events. With the switch off nothing runs: no road, the day's gold and the cache key as before.
 // The switches are set through their own setters and all put back after each test (on: the shipped value, AZ-BUMP's flip).
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type HeroId } from "../src/sim/content";
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the par run starts with 10 hearts
 import { turretList } from "../src/sim/deck";
@@ -21,12 +21,17 @@ import { caravanDeck } from "../src/sim/harness/caravan";
 import { boughtCost, maxStarsOf } from "../src/sim/harness/standins";
 import { FUSE_MAX } from "../src/sim/stars";
 import type { Run } from "../src/game/run";
+import { setShrine } from "../src/game/shrine"; // BUMP-1F (ENCHANT-2 T3): the road-event bag without the ASH SHRINE for the gold identities
 
+// BUMP-1F (ENCHANT-2 T3, RULING-BUMP1F-R3.1): the road-event bag is read WITHOUT the ASH SHRINE in this file (setShrine false, the state-B precedent of tests/enchant1.bots; the afterEach puts it back): the shrine's
+// cargo card gives a cargo part away (the par bot's card 1, shrineBot.ts), whose value no PlayerDay field names, so every identity below breaks after it by that value (furnace s1 d9: 150 of 153); was no switch
+beforeEach(() => setShrine(false));
 afterEach(() => {
   // the shipped value (AZ-BUMP's flip); a test that needs a switch off sets it off itself
   setNpcDay(true);
   setHullScale(true);
   setLadderFix(true);
+  setShrine(true); // BUMP-1F: the shipped value (ENCHANT-2)
 });
 
 const HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
@@ -53,7 +58,7 @@ describe("PAR-AZ: the par player's NPC day, NPC_DAY off (nothing runs)", () => {
         const at = `${hero} s${seed} d${d.day}`;
         for (const k of ["road", "roadGold", "roadDrops", "cargo"]) expect(k in d, `${at} ${k}`).toBe(false);
         expect(d.budget, at).toBe(maxGoldByDay(d.day) + runeGrants(d.build.runes, d.day).gold);
-        expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss, at).toBe(d.budget);
+        expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss + (d.wordGold ?? 0), at).toBe(d.budget); // BUMP-1F (ENCHANT on by default, RULING-BUMP1F-R5 R5.2 (2); ENCHANT-1 E6.4): + the ENCHANTER's gold (PlayerDay.wordGold); was without it (furnace s1 d3: 23 of 27)
       }
       // the traced run and the cached one are the same run
       expect(JSON.stringify(playerRun(hero, PLAYER_DAYS, seed)), `${hero} s${seed}`).toBe(JSON.stringify(days));
@@ -117,7 +122,8 @@ describe("PAR-AZ: the par player's NPC day, every switch on (the benches' settin
         expect(d.roadGold, at).toBe(gold);
         expect(d.roadDrops, at).toBe(dropValue);
         expect(d.budget, at).toBe(maxGoldByDay(d.day) + runeGrants(d.build.runes, d.day).gold + gold + dropValue);
-        expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss + d.cargo!, at).toBe(d.budget);
+        // BUMP-1F (ENCHANT on by default, RULING-BUMP1F-R5 R5.2 (2); ENCHANT-1 E6.4): + the gold spent at the ENCHANTER (PlayerDay.wordGold); was boughtCost + rerollGold + gold + soldLoss + cargo (furnace s1 d3: 34 of 42)
+        expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss + (d.wordGold ?? 0) + d.cargo!, at).toBe(d.budget);
       }
     }
     expect(wins, "wins in the sample").toBeGreaterThan(0);
@@ -137,7 +143,8 @@ describe("PAR-AZ: the par player's NPC day, every switch on (the benches' settin
         const at = `${hero} d${d.day}`, r = d.road!;
         expect(difficultyOf(r.id), at).toBe("medium");
         expect(r.gold, at).toBe(r.outcome === "win" ? rewardGold("medium", d.day) : 0);
-        expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss + d.cargo!, at).toBe(d.budget);
+        // BUMP-1F (ENCHANT on by default, RULING-BUMP1F-R5 R5.2 (2); ENCHANT-1 E6.4): + the gold spent at the ENCHANTER (PlayerDay.wordGold); was boughtCost + rerollGold + gold + soldLoss + cargo (furnace s1 d3: 34 of 42)
+        expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss + (d.wordGold ?? 0) + d.cargo!, at).toBe(d.budget);
       }
     }
   });
@@ -168,7 +175,9 @@ describe("PAR-AZ: the par player's NPC day, every switch on (the benches' settin
         }
         expect(c.meta.road, at).toBe(d.roadGold! + d.roadDrops!);
         expect(c.meta.spent, at).toBe(maxGoldByDay(day) + grant + d.roadGold! - d.gold); // the road's gold is spent gold
-        expect(c.meta.cargoGold, at).toBe(d.cargo); // the cargo's worth, as before
+        // BUMP-1F (ENCHANT on by default, RULING-BUMP1F-R5 R5.2 (2)): caravan.ts books cargoGold as the RESIDUAL (spent + drops - value - rerolls - sale losses: spent gold in neither the deck, the rerolls nor
+        // the sale losses), so the gold spent at the ENCHANTER (PlayerDay.wordGold) lands in it beside the cargo's worth; was toBe(d.cargo) (on furnace d3: 4 of 0)
+        expect(c.meta.cargoGold, at).toBe(d.cargo! + (d.wordGold ?? 0)); // the cargo's worth and the ENCHANTER's gold
         expect(boughtCost(c.build) + c.meta.cargoGold, at).toBeLessThanOrEqual(maxGoldByDay(day) + grant + c.meta.road!);
         if (boughtCost(c.build) + c.meta.cargoGold > maxGoldByDay(day) + grant) over++;
       }
@@ -185,7 +194,8 @@ describe("PAR-AZ: the par player's NPC day, every switch on (the benches' settin
       for (const d of days) {
         const at = `${hero} s${seed} d${d.day}`, r = d.road!;
         expect(maxStarsOf(d.build), at).toBeLessThanOrEqual(2);
-        expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss + d.cargo!, at).toBe(d.budget);
+        // BUMP-1F (ENCHANT on by default, RULING-BUMP1F-R5 R5.2 (2); ENCHANT-1 E6.4): + the gold spent at the ENCHANTER (PlayerDay.wordGold); was boughtCost + rerollGold + gold + soldLoss + cargo (furnace s1 d3: 34 of 42)
+        expect(boughtCost(d.build) + d.rerollGold + d.gold + d.soldLoss + (d.wordGold ?? 0) + d.cargo!, at).toBe(d.budget);
         if (r.declined) {
           declines++;
           expect(r.outcome, at).toBe("win");

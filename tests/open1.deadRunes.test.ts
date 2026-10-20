@@ -30,7 +30,7 @@
 // reads its runes from the RUNES table (a rune added later is checked too) and stops at a rune's first firing fight. The
 // run's gold and BELT runes act before the fight, on the shop and the board (every hero spends gold and lays belts): not
 // checked here. Deterministic.
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Rng } from "../src/core/rng";
 import { Battle } from "../src/sim/battle";
 import { ITEMS, type HeroId } from "../src/sim/content";
@@ -44,6 +44,11 @@ import { validateBuild } from "../src/net/validate";
 import { npcDayRules } from "../src/sim/npcDay"; // HULL-ON (NPC_DAY ships on): the par decks' budget line (strictBut)
 import { RUNE_TEXT, runeReminder, runeSentenceSpans } from "../src/ui/runeText";
 import { BAND, px } from "./y3.helpers";
+import { GATES, setGates } from "../src/sim/gates"; // BUMP-1F (GATES default): this file's world is the one before the three converters
+import { ENCHANT, setEnchant } from "../src/sim/enchant"; // BUMP-1F (ENCHANT default): this file's world is the one before the words
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES and ENCHANT default): was no hook; this file's fixtures and pins are the world before the three converters and the words, so every test runs with both switches off, as its pins were measured, and the afterEach puts the shipped value back (even if the test throws)
+beforeEach(() => { setGates(false); setEnchant(false); });
+afterEach(() => { setEnchant(ENCHANT); setGates(GATES); });
 
 const HEROES: readonly HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
 const DAYS = [3, 6, 9];

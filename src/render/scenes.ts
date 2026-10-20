@@ -134,6 +134,17 @@ function staticLayer(id: EventId, w: number, h: number, hero: HeroId, offer: str
       put(g, itemIcon("temper"), cx - 10, ry - 25);
       put(g, itemIcon("coil"), cx + 3, ry - 25);
       break;
+    case "shrine": // ENCHANT-2 (REQ-BFG-085, T3): a stone shrine of ash-black blocks with a brazier on its top (the flame is drawn per frame)
+      rect(g, cx - 12, ry - 4, 24, 4, C.ink);
+      rect(g, cx - 11, ry - 4, 22, 3, C.slate2);
+      rect(g, cx - 8, ry - 12, 16, 8, C.ink);
+      rect(g, cx - 7, ry - 11, 14, 7, C.slate1);
+      bayer(g, cx - 7, ry - 11, 14, 7, C.slate3, 0.25);
+      rect(g, cx - 6, ry - 16, 12, 4, C.ink);
+      rect(g, cx - 5, ry - 15, 10, 3, C.soil0);
+      rect(g, cx - 4, ry - 12, 8, 1, C.soil4);
+      put(g, figure(C.plum3, C.plum2), cx + 18, ry - 3);
+      break;
   }
   c = cv;
   layers.set(key, c);
@@ -230,6 +241,17 @@ export function drawScene(g: G, id: EventId, x: number, y: number, w: number, h:
       const k = Math.floor(tt * 4) % 2;
       px(g, cx - 5, ry - 27 + k, C.fire4);
       px(g, cx + 8, ry - 27 + (1 - k), C.ice);
+      break;
+    }
+    case "shrine": { // ENCHANT-2 (REQ-BFG-085, T3): the brazier's flame, and a few embers that rise from it
+      const f = calm ? 1 : Math.floor(t * 8) % 3;
+      rect(g, cx - 2, ry - 20 - f, 4, 4 + f, C.fire2);
+      rect(g, cx - 1, ry - 22 - f, 2, 3 + f, C.fire3);
+      px(g, cx, ry - 23 - f, C.fire4);
+      for (let k = 0; k < 4; k++) {
+        const p = (tt * 0.5 + k / 4) % 1;
+        px(g, cx - 3 + Math.round(Math.sin(p * 6 + k) * 3) + k, ry - 22 - Math.round(p * 14), p < 0.5 ? C.fire3 : C.slate3);
+      }
       break;
     }
   }

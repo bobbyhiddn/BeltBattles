@@ -12,7 +12,7 @@ import { runAdmin } from "../server/ghostAdmin";
 import { seedStore } from "../server/seed";
 import { encodeRecord, JsonlStore, type GhostStore } from "../server/store";
 import { objectKey, TigrisStore } from "../server/tigrisStore";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import type { FakeS3 } from "../tools/fakeS3";
 import { FAKE_CREDS, startFake, tigrisFor } from "./netStores";
 
@@ -207,7 +207,7 @@ describe.each([{ name: "jsonl", make: jsonlHarness }, { name: "tigris", make: ti
   beforeEach(async () => {
     h = make();
     await populate(h);
-  });
+  }, 120_000); // CACHE-1: 120 s (was the 10-s hook default). The first seedStore of a process checks the whole pool, and with POOL from the pool cache nothing has warmed what that check reads: 9 s on a loaded host, not 1 s. A host timeout, not the rule
 
   it("list: per day the seed-pool ghosts, the uploads and the distinct players; it changes nothing", async () => {
     const before = h.state();

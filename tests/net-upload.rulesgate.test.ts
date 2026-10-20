@@ -8,7 +8,7 @@ import type { Build } from "../src/sim/deck";
 import { STAND_IN_POOL_HEROES, standInPool, type StandInEntry } from "../src/sim/standInPool";
 import { npcDayRules } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
 import { TURRETS_JOINS_RULES, parseRules, rulesAtLeast, rulesFeatures, rulesGateProblem, sustainFeatures } from "../src/net/rulesGate";
-import { shapes2Features, shapesFeatures } from "../src/net/rulesGate"; // BUMP-1D: the shapes rows are their own gates
+import { enchantGateProblem, gatesGateProblem, shapes2Features, shapesFeatures } from "../src/net/rulesGate"; // BUMP-1D: the shapes rows are their own gates; BUMP-1F: and so are the gates' and the words'
 import { SNAPSHOT_V3, checkSnapshot, type GhostSnapshot } from "../src/net/snapshot";
 import { validateBuild, validateUpload } from "../src/net/validate";
 import { floorRecord, isReachable } from "../src/net/records"; // Y7b2 (the pools): a record the deck's day can carry; BUMP-1D: and the losses that carry it
@@ -53,7 +53,11 @@ function poolDeck(turrets: boolean, joins: boolean): Deck {
         // The regenerated pool's first deck with turrets and joins (BOTH) holds one: "rules bb-0.6.2 predate bb-0.10.0: shaped rigs
         // (NAIL STRIP, EMBER TROUGH, SPIKE RAIL) need bb-0.10.0 or later" came before the rune error the line pins
         if (hasTurrets(e.build) === turrets && hasJoin(e.build) === joins && !sustainFeatures({ ...e.build, runes: undefined }).length
-          && !shapesFeatures(e.build).length && !shapes2Features(e.build).length) return { hero, day, build: e.build, road: e.road };
+          && !shapesFeatures(e.build).length && !shapes2Features(e.build).length
+          // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), the regenerated pool on bb-0.13.0): and no enchantment word (ench, enchDir, grow) and no converter (FUSER, SCATTER MILL, SMELTER), which validateUpload's own gates
+          // refuse first under these older rules too (enchantGateProblem, gatesGateProblem: "rules bb-0.6.2 predate bb-0.13.0: enchantments (ench, enchDir, grow) need bb-0.13.0 or later" came before the
+          // rune error the line pins). "bb-0.6.1" is OLD below (declared after this function runs)
+          && enchantGateProblem("bb-0.6.1", e.build) === null && gatesGateProblem("bb-0.6.1", e.build) === null) return { hero, day, build: e.build, road: e.road };
       }
     }
   }
@@ -83,7 +87,7 @@ function snapOf(d: Deck, rules: string, who = "x"): GhostSnapshot {
   // lossesProblem: 422 "losses: ..." without it): the fewest losses that carry the record into the deck's dusk (the floor record,
   // 0 wins and the fewest hearts, is mostly day - 1 losses); older rules (the 10-day run, bb-0.6.x) take no such field
   const lost = now ? { losses: lossesOf(d.day, rec) } : {};
-  return { v: now ? SNAPSHOT_V3 : 2, rules, hero: d.hero, day: d.day, wins: rec.wins, lives: rec.lives, ...lost, build: now ? up(d) : old(d), runId: `gate-${who}`, playerId: `ghost-${who}`, createdAt: 1_790_000_000_000 };
+  return { v: now ? SNAPSHOT_V3 : 2, rules, hero: d.hero, day: d.day, wins: rec.wins, lives: rec.lives, ...lost, build: now ? up(d) : old(d), ...(now && d.road ? { road: d.road } : {}), runId: `gate-${who}`, playerId: `ghost-${who}`, createdAt: 1_790_000_000_000 };
 }
 /** BUMP-1D: the fewest dusks lost that the long run's record model (records.ts) carries (wins, lives) into dusk `day` with. */
 function lossesOf(day: number, rec: { wins: number; lives: number }): number {
@@ -153,7 +157,7 @@ describe("v070-rel M2 (b): every accepting path", () => {
     expect(validateUpload(old(NEITHER), NEITHER.day, OLD)).toEqual(none(NEITHER));
     expect(validateUpload(old(BOTH), BOTH.day, "bb-0.6.2")).toEqual(none(BOTH));
     expect(validateUpload(up(BOTH), BOTH.day, "bb-0.6.2")).toEqual({ ok: false, errors: ["rules: rules bb-0.6.2 predate bb-0.8.7: runes (build.runes) need bb-0.8.7 or later"] });
-    expect(validateUpload(up(BOTH), BOTH.day)).toEqual({ ok: true, errors: [] }); // default: this build's RULES_VERSION (FLIP-X2: with its runes)
+    expect(validateUpload(up(BOTH), BOTH.day, RULES_VERSION, { ...(BOTH.road ? { road: BOTH.road } : {}) })).toEqual({ ok: true, errors: [] }); // default: this build's RULES_VERSION (FLIP-X2: with its runes). BUMP-1F: with the entry's road log (a road-fed deck's drops count only through it; was validateUpload(up(BOTH), BOTH.day))
   });
 
   it("the strict snapshot decoder (every path below decodes with it) refuses them the same way", () => {

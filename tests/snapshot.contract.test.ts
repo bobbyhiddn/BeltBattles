@@ -9,7 +9,7 @@ import * as net from "../src/net/snapshot";
 import { START_LIVES } from "../src/sim/content";
 import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the pool's records are on 10 hearts
 import { LONG_RUN_MAX_DAY } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): the day bound of the out-of-bounds variant
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 
 const POOL = generateSamplePool();
 
@@ -125,7 +125,11 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
       // ghost's v2 round trip below threw "snapshot.road: not allowed in a v2 snapshot"), so the copy drops it too
       // HULL-ON (the flip, PICK): and a seed ghost's grade (v3 only: "snapshot.grade: not allowed in a v1 snapshot", so v1
       // furnace d1 was [false, false] for [true, true]), so the copy drops it too
-      const { runes: _runes, ...runeless } = s3.build;
+      const { runes: _runes, ...withWords } = s3.build;
+      // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), the regenerated pool on bb-0.13.0 holds enchantments): and the words (`ench`, `enchDir`, `grow`) of ENCHANT, v3 / bb-0.13.0 fields a v1 or v2 snapshot refuses
+      // ("snapshot.build.items[3].grow: not allowed in a v2 snapshot"), so the copy drops them too (was runeless = the build without its runes)
+      const noWords = <P extends object>(list: P[] | undefined): P[] | undefined => list?.map((p) => { const { ench: _e, enchDir: _d, grow: _g, ...rest } = p as Record<string, unknown>; return rest as P; });
+      const runeless = { ...withWords, items: noWords(withWords.items)!, ...(withWords.turrets ? { turrets: noWords(withWords.turrets)! } : {}) };
       // BUMP-1D: and its `losses` (v3 only, live under a long run's rules: "snapshot.losses: not allowed in a v1 snapshot", so v1 furnace d1
       // was [false, false] for [true, true]), so the copy drops it too
       const { seed: _seed, road: _road, grade: _grade, losses: _losses, ...seedless } = s3;

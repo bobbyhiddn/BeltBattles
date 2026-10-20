@@ -247,6 +247,8 @@ interface Entry {
 }
 
 const g = (e: ItemDef) => e.gate!;
+/** GATES-1: a pellet's share of the slug's damage in words: HALF at 50%, else the whole % (SCATTER MILL: HALF, 60%, HALF). */
+export const shareWord = (pctShare: number): string => (pctShare === 50 ? "HALF" : percent(pctShare / 100));
 const f = (e: ItemDef) => e.factory!;
 const m = (e: ItemDef) => e.mod!;
 const c = (e: ItemDef, x: X) => scaleCore(e.core!, x.k);
@@ -434,6 +436,8 @@ const ENTRIES: Record<string, Entry> = {
     text: (e) => [`ADDS ${damage(g(e).flat!)} TO EACH PAYLOAD IT HITS.`],
     gist: (e) => `ADDS ${damage(g(e).flat!)}`,
   },
+  // (GATES-1: the three gates have a face, faces.ts CONVERTER_FACES, and no row here, as the twelve plain stat rigs have none:
+  // their own line is the face's, and the ids are in ITEMS only with GATES on)
   grease: {
     text: (e) => [`MAKES ${belts(e)} PAST IT ${speedText(g(e).speed!)}.`, S.locked(g(e).lockedFlat!)],
     gist: (e) => speedText(g(e).speed!),

@@ -8,6 +8,7 @@
 //                + price(beltcrate) × ceil((beltCap − hero.belt) / beltcrate.belt)
 //                + price(plating)   × ceil(hullBonus / plating.hull)
 //                + Σ turretValue(installed turrets)   (0.6.2s S7; 0 for a build without `turrets`)
+//                + ENCHANTER_PRICE × (held words past the free ones)   (ENCHANT-1, E6.4; only for a caller that passes the free count)
 //   valid iff cost(build) ≤ maxGold(day)
 // Sales refund at most half the price and rerolls only spend, so no sequence of shop
 // actions can put more purchase value on the deck than the gold ever received.
@@ -22,6 +23,7 @@ import {
 } from "../sim/deck";
 import { joinProblem } from "../sim/deck"; // 0.6.2j (J12): belt joins
 import { isIntakeCell, rotOf } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 S4, S5): a piece's turn; a turret intake cell
+import { converterCellOk } from "../sim/deck"; // GATES-1 (REQ-BFG-052): the converter-cell exception of routeProblem
 import { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "../sim/foot"; // SHAPES-1 (R1): the turned footprint
 import { shapesRules, withShapes } from "../sim/shapes"; // SHAPES-1 (S1): the switch
 import { shapesGateProblem, shapesWorld } from "./rulesGate"; // SHAPES-1 (S1, S4): SHAPES_RULES' gate
@@ -29,6 +31,12 @@ import { shapes2Rules, withShapes2 } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG
 import { shapes2GateProblem, shapes2World } from "./rulesGate"; // SHAPES-2 (S1): SHAPES2_RULES' gate
 import { scaleGateProblem, scaleWorld } from "./rulesGate"; // SCALE-2d (REQ-BFG-098 098.6, D5): SCALE_RULES' gate
 import { scaleRules, withScaleRigs } from "../sim/scale"; // SCALE-2d: the scaling world of a deck's rules (inScaleWorld)
+import { gatesRules, withGates } from "../sim/gates"; // GATES-1 (REQ-BFG-052 G1): the three converters' switch
+import { gatesGateProblem, gatesWorld } from "./rulesGate"; // GATES-1 (G1): GATES_RULES' gate
+import { enchantKindOf, enchantProblem, enchantRules, withEnchant, wideSlots } from "../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): the switch, the legal kinds
+import { enchantGateProblem, enchantWorld } from "./rulesGate"; // ENCHANT-1: ENCHANT_RULES' gate
+import { enchantBudgetNote, enchantFreeWords, enchantGold, enchantProblems } from "./enchantCheck"; // ENCHANT-1 (REQ-BFG-085, E6.2-E6.5): the count, the offers, the gold, GROWING's counter
+import { keepItems } from "../sim/itemsKeep"; // BUMP-1F P2 (F1 and Q5): a world leaves ITEMS as it found it, whatever the order of the nest
 import { checkBuildShape, MAX_DAY, SnapshotError } from "./snapshot";
 // RUN-1 (REQ-BFG-059, REQ-BFG-116; D3, D4): the long run's world. A deck under a long run's rules (rulesGate.ts longRunFor) is
 // judged with the long-run switch on (the content past day 10, LAST CHANCE on any day, the day bound LONG_RUN_MAX_DAY); under
@@ -74,7 +82,9 @@ import { withLadderFix } from "../sim/ladderFix";
  * and nothing is touched: the check is exactly as before.
  */
 export function inRulesWorld<T>(rules: unknown, fn: () => T): T {
-  const world = (): T => (rulesAtLeast(rules, NPC_DAY_RULES) ? fn() : withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false));
+  // BUMP-1F P2 (F1, Q5): the old world's switches (LADDER_FIX swaps defs in ITEMS) come back in whatever order the nest leaves them, so ITEMS is put
+  // back whole (keepItems): QUENCH TANK never overwrites KINDLING and no key moves
+  const world = (): T => (rulesAtLeast(rules, NPC_DAY_RULES) ? fn() : keepItems(() => withNpcDay(() => withHullScale(() => withLadderFix(fn, false), false), false)));
   const long = longRunFor(rules);
   const inLong = (): T => (long === longRunRules() ? world() : withLongRun(world, long));
   // ENDLESS-1 (REQ-BFG-059): and the endless one: the module switch (sim/endless.ts endlessRules, read by the day bounds that have no
@@ -229,6 +239,14 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // (rulesGate.ts shapes2GateProblem); a deck under older rules is judged without them (inShapes2World)
   const s2Gate = shapes2GateProblem(rules, build);
   if (s2Gate) return { ok: false, errors: [`rules: ${s2Gate}`] };
+  // GATES-1 (REQ-BFG-052 G1): and the three gates only with GATES on and under rules that have them (rulesGate.ts
+  // gatesGateProblem); a deck under older rules is judged without them (inGatesWorld)
+  const gtGate = gatesGateProblem(rules, build);
+  if (gtGate) return { ok: false, errors: [`rules: ${gtGate}`] };
+  // ENCHANT-1 (REQ-BFG-085, E1): and enchantments (ench, enchDir, grow) only with ENCHANT on and under rules that have them
+  // (rulesGate.ts enchantGateProblem); a deck under older rules is judged without them (inEnchantWorld)
+  const enGate = enchantGateProblem(rules, build);
+  if (enGate) return { ok: false, errors: [`rules: ${enGate}`] };
   // FIRSTDAY-1 (REQ-BFG-004, F4): a first-run flag travels only with the first-run gate on
   const frGate = ctx.firstRun ? firstRunGateProblem() : null;
   if (frGate) return { ok: false, errors: [`firstRun: ${frGate}`] };
@@ -245,14 +263,28 @@ export function validateUpload(build: Build, day: number, rules: string = RULES_
   // SHAPES-1 (REQ-BFG-086; cap's RUN2 note 1.2): the shapes world nests inside the rules world, so a record under rules
   // before bb-0.10.0 is judged with SHAPES off too; c099's merge keeps HULL-ON's call inside both (release lane)
   // PLAIN-1F (M1): FIRSTDAY-1's ctx.firstRun rides through to validateBuild's runeProblem in the ctx spread
-  return inRulesWorld(rules, () => inShapesWorld(rules, () => inShapes2World(rules, () => inScaleWorld(rules, () => withFreeJoins(() => validateBuild(build, day, "player", { ...ctx, openRunes: openRunesFor(rules) }), freeJoinsFor(rules)))))); // JOINS-1: by its own rules; SHAPES-1: inShapesWorld nested; SHAPES-2: inShapes2World; SCALE-2d: inScaleWorld inside them (BUMP-1E: both sides' worlds)
+  // GATES-1 (REQ-BFG-052 G1): inGatesWorld OUTSIDE the others, so the switches come back in the reverse of their order and ITEMS
+  // keeps its order (the three join ITEMS after SHAPES2's six; a with* that restores last re-adds last)
+  // BUMP-1F (PACKET-BUMP-0130 section 4): GATES outermost as GATES-1 chose, SCALE inside SHAPES2 as BUMP-1E chose, ENCHANT innermost
+  // as ENCHANT-1 chose (it changes no ITEMS)
+  return inGatesWorld(rules, () => inRulesWorld(rules, () => inShapesWorld(rules, () => inShapes2World(rules, () => inScaleWorld(rules, () => inEnchantWorld(rules, () => withFreeJoins(() => validateBuild(build, day, "player", { ...ctx, openRunes: openRunesFor(rules) }), freeJoinsFor(rules)))))))); // JOINS-1: by its own rules; SHAPES-1: inShapesWorld nested; SHAPES-2: inShapes2World; SCALE-2d: inScaleWorld inside them (BUMP-1E: both sides' worlds); ENCHANT-1: inEnchantWorld innermost
 }
 
 /** SCALE-2d (REQ-BFG-098; BRIEF-SCALE2d D5): run `fn` in the scaling world of `rules` (rulesGate.ts scaleWorld): with
  *  SCALE_RIGS on and rules before SCALE_RULES, with the switch off (the base's pieces), the world the deck was made in;
  *  otherwise as the switch stands (off: fn itself). The switch is put back after, even on a throw (withScaleRigs). */
 export function inScaleWorld<T>(rules: unknown, fn: () => T): T {
-  return scaleRules() && !scaleWorld(rules) ? withScaleRigs(fn, false) : fn();
+  return scaleRules() && !scaleWorld(rules) ? keepItems(() => withScaleRigs(fn, false)) : fn(); // BUMP-1F P2 (F1): and ITEMS comes back as it was
+}
+
+/**
+ * ENCHANT-1 (REQ-BFG-085, E1): run `fn` in the ENCHANT world of `rules` (rulesGate.ts enchantWorld), inShapes2World's form: with
+ * ENCHANT on and rules before ENCHANT_RULES, with the switch off (the enchantment keys are unknown fields, and refused first by
+ * enchantGateProblem), the world the deck was made in; otherwise as the switch stands. The switch is put back after, even on a
+ * throw (withEnchant). With ENCHANT off (the pins) nothing is touched.
+ */
+export function inEnchantWorld<T>(rules: unknown, fn: () => T): T {
+  return enchantRules() && !enchantWorld(rules) ? withEnchant(fn, false) : fn();
 }
 
 /**
@@ -265,7 +297,7 @@ export function inShapesWorld<T>(rules: unknown, fn: () => T): T {
   // SHAPES-2 (REQ-BFG-114 S1): SHAPES2 needs SHAPES (its six are shaped rigs), so the world before SHAPES_RULES has the six
   // off too (withShapes2 outside, so the switches come back in the reverse of their order and ITEMS keeps its order); with
   // SHAPES2 off (the pins) withShapes2 does nothing
-  return shapesRules() && !shapesWorld(rules) ? withShapes2(() => withShapes(fn, false), false) : fn();
+  return shapesRules() && !shapesWorld(rules) ? keepItems(() => withShapes2(() => withShapes(fn, false), false)) : fn(); // BUMP-1F P2 (F1): ITEMS comes back as it was
 }
 
 /**
@@ -275,7 +307,17 @@ export function inShapesWorld<T>(rules: unknown, fn: () => T): T {
  * on a throw (withShapes2).
  */
 export function inShapes2World<T>(rules: unknown, fn: () => T): T {
-  return shapes2Rules() && !shapes2World(rules) ? withShapes2(fn, false) : fn();
+  return shapes2Rules() && !shapes2World(rules) ? keepItems(() => withShapes2(fn, false)) : fn(); // BUMP-1F P2 (F1): ITEMS comes back as it was
+}
+
+/**
+ * GATES-1 (REQ-BFG-052 G1): run `fn` in the GATES world of `rules` (rulesGate.ts gatesWorld), inShapes2World's form: with
+ * GATES on and rules before GATES_RULES, with the switch off (the three are unknown pieces, and refused first by
+ * gatesGateProblem), the world the deck was made in; otherwise as the switch stands. The switch is put back after, even on
+ * a throw (withGates). With GATES off (the pins) it does nothing.
+ */
+export function inGatesWorld<T>(rules: unknown, fn: () => T): T {
+  return gatesRules() && !gatesWorld(rules) ? keepItems(() => withGates(fn, false)) : fn(); // BUMP-1F P2 (F1): ITEMS comes back as it was
 }
 
 export interface Validation {
@@ -305,10 +347,19 @@ export interface BuildCost {
   // bb-0.8.3 (REQ-BFG-043 D10): the gold the build's upgrade levels paid (stars.ts upgradeGold: 0 / 10 / 30 / 60 a
   // track). Present only when the build carries `upgrades`, so a build without them breaks down exactly as before.
   upgrades?: number;
+  // ENCHANT-1 (REQ-BFG-085, E6.4): the gold the deck's words cost at the ENCHANTER (enchantCheck.ts enchantGold: ENCHANTER_PRICE each
+  // past the free sources' bound). Present only when above 0 (and only for a caller that asks, buildCost's `enchantFree`), so a build
+  // without a bought word breaks down exactly as before.
+  enchants?: number;
   total: number; // gold
 }
 
-export function buildCost(b: Build): BuildCost {
+/**
+ * The deck's cost (see the header). ENCHANT-1 (REQ-BFG-085, E6.4): `enchantFree`, when given, is the number of held words the free sources
+ * (the warlord picks the day allows and LAST CHANCE's part) can have given; every held word past it was bought at the ENCHANTER and joins
+ * the cost (`enchants`, and `total`), so maxGoldByDay covers it. Absent (every other caller), or with ENCHANT off, there is no such term.
+ */
+export function buildCost(b: Build, enchantFree?: number): BuildCost {
   const h = HEROES[b.hero];
   const crate = ITEMS.beltcrate, plate = ITEMS.plating;
   // 0.6.1a: value = price x 2^(stars - 1) (stars.ts valueOf; unknown ids 0), so a merged module costs exactly its copies
@@ -320,9 +371,11 @@ export function buildCost(b: Build): BuildCost {
   // bb-0.8.3 (REQ-BFG-043 D10): the upgrade gold paid counts like any purchase (the upload budget reads total)
   const up = b.upgrades ? { upgrades: upgradeGold(b) } : {};
   const paid = up.upgrades ?? 0;
-  if (!b.turrets) return { items, mods, crates, plates, ...up, total: total + paid };
+  const en = enchantFree === undefined ? 0 : enchantGold(b, enchantFree); // ENCHANT-1 (REQ-BFG-085, E6.4): the ENCHANTER's gold; 0 off, without `enchantFree`, or with no bought word
+  const ench = en ? { enchants: en } : {}; // ENCHANT-1: after the upgrades, before the total
+  if (!b.turrets) return { items, mods, crates, plates, ...up, ...ench, total: total + paid + en };
   const turrets = turretsCost(b);
-  return { items, mods, crates, plates, turrets, ...up, total: total + turrets + paid };
+  return { items, mods, crates, plates, turrets, ...up, ...ench, total: total + turrets + paid + en };
 }
 
 const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
@@ -388,7 +441,7 @@ function routeProblem(b: Build, i: number, occ: ReturnType<typeof occupancy>): s
     if (seen.has(k)) return `revisits cell ${k} (no loops)`;
     seen.add(k);
     if (j > 0 && dirBetween(r.cells[j - 1], k) < 0) return `is broken between cells ${r.cells[j - 1]} and ${k}`;
-    if (occ[k].item >= 0) return `runs through machinery at cell ${k}`; // 0.6.2 BELTSIDE (R1): no exception for rigs
+    if (occ[k].item >= 0 && !converterCellOk(b, r, j, occ)) return `runs through machinery at cell ${k}`; // 0.6.2 BELTSIDE (R1): no exception for rigs; GATES-1 (REQ-BFG-052): but a converter on a belt tile
   }
   return routeWellFormed(b, r) ? null : "is not well formed";
 }
@@ -437,6 +490,7 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   const bought: Build = grant.hull || grant.belt ? { ...b, hullBonus: b.hullBonus - grant.hull, beltCap: b.beltCap - grant.belt } : b;
   const errors: string[] = [];
   const h = HEROES[b.hero];
+  const enchFree = enchantFreeWords(day, lc, ctx.seed); // ENCHANT-1 (REQ-BFG-085, E6.4): the held words the free sources can have given (buildCost prices the rest); ENCHANT-2: + the drops and the shrine visits (the seed counts them)
 
   // items exist, uids unique (deck.ts helpers throw on unknown defs, so stop here if not)
   const uids = new Set<number>();
@@ -509,6 +563,25 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     else if (p.rot === 0 || p.rot >= turns) errors.push(`item: uid ${p.uid} ${d.name} has rot ${p.rot}; its ${footOf(d).toUpperCase()} footprint turns only to rot 1..${turns - 1} (absent = 0)`);
   }
 
+  // ENCHANT-1 (REQ-BFG-085, E6.1): each word sits on a kind it can go on (enchant.ts enchantProblem: MASSIVE only on a turret and SWIFT only on a factory (ENCHANT-1b N1: never on a
+  // rig); WIDE never on a shaped, X or 4-arrow rig; nothing on gear, cores or supplies, or any kind added later); enchDir only with
+  // WIDE on a rig, on a side with no arrow, and WIDE on a rig needs one. checkBuildShape took the keys only under ENCHANT's rules
+  // world (an unknown field otherwise), so with ENCHANT off nothing below runs
+  for (const p of b.items) {
+    if (p.ench === undefined) continue;
+    const d = ITEMS[p.def], rigWide = p.ench === "wide" && enchantKindOf(d) === "rig";
+    const why = enchantProblem(d, p.ench, p);
+    if (why) errors.push(`item: uid ${p.uid} ${d.name} can't take ${p.ench.toUpperCase()}: ${why}`);
+    else if (rigWide && p.enchDir === undefined) errors.push(`item: uid ${p.uid} ${d.name} has WIDE but no side (enchDir)`);
+    else if (p.enchDir !== undefined && !rigWide) errors.push(`item: uid ${p.uid} ${d.name} has enchDir ${p.enchDir}; only WIDE on a rig has a side`);
+  }
+  for (const t of b.turrets ?? []) {
+    if (t.ench === undefined) continue;
+    const why = enchantProblem(ITEMS[t.def], t.ench);
+    if (why) errors.push(`turret: uid ${t.uid} ${ITEMS[t.def].name} can't take ${t.ench.toUpperCase()}: ${why}`);
+  }
+  errors.push(...enchantProblems(b, day, ctx)); // ENCHANT-1 (REQ-BFG-085): E6.2 the count, E6.3 the offers (with the seed), E6.5 GROWING's counter (enchantCheck.ts); [] with no word
+
   // purchasability and the signature factory
   let own = 0;
   for (const p of b.items) {
@@ -575,7 +648,7 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   for (const [uid, n] of perFactory) {
     const f = b.items.find((p) => p.uid === uid);
     // 0.6.1a: outputs at its stars. bb-0.8.3 (REQ-BFG-044 D10): the hero factory's at its FACTORY level (stars.ts gradeOf)
-    const outs = f ? outputsAt(f.def, gradeOf(b, f)) || 1 : 1;
+    const outs = f ? (outputsAt(f.def, gradeOf(b, f)) || 1) + wideSlots(f) : 1; // ENCHANT-1 (REQ-BFG-085): WIDE on a factory is +1 belt slot
     if (f && n > outs) errors.push(`route: ${ITEMS[f.def].name} uid ${uid} feeds ${n} routes but has ${outs} output(s)`);
   }
   if (belt > b.beltCap) errors.push(`route: ${belt} belt tiles exceed beltCap ${b.beltCap}`);
@@ -618,7 +691,7 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
     // RUN-1 (D6): and a long run's events repeat once per bag (eventDefs.ts BAG_IDS): `offered` counts how many times each was
     // offered by `day` (a Map), so a deck that took an event in two bags is checked against two offers; the 10-day run: the Set
     const offered = npcDayRules() && ctx.seed !== undefined ? offeredEvents(ctx.seed, day) : undefined;
-    errors.push(...playerSupplyBudget(bought, day, buildCost(bought), runeGrant.gold, freeGold, roadDropValue(ctx.road), offered));
+    errors.push(...playerSupplyBudget(bought, day, buildCost(bought, enchFree), runeGrant.gold, freeGold, roadDropValue(ctx.road), offered).map((e) => enchantBudgetNote(e, bought, enchFree))); // ENCHANT-1 (E6.4): the ENCHANTER's gold is in the cost; its budget line says so
     return { ok: errors.length === 0, errors };
   }
 
@@ -633,10 +706,11 @@ export function validateBuild(build: Build, day: number, mode: ValidationMode = 
   }
 
   // gold budget (RUNES-1: the bought deck's cost; the dawn-gold runes' gold joins the day's most)
-  const cost = buildCost(bought), max = maxGoldByDay(day) + grant.gold;
+  const cost = buildCost(bought, enchFree), max = maxGoldByDay(day) + grant.gold; // ENCHANT-1 (E6.4): the ENCHANTER's gold is in the cost
   if (cost.total > max) {
     const turrets = cost.turrets ? `, turrets ${cost.turrets}` : ""; // 0.6.2s: only when the turrets cost anything
-    errors.push(`budget: build costs ${cost.total} gold (items ${cost.items}, mods ${cost.mods}, ${cost.crates} crates, ${cost.plates} plating${turrets}) but day ${day} allows at most ${max}`);
+    const enchants = cost.enchants ? `, enchantments ${cost.enchants}` : ""; // ENCHANT-1: only when words were bought
+    errors.push(`budget: build costs ${cost.total} gold (items ${cost.items}, mods ${cost.mods}, ${cost.crates} crates, ${cost.plates} plating${turrets}${enchants}) but day ${day} allows at most ${max}`);
   }
   return { ok: errors.length === 0, errors };
 }

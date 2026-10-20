@@ -26,6 +26,7 @@ import { stripIcons } from "../src/render/font"; // Y1: COIL's one line, read as
 import { RIDE_KEEP, withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): OVERDRIVE's ride-keep words, and off
 import { isShapes2Piece } from "../src/sim/shapes2"; // BUMP-1D: SHAPES2's six more shaped rigs (no SHAPED_HITS row)
 import { SCALE_IDS, SCALE_RIGS, isScalePiece, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on: seven new rigs, PRESSURE BREECH uncapped
+import { GATES_IDS, gatesRules } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052): the three gates have a face and no ability text, like the plain twelve (with GATES on)
 
 // 0.6.1r (review-061 F5, N2, N4) and after: the inspector's ability, next-star, merge-progress and MERGES WITH lines.
 // 0.6.2t (REQ-BFG-032): they read as whole sentences from the glossary (src/ui/abilityText.ts): "NEXT STAR: ADDS 4 BURN.",
@@ -96,7 +97,8 @@ describe("U2e step 1 (was N2 / T5): no panel draws merge progress", () => {
     // COIL, CROWD PRESS, AEGIS SPIKE, GRUDGE ROD, TROPHY CHAIN, each a one-cell gate) are in ITEMS, fusible as any rig: 104 -> 111; the
     // 104 are the same ones (the off world's keys, read with the switch off, still count 104)
     expect(SCALE_RIGS).toBe(true);
-    expect(fus).toHaveLength(111); // BUMP-1E: was 104
+    // GATES-1: + the three gates (kind converter, fusible) with GATES on; BUMP-1F (PACKET-BUMP-0130 section 4): 111 + 3 when GATES is on
+    expect(fus).toHaveLength(111 + (gatesRules() ? GATES_IDS.length : 0)); // BUMP-1E: was 104; GATES-1: 104 + (the three with GATES on)
     expect(fus.filter(isScalePiece)).toEqual([...SCALE_IDS]); // the +7
     expect(withScaleRigs(() => Object.keys(ITEMS).filter(fusible), false)).toEqual(fus.filter((d) => !isScalePiece(d))); // the 104, as before
     let panels = 0, lines = 0;

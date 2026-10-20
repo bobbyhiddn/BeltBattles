@@ -26,6 +26,8 @@ import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON (the flip)
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip)
 import { withPick } from "../src/net/pick"; // HULL-ON (the flip)
 import { effectAt } from "../src/sim/stars";
+import { GATES_IDS, withGates } from "../src/sim/gates"; // BUMP-1F (GATES on by default): the off half and the key-order pin
+import { withEnchant } from "../src/sim/enchant"; // BUMP-1F (ENCHANT on by default): the off half
 import { SCALE_IDS, SCALE_RIGS, scaleRules, setScaleRigs, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on; the ladder pass's pins are read with them off (oldWorld below)
 import { barge, bench, SEED } from "./arsenal.bench";
 import { K, item, withItem, withMod } from "./wave3.helpers";
@@ -318,7 +320,9 @@ describe("HULL-1b the par player's six runs (tests/harness.player's buy floor: n
     // BUMP-1E (the scaling rules ship on): bb-0.9.7's six have none of the seven scaling rigs and none of the five reworks either, and the seven are the LAST keys in ITEMS, so the scaling switch is the
     // OUTERMOST call of the nest (off first, back last: the ITEMS key-order hazard; without it the off half read 11 / 13 / 15 / 14 / 14 / 11, the catalogue with the seven in it and the three toggles inside
     // leaving SHAPES-1's three and the twelve BEHIND them), which also puts KINDLING back over the ladder toggle's QUENCH TANK (see oldWorld). The on half is the shipped game: every switch on, the scaling rules too
-    const off = withScaleRigs(() => withShapes2(() => withShapes(() => withPlainRigs(() => allOff(() => withNpcDay(() => withHullScale(() => withLadderFix(buys, false), false), false)), false), false), false), false), on = withLadderFix(buys);
+    // BUMP-1F (GATES and ENCHANT on by default, RULING-BUMP1F-R5 R5.2): bb-0.9.7's six have no converters and no words either, so the off half sets GATES and ENCHANT off too: GATES is the outermost of the nest with ENCHANT outside it
+    // (the three converters are the last keys of ITEMS after the seven, so GATES goes off before the scaling switch and comes back after it); the off half read 15 / 12 / 16 / 15 / 13 / 15 without; was withScaleRigs outermost
+    const off = withEnchant(() => withGates(() => withScaleRigs(() => withShapes2(() => withShapes(() => withPlainRigs(() => allOff(() => withNpcDay(() => withHullScale(() => withLadderFix(buys, false), false), false)), false), false), false), false), false), false), on = withLadderFix(buys);
     log(`BUYS FURNACE s1-s3, WEAVER s1-s3: off ${off.join(" / ")}; on ${on.join(" / ")}`);
     expect(off).toEqual([12, 15, 13, 14, 10, 16]); // bb-0.9.7's, as tests/harness.player pins them
     for (const n of on) expect(n).toBeGreaterThan(0);
@@ -331,7 +335,8 @@ describe("HULL-1b the par player's six runs (tests/harness.player's buy floor: n
     // modules (was 103): 12 / 15 / 15 / 16 / 17 / 17 (was 13 / 14 / 15 / 20 / 15 / 15); the off half above is bb-0.9.7's six, read with the scaling switch off, unchanged
     expect(SCALE_RIGS).toBe(true); // BUMP-1E: the shipped game has the scaling rules on (was false)
     expect(scaleRules()).toBe(true);
-    expect(on).toEqual([12, 15, 15, 16, 17, 17]); // BUMP-1E: was [13, 14, 15, 20, 15, 15]
+    // BUMP-1F (GATES and ENCHANT on by default, RULING-BUMP1F-R5 R5.2): the shipped game's par player buys converters and words (each a buy the trace counts): 12 / 20 / 15 / 15 / 16 / 17, measured at this tree (was 12 / 15 / 15 / 16 / 17 / 17)
+    expect(on).toEqual([12, 20, 15, 15, 16, 17]); // BUMP-1F: was [12, 15, 15, 16, 17, 17]. BUMP-1E: was [13, 14, 15, 20, 15, 15]
     // AZ-BUMP (the flip): 300 s, the on half's six runs fight a warlord every day; a host timeout under the 1.5-CPU quota
     // (30 s hit in run 5's group check), not the rule
   }, 300_000);
@@ -430,6 +435,10 @@ describe("BUMP-1E: the scaling rules ship on, and every ladder toggle above leav
     expect(ITEMS.quench.name).toBe("KINDLING");
     expect(ITEMS.quench.gate?.reads).toBeDefined();
     expect(ITEMS.quench.gate?.quench).toBeUndefined();
-    expect(Object.keys(ITEMS).slice(-SCALE_IDS.length)).toEqual([...SCALE_IDS]);
+    // BUMP-1F (GATES on by default, RULING-BUMP1F-R5 R5.2; BUMP-1F F1): the three converters are the LAST keys of ITEMS now, the seven scaling ids just before them; was Object.keys(ITEMS).slice(-SCALE_IDS.length) alone
+    // (the last seven were crowdpress, aegisspike ... then: 3 of them the converters)
+    const keys = Object.keys(ITEMS);
+    expect(keys.slice(-GATES_IDS.length)).toEqual([...GATES_IDS]);
+    expect(keys.slice(-(GATES_IDS.length + SCALE_IDS.length), -GATES_IDS.length)).toEqual([...SCALE_IDS]);
   });
 });

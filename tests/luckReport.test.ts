@@ -27,7 +27,7 @@ describe("luck report: the family table", () => {
     expect(t.families.length).toBe(tags.size);
     // the buyable set is the caravan's stock: content.ts's own buyable catalogue, no supplies, no signature factories
     expect([...t.buyable].sort()).toEqual(buyableModules().map((d) => d.id).sort());
-    for (const d of t.buyable) expect(["gate", "factory", "core", "mod", "turret"]).toContain(ITEMS[d].kind);
+    for (const d of t.buyable) expect(["gate", "factory", "core", "mod", "turret", "converter"]).toContain(ITEMS[d].kind); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): + "converter" (FUSER, SCATTER MILL, SMELTER are buyable); was [..., "turret"]
     for (const h of HEROES) expect(t.buyable).not.toContain(ITEMS[heroStartBuild(h, 1).items[0].def].id);
     for (const f of t.families) {
       for (const m of f.members) expect(ITEMS[m].tags).toContain(f.tag);

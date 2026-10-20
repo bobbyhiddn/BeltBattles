@@ -30,7 +30,7 @@ import { tapPx } from "../ui/tap";
 import { fmtCount, fmtDmg } from "../ui/statFormat";
 import type { Sel } from "./build/layout";
 import {
-  columnButtons, drawFamHead, drawLine, fitHead, itemPanel, planPanel, routePanel, selFamilies, turretPanel, visibleLines,
+  columnButtons, drawFamHead, drawLine, fitHead, fitTitle, itemPanel, planPanel, routePanel, selFamilies, turretPanel, visibleLines,
   explainPanel, type Block, type PanelPlan, type PanelText,
 } from "./build/inspector";
 import { slotIcon } from "./build/turretPanel";
@@ -123,7 +123,7 @@ export function fightLine(a: Pick<Arena, "partShots" | "partDamage">, pick: Face
  * keyword layer). `line`: VIEW BATTLEFIELD's fight line, kept, first. Null: no such part. CNT-DAY (REQ-BFG-082): `day`, the
  * day it is read on (faceRun's), so its numbers are that day's; no day: day 1's, as before.
  */
-export function faceText(build: Build, sel: PartSel, line: string | null = null, day?: number): PanelText | null {
+export function faceText(build: Build, sel: PartSel, line: string | null = null, day?: number, owner?: string): PanelText | null {
   const run = faceRun(build, day);
   const t = sel.kind === "turret" ? turretPanel(run, sel.index) : sel.kind === "item" ? itemPanel(run, sel.uid) : routePanel(run, sel.index);
   if (!t) return null;
@@ -132,8 +132,16 @@ export function faceText(build: Build, sel: PartSel, line: string | null = null,
   // EXPLAIN-1 (REQ-BFG-089), at the merge: a face hides what its card hides (flavour into NOTES; a plain rig's rig
   // sentence), run after readOnlyBlock has stripped the hints, so no hint lands in NOTES.
   const def = sel.kind === "item" ? itemByUid(build, sel.uid)?.def : undefined;
-  return explainPanel({ ...t, body: strip(t.body), variants: t.variants?.map((v) => ({ ...v, body: strip(v.body) })), labels: [CLOSE_LABEL] }, def);
+  // ENCHANT-2W (REQ-BFG-085; W5, E2-02's WHOSE rider): `owner`, a FOE's name (battle.ts VIEW BATTLEFIELD's foe side, foeView.ts the scouted foe): the sub line names whose part it is
+  // (`SPARKFANG'S HEAVY TURRET IN SLOT 1`), and so does its short form. Absent (your own parts, the text sheet, every other caller): the sub lines exactly as before.
+  // The desk column breaks a sub wider than it after the owner (planPanel: PanelText.subOwner), so the sub is never cut.
+  const sub = owner ? { sub: ownerSub(owner, t.sub), subOwner: `${owner}'S`, ...(t.subShort ? { subShort: ownerSub(owner, t.subShort) } : {}) } : {};
+  const vsub = (v: { sub?: string }): { sub?: string } => (owner && v.sub ? { sub: ownerSub(owner, v.sub) } : {}); // a compact form's own sub line (a rig's IDLE warning) names the owner too
+  return explainPanel({ ...t, ...sub, body: strip(t.body), variants: t.variants?.map((v) => ({ ...v, ...vsub(v), body: strip(v.body) })), labels: [CLOSE_LABEL] }, def);
 }
+
+/** ENCHANT-2W (REQ-BFG-085; W5): a foe part's sub line with its owner in front, in the house possessive (docs/TEXT-STYLE.md): `SPARKFANG'S HEAVY TURRET IN SLOT 1`. */
+export const ownerSub = (owner: string, sub: string): string => `${owner}'S ${sub}`;
 
 /** A panel block as a face shows it, read only: none of the owner's how-to hints (turn, move, drag, lay belt), nothing of
  *  the shop (a starting turret's free copy and whether it sells; a level's UPGRADE and its price: a level line keeps its
@@ -303,8 +311,9 @@ export class BattleFaces {
     keywordsPressed(this, region);
   }
 
-  /** Draw the open face (if any) over the other carrier's half; `view`: VIEW BATTLEFIELD (its fight line). */
-  draw(g: G, game: Game, a: Arena, L: BattleLayout, view: boolean): void {
+  /** Draw the open face (if any) over the other carrier's half; `view`: VIEW BATTLEFIELD (its fight line).
+   *  ENCHANT-2W (REQ-BFG-085; W5): `foe`, the foe's name: a face on the FOE's side (side 1) names whose part it is in its sub line; your own side's faces are as before. */
+  draw(g: G, game: Game, a: Arena, L: BattleLayout, view: boolean, foe?: string): void {
     const o = this.open;
     if (!o) {
       this.last = null;
@@ -313,20 +322,20 @@ export class BattleFaces {
     const fa = faceArea(L, o.side);
     // the panel wears its side's panel style, as its plate does (the player's chosen style; a foe's the default)
     // CNT-DAY (REQ-BFG-082, REQ-BFG-079): its numbers on the fight's day (textDay), as the fight line's damage landed
-    this.drawOn(g, game, a.b.sides[o.side].build, fa, (r) => faceFree(L, fa.area, r), skinOf(a.views[o.side].skin).panel, view ? fightLine(a, o) : null, textDay(a.b));
+    this.drawOn(g, game, a.b.sides[o.side].build, fa, (r) => faceFree(L, fa.area, r), skinOf(a.views[o.side].skin).panel, view ? fightLine(a, o) : null, textDay(a.b), o.side === 1 ? foe : undefined);
   }
 
   /** SCOUT-1c (REQ-BFG-082): the one face path. The open face on `build` in `fa` (planPanel's area, and whether it is a
    *  band), its ⓘ view growing into free(panel rect), in panel style `style`; `line`: VIEW BATTLEFIELD's fight line. The
    *  battle (draw above) and the build screen's scouted foe (build/foeView.ts) both draw through it. CNT-DAY: `day`, the
-   *  day its text is read on (faceRun's), for the text, its planned box and its keyword layer alike. */
-  drawOn(g: G, game: Game, build: Build, fa: { area: Rect; band: boolean }, free: (r: Rect) => Rect | null, style: PanelId, line: string | null, day?: number): void {
+   *  day its text is read on (faceRun's), for the text, its planned box and its keyword layer alike. ENCHANT-2W (W5): `owner`, a foe's name for its sub line (faceText). */
+  drawOn(g: G, game: Game, build: Build, fa: { area: Rect; band: boolean }, free: (r: Rect) => Rect | null, style: PanelId, line: string | null, day?: number, owner?: string): void {
     const o = this.open;
     if (!o) {
       this.last = null;
       return;
     }
-    const t = faceText(build, o.sel, line, day);
+    const t = faceText(build, o.sel, line, day, owner);
     if (!t) {
       this.close();
       return;
@@ -344,7 +353,7 @@ export class BattleFaces {
     const cr = plan.column ? columnButtons(1, r, tp)[0] : plan.rects ? plan.rects[0] : null;
     const hit = cr ? tapRect(cr, tp, r, tp) : null;
     if (cr) button(ui, g, "faceclose", cr, CLOSE_LABEL, { font: "3", onTap: () => this.close(), hit: hit ?? undefined });
-    fitHead(g, t.title, r.x + 23, r.y + 4, plan.subMax, t.color, true);
+    fitTitle(g, t, r.x + 23, r.y + 4, plan.subMax); // ENCHANT-1 (REQ-BFG-085, E7): an enchanted piece's word first in its colour (= fitHead for a plain one)
     const subColor = t.subColor ?? C.slate4;
     if (plan.body.sub) fitHead(g, plan.body.sub, r.x + 23, r.y + 13, plan.subMax, plan.body.subColor ?? subColor, false);
     else if (plan.subs.length > 1) plan.subs.forEach((s, i) => fitHead(g, s, r.x + 23, r.y + 13 + i * 6, plan.subMax, subColor, false));

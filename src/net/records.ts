@@ -40,14 +40,16 @@ import { heartsFor } from "./rulesGate";
 // dock again in days 11-20, 21-30), not once a run. Bags are exact for the events (events.ts eventSequence).
 import { LONG_RUN_MAX_DAY, MAX_RUN_DRAWS, WIN_GOAL } from "../sim/longRun";
 import { longRunFor } from "./rulesGate";
-import { BAG_IDS } from "../game/eventDefs";
+import { BAG_IDS, bagIds } from "../game/eventDefs"; // ENCHANT-2 (REQ-BFG-085, T3): + bagIds, the rules world's bag (11 events with ENCHANT on)
 import { ENDLESS_LIVES, ENDLESS_MAX_DRAWS, ENDLESS_WIN_CAP } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): the endless model's numbers
 
 /** The DOCK's PATCH UP: the one road choice that moves lives (tests check it against the event definitions). */
 export const PATCH_UP_LIVES = 1;
 
-/** RUN-1: the days one event bag covers (every event once: BAG_IDS.length, 10), so the road's events repeat every this many
- *  days on a long run (roadCap.ts resets its event mask there; the dock, and PATCH UP, come again). */
+/** RUN-1: the days one event bag covers with ENCHANT OFF (every event once: BAG_IDS.length, 10), so the road's events repeat every this many
+ *  days on a long run (roadCap.ts resets its event mask there; the dock, and PATCH UP, come again). BUMP-1F (ENCHANT-2, RULING-BUMP1F-R3.3): with
+ *  ENCHANT on the ASH SHRINE joins the bag and a bag is 11 days (eventDefs.ts bagIds().length): longStates and endlessWalk read bagIds().length, so
+ *  this constant is the OFF world's bag (kept exported: tests import it). */
 export const BAG_DAYS = BAG_IDS.length;
 
 export interface DuskRecord {
@@ -172,7 +174,7 @@ const longMemo = new Map<string, LongState[]>();
  * at the first loss leaving 1 heart or fewer on ANY day, no refund) or, on the lives scale, the lives model's steps, and then:
  *  - a win is the 10th the run is over (WON): no state carries WIN_GOAL wins, so wins <= WIN_GOAL - 1 at every dusk;
  *  - a draw costs nothing, and at most MAX_RUN_DRAWS of them (a run past that keeps playing; only its upload is refused);
- *  - the DOCK (PATCH UP, +1, never above the scale's start) comes once per event bag (BAG_DAYS), not once a run;
+ *  - the DOCK (PATCH UP, +1, never above the scale's start) comes once per event bag (bagIds().length: 10 days, 11 with ENCHANT on), not once a run;
  *  - day - 1 = wins + losses + draws: `opts.losses`, when given, keeps only the runs with exactly that many losses (the
  *    snapshot's `losses`), whose draws are then day - 1 - wins - losses;
  *  - `opts.lastChance`: a number keeps the runs whose LAST CHANCE fired that day, null those with none, absent either.
@@ -209,7 +211,7 @@ function longStates(day: number, m: { hearts: boolean; lcOn: boolean; draws: boo
   for (let d = 1; d < day; d++) {
     const next = new Map<string, LongState>();
     const add = (s: LongState) => next.set(`${s.w}|${s.l}|${s.dr}|${s.early ? 1 : 0}|${s.dock ? 1 : 0}|${s.used ? 1 : 0}`, s);
-    const newBag = d % BAG_DAYS === 0; // the dawn of day d + 1 opens a new event bag: the DOCK is on the road again
+    const newBag = d % bagIds().length === 0; // the dawn of day d + 1 opens a new event bag: the DOCK is on the road again (ENCHANT-2: the rules world's bag, BAG_DAYS with ENCHANT off)
     for (const s of states) {
       const outs: LongState[] = [];
       if (s.w + 1 < WIN_GOAL) outs.push({ ...s, w: s.w + 1 }); // a win; the 10th ends the run (WON), so it is no dusk's record
@@ -256,7 +258,8 @@ function longStates(day: number, m: { hearts: boolean; lcOn: boolean; draws: boo
 //    (the DOCK) +1 heart once per event bag, never above ENDLESS_LIVES. The endless losses and draws are not in the snapshot (RULING E1:
 //    no new field): they are what is left of the dusks fought, day - 1 - victoryDay - endlessWins, so a record is one if SOME
 //    path of those dusks leads to (endlessWins, endlessLives).
-// The bag boundaries are the long run's (BAG_DAYS: the dawn after day 10, 20, 30, ... opens a new bag), and the DOCK is taken
+// The bag boundaries are the long run's (bagIds().length: the dawn after day 10, 20, 30, ... opens a new bag with ENCHANT off, after day 11, 22, 33, ...
+// with it on, RULING-BUMP1F-R3.3), and the DOCK is taken
 // as available in the bag the victory day closed (an honest run that used it already is a looser model's accepted record: data
 // safety, never a rule).
 
@@ -277,7 +280,7 @@ function endlessWalk(victoryDay: number, until: number, each: (day: number, stat
     each(d, states); // going into the dusk of day d
     const next = new Map<string, EndlessState>();
     const add = (s: EndlessState) => next.set(`${s.w}|${s.l}|${s.dr}|${s.dock ? 1 : 0}`, s);
-    const newBag = d % BAG_DAYS === 0; // the dawn of day d + 1 opens a new event bag: the DOCK is on the road again
+    const newBag = d % bagIds().length === 0; // the dawn of day d + 1 opens a new event bag: the DOCK is on the road again (BUMP-1F, RULING-BUMP1F-R3.3: the rules world's bag, as longStates reads it; was BAG_DAYS)
     for (const s of states) {
       const outs: EndlessState[] = [];
       if (s.w + 1 < ENDLESS_WIN_CAP) outs.push({ ...s, w: s.w + 1 }); // a win; the ENDLESS_WIN_CAP-th ends endless, so it is no dusk's record

@@ -36,6 +36,10 @@
 // HULL_SCALE and LADDER_FIX, through each module's setter, before any deck is built, in the main thread (the par field,
 // the caravan candidates and gauntlet, the day's gold) AND in every worker thread (every battle: M, D and S on its day,
 // the wind's share, the fixed ladders). Its --resume days are keyed by the switches as well. Without it nothing moves.
+// GATES-1 (REQ-BFG-052, G6): --gates (with --dry or --versus only, like --all-on) turns GATES on, through its setter, in the main thread
+// AND in every worker thread (the same environment list), so the par runs the caravan candidates are made of buy and place FUSER, SCATTER
+// MILL and SMELTER and the battles play them; the stand-in code (src/sim/standInPool.ts, harness/standinCode.ts) carries a gate as
+// `<id><yx>` plus its stars, with no rotation word. Never src/sim/standInPoolData.ts, never --check: the release's bump regenerates it once.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
@@ -60,6 +64,8 @@ import { hullScaleRules, setHullScale } from "../src/sim/hullScale"; // HULL-1d:
 import { ladderFixRules, setLadderFix } from "../src/sim/ladderFix"; // HULL-1d: --all-on
 import { longRunRules, setLongRun } from "../src/sim/longRun"; // RUN-1 (REQ-BFG-059): --long-run
 import { scaleRules, setScaleRigs } from "../src/sim/scale"; // BUMP-1E (REQ-BFG-098): the scaling world held on for the whole run
+import { gatesRules, setGates } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052, G6): --gates
+import { enchantRules, setEnchant } from "../src/sim/enchant"; // BUMP-1F P2 (REQ-BFG-085): the words held on for the whole run
 
 const DATA = "src/sim/standInPoolData.ts";
 
@@ -74,7 +80,7 @@ const SWITCHES_ENV = "STANDINS_SWITCHES";
 // ("long" in the same list), so the par runs the caravan candidates are made of are long runs (newRun marks them) and the days
 // past 10 get their own content (rivals.ts clampDay, refBuilds.ts refDay): the dry sample for days 11-16 (--days 16 --from-day 11).
 if (isMainThread) {
-  const list = [...(process.argv.includes("--all-on") ? ["npc", "hull", "ladder"] : [])]; // BUMP-1D: --long-run is gone (LONG_RUN is on in the code)
+  const list = [...(process.argv.includes("--all-on") ? ["npc", "hull", "ladder"] : []), ...(process.argv.includes("--gates") ? ["gates"] : [])]; // BUMP-1D: --long-run is gone (LONG_RUN is on in the code); GATES-1: --gates
   if (list.length) process.env[SWITCHES_ENV] = list.join(",");
   else delete process.env[SWITCHES_ENV];
 }
@@ -84,12 +90,13 @@ if (isMainThread) {
   if (sw.has("hull")) setHullScale(true);
   if (sw.has("ladder")) setLadderFix(true);
   if (sw.has("long")) setLongRun(true);
+  if (sw.has("gates")) setGates(true); // GATES-1 (REQ-BFG-052, G6): last, so ITEMS' order is the ship's (the three after every other def)
   if (sw.size && !isMainThread) console.log(`worker thread: ${switchesOn().join(", ")} on (read back from each module)`);
 }
 
 /** HULL-1d: the switches on in this thread, read back from each module (empty with every switch off). */
 function switchesOn(): string[] {
-  return [npcDayRules() ? "NPC_DAY" : "", hullScaleRules() ? "HULL_SCALE" : "", ladderFixRules() ? "LADDER_FIX" : "", longRunRules() ? "LONG_RUN" : ""].filter(Boolean);
+  return [npcDayRules() ? "NPC_DAY" : "", hullScaleRules() ? "HULL_SCALE" : "", ladderFixRules() ? "LADDER_FIX" : "", longRunRules() ? "LONG_RUN" : "", gatesRules() ? "GATES" : ""].filter(Boolean);
 }
 
 // BUMP-1E P2e (SCALE-2d F6; SCALE-2e carry-over 9): the pool is dealt, scored and gauntleted with the scaling world on for the WHOLE
@@ -97,19 +104,27 @@ function switchesOn(): string[] {
 // withScaleRigs(async ...) (its finally runs at the first await, so the rest of the run would play with the switch put back). SCALE_RIGS
 // is true in the code now, so this changes nothing in the shipped world (setScaleRigs(true) on a switch already on does nothing); it makes
 // the run independent of the constant and of any caller that left the switch off. Every battle carries the run's counts (tournament.ts jobCounts).
+// BUMP-1F P2: and GATES and ENCHANT the same way (both true in the code since BUMP-1F's flip, so these calls change nothing in the shipped world; the
+// order here keeps ITEMS' as the ship loads it: SCALE's seven, then GATES' three, and ENCHANT adds no def).
 if (!isMainThread) {
   setScaleRigs(true);
+  setGates(true);
+  setEnchant(true);
   serveJobs();
 } else {
   void (async () => {
-    const wasScale = scaleRules();
+    const wasScale = scaleRules(), wasGates = gatesRules(), wasEnchant = enchantRules();
     setScaleRigs(true);
+    setGates(true);
+    setEnchant(true);
     try {
       await main();
     } catch (e) {
       console.error(e);
       process.exit(1);
     } finally {
+      setEnchant(wasEnchant);
+      setGates(wasGates);
       setScaleRigs(wasScale);
     }
   })();
@@ -186,9 +201,11 @@ async function main(): Promise<void> {
   if (dry && (check || o.stars === "off")) throw new Error("--dry is a stars-on run that writes under --out only: it takes neither --check nor --stars off");
   // HULL-1d: --all-on (the switches the game doesn't play yet) never writes src/sim/standInPoolData.ts and never checks it
   if (process.argv.includes("--all-on") && !dry && !process.argv.includes("--versus")) throw new Error("--all-on turns on switches this rules version keeps off: it runs with --dry (written under --out only) or --versus, never into src and never with --check");
+  // GATES-1 (REQ-BFG-052, G6): so does --gates (GATES ships off until the release's bump)
+  if (process.argv.includes("--gates") && !dry && !process.argv.includes("--versus")) throw new Error("--gates turns on a switch this rules version keeps off: it runs with --dry (written under --out only) or --versus, never into src and never with --check");
   const on = switchesOn();
   if (on.length) console.log(`switches: ${on.join(", ")} on in the main thread${process.argv.includes("--all-on") ? " (--all-on), and in every worker thread (STANDINS_SWITCHES)" : ""}`);
-  console.log(`scaling world: SCALE_RIGS ${scaleRules() ? "on, held for the whole run (every worker thread sets it too)" : "OFF (unexpected: the generator sets it before main())"}`); // BUMP-1E P2e
+  console.log(`scaling world: SCALE_RIGS ${scaleRules() ? "on, held for the whole run (every worker thread sets it too)" : "OFF (unexpected: the generator sets it before main())"}; GATES ${gatesRules() ? "on" : "OFF (unexpected)"}; ENCHANT ${enchantRules() ? "on" : "OFF (unexpected)"}`); // BUMP-1E P2e; BUMP-1F P2: and the two switches of bb-0.13.0
   const nw = num("workers", Math.max(1, Math.min(availableParallelism() - 1, 23)));
   const pool = workerRunner(nw, import.meta.url);
   const t0 = performance.now();

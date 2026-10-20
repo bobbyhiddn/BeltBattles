@@ -46,6 +46,11 @@ import { withOpenRunes } from "../src/sim/openRunes"; // MERGE-099F
 import { withFreeJoins } from "../src/sim/freeJoins"; // MERGE-099F
 import { withHearts } from "../src/sim/hearts"; // MERGE-099F
 import { withPick } from "../src/net/pick"; // MERGE-099F
+import { GATES, setGates, withGates } from "../src/sim/gates"; // BUMP-1F (GATES default): this file's world is the one before the three converters
+import { ENCHANT, setEnchant, withEnchant } from "../src/sim/enchant"; // BUMP-1F (ENCHANT default): this file's world is the one before the words
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES and ENCHANT default): was no hook; this file's fixtures and pins are the world before the three converters and the words, so every test runs with both switches off, as its pins were measured, and the afterEach puts the shipped value back (even if the test throws)
+beforeEach(() => { setGates(false); setEnchant(false); });
+afterEach(() => { setEnchant(ENCHANT); setGates(GATES); });
 /** MERGE-099F: HULL-ON's five switches off around `f` (tests/hull1b.ladders' allOff). */
 const offFive = <T>(f: () => T): T => withGuard(() => withOpenRunes(() => withFreeJoins(() => withHearts(() => withPick(f, false), false), false), false), false);
 
@@ -197,7 +202,8 @@ describe("COUNT-1: each counter's value against the sim's own state, on a real f
 });
 
 describe("COUNT-1: the status row", () => {
-  const b = fight();
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES and ENCHANT defaults): was `const b = fight();`; this fight is made at collection, before the file-wide beforeEach turns the two switches off, so it is built in that world explicitly (the foe is the one that holds a LODESTONE)
+  const b = withGates(() => withEnchant(() => fight(), false), false);
 
   it("chips in order BURN, POISON (reserved: no chip), FRAY n/15, STUN; FRAY_MAX imported", () => {
     // BUMP-1E: the scaling rules ship on (SCALE_RIGS, bb-0.12.0), where SCALE-2c's hits chip (C7) joins the row (counters.ts HITS_CHIP, order

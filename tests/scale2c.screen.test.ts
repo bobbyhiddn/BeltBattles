@@ -7,6 +7,7 @@
 // withScaleRigs(fn, false) (synchronously only), here at this file's load and in the off test; the "on" tests read the shipped world.
 import { describe, expect, it } from "vitest";
 import { ITEMS, buyableModules, classFactor, type ItemDef } from "../src/sim/content";
+import { GATES_IDS } from "../src/sim/gates"; // BUMP-1F (GATES default): the three converters keep no flavour row
 import { SCALE_IDS, SCALE_PIECES, SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale";
 import { PLAIN_RIG_IDS } from "../src/sim/plainRigs"; // 0.9.11 world (PLAIN_RIGS and SHAPES2 on): twelve plain stat rigs are sold, each a face and no KEPT_FLAVOUR row
 import { SHAPES2_IDS } from "../src/sim/shapes2";
@@ -255,7 +256,9 @@ describe("SCALE-2c screen: the 12 faces with the switch on", () => {
       // BUMP-1E P1b (the scale tests move into the 0.9.11 world; was `.toBe(true)` for every sold module): PLAIN_RIGS and SHAPES2 are on
       // (BUMP-1D), so the twelve plain stat rigs are sold too, each a stat-row face with no ability line, and keep no KEPT_FLAVOUR row
       // (flavour() shows none for a face; tests/flavour.test.ts PLAIN12): the twelve have none, every other sold module has one
-      const PLAIN12 = [...PLAIN_RIG_IDS, ...SHAPES2_IDS];
+      // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): the three converters (FUSER, SCATTER MILL, SMELTER) are sold too, each a face built from its numbers with no
+      // flavour sentence (gates.ts: "No desc: the faces build the gate's own line"), so they keep no KEPT_FLAVOUR row either: the fifteen have none (was PLAIN12 alone)
+      const PLAIN12 = [...PLAIN_RIG_IDS, ...SHAPES2_IDS, ...GATES_IDS];
       for (const id of sold) expect(Object.prototype.hasOwnProperty.call(KEPT_FLAVOUR, id), id).toBe(!PLAIN12.includes(id));
     });
     // BUMP-1E: the switch ships on, so after the round trip the shipped world is back: KEPT_FLAVOUR holds the 7 new ids' rows too (was FLAVOUR_KEYS0, the off world's keys)

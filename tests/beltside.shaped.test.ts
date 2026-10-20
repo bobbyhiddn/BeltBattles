@@ -23,6 +23,7 @@ import { neighbourOrder, migrateInlineGates, rotFacing, type Migration } from ".
 import { shapesRules, withShapes } from "../src/sim/shapes";
 import { shapes2Rules, withShapes2 } from "../src/sim/shapes2";
 import { starsOf } from "../src/sim/stars";
+import { isConverterItem } from "../src/sim/split"; // BUMP-1F (GATES on by default): a converter on a belt tile is no clash
 import { validateBuild, validateUpload } from "../src/net/validate";
 import { npcDayRules } from "../src/sim/npcDay"; // the budget line is left to the player mode only while NPC_DAY is on (standInPool.gen.test.ts)
 import { STAND_IN_DATA } from "../src/sim/standInPoolData";
@@ -109,7 +110,8 @@ function clashes(b: Build): string[] {
     for (const k of cellsOf(p)) {
       if (owner.has(k)) out.push(`cell ${k}: uid ${owner.get(k)} and uid ${p.uid} ${p.def}`);
       else owner.set(k, p.uid);
-      if (belt.has(k)) out.push(`cell ${k}: uid ${p.uid} ${p.def} on a belt tile`);
+      // BUMP-1F (GATES on by default, RULING-BUMP1F-R5 R5.2): a CONVERTER (FUSER, SCATTER MILL, SMELTER) sits ON a belt tile by design; was any piece (furnace day 11 #0: uid 11 fuser on cell 14)
+      if (belt.has(k) && !isConverterItem(p)) out.push(`cell ${k}: uid ${p.uid} ${p.def} on a belt tile`);
     }
   }
   return out;
@@ -426,8 +428,10 @@ describe("BUMP-1D R2.3 Q2 (c): the stored stand-in decks the anchor test displac
   // TOLLBOOTH's (uid 7): an illegal board) and day 6 #3 and day 10 #4 (uid 3, anchor (7,6), rot 3, cells 68 77 78, the corner on tile 67; the old step to (7,7) rot 0, cells 77 87 88:
   // no overlap, but not the deck that was scored). The sweeps above and the all-192 test below hold for any pool.
   const DISPLACED: { day: number; i: number; uid: number; stored: { x: number; y: number; cells: number[] }; old: { to: number; cells: number[]; clash: boolean } }[] = [
-    { day: 5, i: 1, uid: 5, stored: { x: 4, y: 3, cells: [35, 44, 45] }, old: { to: 44, cells: [44, 54, 55], clash: true } },
-    { day: 15, i: 2, uid: 3, stored: { x: 8, y: 1, cells: [19, 28, 29] }, old: { to: 28, cells: [28, 38, 39], clash: true } },
+    // BUMP-1F (the pool regenerated at bb-0.13.0 with GATES, ENCHANT and the SOFT_TARGET 150 picks, RULING-BUMP1F-R9 R9.1 / R3'; RULING-BUMP1F-R5 R5.2): the regenerated pool displaces ONE deck, furnace day 11 #0: ELBOW GUARD uid 9, anchor (4,1), rot 3,
+    // cells 15 24 25 beside a belt whose tile 14 is a corner; the old step moves it to (4,2) rot 0 (cells 24 34 35), whose cell 34 is a SPARKGAP's (uid 5): an illegal board. Was these two (BUMP-1E's pool): day 5 #1 and day 15 #2:
+    // { day: 5, i: 1, uid: 5, stored: { x: 4, y: 3, cells: [35, 44, 45] }, old: { to: 44, cells: [44, 54, 55], clash: true } }, { day: 15, i: 2, uid: 3, stored: { x: 8, y: 1, cells: [19, 28, 29] }, old: { to: 28, cells: [28, 38, 39], clash: true } }
+    { day: 11, i: 0, uid: 9, stored: { x: 4, y: 1, cells: [15, 24, 25] }, old: { to: 24, cells: [24, 34, 35], clash: true } },
     // BUMP-1E: were { day: 5, i: 5, uid: 4, stored: { x: 4, y: 3, cells: [35, 44, 45] }, old: { to: 44, cells: [44, 54, 55], clash: true } }, { day: 13, i: 0, (the same) },
     // { day: 6, i: 3, uid: 3, stored: { x: 7, y: 6, cells: [68, 77, 78] }, old: { to: 77, cells: [77, 87, 88], clash: false } } and { day: 10, i: 4, (the same) } (the regenerated pools, R1)
   ];
@@ -516,7 +520,8 @@ describe("BUMP-1D R2.3 Q2: a 1-cell gate is migrated exactly as before (the old 
       }
       // BUMP-1E: was ["pool furnace d5 #5", "pool furnace d6 #3", "pool furnace d10 #4", "pool furnace d13 #0"]: the stand-in pool was regenerated under bb-0.12.0 (R1, 19ae423, the regenerated pools) and the
       // two decks the old step displaces are now furnace day 5 #1 and day 15 #2 (listed in (c) above)
-      expect(differs).toEqual(["pool furnace d5 #1", "pool furnace d15 #2"]);
+      // BUMP-1F (the pool regenerated at bb-0.13.0, RULING-BUMP1F-R5 R5.2): was ["pool furnace d5 #1", "pool furnace d15 #2"]; the regenerated pool's one deck the old step displaces is furnace day 11 #0 (listed in (c) above)
+      expect(differs).toEqual(["pool furnace d11 #0"]);
       // measured on this corpus (the same on the old step): 874 decks agree (BUMP-1E: was 872, the four became two), 616 of them hold gates to migrate. The fixtures are frozen;
       // the last 192 decks are the regenerated pool's (R1, 19ae423; the committed pool's, 8fc5e24, had four displaced decks), whose two displaced decks are the ones listed above.
       // BUMP-1E: the counts below did not move: a pool deck is a legal board (it migrates nothing, the all-192 test above), so they are the frozen fixtures' alone

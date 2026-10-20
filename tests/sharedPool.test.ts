@@ -42,7 +42,12 @@ describe("REQ-BFG-021: one hero-blind salvage catalogue", () => {
     // road rarity set (eventDefs.ts roadPart) and no harness draw set holds one (the harness doesn't buy turrets)
     const turrets = ids(buyable.filter((d) => d.kind === "turret"));
     expect(turrets.length).toBe(13);
-    const parts = all.filter((id) => !turrets.includes(id));
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): the three converters (kind "converter": FUSER, SCATTER MILL, SMELTER) are in the catalogue and in the merchants' stock, but a converter stands ON a belt tile
+    // (a belt-fed processor, no gear and no rig beside the belt): no harness shop kind sells it (shopItems: gate, mod, core), and no road rarity set holds one (a GATE never drops: npcDay.ts), as with the turrets. Was
+    // `const parts = all.filter((id) => !turrets.includes(id))`
+    const converters = ids(buyable.filter((d) => d.kind === "converter"));
+    expect(converters.length).toBe(3);
+    const parts = all.filter((id) => !turrets.includes(id) && !converters.includes(id));
     for (const hero of HARNESS_HEROES) {
       const harness = ["gate", "mod", "core"].flatMap((kind) =>
         shopItems(hero, kind as "gate" | "mod" | "core")).concat(shopFactories(hero));

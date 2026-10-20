@@ -16,9 +16,12 @@ import { isSustain } from "../content"; // BOTS-X (REQ-BFG-069): the random buil
 import { scaleRules } from "../scale"; // SCALE-2d (REQ-BFG-098 098.6, D2): the random builder's readers, SCALE_RIGS on only
 import { hasFeeder, needsFeeder } from "../scaleRating"; // SCALE-2d
 import {
-  arrowCell, cloneBuild, connectorClaims, hero, hitsOfRig, kx, ky, occupancy, rigHits, routeInfo, routesOf, turretForColumn,
+  arrowCell, cloneBuild, connectorClaims, hero, hitsOfRig, key, kx, ky, occupancy, rigHits, routeInfo, routesOf, turretForColumn,
   type Build, type Dir, type Placed,
 } from "../deck";
+import { gatesRules } from "../gates"; // GATES-1 (REQ-BFG-052, G6): a gate rides with its belt
+import { beltTile, isConverterItem } from "../split"; // GATES-1: which belt a gate stands on
+import { gateSpot } from "./gateBots"; // GATES-1: where it goes back on the redrawn belt
 import { freeForRig, intakeCell, placeRigAt, spotForTile, stokeSpots, type RigSpot, type WouldHit } from "../beltside";
 import { buildCost } from "../../net/validate";
 import { FUSE_MAX } from "../stars";
@@ -311,11 +314,15 @@ export class Shopper {
   /** Rigs whose every hit lands on route ri: they go idle when it moves or goes, so they travel with it. */
   ridersOf(ri: number): Placed[] {
     const hits = rigHits(this.b);
-    return this.b.items.filter((p) => {
+    const rigs = this.b.items.filter((p) => {
       if (ITEMS[p.def].kind !== "gate") return false;
       const hs = hitsOfRig(this.b, p.uid, hits);
       return hs.length > 0 && hs.every((h) => h.route === ri);
     });
+    // GATES-1 (REQ-BFG-052, G6): a gate standing on a tile of belt ri rides with it (lifted before the belt is redrawn, put back on the
+    // new one by reseat); GATES off: no converter exists, and this is the list above
+    if (!gatesRules()) return rigs;
+    return [...rigs, ...this.b.items.filter((p) => isConverterItem(p) && beltTile(this.b, key(p.x, p.y))?.[0] === ri)];
   }
 
   /** Take rigs off the deck (their cells free up for belts). */
@@ -329,6 +336,13 @@ export class Shopper {
   reseat(rigs: Placed[], ri: number): number {
     let n = 0;
     for (const p of rigs) {
+      if (gatesRules() && isConverterItem(p)) { // GATES-1 (REQ-BFG-052, G6): a gate back on a legal tile of the new belt, by the bots' order of tiles
+        const sp = gateSpot(this.b, p.def, undefined, { only: ri, relaxed: true });
+        if (!sp) break;
+        this.b.items.push({ ...p, x: sp.x, y: sp.y });
+        n++;
+        continue;
+      }
       const tiles = this.rigTiles((r) => r === ri);
       if (!tiles.length || !this.placeRig(p.def, ri, this.rng.pick(tiles)[1], undefined, p)) break;
       n++;

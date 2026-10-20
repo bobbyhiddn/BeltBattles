@@ -4,7 +4,7 @@
 // latest earlier day whose event is neither; every other order is exactly 0.6.0c's.
 import { describe, expect, it } from "vitest";
 import { hashSeed, Rng } from "../src/core/rng";
-import { BAG_IDS, WARLORD_EVENT_IDS, type EventId } from "../src/game/eventDefs";
+import { BAG_IDS, WARLORD_EVENT_IDS, bagIds, type EventId } from "../src/game/eventDefs"; // BUMP-1F (R3.1): + bagIds, the rules world's bag (11 events with ENCHANT on)
 import { choicesFor, eventFor, eventSequence, makeEvent } from "../src/game/events";
 import { finishWarlord, forkFor, onToTheRoad, pickRoad } from "../src/game/road"; // AZ-BUMP: the event after the fight
 import { newRun } from "../src/game/run";
@@ -18,7 +18,7 @@ const DUDS = new Set<EventId>(["herald", "sappers"]);
 function order060c(seed: number, n: number): EventId[] {
   const out: EventId[] = [];
   for (let bag = 0; out.length < n; bag++) {
-    const ids = new Rng(hashSeed(seed, "event-bag", bag)).shuffle([...BAG_IDS]);
+    const ids = new Rng(hashSeed(seed, "event-bag", bag)).shuffle([...bagIds()]); // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2): was [...BAG_IDS] (10 events); the rules world's bag holds the ASH SHRINE too (11)
     if (ids[0] === out[out.length - 1]) [ids[0], ids[1]] = [ids[1], ids[0]];
     out.push(...ids);
   }
@@ -31,6 +31,7 @@ describe("no dud last stop (0.6.0d): HERALD and SAPPERS never land on day 10", (
   it("the duds are HERALD and SAPPERS, and a run is one bag of all 10 events", () => {
     expect(WARLORD_EVENT_IDS).toEqual(["herald", "sappers"]);
     expect([RUN_DAYS, BAG_IDS.length]).toEqual([10, 10]);
+    expect(bagIds().length).toBe(11); // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2): with ENCHANT on the bag is the 10 and the ASH SHRINE; a 10-day run draws 10 of the 11
   });
 
   it("1000 seeds: day 10 is never HERALD or SAPPERS, and no order repeats an event", () => {
@@ -38,7 +39,10 @@ describe("no dud last stop (0.6.0d): HERALD and SAPPERS never land on day 10", (
       const o = runOrder(seed);
       expect(DUDS.has(o[RUN_DAYS - 1]), `seed ${seed}: ${o.join(" ")}`).toBe(false);
       expect(new Set(o).size).toBe(RUN_DAYS);
-      expect([...o].sort()).toEqual([...BAG_IDS].sort()); // every event exactly once
+      // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2): was `[...o].sort()` equal to `[...BAG_IDS].sort()` (every event exactly once, the bag being the run's 10 days); the bag holds 11 now (the ASH SHRINE),
+      // so a run's 10 days are 10 distinct events of it, one event left out
+      expect(o.every((id) => bagIds().includes(id))).toBe(true);
+      expect(bagIds().filter((id) => !o.includes(id)).length).toBe(1);
       expect(eventSequence(seed, RUN_DAYS)).toEqual(o);
     }
   });

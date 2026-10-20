@@ -50,6 +50,7 @@ import {
 import { PLAIN_RIGS, RIG_SENTENCE, faceLines, hasFace, plainRigStats, turretPlainOf } from "../src/ui/faces";
 import { SCALE_PLAIN_RIGS, SHAPED_PLAIN_RIGS, isPlainRig, shapeLines } from "../src/ui/faces"; // SHAPES-1 flip: the shaped plain rigs (E9's path); BUMP-1E: SCALE_PLAIN_RIGS (VENOM DRIP's POISON row)
 import { SCALE_IDS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the seven new rigs; the old world is read with it off
+import { GATES_IDS } from "../src/sim/gates"; // BUMP-1F (GATES on, bb-0.13.0): the three converters join the buyable modules
 import { BALLAST_LINE, CARRY_LINE, plainNotes, plainSlugRig } from "../src/ui/faces"; // PLAIN-1F (M3): the six's NOTES lead
 import { PLAIN_RIG_IDS, withPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1F (M3): the six, PLAIN_RIGS on
 import { SHAPES2_IDS, withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: SHAPES2 ships on (bb-0.11.0): the six more shaped rigs, and NAIL STRIP's and SPIKE RAIL's patch
@@ -175,8 +176,10 @@ describe("EXPLAIN-1 (a, b): the default faces, and nothing lost", () => {
     // BUMP-1D: PLAIN_RIGS and SHAPES2 ship on (bb-0.11.0): the six plain rigs and the six more shaped rigs join the buyable
     // modules too, 13 panels each (a rig: an offer, and at each of 3 stars a cargo panel and 3 placed ones): 938 + 12 x 13 = 1094
     // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0): the seven new scaling rigs (SCALE_IDS) join the buyable modules, 13 panels each: 1094 + 7 x 13 = 1185
-    expect(all.length).toBe(1185); // BUMP-1E: was 1094
-    expect(all.length - 1094).toBe(SCALE_IDS.length * 13); // BUMP-1E: the growth is the seven new rigs' panels and nothing else (7 x 13 = 91)
+    // BUMP-1F (GATES on, bb-0.13.0; RULING-BUMP1F-R5 R5.2 (2)): the three converters (GATES_IDS: FUSER, SCATTER MILL, SMELTER) join the buyable modules: a converter is fusible and neither a rig, a
+    // factory, gear, a core nor a turret, so its panels are an offer and a cargo panel at each of 3 stars, 4 each, 3 x 4 = 12 (no placed panel): 1185 + 12 = 1197
+    expect(all.length).toBe(1197); // BUMP-1F (GATES on): was 1185 (BUMP-1E: was 1094)
+    expect(all.length - 1094).toBe(SCALE_IDS.length * 13 + GATES_IDS.length * 4); // BUMP-1F: was SCALE_IDS.length * 13 (BUMP-1E: the growth is the seven new rigs' panels and nothing else, 7 x 13 = 91); now + the converters' 12
     const bad: string[] = [];
     let n = 0, inner = 0, hidden = 0;
     for (const [name, w, h, dpr] of VIEWS) for (const runes of [1, 0]) {
@@ -621,8 +624,9 @@ describe("EXPLAIN-1 (e): the band", () => {
     }
     rows.push(...on);
     console.log(`EXPLAIN-1 phoneBand90, tips done (SHAPES on, as shipped): ${rows.join(" | ")}`);
-    expect(all.length).toBe(1185); // BUMP-1E: was 1094 (the seven new scaling rigs, SCALE_RIGS on: 7 x 13 more panels); BUMP-1D: was 938 (PLAIN_RIGS' six and SHAPES2's six: 12 x 13 more panels)
-    expect(all.length - 1094).toBe(SCALE_IDS.length * 13); // BUMP-1E: the growth is the seven new rigs' panels and nothing else
+    // BUMP-1F (GATES on, bb-0.13.0; RULING-BUMP1F-R5 R5.2 (2)): the three converters' 3 x 4 = 12 panels (an offer and a cargo panel at each of 3 stars each) join: 1185 + 12 = 1197
+    expect(all.length).toBe(1197); // BUMP-1F (GATES on): was 1185 (BUMP-1E: was 1094 (the seven new scaling rigs, SCALE_RIGS on: 7 x 13 more panels); BUMP-1D: was 938 (PLAIN_RIGS' six and SHAPES2's six: 12 x 13 more panels))
+    expect(all.length - 1094).toBe(SCALE_IDS.length * 13 + GATES_IDS.length * 4); // BUMP-1F: was SCALE_IDS.length * 13 (BUMP-1E: the growth is the seven new rigs' panels and nothing else); now + the converters' 12
     // SC-0912 (PACKET-SHOPCARD1 item 3): SHOPCARD-1b-1d's `moved` pin here ({250: "822 of 938, 90th 48", 258: "834 of 938, 90th 48",
     // 315: "843 of 938, 90th 48", 340: "843 of 938, 90th 48"}: measured before PLAIN-1F, when the band was over its pin from W 250) is
     // dropped, as PLAIN-1F's side drops it: PLAIN-1F's hits-on-one-line is back to 90% at every width, so on this merged tree

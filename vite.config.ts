@@ -15,5 +15,7 @@ export default defineConfig({
     // the rivals' seeded sim sweeps take 1-3 s each on an idle machine; on a shared, loaded host
     // they can pass vitest's 5 s default, so allow 30 s per test (no assertion changes)
     testTimeout: 30000,
+    // BUMP-1F P2 (F1 and Q5): fails any test that leaves Object.keys(ITEMS) or ITEMS.quench changed (test config only)
+    setupFiles: ["tests/setup/itemsGuard.ts"],
   },
 } as any);

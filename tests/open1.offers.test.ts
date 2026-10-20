@@ -14,7 +14,7 @@ import { lastChanceOffer } from "../src/sim/lastChance";
 import { newRun, pendingLastChance, pendingRune } from "../src/game/run";
 import { parRunSeed, playerRun } from "../src/sim/harness/player";
 import { heroStartBuild } from "../src/sim/heroBuilds";
-import { lastChanceProblem, validateUpload } from "../src/net/validate";
+import { inEnchantWorld, inGatesWorld, inScaleWorld, lastChanceProblem, validateUpload } from "../src/net/validate"; // BUMP-1F: + the world functions (parDeck)
 import { isSnapshot } from "../src/game/ghostSnapshot";
 import { SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { CAPTAIN_RUNES } from "../src/sim/rivalBuilds";
@@ -49,7 +49,7 @@ describe("OPEN-1: the switch and its rules row", () => {
     // BUMP-1D (the bump to bb-0.11.0): OPEN_RUNES_RULES is a literal since the flip, so it stays put while RULES_VERSION moves
     // on: this build's rules are after it, not equal to it (was expect(OPEN_RUNES_RULES).toBe(RULES_VERSION))
     expect(OPEN_RUNES_RULES).toBe("bb-0.10.0");
-    expect(RULES_VERSION).toBe("bb-0.12.0"); // BUMP-1E: the bump (was bb-0.11.0).
+    expect(RULES_VERSION).toBe("bb-0.13.0"); // BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0).
     expect(OPEN_RUNES_RULES).not.toBe(RULES_VERSION);
     // HULL-ON (the flip, OPEN_RUNES): "false whatever the rules" is the switch-off half, so it sets the switch off itself
     withOpenRunes(() => {
@@ -199,7 +199,10 @@ describe("OPEN-1: LAST CHANCE's rune card, on and off", () => {
  *  BUMP-1D (SHAPES2 ships on): the same for the six more shaped rigs, which bb-0.9.3 refuses first (shapes2GateProblem: "rules
  *  bb-0.9.3 predate bb-0.11.0: shaped rigs (ELBOW GUARD, ...) need bb-0.11.0 or later"): the decks are built with SHAPES2 off too. */
 function parDeck(hero: HeroId, seed: number, D: number, open: boolean): GhostSnapshot {
-  const build = withShapes2(() => withShapes(() => withOpenRunes(() => playerRun(hero, D, seed)[D - 1].build, open), false), false);
+  // BUMP-1F (GATES, SCALE and ENCHANT ship on; RULING-BUMP1F-R5 R5.2 (2)): and the same for the three more switches that predate OLD_RULES (bb-0.9.3): the converters, the scaling rigs and
+  // the words are refused first under those rules (enchantGateProblem, gatesGateProblem), so the decks are built in OLD_RULES' world (the validate.ts world functions, each keeping ITEMS
+  // as it found it). Was withShapes2(() => withShapes(...)) alone: the par deck's words made "up(s, OLD_RULES).errors" more than the one rune line these tests read
+  const build = inGatesWorld(OLD_RULES, () => inScaleWorld(OLD_RULES, () => inEnchantWorld(OLD_RULES, () => withShapes2(() => withShapes(() => withOpenRunes(() => playerRun(hero, D, seed)[D - 1].build, open), false), false))));
   return {
     v: SNAPSHOT_V3, rules: RULES_VERSION, hero, day: D, wins: D - 1, lives: 5, build, runId: `open1-${hero}-${seed}`,
     playerId: "p-open1", createdAt: 1_790_000_000_000, seed: parRunSeed(hero, seed),

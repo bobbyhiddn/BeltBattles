@@ -75,6 +75,7 @@ const levelOf = (n: number | undefined): number => (typeof n === "number" && Num
 import { logMigration, migrateInlineGates } from "./beltside";
 import { logShapes, migrateShapedFactories } from "./beltside"; // SHAPES-1 (REQ-BFG-086 S6): the load migration
 import { footOf, footTurns, shapesRules } from "./deck"; // SHAPES-1 (S1, S4): the switch; a shaped factory's rot (foot.ts, shapes.ts via deck.ts)
+import { enchantCodeOf, enchantIdOfCode } from "./deck"; // ENCHANT-1 (REQ-BFG-085, E2): the stand-in word's two-letter codes (enchant.ts via deck.ts)
 import { STAND_IN_DATA, type StandInDay } from "./standInPoolData";
 
 /** RULES_VERSION the pool was generated (and scored) under. */
@@ -155,6 +156,7 @@ const V1_NO_TURRETS = "stand-in code: the v1 code carries no turrets and no belt
 export function encodeStandIn(b: Build): string {
   if (GRID !== 10) throw new Error("stand-in build codes assume a 10x10 deck");
   if (b.turrets || b.routes.some((r) => r.join !== undefined)) throw new Error(V1_NO_TURRETS);
+  if (b.items.some((p) => p.ench !== undefined)) throw new Error("stand-in code: the v1 code carries no enchantments (use encodeStarred / decodeStarred)"); // ENCHANT-1: nothing dropped silently
   const no = new Map<number, number>();
   const items = b.items.map((p, i) => {
     if (!/^[a-z]+$/.test(p.def)) throw new Error(`stand-in code: item id "${p.def}" is not lowercase letters`);
@@ -260,6 +262,43 @@ function starsOf(x: { stars?: number } | undefined): number {
 }
 const suffix = (p: { stars?: number }): string => (starsOf(p) > 1 ? `*${starsOf(p)}` : "");
 
+// ENCHANT-1 (REQ-BFG-085, E2): an enchanted piece's word ends in `~<code>` after its stars, e.g. "whetstone37r1*2~fi" (FIERY): the two
+// letters of enchant.ts ENCHANT_DEFS[id].code. WIDE on a rig carries its side (the arrow's side at rotation 0, 0-3): "~wi2". GROWING
+// carries its counter, the dusk fights it has been through (written only above 0): "~gr4". A turret word is
+// <id><slot>[*<stars>][~<code>][!]. A word without `~` decodes exactly as before, and a piece without an enchantment encodes
+// byte for byte as before. Both codecs (this and harness/standinCode.ts) share these two helpers. The counts and sides are the
+// build's own fields (Placed.enchDir, Placed.grow, BuildTurret.grow); which words are legal where is validate.ts's.
+export interface EnchantWordFields { ench?: string; enchDir?: number; grow?: number }
+
+/** A piece's `~<code>[digits]` suffix, or "" for a piece without a word. Refuses a word or a number it can't write. */
+export function enchantWord(p: EnchantWordFields): string {
+  if (p.ench === undefined) return "";
+  const code = enchantCodeOf(p.ench);
+  if (code === undefined) throw new Error(`stand-in code: enchantment "${p.ench}" is not one of the eight`);
+  let digits = "";
+  if (p.ench === "wide" && p.enchDir !== undefined) {
+    if (!Number.isInteger(p.enchDir) || p.enchDir < 0 || p.enchDir > 3) throw new Error(`stand-in code: WIDE side ${p.enchDir} is not 0-3`);
+    digits = String(p.enchDir);
+  }
+  if (p.ench === "growing" && p.grow !== undefined && p.grow !== 0) {
+    if (!Number.isInteger(p.grow) || p.grow < 1) throw new Error(`stand-in code: GROWING counter ${p.grow} is not a whole number above 0`);
+    digits = String(p.grow);
+  }
+  return `~${code}${digits}`;
+}
+
+/** The fields a word's `~` part writes, in the canonical order (ench, enchDir, then grow): `code` the two letters, `digits` what
+ *  follows them. `rig` is true for an item word (only a rig's WIDE has a side). Throws on a word it can't read. */
+export function enchantOfWord(code: string | undefined, digits: string | undefined, word: string, rig: boolean): EnchantWordFields {
+  if (code === undefined) return {};
+  const id = enchantIdOfCode(code);
+  if (id === undefined) throw new Error(`stand-in code: bad enchantment "${word}"`);
+  if (digits === undefined) return { ench: id };
+  if (id === "wide" && rig && /^[0-3]$/.test(digits)) return { ench: id, enchDir: Number(digits) };
+  if (id === "growing" && /^[1-9][0-9]?$/.test(digits)) return { ench: id, grow: Number(digits) };
+  throw new Error(`stand-in code: bad enchantment "${word}"`);
+}
+
 /** Step 5: a route's join suffix, ">yx" (empty for a belt that joins nothing). */
 function joinSuffix(r: RouteDef): string {
   if (r.join === undefined) return "";
@@ -274,7 +313,7 @@ function turretWords(b: Build): string | undefined {
   const words = [...b.turrets].sort((x, y) => x.slot - y.slot).map((t) => {
     if (!/^[a-z]+$/.test(t.def)) throw new Error(`stand-in code: turret id "${t.def}" is not lowercase letters`);
     if (!Number.isInteger(t.slot) || t.slot < 0) throw new Error(`stand-in code: turret slot ${t.slot} is not a slot index`);
-    return `${t.def}${t.slot}${suffix(t)}${t.free ? "!" : ""}`;
+    return `${t.def}${t.slot}${suffix(t)}${enchantWord(t)}${t.free ? "!" : ""}`; // ENCHANT-1: `~<code>` after the stars, before `!`
   }).join(" ");
   return words === startingTurrets(b.hero).map((t) => `${t.def}${t.slot}!`).join(" ") ? undefined : words;
 }
@@ -285,10 +324,10 @@ function decodeTurrets(hero: HeroId, part: string, after: number): BuildTurret[]
   for (const t of startingTurrets(hero)) own.set(t.def, [...(own.get(t.def) ?? []), t.uid]);
   let next = after;
   return part.split(" ").filter(Boolean).map((w) => {
-    const m = /^([a-z]+)(\d+)(?:\*([23]))?(!)?$/.exec(w);
+    const m = /^([a-z]+)(\d+)(?:\*([23]))?(?:~([a-z]{2})(\d+)?)?(!)?$/.exec(w); // ENCHANT-1: + the optional `~<code>` before `!`
     if (!m || !ITEMS[m[1]] || ITEMS[m[1]].kind !== "turret") throw new Error(`stand-in code: bad turret "${w}"`);
-    const uid = (m[4] ? own.get(m[1])?.shift() : undefined) ?? ++next;
-    return { slot: Number(m[2]), def: m[1], uid, ...(m[3] ? { stars: Number(m[3]) } : {}), ...(m[4] ? { free: true } : {}) };
+    const uid = (m[6] ? own.get(m[1])?.shift() : undefined) ?? ++next;
+    return { slot: Number(m[2]), def: m[1], uid, ...(m[3] ? { stars: Number(m[3]) } : {}), ...(m[6] ? { free: true } : {}), ...enchantOfWord(m[4], m[5], w, false) };
   });
 }
 
@@ -302,7 +341,7 @@ export function encodeStarred(b: Build): string {
     if (!/^[a-z]+$/.test(p.def)) throw new Error(`stand-in code: item id "${p.def}" is not lowercase letters`);
     no.set(p.uid, i + 1);
     const rot = rotOf(p);
-    return `${p.def}${cellCode(p.x, p.y)}${rot ? `r${rot}` : ""}${suffix(p)}`;
+    return `${p.def}${cellCode(p.x, p.y)}${rot ? `r${rot}` : ""}${suffix(p)}${enchantWord(p)}`; // ENCHANT-1: `~<code>` after the stars
   });
   const routes = b.routes.map((r) => {
     const f = no.get(r.factory);
@@ -401,11 +440,11 @@ export function decodeStarredRaw(hero: HeroId, code: string): Build {
   const words = (s: string | undefined) => (s ? s.split(" ").filter(Boolean) : []);
   const star = (s: string | undefined) => (s ? { stars: Number(s) } : {});
   const items: Placed[] = words(itemPart).map((w, i) => {
-    const m = /^([a-z]+)(\d)(\d)(?:r([1-3]))?(?:\*([23]))?$/.exec(w);
+    const m = /^([a-z]+)(\d)(\d)(?:r([1-3]))?(?:\*([23]))?(?:~([a-z]{2})(\d+)?)?$/.exec(w); // ENCHANT-1: + the optional `~<code>[digits]` after the stars
     if (!m || !ITEMS[m[1]]) throw new Error(`stand-in code: bad item "${w}"`);
     // SHAPES-1 (REQ-BFG-086 S4): a shaped factory (one whose footprint changes when turned) carries its rot too
     if (m[4] && ITEMS[m[1]].kind !== "gate" && footTurns(footOf(ITEMS[m[1]])) === 1) throw new Error(`stand-in code: "${w}" is not a rig and can't have a rotation`);
-    return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]), ...(m[4] ? { rot: Number(m[4]) } : {}), ...star(m[5]) };
+    return { uid: i + 1, def: m[1], x: Number(m[3]), y: Number(m[2]), ...(m[4] ? { rot: Number(m[4]) } : {}), ...star(m[5]), ...enchantOfWord(m[6], m[7], w, ITEMS[m[1]].kind === "gate") };
   });
   const routes: RouteDef[] = words(routePart).map((w) => {
     const m = /^(\d+):((?:\d\d)+)(?:>(\d)(\d))?$/.exec(w);

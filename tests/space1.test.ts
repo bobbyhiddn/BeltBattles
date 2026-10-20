@@ -17,6 +17,7 @@ import { buyableModules, ITEMS } from "../src/sim/content";
 import { key as K, rotField, setTurretList, turretSlots, type Placed } from "../src/sim/deck";
 import { fusible } from "../src/sim/stars";
 import { SCALE_IDS, SCALE_RIGS } from "../src/sim/scale"; // BUMP-1E: the seven new rigs' panels join the sweep
+import { GATES, GATES_IDS } from "../src/sim/gates"; // BUMP-1F (GATES on, bb-0.13.0): the three converters' panels join the sweep
 import { RUNE_LIST } from "../src/sim/runes";
 import { UI, type Rect } from "../src/ui/ui";
 import { TAP_CSS } from "../src/ui/tap";
@@ -187,9 +188,12 @@ describe("SPACE-1: clear space between the descriptions on cards and panels (REQ
     // BUMP-1D: the six plain stat rigs and the six more shaped rigs join the buyable modules, 13 panels each: 938 + 12 x 13 = 1094
     // BUMP-1E: the scaling rules ship on (bb-0.12.0) and the seven new rigs (SCALE_IDS: CINDER MAIL, ROT GAUGE, LEECH COIL, CROWD PRESS, AEGIS SPIKE, GRUDGE ROD,
     // TROPHY CHAIN) join the buyable modules, 13 panels each: 1094 + 7 x 13 = 1185 (the five reworks are the same ids, so nothing else grew)
+    // BUMP-1F (GATES on, bb-0.13.0; RULING-BUMP1F-R5 R5.2 (2)): the three converters (GATES_IDS: FUSER, SCATTER MILL, SMELTER) join the buyable modules: a converter is fusible and neither a rig, a
+    // factory, gear, a core nor a turret, so its panels are an offer and a cargo panel at each of 3 stars, 4 each, 3 x 4 = 12 (no placed panel): 1185 + 12 = 1197
     expect(SCALE_RIGS).toBe(true);
-    expect(all.length).toBe(1094 + SCALE_IDS.length * 13); // BUMP-1E: was 1094 (1185)
-    expect(all.length).toBe(1185);
+    expect(GATES).toBe(true);
+    expect(all.length).toBe(1094 + SCALE_IDS.length * 13 + GATES_IDS.length * 4); // BUMP-1F: was 1094 + SCALE_IDS.length * 13 (BUMP-1E: was 1094 (1185))
+    expect(all.length).toBe(1197); // BUMP-1F (GATES on): was 1185
     expect([GAP["5"], GAP["3"], GAP_MIN["5"], GAP_MIN["3"]]).toEqual([5, 4, 3, 2]);
     expect(GAP_MIN["5"]).toBe(Math.ceil(GAP["5"] / 2));
     expect(GAP_MIN["3"]).toBe(Math.ceil(GAP["3"] / 2));
@@ -212,7 +216,7 @@ describe("SPACE-1: clear space between the descriptions on cards and panels (REQ
     }
     console.log(`SPACE-1 (a) phoneBand90's widths: ${n} plans, ${diffs.length} differ`);
     expect(diffs.slice(0, 10)).toEqual([]);
-    expect(n).toBeGreaterThan(1185 * WIDTHS.length * 2); // BUMP-1E: the sweep's 1185 panels (was 1094, the seven new rigs' 91); BUMP-1D: the sweep's 1094 panels (was 899, a stale count: the sweep held 938)
+    expect(n).toBeGreaterThan(1197 * WIDTHS.length * 2); // BUMP-1F (GATES on): the sweep's 1197 panels (was 1185 with the three converters' 12 out); BUMP-1E: the sweep's 1185 panels (was 1094, the seven new rigs' 91); BUMP-1D: the sweep's 1094 panels (was 899, a stale count: the sweep held 938)
   }, 600_000);
 
   it("(a) content first on the pinned views, with a rune and without: the band (or column) and the panel's real place (D4), the gaps off and on", () => {

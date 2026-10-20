@@ -28,6 +28,8 @@ import { withShapes } from "../src/sim/shapes"; // SHAPES-1 flip: the 062b histo
 import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D: and with the six more shaped rigs off (in062b)
 import { withPlainRigs } from "../src/sim/plainRigs"; // BUMP-1D: and with the six plain stat rigs off (in062b)
 import { SCALE_IDS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: and with the seven scaling rigs and the five reworks off (in062b)
+import { GATES_IDS, withGates } from "../src/sim/gates"; // BUMP-1F (GATES on by default, RULING-BUMP1F-R5 R5.2): and with the three converters off (in062b, the 0.9.11 fixture test)
+import { withEnchant } from "../src/sim/enchant"; // BUMP-1F (ENCHANT on by default): and with the road bag of ten events (no ASH SHRINE) (in062b, the 0.9.11 fixture test)
 
 const J = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 const st = (s: number) => (s > 1 ? { stars: s } : {});
@@ -377,7 +379,9 @@ function in062b<T>(fn: () => T): T {
   const dormant = DORMANT_ITEMS as Set<string>, was = [...dormant];
   dormant.delete("sifter");
   try {
-    return withScaleRigs(() => withPlainRigs(() => withShapes2(() => withShapes(() => withSustain(() => withWave3(fn, false), false), false), false), false), false);
+    // BUMP-1F (GATES and ENCHANT on by default, RULING-BUMP1F-R5 R5.2): and with GATES off (the three converters join the trader's swaps: 61 keys against the capture's 58) and ENCHANT off (the ASH SHRINE is no event of 0.6.2b's bag);
+    // GATES is the outermost of the nest with ENCHANT outside it: the three converters are the last keys of ITEMS after the scaling rigs' seven, so GATES goes off before the scaling switch and comes back after it (the key-order hazard above); was withScaleRigs outermost
+    return withEnchant(() => withGates(() => withScaleRigs(() => withPlainRigs(() => withShapes2(() => withShapes(() => withSustain(() => withWave3(fn, false), false), false), false), false), false), false), false);
   } finally {
     dormant.clear();
     for (const id of was) dormant.add(id);
@@ -439,9 +443,16 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
   // BUMP-1E (SCALE_RIGS ships on, bb-0.12.0): the regenerated fixture is the 0.9.11 world's (bb-0.11.0's, the scaling rules off): with the scaling switch off the live draws equal it
   // exactly (0 of the 108 choices, the 3 salvage rows, the smuggler row and the 91 swaps differ), so this test reads that world under withScaleRigs(fn, false) (synchronous) and the
   // shipped world, where the draws move, has its own pins in the next test. The fixture file is as it was
+  // BUMP-1F (RULING-BUMP1F-R11 R11.1): REGENERATED with BB_WRITE_ROAD_DRAWS_080=1 at 65fc803 (47,825 B, sha16 4ccddf59fb5915e9; was 47,764 B, git blob sha16 of the old file 823c40713683ceae): 91 of the 108 choices moved (wreck 35,
+  // smuggler 36, trader 20), the 3 salvage rows, the smuggler row and 26 of 91 swaps. The one cause is P2's F1 (6ce4bd82afe5, "the worlds leave ITEMS as they found it": ranked adds, a canonical key order): the old fixture was
+  // written in this file's own world, where the 062b nest had re-added PLAIN_RIGS' ids at the END of ITEMS; a fresh process (a player's client, the server) has always had the canonical order, and its draws are the
+  // same at bump1f-base and here (kit-1f/r6draws.sh, BB_R6_FRESH=1: draws 4a79c579dacfbb03, wares 1ca5d313edefbd95, 1,000-seed offer counts fb6271b30e939ae1 at both). Bisect: 0 of 108 moved at every first-parent commit
+  // of bump1f-base..1459562; 91 at 6ce4bd8 and after. The odds are unchanged within noise (248 event-day-good cells over 1,000 seeds: mean z^2 0.56, max |z| 2.27, none over 3)
   it("0.8.0: the live road draws (wave 3's commons in SALVAGE, the per-run draw) are the regenerated fixture's", () => {
     expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on (the fixture is the world before it)
-    withScaleRigs(() => { // BUMP-1E: was bare
+    // BUMP-1F (GATES and ENCHANT on by default, RULING-BUMP1F-R5 R5.2): the 0.9.11 world also has GATES off (the three converters are goods and join the swaps) and ENCHANT off (the ASH SHRINE is in the bag); was withScaleRigs(fn, false) alone.
+    // The order is in062b's: ENCHANT outside, GATES before the scaling switch (the three are the last keys of ITEMS)
+    withEnchant(() => withGates(() => withScaleRigs(() => { // BUMP-1E: was bare
     const live = roadDraws();
     const path = new URL("./fixtures/beltside-062c/roadDraws-080.json", import.meta.url);
     if (process.env.BB_WRITE_ROAD_DRAWS_080) writeFileSync(path, JSON.stringify({ source: "v080-wave3", ...live }, null, 2) + "\n");
@@ -464,16 +475,22 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
     // (91 goods now, was 79: the twelve new rigs are goods too); cause the twelve new rigs in the pools: the commons in SALVAGE after
     // the older ones (SHAPES2's ELBOW GUARD, SAW BAR and SPARK COMB, then PLAIN_RIGS' RASP, SPARK GAP, SCALE GUARD and BALLAST) and
     // the one whose effect burns in the SMUGGLER's BURN pool (RASP's BURN; SPARK GAP's STUN is no SHOCK pool member: it stays the same three)
+    // BUMP-1F (RULING-BUMP1F-R11 R11.1; the fixture above was regenerated with BB_WRITE_ROAD_DRAWS_080=1 at 65fc803): the pool's ORDER is ITEMS' canonical key order since P2's F1 (6ce4bd8,
+    // "the worlds leave ITEMS as they found it": ranked adds), so PLAIN_RIGS' four commons (RASP, SPARK GAP, SCALE GUARD, BALLAST) come right after PINCER, before SHAPES-1's NAIL STRIP and EMBER TROUGH and
+    // SHAPES2's three; the old order below was the test file's history-dependent one (the 062b nest re-added the plain rigs at the END). Same ids, same count (17). Was [..., "pincer", "nailstrip",
+    // "embertrough", "elbowguard", "sawbar", "sparkcomb", "rasp", "sparkgap", "scaleguard", "ballast"]. The draws a player meets (a fresh process) are the same at bump1f-base and here (kit-1f/r6draws.sh:
+    // digest 4a79c579dacfbb03 both); the 91 of 108 choices that moved against the old fixture moved with this order alone, and each id's offers per event and day are the base's within noise (1,000 seeds)
     expect(salvagePool()).toEqual([
-      "temper", "whetstone", "grease", "brake", "tollbooth", "plateroller", "twingauge", "pincer", "nailstrip", "embertrough",
-      "elbowguard", "sawbar", "sparkcomb", "rasp", "sparkgap", "scaleguard", "ballast",
+      "temper", "whetstone", "grease", "brake", "tollbooth", "plateroller", "twingauge", "pincer", "rasp", "sparkgap",
+      "scaleguard", "ballast", "nailstrip", "embertrough", "elbowguard", "sawbar", "sparkcomb",
     ]);
+    // BUMP-1F (R11.1, as the salvage pool above): the BURN pool's order is the canonical one, RASP (PLAIN_RIGS) before EMBER TROUGH (SHAPES-1); was [..., "quench", "embertrough", "rasp"]
     expect([smugglerPool("BURN"), smugglerPool("SHOCK")]).toEqual([
-      ["temper", "bellows", "quench", "embertrough", "rasp"], ["coil", "staticbrush", "lodestone"],
+      ["temper", "bellows", "quench", "rasp", "embertrough"], ["coil", "staticbrush", "lodestone"],
     ]);
     // the per-run draw moved the event draws themselves (the run's wares), not only the pools
     expect(roadDraws(true).choices).not.toEqual(live.choices);
-    }, false); // BUMP-1E: the 0.9.11 world (the scaling switch off, back on after)
+    }, false), false), false); // BUMP-1E: the 0.9.11 world (the scaling switch off, back on after); BUMP-1F: and GATES and ENCHANT off
   });
 
   // BUMP-1E (SCALE_RIGS ships on, bb-0.12.0): the shipped world's live draws against the 0.9.11 fixture: 95 of the 108 choices move (wreck 35, smuggler 36, trader 24), the 3 salvage rows,
@@ -481,7 +498,7 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
   // join SALVAGE after the older ones (the seven are the last keys of ITEMS), QUENCH TANK is KINDLING, which burns nothing, so it leaves the SMUGGLER's BURN pool, and the SHOCK pool is
   // the same three. The whole set is pinned by its digest (the first 16 hex of the sha-256 of the draws as JSON), not by a second fixture. The file's world is the one after the 062b
   // check's nest (PLAIN_RIGS outermost: its six are behind SHAPES-1's three and SHAPES2's six, where a fresh process has them first), as the fixture's was written; the seven are last either way
-  it("BUMP-1E: the live road draws with the scaling rules on (as shipped): the seven rigs join the pools, KINDLING leaves the BURN wares, 95 of the 108 choices move", () => {
+  it("BUMP-1E: the live road draws with the scaling rules on (as shipped): the seven rigs join the pools, KINDLING leaves the BURN wares, 96 of the 108 choices move", () => { // BUMP-1F (R11.1): was 95 of the 108 (the title follows the count)
     expect(SCALE_RIGS).toBe(true);
     in062b(() => undefined); // the file's world: the 062b nest leaves ITEMS in the same order whichever test ran before it, so this test reads the same draws when it runs alone
     // (a string path: the tests' node shims do not take a URL, tests/tsc-tests-baseline.json)
@@ -489,25 +506,29 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
     const live = roadDraws();
     expect(Object.keys(live.choices)).toHaveLength(108);
     const moved = Object.keys(live.choices).filter((k) => live.choices[k] !== old.choices[k]);
-    expect([moved.length, ...(["wreck", "smuggler", "trader"] as const).map((e) => moved.filter((k) => k.startsWith(`${e}|`)).length)]).toEqual([95, 35, 36, 24]);
+    // BUMP-1F (RULING-BUMP1F-R11 R11.1): [96, 36, 36, 24] against the REGENERATED fixture (the canonical ITEMS order of P2's F1, 6ce4bd8; was [95, 35, 36, 24] against the old file-world one): wreck 36, smuggler 36, trader 24 are
+    // BUMP-1D's counts for the same cause (the pools hold more rigs); the shipped world is the base's plus the seven scaling rigs, the three gates and the ASH SHRINE's bag (which draws no wreck, smuggler or trader choice)
+    expect([moved.length, ...(["wreck", "smuggler", "trader"] as const).map((e) => moved.filter((k) => k.startsWith(`${e}|`)).length)]).toEqual([96, 36, 36, 24]);
     expect(Object.keys(live.salvage).filter((k) => live.salvage[k] !== old.salvage[k])).toHaveLength(3);
     expect(live.smuggler).not.toBe(old.smuggler);
     // the swaps: the seven are goods too (98, was 91: exactly SCALE_IDS are new, none is gone), and every row moves with the pool of what a good may become
-    expect(Object.keys(live.swap)).toHaveLength(98);
-    expect(Object.keys(live.swap).filter((d) => !(d in old.swap)).sort()).toEqual([...SCALE_IDS].sort());
+    // BUMP-1F (R11.1; GATES ships on): 101, was 98: the FUSER, the SCATTER MILL and the SMELTER are goods too (the new ids are SCALE_IDS and GATES_IDS, none is gone), and every one of the 101 rows moves
+    expect(Object.keys(live.swap)).toHaveLength(101); // BUMP-1F: was 98
+    expect(Object.keys(live.swap).filter((d) => !(d in old.swap)).sort()).toEqual([...SCALE_IDS, ...GATES_IDS].sort()); // BUMP-1F: was [...SCALE_IDS]
     expect(Object.keys(old.swap).filter((d) => !(d in live.swap))).toEqual([]);
-    expect(Object.keys(live.swap).filter((d) => live.swap[d] !== old.swap[d])).toHaveLength(98);
+    expect(Object.keys(live.swap).filter((d) => live.swap[d] !== old.swap[d])).toHaveLength(101); // BUMP-1F: was 98
     // the pools: + CROWD PRESS and GRUDGE ROD in SALVAGE after the older ones (was the 17 before them); QUENCH TANK (KINDLING) leaves the BURN wares (was [..., "bellows", "quench", "embertrough", ...])
+    // BUMP-1F (R11.1): the canonical ITEMS order as in the 0.8.0 test above (the plain rigs' four after PINCER); the three gates are no commons, so SALVAGE does not change otherwise
     expect(salvagePool()).toEqual([
-      "temper", "whetstone", "grease", "brake", "tollbooth", "plateroller", "twingauge", "pincer", "nailstrip", "embertrough",
-      "elbowguard", "sawbar", "sparkcomb", "rasp", "sparkgap", "scaleguard", "ballast", "crowdpress", "grudgerod",
+      "temper", "whetstone", "grease", "brake", "tollbooth", "plateroller", "twingauge", "pincer", "rasp", "sparkgap",
+      "scaleguard", "ballast", "nailstrip", "embertrough", "elbowguard", "sawbar", "sparkcomb", "crowdpress", "grudgerod",
     ]);
     expect([smugglerPool("BURN"), smugglerPool("SHOCK")]).toEqual([
-      ["temper", "bellows", "embertrough", "rasp"], ["coil", "staticbrush", "lodestone"],
+      ["temper", "bellows", "rasp", "embertrough"], ["coil", "staticbrush", "lodestone"], // BUMP-1F (R11.1): RASP before EMBER TROUGH, was [..., "embertrough", "rasp"]
     ]);
     // the per-run draw still moves the event draws themselves, and the whole set is the digest's
     expect(roadDraws(true).choices).not.toEqual(live.choices);
-    expect(createHash("sha256").update(JSON.stringify(live)).digest("hex").slice(0, 16)).toBe("a20ec4386fd52951");
+    expect(createHash("sha256").update(JSON.stringify(live)).digest("hex").slice(0, 16)).toBe("80d382e496b23faa"); // BUMP-1F (R11.1): was "a20ec4386fd52951" (the canonical ITEMS order of 6ce4bd8 and the three gates as goods; kit-1f/r6draws.sh)
   });
 
   it("the cards say RIG: the wreck and the smuggler name rigs, and nothing on the three events says GATE", () => {

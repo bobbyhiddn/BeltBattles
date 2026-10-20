@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
 import { bestSpot, spotForTile, stokeSpots } from "../src/sim/beltside";
-import { HEROES, ITEMS, buyableModules, type HeroId, type ItemDef } from "../src/sim/content";
+import { GRID, HEROES, ITEMS, buyableModules, type HeroId, type ItemDef } from "../src/sim/content";
+import { splitProblem } from "../src/sim/split"; // BUMP-1F (GATES default): where a converter may stand
 import { DORMANT_ITEMS } from "../src/sim/races/data"; // FLIP-X2: SIFTER dormant keeps its merchant and price, unsold
 import {
   cloneBuild, deadEndsAt, hullSlots, installTurret, key, rigHits, routeInfo, setTurretList, turretList, turretSlots, type Build,
@@ -41,6 +42,23 @@ function rig(b: Build, id: string, idNum: number): void {
     b.items.pop();
   }
   throw new Error(`${b.hero}: no active spot for ${id}`);
+}
+
+/**
+ * BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052, REQ-BFG-057): GATES ships on, so the three converters (FUSER, SCATTER
+ * MILL, SMELTER: kind "converter", sold by the tinker and the alchemist) are buyable modules and rows of this audit; was no row (they were not in ITEMS).
+ * A converter is no mod and no rig beside the belt: it stands ON one tile of the first belt (src/sim/split.ts splitProblem says where it may). It
+ * takes the first legal tile (in rig()'s search order) that no starting rig hits, so the start deck's rigs act the same in both decks and only the
+ * audited part differs (a converter's tile is no belt tile for a rig's arrow: deck.ts, GATES-1 R5); with none free, the first legal tile.
+ */
+function onBelt(b: Build, id: string, idNum: number): void {
+  const r = b.routes[0];
+  const hits = rigHits(b)[0] ?? [];
+  const order = [2, 3, 1, 4, 0, ...r.cells.map((_, i) => i)].filter((ti, n, all) => ti < r.cells.length && all.indexOf(ti) === n);
+  const legal = order.filter((ti) => splitProblem(b, id, r.cells[ti]) === null);
+  const ti = legal.find((t) => !(hits[t] ?? []).length) ?? legal[0];
+  if (ti === undefined) throw new Error(`${b.hero}: no belt tile for ${id}`);
+  b.items.push({ uid: idNum, def: id, x: r.cells[ti] % GRID, y: Math.floor(r.cells[ti] / GRID) });
 }
 
 /** Stand a rig whose live arrow hits the first fitting tile of `tiles` on the first belt; returns that tile. */
@@ -246,7 +264,8 @@ function decks(hero: HeroId, d: ItemDef): [Build, Build] {
   } else if (d.kind === "gate") {
     if (tiles) rigAt(after, d.id, uid, tiles);
     else rig(after, d.id, uid);
-  } else after.mods.push({ uid: 902, def: d.id, turret: routeInfo(before, 0).turret });
+  } else if (d.kind === "converter") onBelt(after, d.id, uid); // BUMP-1F (GATES default, REQ-BFG-052): was no row; a converter stands on a belt tile
+  else after.mods.push({ uid: 902, def: d.id, turret: routeInfo(before, 0).turret });
   return [before, after];
 }
 

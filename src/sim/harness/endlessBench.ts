@@ -45,7 +45,7 @@ export const botOpts = (bot: EndlessBot): PlayerOpts => (bot === "par" ? {} : ca
 
 /** The GOD hull steps (Build.hullBonus per endless win) one pass plays: the shipped one (ENDLESS_GOD_HULL_STEP, endless.ts), the
  *  floor (no extra hull) and two harder ones, for the reads before and after a tune. */
-export const DEFAULT_STEPS: readonly number[] = [0, 250, 1000, 4000];
+export const DEFAULT_STEPS: readonly number[] = [0, 250, 1500, 4000]; // BUMP-1F (RULING-BUMP1F-R9 R9.2): was [0, 250, 1000, 4000]; the shipped step is 1500 now (was 250, kept as the "before" read; 4000 the harder one; 1000 left out)
 
 /** The deck depths asked: the policy's run is played day by day, and its cost is linear in the days. A bot that mostly wins (par)
  *  starts at DEPTH_LONG (a victory by day 25 and 9 endless days); one that mostly loses (c5) at DEPTH_SHORT and asks for more only

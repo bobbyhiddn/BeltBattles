@@ -17,6 +17,7 @@ import { captureFormats, FORMATTERS, fmtCount, fmtDmg, fmtSec, fmtSpeed } from "
 import { FACE_IDS, NEXT_LINE_W, REMINDER, cardEffect, faceAt, faceLines, faceNext, factoryStats, hasFace } from "../src/ui/faces"; // BUMP-1D: cardEffect
 import { PLAIN_RIG_IDS } from "../src/sim/plainRigs"; // BUMP-1D (PLAIN_RIGS on): the twelve plain stat rigs have a face and no ability text
 import { SHAPES2_IDS } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on)
+import { GATES_IDS, gatesRules } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052): the three gates have a face and no ability text, like the plain twelve (with GATES on)
 import { abilityText, cardText, gist, hasAbilityText, hitText, nextStarText } from "../src/ui/abilityText";
 import { GLOSSARY_WRAP_W, glossaryEntry, glossaryText, keywordRow } from "../src/ui/glossary";
 import { shopChip } from "../src/ui/chips";
@@ -270,7 +271,7 @@ describe("SUS-B the coverage checks under withSustain (the day RUNES-2b flips th
       // BUMP-1D (PLAIN_RIGS and SHAPES2 on): the twelve plain stat rigs are buyable now. Each has a face (a stat row at every star, no
       // ability line) and no ability text; the desk card's effect line is that stat row (faces.ts cardEffect; cardText is "" for them,
       // tests/plain1.faces.test.ts). So they are checked for the face and the card's effect line in place of the ability text
-      const plain12 = [...PLAIN_RIG_IDS, ...SHAPES2_IDS];
+      const plain12 = [...PLAIN_RIG_IDS, ...SHAPES2_IDS, ...(gatesRules() ? GATES_IDS : [])]; // GATES-1: and, with GATES on, the three gates
       for (const id of plain12) expect(mods.some((d) => d.id === id), id).toBe(true);
       for (const d of mods) {
         if (plain12.includes(d.id)) {

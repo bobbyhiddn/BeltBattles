@@ -16,7 +16,7 @@ const FAMILIES = ["rig", "factory", "core", "mod", "supply", "turret"] as const;
 type Family = (typeof FAMILIES)[number];
 const family = (def: string): Family => {
   const k = ITEMS[def].kind;
-  return k === "gate" ? "rig" : k;
+  return k === "gate" || k === "converter" ? "rig" : k; // GATES-1 (REQ-BFG-052): a GATE (kind "converter") is offered where rigs are; none exists with GATES off
 };
 
 /** Each seed's fresh run of `hero` (after `setup`), rolled on each day 1-10 with no rerolls. One run serves every

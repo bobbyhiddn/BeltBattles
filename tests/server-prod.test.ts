@@ -8,7 +8,7 @@ import { encodeSnapshot } from "../src/net/snapshot";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { readConfig } from "../server/config";
 import { seedStore } from "../server/seed";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import type { FakeS3 } from "../tools/fakeS3";
 import { snap } from "./netHelpers";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
@@ -54,6 +54,11 @@ describe.each(storeBackends())("uploads closed, $name store", (backend) => {
 
   it("seeding still works, and seeded ghosts are matched", async () => {
     const r = await seedStore(app.store);
+    // CACHE-1: the first seedStore of a process checks the whole pool (192 validateUpload runs). With POOL from the pool cache the caches that check reads are
+    // cold (nothing built the pool in this process), so it is one 9 s block of the event loop, not 1 s: the server's 5 s keep-alive timer for the socket the
+    // earlier test left idle then fires after the block, and the next fetch, which had already picked that socket, got ECONNRESET. A short pause lets the
+    // timer fire and the client drop the dead socket first. No assertion changes.
+    await new Promise((resolve) => setTimeout(resolve, 100));
     expect(r.written + r.unchanged).toBe(POOL.length); // 0.7.0a D5: the 60-ghost seed pool
     // 0.7.0a D1: a record a player can carry into dusk 2 (won day 1, every life): every seed ghost of day 2 is eligible
     // HULL-ON (the flip, HEARTS): every life is HEARTS_START (10 hearts) under this build's rules (was 5, which left day 2's

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { hashSeed, Rng } from "../src/core/rng";
-import { BAG_IDS, EVENTS, EVENT_IDS, WARLORD_EVENT_IDS, type Choice, type Delta, type EventId } from "../src/game/eventDefs";
+import { BAG_IDS, EVENTS, EVENT_IDS, WARLORD_EVENT_IDS, bagIds, type Choice, type Delta, type EventId } from "../src/game/eventDefs"; // BUMP-1F (R3.1): + bagIds
 import { beginRoad, choicesFor, eventFor, makeEvent, pickChoice } from "../src/game/events";
 import { gainModule } from "../src/game/fuse";
 import { battleSeed, migrateRun, newRun, reroll, rollShop, type Run } from "../src/game/run";
@@ -35,7 +35,7 @@ describe("road events: seeded selection", () => {
     for (const seed of SEEDS) {
       for (let d = 1; d <= 10; d++) {
         const id = eventFor(seed, d);
-        expect(BAG_IDS).toContain(id);
+        expect(bagIds()).toContain(id); // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2: the ASH SHRINE is the 11th event of the rules world's bag): was expect(BAG_IDS).toContain(id)
         expect(eventFor(seed, d)).toBe(id); // deterministic
       }
       dayOne.add(eventFor(seed, 1));
@@ -75,11 +75,12 @@ describe("road events: seeded selection", () => {
   // 0.6.0b (B3): herald (ELITE BOUNTY) and sappers (SABOTAGE) act on warlords now, so they are back in the bag
   it("every bag event shows up across seeds (all 10 of them, herald and sappers back in the bag)", () => {
     expect(BAG_IDS.length).toBe(10);
+    expect(bagIds().length).toBe(11); // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2): the rules world's bag holds the ASH SHRINE too
     expect(WARLORD_EVENT_IDS).toEqual(["herald", "sappers"]);
     expect(BAG_IDS).toEqual(expect.arrayContaining(["herald", "sappers"]));
     const seen = new Set<string>();
     for (const seed of SEEDS) for (let r = 1; r <= 10; r++) { const id = eventFor(seed, r); if (id) seen.add(id); }
-    expect([...seen].sort()).toEqual([...BAG_IDS].sort());
+    expect([...seen].sort()).toEqual([...bagIds()].sort()); // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2): was [...BAG_IDS].sort() (the 10); the 11th is the ASH SHRINE
   });
 
   it("shop rolls and battle seeds are unchanged by events", () => {

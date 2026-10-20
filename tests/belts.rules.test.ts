@@ -30,7 +30,7 @@ import { hullSlots, key as K, setTurretList, startingTurrets, type Build, type B
 import { simulate, type SideStats } from "../src/sim/battle";
 import { heroRefBuild, heroStartBuild, PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { gradeOf, outputsAt, upgradeGold } from "../src/sim/stars";
-import { HEROES_RULES, heartsFor, heroesFor, parseRules, rulesAtLeast, rulesGateProblem } from "../src/net/rulesGate";
+import { gatesGateProblem, HEROES_RULES, heartsFor, heroesFor, parseRules, rulesAtLeast, rulesGateProblem } from "../src/net/rulesGate"; // BUMP-1F: gatesGateProblem (the pool copy for bb-0.8.0)
 import { isReachable } from "../src/net/records";
 import { encodeSnapshot, ghostId, SnapshotError, SNAPSHOT_V3, SNAPSHOT_VERSION, type GhostSnapshot } from "../src/net/snapshot";
 import { buildCost, maxGoldByDay, maxHonestSpend, validateBuild, validateUpload } from "../src/net/validate";
@@ -45,7 +45,7 @@ import { foeNote, online, onlineMode } from "../src/game/session";
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
-import { floorGhosts, sampleGhosts } from "../tools/samplePool";
+import { floorGhosts, sampleGhosts } from "./helpers/poolCache";
 import { storeBackends } from "./netStores";
 import { ownedBy, signedHeaders, testIdentity, TEST_NAME } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";
@@ -59,7 +59,7 @@ const DAYS = [1, 5, 9];
 const NEAR = [OLD_RULES, "bb-0.8.2", "bb-0.8.4", "bb-0.8.3x", "BB-0.8.3", " bb-0.8.3", "bb-0.8.3 ", "bb-0.8.03", "bb-0.8.30", "bb-0.8.3.0", "bb-0.8", "bb_0.8.3"];
 const PATTERN_OK = (r: string) => /^[A-Za-z0-9._-]{1,32}$/.test(r); // src/net/snapshot.ts RULES_PATTERN
 // FLIP-X2: the one bump (was bb-0.8.7; the tests that read it were skipped while the seed pool failed its checks)
-const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.12.0`; // BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
+const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.13.0`; // BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
 const slotError = (name: string, routes: number, outs: number) => `route: ${name} uid 1 feeds ${routes} routes but has ${outs} output(s)`;
 
 /** A dusk snapshot on a record a run carries into it: every fight won, all 5 lives. FLIP-X2: under this build's rules the
@@ -172,7 +172,7 @@ function playDusk(run: Run): void {
 
 describe("rules bb-0.8.7: the version and its decks", () => {
   it("RULES_VERSION is bb-0.8.7, after bb-0.8.0 (HEROES_RULES): the same four heroes travel, and the hero table needs no row", () => {
-    expect(RULES_VERSION).toBe("bb-0.12.0") /* BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.13.0") /* BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     expect(HEROES_RULES).toBe(OLD_RULES);
     expect(RULES_VERSION).not.toBe(OLD_RULES);
     expect(rulesAtLeast(RULES_VERSION, OLD_RULES)).toBe(true);
@@ -259,10 +259,10 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
   const fresh = (s: GhostSnapshot): GhostSnapshot => ({ ...s, runId: `${s.runId}-${k++}` });
 
   it("/v1/health names bb-0.8.7; the match route serves bb-0.8.7 seed ghosts, and has none under bb-0.8.0 (a fresh pool)", async () => {
-    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.12.0") /* BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.13.0") /* BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     const now = await ask(RULES_VERSION);
     expect(now.status).toBe(200);
-    expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe("bb-0.12.0") /* BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe("bb-0.13.0") /* BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     for (const day of [1, 3, 10]) {
       const old = await ask(OLD_RULES, day);
       expect(old.status, `day ${day}`).toBe(404);
@@ -433,12 +433,17 @@ describe.each(storeBackends())("rules bb-0.8.7 on the $name store (uploads open 
     // HULL-ON (the flip, HEARTS): a bb-0.8.0 pool's records are on its rules' 5 lives, so its ghosts are labelled with
     // HEARTS off (drawnLabel's and floorRecord's 5-lives path, as before the flip). Labelled on hearts they reach 10, past
     // bb-0.8.0's lives bound (livesCapFor: 9): "snapshot.lives: expected an integer in 1..9" at ghostId
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), the regenerated pool on bb-0.13.0 holds enchantments): the copy drops each piece's `ench`, `enchDir` and
+    // `grow` too (a bb-0.8.0 pool never held a word: "snapshot.build.items[2].ench: unknown field" at ghostId), as it drops the runes and the seed;
+    // and only the decks bb-0.8.0's gate takes of the three converters (gatesGateProblem: a FUSER, SCATTER MILL or SMELTER deck was never in a bb-0.8.0 pool)
+    const noWords = <P extends object>(list: P[] | undefined): P[] | undefined => list?.map((p) => { const { ench: _e, enchDir: _d, grow: _g, ...rest } = p as Record<string, unknown>; return rest as P; });
     const pool080: GhostSnapshot[] = withHearts(() => [...sampleGhosts(), ...floorGhosts()], false).map((s): GhostSnapshot => {
       const { seed: _seed, road: _road, losses: _losses, ...rest } = s; // BUMP-1D: and no `losses` (a long run's field; bb-0.8.0 takes none)
       const { runes, ...build } = s.build;
       const g = runeGrants(runes, s.day);
-      return { ...rest, v: SNAPSHOT_VERSION, rules: OLD_RULES, build: { ...build, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } };
-    }).filter((s) => rulesGateProblem(OLD_RULES, s.build) === null && s.day <= RUN_DAYS); // BUMP-1D (LONG_RUN ships on): and days 1-10 only: the sample pool goes to day 16 now, and bb-0.8.0's snapshot bound is day 10 (ghostId threw "snapshot.day: expected an integer in 1..10")
+      const words = { items: noWords(build.items)!, ...(build.turrets ? { turrets: noWords(build.turrets)! } : {}) }; // BUMP-1F: no words
+      return { ...rest, v: SNAPSHOT_VERSION, rules: OLD_RULES, build: { ...build, ...words, hullBonus: build.hullBonus - g.hull, beltCap: build.beltCap - g.belt } };
+    }).filter((s) => rulesGateProblem(OLD_RULES, s.build) === null && gatesGateProblem(OLD_RULES, s.build) === null && s.day <= RUN_DAYS); // BUMP-1D (LONG_RUN ships on): and days 1-10 only: the sample pool goes to day 16 now, and bb-0.8.0's snapshot bound is day 10 (ghostId threw "snapshot.day: expected an integer in 1..10")
     await app.store.replacePool(OLD_RULES, pool080.map((s) => ({ id: ghostId(s), snapshot: s })));
     try {
       const ids = new Set(pool080.map(ghostId));

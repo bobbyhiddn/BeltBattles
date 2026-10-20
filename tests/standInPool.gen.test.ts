@@ -135,7 +135,10 @@ const PAR_TOLERANCE = 0;
 const S8_PAR_EXCEPTIONS: Record<string, { stored: number; resim: number }> = {}; // BUMP-1E: was weaver|4, furnace|7 and weaver|9 (see above)
 /** BUMP-1E (the regenerated pool, bb-0.12.0): the stored picks whose deck holds MORE than their gold spent and their road's drops (the run books a NEGATIVE sale loss: player.ts parNpcDay),
  *  hero|day|position -> the gain in gold: spent + drops + gain = cost exactly. One pick of 192, the loose run of seed 1003 (furnace #3); replayed in "the one sale-gain pick" below. */
-const SALE_GAIN: Record<string, number> = { "furnace|4|2": 6 };
+// BUMP-1F (F5: parNpcDay never books a negative sale loss, player.ts; RULING-BUMP1F-R5 R5.2 (2); the stand-in pool regenerated under bb-0.13.0): the exception is GONE. The loose run of seed 1003 (candidate #3 at day 4) books a sale
+// loss of 0 now (was -6), so no stored pick holds more than its gold spent and its road's drops (measured off the committed pool: all 192 picks have spent + drops >= cost, none under-covered); furnace d4 #2 is another deck
+// (cost 48, spent 45, drops 11). Was { "furnace|4|2": 6 }. S8_PAR_EXCEPTIONS stays empty (the four pars of the spread re-simulate exactly on the regenerated pool: the caravanPars tests below are green unchanged)
+const SALE_GAIN: Record<string, number> = {};
 
 /** The rules version the exceptions were measured under (the tripwire: red at the next bump). BUMP-1D: was "bb-0.10.0". */
 const S8_EXCEPTIONS_RULES = "bb-0.12.0"; // BUMP-1E: no exception is listed now; a later one is measured under this version (was "bb-0.11.0")
@@ -179,7 +182,7 @@ describe("stand-in pool", () => {
     expect(STAND_IN_POOL_DAYS).toBe(16);
     expect(DAYS).toHaveLength(16);
     for (const hero of STAND_IN_POOL_HEROES) expect(STAND_IN_DATA.pools[hero]!, hero).toHaveLength(16);
-    expect(STAND_IN_DATA.rules).toBe("bb-0.12.0"); // BUMP-1E (the regenerated pool, R1 19ae423: header 'RULES_VERSION bb-0.12.0'): was "bb-0.11.0"
+    expect(STAND_IN_DATA.rules).toBe("bb-0.13.0"); // BUMP-1F (the regenerated pool under bb-0.13.0, src/sim/standInPoolData.ts: header 'RULES_VERSION bb-0.13.0'; RULING-BUMP1F-R5 R5.2 (2)): was "bb-0.12.0". BUMP-1E (the regenerated pool, R1 19ae423: header 'RULES_VERSION bb-0.12.0'): was "bb-0.11.0"
     expect(STAND_IN_POOL_RULES).toBe(POOL_RULES);
     expect(STAND_IN_DATA.band).toEqual([40, 60]);
     expect(STAND_IN_DATA.parFloor).toBe(0.5);
@@ -257,13 +260,15 @@ describe("stand-in pool", () => {
   });
 
   // BUMP-1E: the replay of SALE_GAIN's one pick: furnace d4 #2 is candidate #3's day-4 deck, the loose run of seed 1003, and that run's meta books the gain (a sale loss of -6) to the gold
-  it("the one sale-gain pick: furnace d4 #2 is the loose run of seed 1003 (candidate #3 at day 4), whose meta books a sale loss of -6 (spent 48 + drops 17 + 6 = its cost 71)", () => {
+  // BUMP-1F (F5: parNpcDay never books a negative sale loss; RULING-BUMP1F-R5 R5.2 (2)): the title was "the one sale-gain pick: furnace d4 #2 is the loose run of seed 1003 (candidate #3 at day 4), whose meta books a sale loss of -6
+  // (spent 48 + drops 17 + 6 = its cost 71)". The replay of that run is kept: it books a sale loss of 0 now (its day-4 deck is worth 65, not 71, and is no longer the stored pick), and SALE_GAIN is empty
+  it("the former sale-gain pick (BUMP-1F F5): the loose run of seed 1003 (candidate #3 at day 4) books no negative sale loss now (0, was -6), and furnace d4 #2 is another deck (cost 48, spent 45 + drops 11)", () => {
     const e = standInPool("furnace", 4)[2], d = caravanCandidate("furnace", 4, STAND_IN_DATA.seed, 3, STANDIN_MAX_STARS);
-    expect(caravanCand(3, d).code).toBe(encodeStarred(poolRaw("furnace", 4, 2))); // the stored pick IS this run's day-4 deck
+    expect(caravanCand(3, d).code).not.toBe(encodeStarred(poolRaw("furnace", 4, 2))); // BUMP-1F: the stored pick is no longer this run's day-4 deck (was toBe: it IS)
     expect([d.meta.policy, d.meta.seed]).toEqual(["loose", 1003]);
-    expect([e.cost, e.spent, roadDropValue(e.road)]).toEqual([71, 48, 17]);
-    expect([d.value, d.meta.spent, d.meta.soldLoss]).toEqual([71, 48, -6]);
-    expect(SALE_GAIN).toEqual({ "furnace|4|2": -d.meta.soldLoss });
+    expect([e.cost, e.spent, roadDropValue(e.road)]).toEqual([48, 45, 11]); // BUMP-1F: measured off the committed pool (was [71, 48, 17])
+    expect([d.value, d.meta.spent, d.meta.soldLoss]).toEqual([65, 48, 0]); // BUMP-1F: measured (was [71, 48, -6]); F5: never a negative sale loss
+    expect(SALE_GAIN).toEqual({}); // BUMP-1F: was { "furnace|4|2": -d.meta.soldLoss }
   }, 120_000);
 
   it("entries are sorted by pct and lie inside their window, which starts at 40 or above and is 20 points wide unless widened", () => {
@@ -389,7 +394,7 @@ describe("stand-in pool", () => {
     if (!POOL_NATIVE) console.log(`stand-in par vsPar under BELTSIDE (the pool is inline until the D4 re-bake):\n${drift.join("\n")}`);
     // most pars are stored as their plain 10-seed sample; at 65a36b7 one (WEAVER day 2) was re-played
     else expect(reReplayed, drift.join("\n")).toBeLessThan(STAND_IN_POOL_HEROES.length * DAYS.length);
-  }, 600_000);
+  }, 1_200_000); // BUMP-1F (RULING-BUMP1F-R13 R13.2; the release lane's finding F19): was 600_000: alone at nice 10 this test took 599,532 ms at 0.9.13's STAGE and timed out at 606,299 ms in a batch
 
   it("each par against heroRefBuild: a quick battle finishes with no NaN", () => {
     for (const hero of STAND_IN_POOL_HEROES) {
