@@ -4088,8 +4088,16 @@ to date by the closing docs commit): step 0 (scope: the sorted name-status diff 
 protected paths); step 2 (tsc 0, typecheck:server 0, typecheck:tests PASS at 163, fp and 41 parBench lines IDENTICAL); the
 label tests (8 passed); the seed rehearsal (8 PASS, 0 FAIL); the Tigris rehearsal (five steps PASS); seedcheck (14 of 14
 `expect:` yes) and probecheck (18 `expect:` lines, all yes); the ENDLESS probe 4 of 4; the gate (smoke 45 PASS, luckcaps IDENTICAL);
-gen:ghosts IDENTICAL (server/seedPoolData.ts 395,125 bytes `3034060c68d6fad0`); mutants `--check` 38 of 38 apply. The stand-in check
-(step S), the suite, the browser block and the mutants' run are recorded in the report.
+gen:ghosts IDENTICAL (server/seedPoolData.ts 395,125 bytes `3034060c68d6fad0`); mutants `--check` 38 of 38 apply; **the stand-in
+check (step S): all 32 hero-days saved and `check: IDENTICAL` (99,507 bytes regenerated, 4,361,088 battles; it carries to T and to the
+tip, since no file of closure-gens.txt changes after r0913-bump1e)**; **the browser block on the tip (T's page and server)**: the page
+smoke offline and online 4 of 4 each (0 console errors, 0 NOT HONEST), touch noprof 2,323 of 2,323 (0.9.12: 2,215; +108 are the ENDLESS
+summary rows), card3check 13 of 13, stylecheck 180 of 180, explaincheck 35 of 35, surge 4 of 4, asynccheck 62 of 62, rcruns off 32 of 32
+and on 44 of 44, the mirror, runeshots 103, 311 shots (126 differ from 0.9.12's, every one in a class the release names), motion taps
+123 of 123, the stills (c1: one accepted tap-target overlap of POWDER KEG's badge on the phone; p1: 0), the field and scout stills, the
+LAST CHANCE shots and the rollback probe (item (b) above). The suite (cut by its shard timeouts on a loaded host; the file-by-file
+re-runs are in the report), touch mixed, the LOOKS and the mutants' run are recorded in the report, not here: they had not finished
+when this paragraph was written.
 
 ## Troubleshooting
 
