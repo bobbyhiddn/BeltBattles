@@ -19,7 +19,7 @@ import { drawChoiceCard } from "../src/screens/event/cards";
 import { drawDropCard } from "../src/screens/fork/drops";
 import { lcPartGrid, lcPartPlate, lcPartSub } from "../src/screens/lastChancePicker";
 import { faceIcon } from "../src/screens/battleScout";
-import { drawGridRight, gridCell, gridGeom, gridSpecOf, hasGrid, shapeGridSize, shapePic } from "../src/ui/shapePic";
+import { drawGridRight, gridCell, gridGeom, gridSpecOf, hasGrid, iconCell, shapeGridSize, shapePic } from "../src/ui/shapePic";
 import { itemSlot } from "../src/ui/ui";
 import { ENCHANT_DEFS } from "../src/sim/enchant";
 import { footCount } from "../src/sim/foot";
@@ -133,7 +133,7 @@ describe("PRESENT-1 S1 (a): the grid is not dropped where it was", () => {
       drawDropCard(G(c), id, false, x, y, w, 1);
       const sz = shapeGridSize(id), pw = sz.w + 2, px = x + w - 4 - pw;
       const name = ITEMS[id].name, sub = "DROP · TO CARGO · ★1", room = x + 23 + Math.max(textWidth(name), textWidth(sub, "3")) + 4 <= px;
-      const tiles = gridGeom(gridSpecOf(id), gridCell(id)).tiles;
+      const tiles = gridGeom(gridSpecOf(id), room ? gridCell(id) : iconCell(id)).tiles; // PRESENT-1 S1 (d): the plate at the roomy cell, the corner fallback at the icon cell (PICKAXE 5 / 4)
       // wherever the grid is, its tiles are in the kind's colour: on the plate (the image's top-left 1 px in from the plate's) or over the icon box's corner (x + 4, y + 4)
       const origin = room ? { x: px + 1, y: y + 1 + 1 } : { x: x + 4, y: y + 4 };
       for (const t of tiles) expect(c.at(origin.x + t.x + 1, origin.y + t.y + 1), `${id} ${w}: a tile ${room ? "on the plate" : "over the icon's corner"}`).toBe(fillOf(id));
@@ -150,7 +150,7 @@ describe("PRESENT-1 S1 (a): the grid is not dropped where it was", () => {
     // the words reach the row's end: the corner
     const w = fresh(140, 40);
     expect(drawGridRight(G(w), id, 4, 6, 120, gx + 1, Infinity, { x: 6, y: 8 })).toBe(true);
-    for (const t of geom.tiles) expect(w.at(6 + t.x + 1, 8 + t.y + 1), "over the icon's corner").toBe(fillOf(id));
+    for (const t of gridGeom(gridSpecOf(id), iconCell(id)).tiles) expect(w.at(6 + t.x + 1, 8 + t.y + 1), "over the icon's corner").toBe(fillOf(id));
     expect(w.at(gx + 2, 6 + 2)).toBeNull(); // nothing at the row's end
     // a badge's top above the grid's foot: the corner too; no corner: not drawn (as before)
     expect(drawGridRight(G(fresh(140, 40)), id, 4, 6, 120, 0, 6 + sz.h - 1, { x: 6, y: 8 })).toBe(true);

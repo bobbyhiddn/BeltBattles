@@ -13,7 +13,7 @@ import { frame, rect } from "../render/pixel";
 import { C, RARITY_COLOR } from "../render/palette";
 import { drawText, icons, textWidth } from "../render/font";
 import { itemIcon } from "../render/sprites";
-import { drawShapePlate, hasGrid, shapeGrid, shapeGridSize } from "../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its card
+import { drawShapePlate, hasGrid, iconCell, shapeGrid, shapeGridSize } from "../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its card
 import { isPhone, tapPx } from "../ui/tap"; // a finger's target for the ⓘ on a phone
 import { panel, type Rect } from "../ui/ui";
 import { colourize, drawRich, wrapRich, type RichLine } from "../ui/richText";
@@ -480,7 +480,7 @@ export class LastChancePicker {
         // the card's top (the head is 31 px: the tallest plate, SPIKE RAIL's 18, ends 25 px down); the name and the sub line end well before it
         const where = lcPartGrid(r, def.id, word ? `${ENCHANT_DEFS[word.ench].name} ${def.name}` : def.name, lcPartSub(def.rarity, o.partStars ?? 1));
         if (where && "plate" in where) drawShapePlate(g, def.id, where.plate.x, where.plate.y);
-        else if (where) g.drawImage(shapeGrid(def.id), where.corner.x, where.corner.y); // PRESENT-1 S1 (a): a card too narrow for the plate beside the words draws the grid over its icon's corner (was dropped)
+        else if (where) g.drawImage(shapeGrid(def.id, iconCell(def.id)), where.corner.x, where.corner.y); // PRESENT-1 S1 (a): a card too narrow for the plate beside the words draws the grid over its icon's corner (was dropped)
         drawBody(g, r, t.lines, t.info, hint, L.gap);
         if (word) drawBoardSpark(g, r.x + r.w - 5, r.y - 1, ENCHANT_DEFS[word.ench].color); // ENCHANT-1 (E7): the word's spark on the card's top-right corner (on its ink plate: the open card's frame is yellow)
       } else {

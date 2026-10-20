@@ -10,7 +10,7 @@ import { C } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
 import { drawText, textWidth } from "../../render/font";
 import { itemIcon } from "../../render/sprites";
-import { drawShapePlate, hasGrid, shapeGrid, shapeGridSize } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on the drop surfaces
+import { drawShapePlate, hasGrid, iconCell, shapeGrid, shapeGridSize } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on the drop surfaces
 import { panel, type Rect } from "../../ui/ui";
 import { isPhone, tapPx } from "../../ui/tap";
 import { itemName } from "../event/cards";
@@ -65,7 +65,7 @@ export function drawDropIcons(g: G, t: DropTable, x: number, y: number, w: numbe
     rect(g, px, y, 14, 14, C.ink);
     rect(g, px + 1, y + 1, 12, 12, l.cls === "legendary" ? C.plum1 : C.slate0);
     g.drawImage(ic, px + 7 - Math.floor(ic.width / 2), y + 7 - Math.floor(ic.height / 2));
-    if (hasGrid(l.def)) g.drawImage(shapeGrid(l.def), px, y); // SHOPCARD-1 (G4): over the box's corner, inside the 19 px pitch and over the odds' row
+    if (hasGrid(l.def)) g.drawImage(shapeGrid(l.def, iconCell(l.def)), px, y); // SHOPCARD-1 (G4): over the box's corner, inside the 19 px pitch and over the odds' row; PRESENT-1 S1 (d): the icon cell
     drawText(g, pctText(l.odds), px + 7, y + 16, C.bone, { font: "3", align: "center" });
     px += 19;
     n++;
@@ -177,6 +177,6 @@ export function drawDropCard(g: G, drop: string | null, legendary: boolean, x: n
   if (hasGrid(drop)) {
     const pw = shapeGridSize(drop).w + 2, px = x + w - 4 - pw;
     if (x + 23 + Math.max(textWidth(t.name), textWidth(t.sub, "3")) + 4 <= px) drawShapePlate(g, drop, px, y + 1);
-    else g.drawImage(shapeGrid(drop), x + 4, y + 4); // PRESENT-1 S1 (a): a card too narrow for the plate beside the words draws the grid over its icon's corner (was dropped)
+    else g.drawImage(shapeGrid(drop, iconCell(drop)), x + 4, y + 4); // PRESENT-1 S1 (a): a card too narrow for the plate beside the words draws the grid over its icon's corner (was dropped)
   }
 }

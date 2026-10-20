@@ -28,14 +28,14 @@ import { newRun, type ShopBadge } from "../src/game/run";
 import { C } from "../src/render/palette";
 import { itemIcon } from "../src/render/sprites";
 import { footOffsets } from "../src/sim/foot";
-import { CARD_H, CARD_W, WIDE_CARD_H, WIDE_CARD_MAX_W } from "../src/screens/build/layout";
+import { CARD_H, CARD_TEXT_MIN_W, CARD_W, WIDE_CARD_H, WIDE_CARD_MAX_W } from "../src/screens/build/layout";
 import {
   CARD_ICON, MERGE_H, MERGE_W, OWNED_MARK_H, OWNED_MARK_W, SALE_H, SALE_W, cardPriceBox, cardPriceX, cardZones, drawCard, drawTooltip,
   iconX2, offerFace, ownedMarkAt, tooltipLines, type CardState,
 } from "../src/screens/build/shop";
 import { shapedPiece } from "../src/screens/build/shapeEdit";
 import { OWNED_NOTE, explainPanel, mergeLine, offerMergeNote, offerPanel, textOpts } from "../src/screens/build/inspector";
-import { CARGO_FACE, GRID_CELL, GRID_CELL_MIN, HEAD_LEN, drawGrid, drawShapePlate, gridCell, gridGeom, gridSpecOf, shapeGridSize, type GridSpec } from "../src/ui/shapePic";
+import { CARGO_FACE, GRID_CELL, GRID_CELL_MIN, HEAD_LEN, drawGrid, drawShapePlate, gridCell, gridGeom, gridSpecOf, iconCell, shapeGridSize, type GridSpec } from "../src/ui/shapePic";
 import { lineText } from "../src/ui/richText";
 
 installRaster();
@@ -56,6 +56,8 @@ const inBox = (b: Box, x: number, y: number): boolean => x >= b.x && x < b.x + b
 /** `a` and `b` have at least one clear px between them. */
 const clear = (a: Box, b: Box): boolean => a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y;
 const shaped = (): string[] => buyableModules().filter((d) => shapedPiece(d.id)).map((d) => d.id);
+/** PRESENT-1 S1 (d): the cell a card of width `w` draws a piece's grid at: a wide card (CARD_TEXT_MIN_W, 69 px, and up: the landscape row, the desk) has room for PICKAXE at 5 px; the phone's 46 px card keeps the 16 px face's 4 (gridCell's `face`) */
+const cellOn = (id: string, w: number): number => gridCell(id, w >= CARD_TEXT_MIN_W ? Infinity : CARGO_FACE);
 /** The grid's plate on a card (`o`: the zone map's grid corner): its ink box, 1 px round the grid. */
 const plateAt = (id: string, o: { x: number; y: number }, cell = gridCell(id)): Box => { const z = shapeGridSize(id, cell); return { x: o.x, y: o.y, w: z.w + 2, h: z.h + 2 }; }; // SC-0912: the piece's own cell (gridCell: GRID_CELL, 4 for PICKAXE)
 
@@ -76,7 +78,7 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
       // F2: the icon doubled, pixel for pixel, outside the plates the grid and the marks draw on
       const z = cardZones(w, h, d.price), ic = R(itemIcon(d.id)), dy = -lift(s); // SHOPCARD-1c (G3): the sale plate sits against the price
       const plates: Box[] = [
-        ...(hasGrid(d.id) ? [plateAt(d.id, z.grid)] : []), z.merge, z.sale, // PRESENT-1 S1: hasGrid (every piece bigger than one cell), was shapedPiece
+        ...(hasGrid(d.id) ? [plateAt(d.id, z.grid, cellOn(d.id, w))] : []), z.merge, z.sale, // PRESENT-1 S1: hasGrid (every piece bigger than one cell), was shapedPiece; S1 (d): cellOn
       ];
       let seen = 0;
       for (let j = 0; j < ic.height; j++) for (let i = 0; i < ic.width; i++) {
@@ -135,7 +137,7 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
       }
       // every shaped piece's plate (and every synthetic footprint's, below) clears the gem, the marks and the picture's centre
       for (const id of shaped()) {
-        const pl = plateAt(id, z.grid);
+        const pl = plateAt(id, z.grid, cellOn(id, w));
         for (const [n, m] of [["gem", z.gem], ["merge", z.merge], ["sale", z.sale], ["sale (at 11)", cardZones(w, h, 11).sale], ["owned", owned], ["price", cardPriceBox(w, h, 11)]] as [string, Box][]) {
           expect(clear(pl, m), `${wn} ${id}: the grid's plate clear of the ${n}`).toBe(true);
         }
@@ -201,12 +203,18 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
     // where the grid at GRID_CELL is wider or taller than the cargo slot's 16 px face: PICKAXE alone (20 x 13 at 5 px, 17 x 11 at 4)
     expect(GRID_CELL_MIN).toBe(4);
     expect(CARGO_FACE).toBe(16);
+    // PRESENT-1 S1 (d): gridCell(id, face): none (a surface with room) 5 for all eleven; the 16 px face (iconCell: the cargo slot, the narrow phone card, the icon
+    // rows) PICKAXE 4; a wide card (69 px and up) takes none, the phone's 46 px card the face
     expect(Object.fromEntries(ids.map((id) => [id, gridCell(id)]))).toEqual({
+      assembly: 5, cinderhook: 5, elbowguard: 5, embertrough: 5, gantry: 5, jawcrusher: 5, nailstrip: 5, pickaxe: 5, sawbar: 5, sparkcomb: 5, spikerail: 5,
+    });
+    expect(Object.fromEntries(ids.map((id) => [id, iconCell(id)]))).toEqual({
       assembly: 5, cinderhook: 5, elbowguard: 5, embertrough: 5, gantry: 5, jawcrusher: 5, nailstrip: 5, pickaxe: 4, sawbar: 5, sparkcomb: 5, spikerail: 5,
     });
+    expect([cellOn("pickaxe", CARD_W), cellOn("pickaxe", CARD_TEXT_MIN_W), cellOn("pickaxe", WIDE_CARD_MAX_W)]).toEqual([4, 5, 5]);
     const rows: string[] = [];
     for (const id of ids) for (const [wn, w, h] of WIDTHS) {
-      const c = draw(id, w, h, {}), z = cardZones(w, h), d = ITEMS[id], rig = d.kind === "gate", cell = gridCell(id);
+      const c = draw(id, w, h, {}), z = cardZones(w, h), d = ITEMS[id], rig = d.kind === "gate", cell = cellOn(id, w);
       const spec = gridSpecOf(id), geom = gridGeom(spec, cell), sz = shapeGridSize(id, cell);
       expect([geom.w, geom.h], id).toEqual([sz.w, sz.h]);
       expect(spec.cells, `${id}: the footprint at rot 0`).toEqual(footOffsets(d, 0));
@@ -238,7 +246,7 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
         expect(hd.dir === 0 || hd.dir === 2 ? hd.h : hd.w, `${id}: the head is ${HEAD_LEN} long`).toBe(HEAD_LEN);
       }
       // G3: the share of the icon's opaque px the plate hides
-      const ic = R(itemIcon(id)), plate = plateAt(id, z.grid);
+      const ic = R(itemIcon(id)), plate = plateAt(id, z.grid, cell);
       let opaque = 0, hidden = 0;
       for (let j = 0; j < ic.height; j++) for (let i = 0; i < ic.width; i++) {
         if (ic.at(i, j) === null) continue;
@@ -467,7 +475,7 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
 
   it("the cargo slot: the grid in the slot's top-left corner inside its 16 px face, the star pips over it; a piece without one draws none", () => {
     for (const id of shaped()) {
-      const geom = gridGeom(gridSpecOf(id), gridCell(id));
+      const geom = gridGeom(gridSpecOf(id), iconCell(id)); // PRESENT-1 S1 (d): the slot's 16 px face: the icon cell
       if (id === "pickaxe") {
         // SC-0912 (oracle 0ab73cb56a4abcbf): PICKAXE at 4 px, measured exception: its grid is 17 x 11 where the face is 16 px. It is drawn where
         // every grid sits (the face's top-left, slot x + 1, y + 1: the anchor does not move), so its 17th column falls on the slot's right frame
@@ -550,7 +558,7 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
       // the icons' row: the grid over the first box's corner
       const row = fresh(60, 30);
       drawDropIcons(G(row), { chance: 0.5, lines: [{ def: id, cls: "rare", odds: 0.1 }] }, 3, 3, 50);
-      for (const t of gridGeom(gridSpecOf(id), gridCell(id)).tiles) expect(row.at(3 + t.x + 1, 3 + t.y + 1), `${id}: drop icon tile`).toBe(fillOf(id));
+      for (const t of gridGeom(gridSpecOf(id), iconCell(id)).tiles) expect(row.at(3 + t.x + 1, 3 + t.y + 1), `${id}: drop icon tile`).toBe(fillOf(id)); // PRESENT-1 S1 (d): the icon cell
     }
   });
 
@@ -560,7 +568,7 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
       const c = fresh(160, 80);
       drawReveal(G(c), { x: 0, y: 0, w: 150, h: 72 }, foe([id]));
       const ix = 5, iy = 14 + 24 + 4; // the first deck icon's box (reveal.ts: x + 5, y + 14 + the 24 px portrait + 4)
-      for (const t of gridGeom(gridSpecOf(id), gridCell(id)).tiles) expect(c.at(ix + t.x + 1, iy + t.y + 1), `${id}: scout deck tile`).toBe(fillOf(id));
+      for (const t of gridGeom(gridSpecOf(id), iconCell(id)).tiles) expect(c.at(ix + t.x + 1, iy + t.y + 1), `${id}: scout deck tile`).toBe(fillOf(id)); // PRESENT-1 S1 (d): the icon cell
     }
     const plain = fresh(160, 80);
     drawReveal(G(plain), { x: 0, y: 0, w: 150, h: 72 }, foe(["whetstone"]));

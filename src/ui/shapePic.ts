@@ -198,20 +198,26 @@ export const GRID_CELL_MIN = 4;
  *  the other ten shaped pieces are 16 px (GANTRY PRESS, ASSEMBLY LINE, SAW BAR wide; SPIKE RAIL tall). */
 export const CARGO_FACE = 16;
 const CELLS = new Map<string, number>();
-/** SC-0912: the cell pitch `defId`'s grid is drawn at, ONE size for the piece on every surface that draws it (the shop card on the
- *  phone and the desk, the cargo slot, LAST CHANCE, the drops, the road-event cards, the scout deck, the warlord's pick buttons):
- *  GRID_CELL, or GRID_CELL_MIN where the grid at GRID_CELL is wider or taller than the cargo slot's 16 px face. Today that is
- *  SHAPES2's PICKAXE alone (a T of three cells with seven arrows: 20 x 13 at 5 px, 17 x 11 at 4); the other ten fit at 5. The way
- *  picCell gives the panel picture 3 px a cell where 4 would not fit the header's box. Any other id (no ITEMS entry): GRID_CELL. */
-export function gridCell(defId: string): number {
-  let c = CELLS.get(defId);
+/** SC-0912: the cell pitch `defId`'s grid is drawn at: GRID_CELL, or GRID_CELL_MIN where the grid at GRID_CELL is wider or taller than
+ *  the surface's `face`, the biggest box it offers (the cargo slot's 16 px face: CARGO_FACE). Today that is SHAPES2's PICKAXE alone
+ *  (a T of three cells with seven arrows: 20 x 13 at 5 px, 17 x 11 at 4); the other ten fit at 5. The way picCell gives the panel
+ *  picture 3 px a cell where 4 would not fit the header's box. Any other id (no ITEMS entry): GRID_CELL.
+ *  PRESENT-1 (S1 (d), REQ-BFG-113 (2); was ONE size for the piece on every surface: the 16 px face's): a surface with room (the wide shop
+ *  card, LAST CHANCE, the drop card and list, the road cards, the warlord's pick) passes no `face` and takes 5 px for PICKAXE too, 6.67 CSS px
+ *  a cell on a landscape phone's x4 where 4 px was 5.33; the surfaces whose box is an icon's (the cargo slot, the narrow phone shop card, the
+ *  icon rows of the drops, the fork and the scout deck, a corner fallback over an icon) pass CARGO_FACE and keep 4. */
+export function gridCell(defId: string, face = Infinity): number {
+  const k = `${defId}:${face}`;
+  let c = CELLS.get(k);
   if (c === undefined) {
     if (!Object.prototype.hasOwnProperty.call(ITEMS, defId)) return GRID_CELL;
     const geom = gridGeom(gridSpecOf(defId), GRID_CELL);
-    CELLS.set(defId, (c = geom.w > CARGO_FACE || geom.h > CARGO_FACE ? GRID_CELL_MIN : GRID_CELL));
+    CELLS.set(k, (c = geom.w > face || geom.h > face ? GRID_CELL_MIN : GRID_CELL));
   }
   return c;
 }
+/** PRESENT-1 (S1 (d)): the cell of a grid over an icon's corner or in an icon-sized box (the cargo slot, the icon rows, a corner fallback): the 16 px face's. */
+export const iconCell = (defId: string): number => gridCell(defId, CARGO_FACE);
 
 /** G1: the grid as a canvas (cached per piece and cell): its box is gridGeom's. Only for a shaped piece. SC-0912: at the piece's own
  *  cell (gridCell: GRID_CELL, or 4 for PICKAXE) unless a cell is given. */
@@ -250,7 +256,7 @@ export function drawGridRight(g: G, defId: string, x: number, y: number, w: numb
   const sz = shapeGridSize(defId), px = x + w - 3 - sz.w;
   if (px < left || y + sz.h > floor) {
     if (!corner) return false;
-    g.drawImage(shapeGrid(defId), corner.x, corner.y);
+    g.drawImage(shapeGrid(defId, iconCell(defId)), corner.x, corner.y);
     return true;
   }
   g.drawImage(shapeGrid(defId), px, y);
