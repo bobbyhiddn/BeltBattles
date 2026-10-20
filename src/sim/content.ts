@@ -93,8 +93,15 @@ export const BURN_TIME = 3.0; // a Burn stack's seconds where its source sets no
 export const BURN_DPS = 10;
 /** SCALE-2b (REQ-BFG-108; ref/scale1/REPORT-SCALE1.md section 2): the hull damage one POISON deals at each whole second of
  *  the fight (Battle.hullEffects: the hull takes POISON_DPS x its POISON as one number, then D(day)). Read only while
- *  SCALE_RIGS is on (scale.ts): with it off no hull ever holds POISON. SCALE-2e benches the 3; no tuning here. */
-export const POISON_DPS = 3;
+ *  SCALE_RIGS is on (scale.ts): with it off no hull ever holds POISON. SCALE-2e benches the 3; no tuning here.
+ *  BUMP-1F P3 D2 (RULING-BUMP1F-R2 R2.3; was 3): 2. At 2 one POISON stack needs 15 s to deal what one BURN stack deals (BURN_DPS x
+ *  BURN_TIME = 30), at 3 it needed 10 s. tools/scale2e/poison.ts, day 3, K 6, 48 BURN decks, 4 seeds, 3 -> 2: check 2 (POISON against
+ *  BURN) under 15 s 77.0% -> 74.9% (bar at most 45%: still FAIL), all fights 66.8% -> 63.3%; check 1 (against the SHIELD wall, bar at
+ *  least 55%) 49.7% -> 48.0% (FAIL both); check 3 (no heal stall) PASS both. Day 9 (K 6, 24 BURN decks): under 15 s 69.0% -> 65.1%.
+ *  tools/scale2e/pairs.ts G1-G3 and G5 at 2 (ROT GAUGE and LEECH COIL with VENOM DRIP, VENOM DRIP alone; days 3 / 6 / 9; K 12, pool 48):
+ *  every reader's lift stays under TEMPER's + 1.5 and 10 (G1), day 3 is not the strongest day (G2), none passes 20 (G3), the fights stay
+ *  within 0.96-1.01 of their bases' (G5). The bar of check 2 is not met; it is a P5 report line, not a gate (RULING-BUMP1F-R2 R2.3). */
+export const POISON_DPS = 2;
 export const FRAY_BONUS = 2; // extra damage per Fray stack on every later hit
 export const FRAY_MAX = 15;
 export const WIND_WARN = 20; // dark wind warning (s)
