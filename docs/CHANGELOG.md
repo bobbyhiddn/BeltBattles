@@ -21,6 +21,9 @@ AI decks now buy gates and enchantments.
 - **Gates in the shop and in battle:** from day 2 on (never day 1) all three can be on sale: the FUSER and SCATTER MILL at
   the tinker, the SMELTER at the alchemist. An enemy STUN can stall a gate like a factory, and LODESTONE counts a stalled
   gate like a stalled factory.
+- **Gates on a small screen:** a gate's tap panel now shows its own numbers in the one-line effect at the top (the FUSER's
+  2 slugs in and 1 out with its 50%, the SCATTER MILL's 1 in and 3 out, the SMELTER's +2 BURN), as a plain rig's does; the
+  three showed no effect line there before.
 - **Eight enchantments:** FIERY, RISING, GROWING, ECHOING, MASSIVE, SWIFT, WIDE and BRACED. Each adds one effect to a rig,
   a factory or a turret and prints its word before the part's name, in its colour. MASSIVE goes on turrets only and SWIFT
   on factories only. A part holds one: a new one replaces it (the game asks first: REPLACES FIERY), selling the part loses
