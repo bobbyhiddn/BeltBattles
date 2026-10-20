@@ -618,7 +618,7 @@ export class BattleScreen implements Screen {
       drawSummaries(g, this.arena, this.L);
       sr.summaries = [...summaryRects(this.L).r];
     }
-    if (this.phase === "view" && !lowering) this.faces.draw(g, this.game, this.arena, this.L, true);
+    if (this.phase === "view" && !lowering) this.faces.draw(g, this.game, this.arena, this.L, true, this.foeName); // ENCHANT-2W (REQ-BFG-085; W5): a foe's part says whose it is
     else this.faces.last = null;
     // COUNT-1 (REQ-BFG-100): a counter group's panel (a tap's, or the desk's hover), during the fight only
     if (this.phase === "fight" && !this.menu) this.counters.drawPanel(g, this.game, a, this.plateRows);
