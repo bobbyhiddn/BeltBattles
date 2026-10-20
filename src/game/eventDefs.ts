@@ -3,12 +3,13 @@
 // events.ts applies exactly that and nothing else. Tuned so an event is worth about +2 to +4
 // gold on average and none of them wins a run by itself.
 
-import { ITEMS, buyableModules, type GateEffect, type ItemDef, type Rarity } from "../sim/content";
+import { ITEMS, type Rarity } from "../sim/content";
 import { enchantRules } from "../sim/enchant"; // ENCHANT-2 (REQ-BFG-085, T3): the shrine joins the bag only under ENCHANT (eventIds, bagIds)
-import { fusible, starField, starsOf, valueOf } from "../sim/stars";
+import { starField, starsOf, valueOf } from "../sim/stars";
 import { mergePreview } from "./fuse";
 import type { Run } from "./run";
 import { SHRINE_ID, shrineChoices, shrineInBag } from "./shrine"; // ENCHANT-2 (REQ-BFG-085, T3): the ASH SHRINE's cards (a new file)
+import { roadParts, smugglerPool, type SmugglerKind } from "./smugglerPool"; // SHOCK-1 (REQ-BFG-033): the road-part helpers and the SMUGGLER's pools moved to a leaf (below: re-exported)
 import { unlocked, type Wares } from "./wares"; // 0.8.0 I1 M3: road grants draw from the run's unlocked wares
 
 /**
@@ -77,34 +78,13 @@ const moveOn = (label = "MOVE ON"): Choice => ({ ...MOVE_ON, label });
 // 2026-09-24): no draw reads the hero or race, only the catalogue, the parts the player holds and the
 // event's fixed `pick` (makeEvent's hashSeed(seed, "event", day) stream; no new stream).
 
-/** A part a caravan sells and that merges: a merchant stocks it and stars.ts `fusible` holds (never a
- *  supply, price-0 signature or dormant prototype). A new race module joins on merchant assignment.
- *  0.6.2s (REQ-BFG-031 step 5): turrets ride only in the caravan in 0.6.2 (never a road part, like tradeGood). */
-const roadPart = (d: ItemDef): boolean => fusible(d.id) && d.kind !== "turret" && d.kind !== "converter"; // GATES-1 (REQ-BFG-052): a GATE comes from the shop, never a road event (out of scope)
-
-/** The ids of every road part that passes `test`, in catalogue order. */
-const roadParts = (test: (d: ItemDef) => boolean): string[] => buyableModules().filter((d) => roadPart(d) && test(d)).map((d) => d.id);
+// SHOCK-1 (REQ-BFG-033; BRIEF-SHOCK1 B1): `roadPart`, `roadParts`, SmugglerKind, SMUGGLER_EFFECT and smugglerPool moved, as they were, to
+// ./smugglerPool.ts (a leaf), because the ware draw's effect floor (wares.ts holdEffects) reads the SMUGGLER's pools and this file imports
+// wares.ts. Re-exported, so every importer of the three keeps its import.
+export { SMUGGLER_EFFECT, smugglerPool, type SmugglerKind } from "./smugglerPool";
 
 /** SALVAGE's pool: the common gates (0.6.1: TEMPER, WHETSTONE, GREASE WORKS and BRAKE SHOE). */
 export const salvagePool = (): string[] => roadParts((d) => d.kind === "gate" && d.rarity === "common");
-
-/** SMUGGLER's two pools: BURN (2 g) and SHOCK (3 g), the event's two choices. */
-export type SmugglerKind = "BURN" | "SHOCK";
-
-/**
- * 0.8.0 P1 (family map v2, DESIGN-wave3.md 2.5): what puts a gate in each SMUGGLER pool, read off its 1-star effect. BURN:
- * an effect that works with burn (`burn`, `burnPerRide` or `quench`); SHOCK: one that shocks or pays for stalls (`shock`,
- * `staticTime` or `perStalled`). v2 retired the BURN and SHOCK tags the pools were keyed on; this picks the same six rigs
- * as v070-rc (TEMPER, BELLOWS, QUENCH TANK; GALVANIC COIL, STATIC BRUSH, LODESTONE), and no wave-3 rig joins either pool.
- */
-export const SMUGGLER_EFFECT: Readonly<Record<SmugglerKind, (e: GateEffect) => boolean>> = {
-  BURN: (e) => !!(e.burn || e.burnPerRide || e.quench),
-  SHOCK: (e) => !!(e.shock || e.staticTime || e.perStalled),
-};
-
-/** SMUGGLER's BURN or SHOCK pool: the gates whose effect SMUGGLER_EFFECT[kind] accepts (0.6.1: TEMPER; GALVANIC COIL). */
-export const smugglerPool = (kind: SmugglerKind): string[] =>
-  roadParts((d) => d.kind === "gate" && !!d.gate && SMUGGLER_EFFECT[kind](d.gate));
 
 const ofRarity = (r: Rarity): string[] => roadParts((d) => d.rarity === r);
 
