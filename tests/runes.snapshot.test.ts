@@ -208,7 +208,7 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
       // sides by the exact count (cap's ruling 5d6d83ef57d1494c: 0 held on day N) (was: the stored v2 ghost, [true, true])
       expect(both(bareV2(s as unknown as Snap)), `${tag} v2`).toEqual([false, false]);
     }
-  });
+  }, 120_000); // BUMP-1F (RULING-BUMP1F-R13 R13.2, on R8.1's terms): a per-test limit of 120 s (was vitest's 30 s); it passes alone, and timed out at 30 s in run 5's second whole-suite read at load 18-28
 
   it("the canonical copy writes the v3 fields last: name, then seed; the build's runes after every other key", () => {
     const named = { ...legal, name: "TESTER" };

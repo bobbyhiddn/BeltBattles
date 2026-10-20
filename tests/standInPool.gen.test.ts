@@ -394,7 +394,7 @@ describe("stand-in pool", () => {
     if (!POOL_NATIVE) console.log(`stand-in par vsPar under BELTSIDE (the pool is inline until the D4 re-bake):\n${drift.join("\n")}`);
     // most pars are stored as their plain 10-seed sample; at 65a36b7 one (WEAVER day 2) was re-played
     else expect(reReplayed, drift.join("\n")).toBeLessThan(STAND_IN_POOL_HEROES.length * DAYS.length);
-  }, 600_000);
+  }, 1_200_000); // BUMP-1F (RULING-BUMP1F-R13 R13.2; the release lane's finding F19): was 600_000: alone at nice 10 this test took 599,532 ms at 0.9.13's STAGE and timed out at 606,299 ms in a batch
 
   it("each par against heroRefBuild: a quick battle finishes with no NaN", () => {
     for (const hero of STAND_IN_POOL_HEROES) {

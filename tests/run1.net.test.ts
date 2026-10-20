@@ -420,5 +420,5 @@ describe("RUN-1 roadCap (D6): the event mask resets at each bag boundary", () =>
       expect(keys(200, 12, offeredEvents(once, 12))).toContain("dock(200,0)"); // one plating: one dock is enough
       expect(fit(400, 12, offeredEvents(once, 12)).unofferedHull?.some((l) => l.includes("dock") && l.includes("x2"))).toBe(true);
     });
-  });
+  }, 120_000); // BUMP-1F (RULING-BUMP1F-R13 R13.2, on R8.1's terms): a per-test limit of 120 s (was vitest's 30 s); it passes alone, and timed out at 30 s in run 5's second whole-suite read at load 18-28
 });
