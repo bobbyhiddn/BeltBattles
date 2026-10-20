@@ -73,7 +73,9 @@ export const NPCS: readonly NpcPlan[] = [
       // checker's ordinary rare+ cap, the lower of FURNACE's and WEAVER's, is 2 on day 4; a non-synergy part); good luck
       // keeps day 3; in day order
       B("twinmould", 5, 3), B("twingauge", 5),
-      B("compound", 7, 4), B("twintrigger", 8, 6), B("pincer", 7), B("twinlatch", null, 7),
+      // BUMP-1G G3 (the plan was one epic over the BUMP-1F luck caps on day 7: the ordinary epic cap is 0 there): COMPOUND is this plan's own synergy part, so no part can be trimmed; at ordinary luck it is bought on day 8
+      // (was 7; good luck keeps day 4) and nothing else moves (no other problem on 8, 9 or 10: kit-1g/zz-g3.test.ts)
+      B("compound", 8, 4), B("twintrigger", 8, 6), B("pincer", 7), B("twinlatch", null, 7),
       // Y7b2 (the regenerated caps, bb-0.9.3): at ordinary luck the seam welder 7 -> 8 (the checker's ordinary rare+ cap, the
       // lower of FURNACE's and WEAVER's, d7 5 -> 4: stand-in 5 > 4; the part that arrives on day 7, non-synergy); good luck
       // keeps day 6; right after the good-luck latch star (day 7), the last entry with an earlier day; re-placed in day order
@@ -102,7 +104,9 @@ export const NPCS: readonly NpcPlan[] = [
       // REDO-X I (cap's rulings 207816b18a9fbfdb, 97e639e5813acb37): at ordinary luck the brace frame on day 5 (was 3; the
       // checker's ordinary rare+ cap, the lower of FURNACE's and WEAVER's, is 2 on day 4, 3 with it; a non-synergy part);
       // good luck keeps day 3; right after the day-4 spall catcher, in day order
-      B("braceframe", 5, 3), B("armorpress", 7), B("anvil", 6), B("temper", 7),
+      // BUMP-1G G3 (BRIEF-BUMP1G P3; the plan was one part over the BUMP-1F luck caps): no ARMOR PRESS (was ordinary day 7: an epic against the ordinary epic cap of 0 on day 7, stand-in and warlord; a non-synergy part;
+      // the only single trim that clears both overs: kit-1g/zz-g3.test.ts)
+      B("braceframe", 5, 3), B("anvil", 6), B("temper", 7),
       // Y7b2 (the regenerated caps, bb-0.9.3): at ordinary luck the quench 7 -> 8 (the checker's ordinary rare+ cap, the lower
       // of FURNACE's and WEAVER's, d7 5 -> 4: stand-in and warlord 5 > 4; of the two non-synergy rares that arrive on day 7,
       // the ARMOR PRESS and the quench, the later bought); good luck keeps day 7; right after the day-7 temper, the last entry
@@ -148,7 +152,9 @@ export const NPCS: readonly NpcPlan[] = [
     buys: [
       // bb-0.8.6 (job PACKS M4): the COMPOUND BREECH on day 7 (was 6; no ordinary epic before day 7)
       B("twingauge", 1), B("whetstone", 1), B("twinmould", 2), B("twinlatch", 3), B("twingauge", 4), B("temper", 4),
-      B("twintrigger", 5), B("compound", 7), B("pincer", 7),
+      // BUMP-1G G3 (the plan was one part over the BUMP-1F luck caps on days 7 and 10): no COMPOUND BREECH (was ordinary day 7: an epic against the ordinary epic cap of 0 on day 7; it also counts toward
+      // day 10's rare+ cap of 6, so the one trim clears both overs; a non-synergy part: kit-1g/zz-g3.test.ts)
+      B("twintrigger", 5), B("pincer", 7),
       // Y7b2 (the regenerated caps, bb-0.9.3): at ordinary luck the quench 7 -> 8 (the checker's ordinary rare+ cap, the lower
       // of FURNACE's and WEAVER's, d7 5 -> 4: stand-in 5 > 4; of the two non-synergy rares that arrive on day 7, the COMPOUND
       // BREECH and the quench, the later bought); good luck keeps day 7; right after the day-7 pincer, the last entry with an
@@ -173,7 +179,7 @@ export const NPCS: readonly NpcPlan[] = [
       // of FURNACE's and WEAVER's, d7 5 -> 4: stand-in 5 > 4; the part that arrives on day 7, non-synergy); good luck keeps
       // day 7; right after the day-7 steam breech, the last entry with an earlier day; re-placed in day order (cap's ruling
       // 1cfdc5fff106d58f)
-      B("quench", 8, 7),
+      // BUMP-1G G3 (the plan was one part over the BUMP-1F luck caps on day 10: rare+ 7 > 6): no quench (was ordinary day 8, good luck day 7: the lowest-priced non-synergy rare whose trim clears it, 4 gold; kit-1g/zz-g3.test.ts)
       B("platebreaker", 9),
       // REDO-X I (cap's rulings 207816b18a9fbfdb, 97e639e5813acb37, e778dc5d38efd5fd): at ordinary luck the second spall
       // catcher on day 10 (was 9; the checker's ordinary star2 cap is 2 on day 9; her three ★2 are all synergy parts, and

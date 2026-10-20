@@ -266,12 +266,10 @@ describe("wave3: the new NPCs (M5, tools/wave3Npcs.ts; REQ-BFG-024, 011)", () =>
       // the ordinary tier's caps are lower on two days): was `for (const n of NPCS) expect(problems(n), n.id).toEqual([]);` (no problem for any plan). D1's four plans below
       // overshoot the NEW caps, each by one part on the days named (measured at the bb-0.13.0 tip; the plans in tools/wave3Npcs.ts are unchanged); the list is exact, as
       // tests/captains.luck's ceiling lists are: a plan that overshoots anywhere else, or overshoots more, still fails.
-      const OVERS: Record<string, string[]> = {
-        grimhold: ["stand-in d7: epic 1 > 0", "warlord d7 (ordinary): epic 1 > 0"],
-        lockjaw: ["stand-in d7: epic 1 > 0", "stand-in d10: rare 7 > 6"],
-        thistlemail: ["stand-in d10: rare 7 > 6"],
-        voss: ["stand-in d7: epic 1 > 0"],
-      };
+      // BUMP-1G (G3, BRIEF-BUMP1G P3): the four plans are trimmed to the bb-0.13.0 caps (tools/wave3Npcs.ts: GRIMHOLD no ARMOR PRESS, LOCKJAW no COMPOUND BREECH, THISTLEMAIL no quench, VOSS's COMPOUND on day 8: a plan's
+      // only epic is its synergy part), so the list is EMPTY again and a plan over the caps anywhere fails. The luck caps regenerate once more in this release (P4: `npm run luckcaps`): re-read it then.
+      // Was (BUMP-1F): grimhold ["stand-in d7: epic 1 > 0", "warlord d7 (ordinary): epic 1 > 0"], lockjaw ["stand-in d7: epic 1 > 0", "stand-in d10: rare 7 > 6"], thistlemail ["stand-in d10: rare 7 > 6"], voss ["stand-in d7: epic 1 > 0"].
+      const OVERS: Record<string, string[]> = {};
       for (const n of NPCS) expect(problems(n), n.id).toEqual(OVERS[n.id] ?? []);
       // the check bites: one more epic on day 1, or a legendary before day 4, is a problem
       const bad = { ...NPCS[0], buys: [...NPCS[0].buys, { def: "compound", at: 1 }] };
