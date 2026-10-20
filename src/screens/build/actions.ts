@@ -309,14 +309,22 @@ export function dropCell(L: BuildLayout, x: number, y: number, size: number): { 
 
 /** SHAPES-1 (REQ-BFG-086 R1): dropCell for a turned footprint: the anchor (the top-left of its box, `w` cells along x
  *  and `h` along y: footBox) with the box centred under a screen point, kept on the deck as dropCell keeps a square. */
-export function dropAnchor(L: BuildLayout, x: number, y: number, defId: string, rot: number): { x: number; y: number } | null {
+export function dropAnchor(L: BuildLayout, x: number, y: number, defId: string, rot: number, clampOut = false): { x: number; y: number } | null {
   const { w, h } = footBox(ITEMS[defId], rot);
   ({ x, y } = toDeck(L, x, y));
   const lx = localX(L.frame, x, y) - (w - 1) * (CELL / 2), ly = localY(L.frame, x, y) - (h - 1) * (CELL / 2);
   const m = GRID * CELL;
-  if (lx < -8 || ly < -8 || lx > m + 8 || ly > m + 8) return null;
+  // PRESENT-1 C: `clampOut` keeps the box on the deck from any point (a finger's lifted point, off the deck, with the finger on it)
+  if (!clampOut && (lx < -8 || ly < -8 || lx > m + 8 || ly > m + 8)) return null;
   const cx = Math.floor(lx / CELL), cy = Math.floor(ly / CELL);
   return { x: Math.max(0, Math.min(GRID - w, cx)), y: Math.max(0, Math.min(GRID - h, cy)) };
+}
+
+/** PRESENT-1 C (REQ-BFG-086; backlog #463): is a screen point over the deck (dropCell's and dropAnchor's 8 px slack)? A finger's. */
+export function overDeck(L: BuildLayout, x: number, y: number): boolean {
+  ({ x, y } = toDeck(L, x, y));
+  const lx = localX(L.frame, x, y), ly = localY(L.frame, x, y), m = GRID * CELL;
+  return lx >= -8 && ly >= -8 && lx <= m + 8 && ly <= m + 8;
 }
 
 /** SHAPES-1 (S3): how far (screen px) above a finger a touch-carried shaped piece's ghost, and so its drop point, stands:
@@ -369,7 +377,12 @@ export function carryTarget(L: BuildLayout, b: Run["build"], c: Carry, x: number
   // rigRotAt does for a 1-cell rig (aimCarry asks again with each rot set, so this runs once)
   const rot = c.rot === undefined && !c.manual && isRig(c.def) ? aimCarry(L, b, { ...c, rot: 0 }, x, y) ?? 0 : carriedRot(c.def, c.rot);
   const py = c.touch ? y - fingerLift(L, c.def, rot) : y;
-  const a = dropAnchor(L, x, py, c.def, rot);
+  // PRESENT-1 C (REQ-BFG-086; backlog #463): a finger's lifted point (fingerLift: tall/2 + 1.5 cells above it, 3 cells for a SPIKE RAIL
+  // lying along the deck) is off the deck when the finger is on its top rows, and the drop was refused with no word (dropAnchor null).
+  // While the finger is over the deck the lifted anchor is clamped onto it instead, the whole footprint on the deck on both axes (as
+  // dropAnchor keeps a box on the deck); the snap to the nearest legal anchor within 1 cell runs on it as before. A carry whose lifted
+  // point is on the deck keeps today's lift; a mouse's carry, and a finger off the deck, are as they were
+  const a = dropAnchor(L, x, py, c.def, rot, !!c.touch && overDeck(L, x, y));
   if (!a) return null;
   const snap = c.touch ? snapAnchor(b, c.def, a.x, a.y, rot, ignore) : null;
   const at = snap ?? a;
