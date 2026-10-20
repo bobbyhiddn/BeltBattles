@@ -33,14 +33,18 @@ describe("sample pool and offline fallback", () => {
       const up = validateUpload(s.build, s.day, s.rules, { ...(s.seed !== undefined ? { seed: s.seed } : {}), ...(s.road ? { road: s.road } : {}) });
       expect(up.errors, `${s.playerId} d${s.day}: the player mode with its road log and run seed`).toEqual([]);
     }
-    expect(samplePoolJson()).toBe(samplePoolJson(pool));
+    // CACHE-1: was expect(samplePoolJson()).toBe(samplePoolJson(pool)): samplePoolJson()'s default argument builds the pool for real, a second ~5-10 min build per run. With the cache
+    // on, the second pool is the twin's read again (what is checked: two reads agree). The fresh-build comparison, the standing canary against a stale entry, is kept
+    // for BB_POOL_CACHE=0 (every twin builds, so this is the original check) and BB_POOL_CANARY=1 (cached pool against a pool built fresh in this process)
+    const second = process.env.BB_POOL_CACHE === "0" || process.env.BB_POOL_CANARY === "1" ? samplePoolJson() : samplePoolJson(generateSamplePool());
+    expect(second).toBe(samplePoolJson(pool));
     // S8 T1e (the GATE RULE, test only): 600 s, as the other generateSamplePool() readers have. Cause: with PICK on (HULL-ON's
     // flip 9ffda51) generateSamplePool() grades the pool, and this test builds it twice: ~50 s alone, ~125 s beside a 16-worker
     // job, over vitest's 30-s default (its packet red, an assertion, hid the time until T1e made it pass)
   }, 600_000);
 
   it("loads the bundled pool JSON with every entry validated", () => {
-    const load = loadGhostPool(samplePoolJson());
+    const load = loadGhostPool(samplePoolJson(generateSamplePool())); // CACHE-1: was samplePoolJson() (its default argument builds the pool for real)
     expect(load.rejected).toEqual([]);
     expect(load.entries).toHaveLength(192); // 0.8.0 RC: was 60; BUMP-1D: the long run's 16 days, was 120
     expect(new Set(load.entries.map((e) => e.id)).size).toBe(192);
@@ -75,7 +79,7 @@ describe("sample pool and offline fallback", () => {
   });
 
   it("fallbackGhost prefers a matching pool ghost, then the stand-in", () => {
-    const { entries } = loadGhostPool(samplePoolJson());
+    const { entries } = loadGhostPool(samplePoolJson(generateSamplePool())); // CACHE-1: was samplePoolJson() (its default argument builds the pool for real)
     const req = { rules: RULES_VERSION, day: 6, wins: 3, lives: 2, playerId: "me", seen: [] as string[], hero: "weaver" as const, seed: 42 };
     const hit = fallbackGhost(req, entries);
     expect(hit.snapshot.day).toBe(6);

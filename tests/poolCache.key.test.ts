@@ -102,7 +102,7 @@ describe("every test reaches the builders through the twins", () => {
   });
 
   // samplePoolJson(pool = generateSamplePool()) builds for real when called with no argument; pass it the twin's pool instead.
-  /** The ONLY test that calls it bare: net-pool's "reproducibly" check compares the cached pool with a pool built FRESH in this process, which doubles as a standing check that no stale entry is served. */
+  /** The ONLY test that calls it bare: net-pool's "reproducibly" check, and only with BB_POOL_CACHE=0 (the original check) or BB_POOL_CANARY=1 (the cached pool against a pool built FRESH in the process: a standing check that no stale entry is served, ~5-10 min). */
   const BARE: readonly string[] = ["tests/net-pool.test.ts"];
   it("no test file calls samplePoolJson() with no argument (it would build the pool for real) except the one listed", () => {
     const bare: string[] = [];
