@@ -96,14 +96,14 @@ function chip(g: G, x: number, cy: number, d: Delta, cost: boolean, dim: boolean
 }
 
 /** ENCHANT-2 (REQ-BFG-085, T3): the width a chip takes (chip's own sum), so a card that gains a WORD can keep room for it. */
-function chipWidth(d: Delta, cost: boolean, day: number | undefined, bare: boolean, count = false): number {
+export function chipWidth(d: Delta, cost: boolean, day: number | undefined, bare: boolean, count = false): number { // ENCHANT-2W: exported for the text sheet (tools/textSheet.ts reads the card's own widths)
   const text = chipText(d, cost, day, bare, count);
   return (text ? deltaIcon(d).width + 2 + textWidth(text, "3") : deltaIcon(d).width) + 5;
 }
 
 /** ENCHANT-2 (REQ-BFG-085, T3; T6 fix round): the width the exchange line needs with every part named (`bare` false), `1 ` before a part the card takes when `count`,
  *  or with the parts as icons alone (`bare`). */
-function exchangeNeed(c: Choice, day: number | undefined, bare: boolean, count: boolean): number {
+export function exchangeNeed(c: Choice, day: number | undefined, bare: boolean, count: boolean): number { // ENCHANT-2W: exported for the text sheet
   return (c.cost.length ? c.cost.reduce((n, d) => n + chipWidth(d, true, day, bare, count), 0) : textWidth("FREE", "3") + 4) + 7 + c.gain.reduce((n, d) => n + chipWidth(d, false, day, false), 0);
 }
 
@@ -135,7 +135,7 @@ export const isShrineBlockedPart = (c: Choice): boolean => c.blocked === SHRINE_
 export const ghostText = (form: GhostForm): string => (form === "count" ? `${SHRINE_COUNT} ${SHRINE_GHOST_PART}` : form === "name" ? SHRINE_GHOST_PART : "");
 
 /** The width the would-be cost chip takes in a form (as chipWidth: icon, 2 px, text, 5 px after). */
-function ghostWidth(form: GhostForm): number {
+export function ghostWidth(form: GhostForm): number { // ENCHANT-2W: exported for the text sheet
   const text = ghostText(form), icon = crateIcon();
   return (text ? icon.width + 2 + textWidth(text, "3") : icon.width) + 5;
 }
