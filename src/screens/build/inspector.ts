@@ -133,6 +133,7 @@ import { shapeLines } from "../../ui/faces"; // PLAIN-1F (M4): a placed long rig
 import { plainNotes } from "../../ui/faces"; // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead (was isPlainRig's rig sentence)
 import { cardEffect } from "../../ui/faces"; // BUMP-1D P6: the offer panel's header-only one-line effect: cardText, else a plain rig's stat row (the twelve have no ability text)
 import { scaleNotes } from "../../ui/faces"; // SCALE-2c (REQ-BFG-089): the 12 readers' NOTES line, SCALE_RIGS on only
+import { ruleNotes } from "../../ui/faces"; // PRESENT-1 (REQ-BFG-081; REVIEW-READ14 fix 3): LIMPET WORKS's ANYTHING line
 import { shapePic } from "../../ui/shapePic"; // SHAPES-1 (REQ-BFG-086.1): the panel face's shape picture
 import { enchantNotes, wordTurretRow } from "../../ui/faces"; // ENCHANT-1 (REQ-BFG-085, E7): an enchanted piece's NOTES, an installed turret's row with its word
 import { enchantedTitle, nameSpans, wordColour, wordOn, type WordOn } from "../../ui/enchantFaces"; // ENCHANT-1 (E7): the word first in the title, the piece's word as the faces read it
@@ -345,7 +346,7 @@ export function explainPanel(t: PanelText, def?: string): PanelText {
   // SCALE-2c (REQ-BFG-089; BRIEF-SCALE2c section 3): a scaling piece's count line (faces.ts scaleNotes, REPORT-SCALE1 3.2's
   // hover line) joins them, behind the hover or tap; [] for every other piece and with SCALE_RIGS off
   // BUMP-1F (PACKET-BUMP-0130 section 4): shapeNotes, gateNotes, scaleNotes, in that order
-  const shaped: Block[] = def ? [...shapeNotes(def), ...gateNotes(def), ...scaleNotes(def)].map((text) => ({ role: "ability", text, note: "rig" } as Block)) : []; // GATES-1: and a gate's rule, its wait and the FUSER's order
+  const shaped: Block[] = def ? [...shapeNotes(def), ...gateNotes(def), ...scaleNotes(def), ...ruleNotes(def)].map((text) => ({ role: "ability", text, note: "rig" } as Block)) : []; // GATES-1: and a gate's rule, its wait and the FUSER's order; PRESENT-1: LIMPET WORKS's ANYTHING line (ruleNotes)
   // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead is faces.ts plainNotes: the rig sentence (as before for every
   // plain rig with PLAIN_RIGS off), SCALE GUARD's carry line after it, BALLAST's own line in its place
   // ENCHANT-1 (REQ-BFG-085, E7): an enchanted piece's NOTES (faces.ts enchantNotes: what an enchantment is, that a new one replaces it), "kind"

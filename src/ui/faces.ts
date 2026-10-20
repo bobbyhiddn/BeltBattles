@@ -1665,6 +1665,23 @@ export function scaleNotes(def: string, markup = false): string[] {
   return [markup ? t : icons(t)];
 }
 
+/**
+ * PRESENT-1 (REQ-BFG-081; REVIEW-READ14 fix 3, WHICH-HIT 7 of 12: every reader asked what ANYTHING covers): LIMPET WORKS's ⓘ NOTES line, behind
+ * the tap (inspector.ts explainPanel, beside scaleNotes), never on the face. battle.ts roundImpact queues the charge on every landed shot of its
+ * slug whatever it hit (a part, a rig, a belt tile, the hull: a hit the foe's WARD blocks too, the shot's damage only is blocked), and hullEffects
+ * takes the blast off the foe's hull after its SHIELD (`{*PLATE}` reads SHIELD, `{*SHIELD}` reads WARD: font.ts PLAYER_WORD). No digit here.
+ */
+const RULE_NOTES: Readonly<Record<string, (e: ItemDef) => string>> = {
+  limpet: () => "ANYTHING: A PART, A RIG, A BELT TILE OR THE HULL. A HIT THE FOE'S {*SHIELD} BLOCKS STILL COUNTS. THE FOE'S {*PLATE} SOAKS THE BLAST.",
+};
+
+/** PRESENT-1: a piece's rule-edge NOTES sentence in glyphs, as drawn (icons(); [] for every piece but LIMPET WORKS). `markup`: in markup instead (tests, tools). */
+export function ruleNotes(def: string, markup = false): string[] {
+  if (!Object.prototype.hasOwnProperty.call(RULE_NOTES, def) || !Object.prototype.hasOwnProperty.call(ITEMS, def)) return [];
+  const t = RULE_NOTES[def](ITEMS[def]);
+  return [markup ? t : icons(t)];
+}
+
 /** A piece's face at `stars` as data (o: the turret class factor k for a core, the run's hero for MIMIC FORGE). Y7b2 (the
  *  flip): the interim perk clauses (U2b F6) are gone, every one with the star switch's rules (R4, the STAR batch), so a face
  *  has no clause; the interim caveats keep their one table (INNER COLUMN ONLY is the one row left). */

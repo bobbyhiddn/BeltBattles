@@ -32,6 +32,7 @@ import { plainRigsRules, setPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1 
 import { setShapes2, shapes2Rules } from "../src/sim/shapes2"; // SHAPES-2 (REQ-BFG-114): --shapes2
 import { setScaleRigs } from "../src/sim/scale"; // SCALE-2c (REQ-BFG-098): BB_SCALE=1
 import { scaleNotes } from "../src/ui/faces"; // SCALE-2c (REQ-BFG-089): the readers' NOTES line (SCALE_RIGS on only)
+import { ruleNotes } from "../src/ui/faces"; // PRESENT-1 (REQ-BFG-081): LIMPET WORKS's ANYTHING line
 import { setGates } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052): --gates
 import { splitSheetLines } from "../src/sim/splitPreview"; // GATES-1b (REQ-BFG-057 B2): --gates also lists the drop-to-split tag
 import { ENCHANT_DEFS, ENCHANT_IDS, enchantKindOf, enchantProblem, enchantRules, replacesText, sellAskText, setEnchant, type EnchantId, type EnchantKind } from "../src/sim/enchant"; // ENCHANT-1 (REQ-BFG-085): --enchant
@@ -84,6 +85,8 @@ function piece(d: ItemDef, out: string[]): void {
       for (const w of panelWords(faceBlocks(d.id, s, o) ?? [], { def: d.id, stars: s, o })) out.push(`  - ⓘ KEYWORDS ${w.word}: \`${plain(w.text)}\``);
       // SCALE-2c (REQ-BFG-089): a scaling piece's count line, its ⓘ NOTES (faces.ts scaleNotes; none with SCALE_RIGS off)
       for (const n of scaleNotes(d.id)) out.push(`  - ⓘ NOTES: \`${plain(n)}\``);
+      // PRESENT-1 (REQ-BFG-081; REVIEW-READ14 fix 3): LIMPET WORKS's ANYTHING line, its ⓘ NOTES (faces.ts ruleNotes)
+      for (const n of ruleNotes(d.id)) out.push(`  - ⓘ NOTES: \`${plain(n)}\``);
     } else {
       const at = abilityText(d.id, s, o);
       out.push(`  - kept text: ${at.sentences.map((t) => `\`${t}\``).join(" ")}${at.perk ? ` (perk ★${at.perk.stars} ${at.perk.name})` : ""}`);
