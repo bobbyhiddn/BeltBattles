@@ -36,7 +36,8 @@ const smuggle = (gold: number, gain: string): Choice => ({ label: "BURN", cost: 
 
 /** The counts of the sweep below per view: [choices, named before, lost its name before, fixed by the cost as an icon alone, fixed by an own row]. */
 const PINS: Record<string, number[]> = {
-  "desk 1280x800": [2652, 2088, 564, 564, 0], "narrowest desk": [2652, 1371, 1281, 1273, 8], "phone 402x690": [2652, 2643, 9, 9, 0], "narrowest phone": [2652, 2619, 33, 33, 0],
+  // PRESENT-2 K (the road card's plates grow 4 px for PICKAXE's T: the 4 px arrow): was 2,088 / 564 / 564 / 0 on the desk and 1,371 / 1,281 / 1,273 / 8 on the narrowest desk (the phones unchanged)
+  "desk 1280x800": [2652, 2080, 572, 572, 0], "narrowest desk": [2652, 1360, 1292, 1284, 8], "phone 402x690": [2652, 2643, 9, 9, 0], "narrowest phone": [2652, 2619, 33, 33, 0],
 };
 
 /** every road choice that gives a part: [what, the choice] */
@@ -85,7 +86,7 @@ describe("PRESENT-2 N: a road card names the part it gives", () => {
   it("every road choice that gives a part, on the four views' card widths: the gain is named (on its line, or on a row of its own); a card that named it before is drawn as before", () => {
     const all = choices();
     expect(all.length).toBeGreaterThan(2000);
-    const per: string[] = [];
+    const per: string[] = [], got: Record<string, number[]> = {};
     for (const v of VIEWS) {
       const L = eventLayout(v.W, v.H, v.portrait, 3), cw = L.cards[0].w, ch = L.cards[0].h;
       let n = 0, namedAsBefore = 0, costIcon = 0, ownRow = 0, lostBefore = 0, unnamed = 0, notShown = 0;
@@ -117,11 +118,12 @@ describe("PRESENT-2 N: a road card names the part it gives", () => {
       }
       per.push(`${v.name} (card ${cw} x ${ch}): ${n} choices; named before ${namedAsBefore}, the gain lost its name before ${lostBefore}; fixed by the cost as an icon ${costIcon}, by an own row ${ownRow}; still unnamed ${unnamed} (not drawn ${notShown})${rows.length ? `; own rows: ${rows.slice(0, 12).join("; ")}` : ""}`);
       expect(unnamed, `${v.name}: every gain named: ${rows.slice(0, 6).join(" | ")}`).toBe(0);
-      // the pins: [choices, named before, lost its name before, fixed by the cost as an icon, fixed by an own row] (the phones need no own row: their cards have no room under the line)
-      expect([n, namedAsBefore, lostBefore, costIcon, ownRow], v.name).toEqual(PINS[v.name]);
+      got[v.name] = [n, namedAsBefore, lostBefore, costIcon, ownRow];
     }
     // eslint-disable-next-line no-console
     console.log(`PRESENT-2 N sweep:\n${per.join("\n")}`);
+    // the pins: [choices, named before, lost its name before, fixed by the cost as an icon, fixed by an own row] (the phones need no own row: their cards have no room under the line)
+    expect(got).toEqual(PINS);
   });
 
   it("what exchange draws is what the plan says: the drawn text names the gain (the PRESENT-1 example on every view; the worst long names)", () => {

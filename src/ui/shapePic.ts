@@ -106,6 +106,11 @@ export function shapePicSize(defId: string): { w: number; h: number } {
 export const GRID_CELL = 5;
 /** G1: an arrowhead's length in art px (at least 3), measured out from the edge of the cell it shines from. */
 export const HEAD_LEN = 3;
+/** PRESENT-2 K (REQ-BFG-113; backlog #492 (2)): a surface WITH ROOM (the grid drawn at the piece's own cell: shapeGrid, shapeGridSize and drawShapePlate called without a `cell`; the wide shop
+ *  card, LAST CHANCE's plate, the drop card and list, the road cards, the warlord pick) draws every rig's arrowheads 4 px long, an arrow: the tip, the head's full width, then a 2 px shaft
+ *  (headRowsBig). In PRESENT-1's re-read the PICKAXE's T (4 cells, 7 arrows) read right 4 of 6 on the shop card and on the SWAP card (readers miscounted the arrows or saw one pointing down):
+ *  its 3 px heads were a block with a 2 px nub. An icon-sized surface (the cargo slot, the narrow phone card, the icon rows, a corner over an icon: a `cell` given, iconCell) keeps HEAD_LEN. */
+export const HEAD_BIG = 4;
 
 /** One arrow of a piece: the cell it shines from, as [dx, dy] in the footprint, and its direction in the picture
  *  (0 up, 1 right, 2 down, 3 left, as deck.ts rigArrowCells' `dir` at rot 0). */
@@ -136,19 +141,19 @@ export function gridSpecOf(defId: string): GridSpec {
 
 /** G1: the geometry of `spec` drawn at `cell` px a cell. The tile is cell - 1 px; the last px of a cell's block is the seam
  *  (or the outline where no cell lies beyond). A side with an arrow takes HEAD_LEN px of margin, any other 1 px (the outline). */
-export function gridGeom(spec: GridSpec, cell: number): GridGeom {
+export function gridGeom(spec: GridSpec, cell: number, head = HEAD_LEN): GridGeom {
   const W = Math.max(...spec.cells.map((c) => c[0])) + 1, H = Math.max(...spec.cells.map((c) => c[1])) + 1;
   const has = [false, false, false, false];
   for (const a of spec.arrows) has[a.dir] = true;
-  const ox = has[3] ? HEAD_LEN : 1, oy = has[0] ? HEAD_LEN : 1, t = cell - 1;
-  const w = ox + W * cell + (has[1] ? HEAD_LEN - 1 : 0), h = oy + H * cell + (has[2] ? HEAD_LEN - 1 : 0);
+  const ox = has[3] ? head : 1, oy = has[0] ? head : 1, t = cell - 1;
+  const w = ox + W * cell + (has[1] ? head - 1 : 0), h = oy + H * cell + (has[2] ? head - 1 : 0);
   const tiles = spec.cells.map(([cx, cy]) => ({ x: ox + cx * cell, y: oy + cy * cell, w: t, h: t }));
   const heads = spec.arrows.map(({ cell: [cx, cy], dir }) => {
     const x = ox + cx * cell, y = oy + cy * cell;
-    if (dir === 0) return { x, y: y - HEAD_LEN, w: t, h: HEAD_LEN, dir };
-    if (dir === 2) return { x, y: y + t, w: t, h: HEAD_LEN, dir };
-    if (dir === 1) return { x: x + t, y, w: HEAD_LEN, h: t, dir };
-    return { x: x - HEAD_LEN, y, w: HEAD_LEN, h: t, dir };
+    if (dir === 0) return { x, y: y - head, w: t, h: head, dir };
+    if (dir === 2) return { x, y: y + t, w: t, h: head, dir };
+    if (dir === 1) return { x: x + t, y, w: head, h: t, dir };
+    return { x: x - head, y, w: head, h: t, dir };
   });
   return { w, h, ox, oy, tiles, heads };
 }
@@ -159,10 +164,17 @@ function headRows(t: number): number[] {
   return [t % 2 ? 1 : 2, t, t];
 }
 
+/** PRESENT-2 K: the 4 px arrow's rows from the tip to the base: the tip (1 px on an odd tile, 2 on an even one), the tile's whole width (the head's base), then a shaft as wide as the tip, twice
+ *  (so two cells' arrows side by side keep the seam's px between their heads, and a lone arrow reads as an arrow: a head on a shaft, not a block with a nub). */
+function headRowsBig(t: number): number[] {
+  const s = t % 2 ? 1 : 2;
+  return [s, t, s, s];
+}
+
 /** G1: draw `spec` at (x, y), the box's top-left, `cell` px a cell. No background: the caller puts a plate under it (the
- *  shop card's ink plate, drawShapePlate). */
-export function drawGrid(g: G, spec: GridSpec, x: number, y: number, cell: number): { w: number; h: number } {
-  const geom = gridGeom(spec, cell), t = cell - 1;
+ *  shop card's ink plate, drawShapePlate). PRESENT-2 K: `head`, the arrowhead's length (HEAD_LEN, or HEAD_BIG: a surface with room). */
+export function drawGrid(g: G, spec: GridSpec, x: number, y: number, cell: number, head = HEAD_LEN): { w: number; h: number } {
+  const geom = gridGeom(spec, cell, head), t = cell - 1;
   const [fill, hi, seam] = spec.rig ? [C.wood2, C.wood3, C.wood0] : [C.steel2, C.steel3, C.steel0];
   const at = new Set(spec.cells.map(([cx, cy]) => `${cx},${cy}`));
   const has = (cx: number, cy: number): boolean => at.has(`${cx},${cy}`);
@@ -179,13 +191,13 @@ export function drawGrid(g: G, spec: GridSpec, x: number, y: number, cell: numbe
   });
   // the arrowheads: lime, base on the tile's edge, tip outward
   spec.arrows.forEach((a, i) => {
-    const hd = geom.heads[i], rows = headRows(t);
-    for (let k = 0; k < HEAD_LEN; k++) { // k = 0 at the tile's edge (the base), HEAD_LEN - 1 at the tip
-      const run = rows[HEAD_LEN - 1 - k], off = Math.floor((t - run) / 2);
-      if (a.dir === 0) rect(g, x + hd.x + off, y + hd.y + (HEAD_LEN - 1 - k), run, 1, C.lime);
+    const hd = geom.heads[i], rows = head === HEAD_BIG ? headRowsBig(t) : headRows(t);
+    for (let k = 0; k < head; k++) { // k = 0 at the tile's edge (the base), head - 1 at the tip
+      const run = rows[head - 1 - k], off = Math.floor((t - run) / 2);
+      if (a.dir === 0) rect(g, x + hd.x + off, y + hd.y + (head - 1 - k), run, 1, C.lime);
       else if (a.dir === 2) rect(g, x + hd.x + off, y + hd.y + k, run, 1, C.lime);
       else if (a.dir === 1) rect(g, x + hd.x + k, y + hd.y + off, 1, run, C.lime);
-      else rect(g, x + hd.x + (HEAD_LEN - 1 - k), y + hd.y + off, 1, run, C.lime);
+      else rect(g, x + hd.x + (head - 1 - k), y + hd.y + off, 1, run, C.lime);
     }
   });
   return { w: geom.w, h: geom.h };
@@ -221,20 +233,24 @@ export const iconCell = (defId: string): number => gridCell(defId, CARGO_FACE);
 
 /** G1: the grid as a canvas (cached per piece and cell): its box is gridGeom's. Only for a shaped piece. SC-0912: at the piece's own
  *  cell (gridCell: GRID_CELL, or 4 for PICKAXE) unless a cell is given. */
-export function shapeGrid(defId: string, cell = gridCell(defId)): HTMLCanvasElement {
-  const k = `grid:${defId}:${cell}`;
+export function shapeGrid(defId: string, cell?: number): HTMLCanvasElement {
+  const head = headOf(cell), cl = cell ?? gridCell(defId); // PRESENT-2 K: no `cell` given = a surface with room: the 4 px arrow
+  const k = `grid:${defId}:${cl}:${head}`;
   let c = CACHE.get(k);
   if (!c) {
-    const spec = gridSpecOf(defId), geom = gridGeom(spec, cell), [cv, g] = makeCanvas(geom.w, geom.h);
-    drawGrid(g, spec, 0, 0, cell);
+    const spec = gridSpecOf(defId), geom = gridGeom(spec, cl, head), [cv, g] = makeCanvas(geom.w, geom.h);
+    drawGrid(g, spec, 0, 0, cl, head);
     CACHE.set(k, (c = cv));
   }
   return c;
 }
 
-/** G1: the grid's box in px, without drawing (tests, layout). SC-0912: at the piece's own cell (gridCell) unless a cell is given. */
-export function shapeGridSize(defId: string, cell = gridCell(defId)): { w: number; h: number } {
-  const geom = gridGeom(gridSpecOf(defId), cell);
+/** PRESENT-2 K: the arrowhead's length for a grid drawn with `cell` (undefined: the piece's own cell on a surface with room: HEAD_BIG; a given cell, an icon-sized surface's: HEAD_LEN). */
+const headOf = (cell: number | undefined): number => (cell === undefined ? HEAD_BIG : HEAD_LEN);
+
+/** G1: the grid's box in px, without drawing (tests, layout). SC-0912: at the piece's own cell (gridCell) unless a cell is given. PRESENT-2 K: with no `cell` (a surface with room) the arrowheads are HEAD_BIG. */
+export function shapeGridSize(defId: string, cell?: number): { w: number; h: number } {
+  const geom = gridGeom(gridSpecOf(defId), cell ?? gridCell(defId), headOf(cell));
   return { w: geom.w, h: geom.h };
 }
 
@@ -266,7 +282,7 @@ export function drawGridRight(g: G, defId: string, x: number, y: number, w: numb
 /** G3: the grid on an ink plate (a 1 px ink margin round its box: an arrowhead stays readable over an icon's corner) with the
  *  plate's top-left at (x, y). Returns the plate's rect. `alpha` dims it (a sold card). SC-0912: at the piece's own cell (gridCell)
  *  unless a cell is given (or `undefined`, as event/cards.ts passes it). */
-export function drawShapePlate(g: G, defId: string, x: number, y: number, cell = gridCell(defId), alpha = 1): { x: number; y: number; w: number; h: number } {
+export function drawShapePlate(g: G, defId: string, x: number, y: number, cell?: number, alpha = 1): { x: number; y: number; w: number; h: number } {
   const { w, h } = shapeGridSize(defId, cell);
   if (alpha < 1) g.globalAlpha = alpha;
   rect(g, x, y, w + 2, h + 2, C.ink);

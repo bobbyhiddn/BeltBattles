@@ -332,7 +332,7 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   if (s.sold) g.globalAlpha = SOLD_ALPHA;
   g.drawImage(iconX2(def.id), x + z.icon.x, y + z.icon.y);
   g.globalAlpha = 1;
-  if (hasGrid(def.id)) drawShapePlate(g, def.id, x + z.grid.x, y + z.grid.y, gridCell(def.id, r.w >= CARD_TEXT_MIN_W ? Infinity : CARGO_FACE), s.sold ? SOLD_ALPHA : 1); // SC-0912: the piece's own cell (PICKAXE 4 where the 16 px face binds); PRESENT-1 S1: every piece bigger than one cell (hasGrid), a plain 2x2 factory and a size-2 turret too; a wide card (landscape, desk: 69 px and up) has room for PICKAXE at 5 (S1 (d))
+  if (hasGrid(def.id)) drawShapePlate(g, def.id, x + z.grid.x, y + z.grid.y, r.w >= CARD_TEXT_MIN_W ? undefined : gridCell(def.id, CARGO_FACE), s.sold ? SOLD_ALPHA : 1); // PRESENT-2 K: a wide card has room: no cell given, the piece's own cell with the 4 px arrow (shapePic.ts HEAD_BIG) // SC-0912: the piece's own cell (PICKAXE 4 where the 16 px face binds); PRESENT-1 S1: every piece bigger than one cell (hasGrid), a plain 2x2 factory and a size-2 turret too; a wide card (landscape, desk: 69 px and up) has room for PICKAXE at 5 (S1 (d))
   if (!s.sold) {
     // F4: the bottom-left corner holds the merge mark (MERGE ★2, ★3) or the owned marker (a copy that won't merge yet, or
     // only ★3 copies: was the MAX word); the sale mark sits against the price (1c). PRESENT-1 S4 (a) (REQ-BFG-115; LIVE-PACKETS-0912

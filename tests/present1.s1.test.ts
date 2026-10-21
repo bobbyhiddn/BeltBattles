@@ -19,7 +19,7 @@ import { drawChoiceCard } from "../src/screens/event/cards";
 import { drawDropCard } from "../src/screens/fork/drops";
 import { lcPartGrid, lcPartPlate, lcPartSub } from "../src/screens/lastChancePicker";
 import { faceIcon } from "../src/screens/battleScout";
-import { drawGridRight, gridCell, gridGeom, gridSpecOf, hasGrid, iconCell, shapeGridSize, shapePic } from "../src/ui/shapePic";
+import { HEAD_BIG, HEAD_LEN, drawGridRight, gridCell, gridGeom, gridSpecOf, hasGrid, iconCell, shapeGridSize, shapePic } from "../src/ui/shapePic";
 import { itemSlot } from "../src/ui/ui";
 import { ENCHANT_DEFS } from "../src/sim/enchant";
 import { footCount } from "../src/sim/foot";
@@ -114,7 +114,7 @@ describe("PRESENT-1 S1 (a): the grid is not dropped where it was", () => {
         plates++;
       } else {
         // over the icon box's inner corner (20 x 20 at +6, +7 in the 31 px head), the whole grid inside it
-        const sz = shapeGridSize(id);
+        const sz = shapeGridSize(id, iconCell(id)); // PRESENT-2 K: the corner over the icon is an icon-sized surface (the icon cell, HEAD_LEN)
         expect(where.corner, `${id} ${cardW}: the icon's corner`).toEqual({ x: r.x + 6, y: r.y + 7 });
         expect(sz.w, id).toBeLessThanOrEqual(20);
         expect(sz.h, id).toBeLessThanOrEqual(20);
@@ -133,7 +133,7 @@ describe("PRESENT-1 S1 (a): the grid is not dropped where it was", () => {
       drawDropCard(G(c), id, false, x, y, w, 1);
       const sz = shapeGridSize(id), pw = sz.w + 2, px = x + w - 4 - pw;
       const name = ITEMS[id].name, sub = "DROP · TO CARGO · ★1", room = x + 23 + Math.max(textWidth(name), textWidth(sub, "3")) + 4 <= px;
-      const tiles = gridGeom(gridSpecOf(id), room ? gridCell(id) : iconCell(id)).tiles; // PRESENT-1 S1 (d): the plate at the roomy cell, the corner fallback at the icon cell (PICKAXE 5 / 4)
+      const tiles = gridGeom(gridSpecOf(id), room ? gridCell(id) : iconCell(id), room ? HEAD_BIG : HEAD_LEN).tiles; // PRESENT-1 S1 (d): the plate at the roomy cell, the corner fallback at the icon cell (PICKAXE 5 / 4); PRESENT-2 K: the plate's 4 px arrow, the corner's 3
       // wherever the grid is, its tiles are in the kind's colour: on the plate (the image's top-left 1 px in from the plate's) or over the icon box's corner (x + 4, y + 4)
       const origin = room ? { x: px + 1, y: y + 1 + 1 } : { x: x + 4, y: y + 4 };
       for (const t of tiles) expect(c.at(origin.x + t.x + 1, origin.y + t.y + 1), `${id} ${w}: a tile ${room ? "on the plate" : "over the icon's corner"}`).toBe(fillOf(id));
@@ -178,7 +178,7 @@ describe("PRESENT-1 S1 (b): a road event's choice card shows every shaped part i
         for (const [i, id] of [a, b].entries()) {
           const p = plateOf(r, [a, b], i);
           expect(c.at(p.x, p.y), `${a}->${b} ${wn}: plate ${i + 1}'s corner`).toBe(C.ink);
-          for (const t of gridGeom(gridSpecOf(id), gridCell(id)).tiles) expect(c.at(p.x + 1 + t.x + 1, p.y + 1 + t.y + 1), `${a}->${b} ${wn}: plate ${i + 1} tile`).toBe(fillOf(id));
+          for (const t of gridGeom(gridSpecOf(id), gridCell(id), HEAD_BIG).tiles) expect(c.at(p.x + 1 + t.x + 1, p.y + 1 + t.y + 1), `${a}->${b} ${wn}: plate ${i + 1} tile`).toBe(fillOf(id)); // PRESENT-2 K: the road card's 4 px arrow
           expect(p.y + p.h, `${a}->${b} ${wn}: above the note line`).toBeLessThanOrEqual(r.y + r.h - 9);
           expect(p.x, `${a}->${b} ${wn}: inside the card`).toBeGreaterThan(r.x);
         }
