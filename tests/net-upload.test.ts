@@ -659,12 +659,15 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
 // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): the regenerated pool): the stand-in pool regenerated under bb-0.13.0 (src/sim/standInPoolData.ts: 192 decks, days 1-16, GATES and ENCHANT shipped on in the shop and
 // on the road): the same days 1-10 now measure turrets 92, bought 35, joined 78, joins 158, both 61 (the test's own console line, "v070-rel: the bb-0.13.0 stand-in pool: 120 decks"; was turrets 62,
 // bought 29, joined 82, joins 184, both 37)
-const POOL_CARRIES = { turrets: 92, bought: 35, joined: 78, joins: 158, both: 61 };
+// BUMP-1G (R1: the stand-in pool regenerated under bb-0.14.0, src/sim/standInPoolData.ts: 192 decks, days 1-16, every switch on, EFFECT_FLOOR among them): the same days 1-10 now measure turrets 91, bought 27, joined 76, joins 161, both 57
+// (the test's own console line, "v070-rel: the bb-0.14.0 stand-in pool: 120 decks"; was turrets 92, bought 35, joined 78, joins 158, both 61)
+const POOL_CARRIES = { turrets: 91, bought: 27, joined: 76, joins: 161, both: 57 }; // BUMP-1G: was { turrets: 92, bought: 35, joined: 78, joins: 158, both: 61 } (R1: the regenerated stand-in pool, bb-0.14.0)
 /** BUMP-1D: the same five counts over the pool's days 11-16 (72 decks; the long run's: new, measured once on the final pool). BUMP-1E: turrets 55, bought 26,
  *  joined 52, joins 144, both 41 on the bb-0.12.0 pool (was turrets 51, bought 28, joined 53, joins 161, both 37) */
 // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): the regenerated pool): the bb-0.13.0 pool's days 11-16 measure turrets 72, bought 39, joined 44, joins 118, both 44 (the twin test's console line, "BUMP-1D: the bb-0.13.0
 // stand-in pool, days 11-16: 72 decks"; was turrets 55, bought 26, joined 52, joins 144, both 41)
-const POOL_CARRIES_LONG = { turrets: 72, bought: 39, joined: 44, joins: 118, both: 44 };
+// BUMP-1G (R1: the stand-in pool regenerated under bb-0.14.0): the bb-0.14.0 pool's days 11-16 measure turrets 72, bought 40, joined 43, joins 120, both 43 (the twin test's console line, "BUMP-1D: the bb-0.14.0 stand-in pool, days 11-16: 72 decks"; was turrets 72, bought 39, joined 44, joins 118, both 44)
+const POOL_CARRIES_LONG = { turrets: 72, bought: 40, joined: 43, joins: 120, both: 43 }; // BUMP-1G: was { turrets: 72, bought: 39, joined: 44, joins: 118, both: 44 } (R1: the regenerated stand-in pool, bb-0.14.0)
 /** The bundled ghost pool's snapshots with a turret list and with a joined belt. */
 // 0.7.0a D5: the seed pool's 40 sample ghosts carry turret lists and joined belts; its 20 floor ghosts add theirs
 // (tests/seed.records.test.ts checks the split). 0.8.0 I1 M3 (oracle 64485b535a06683c): from the regrown pool, the sample
@@ -699,4 +702,6 @@ const POOL_CARRIES_LONG = { turrets: 72, bought: 39, joined: 44, joins: 118, bot
 // are the softer picks, 79 of 80 par-field runs' dusk decks (sample 22 and 23, floor 2 and 10 as before, race 19 and 30;
 // tests/seed.records.test.ts): was 51, 69
 // BUMP-1D (run 3): the seed pool regenerated for days 1-16 (192 ghosts; R3', server/seedPoolData.ts 0546f5afe4bab423): 108 carry a turret list, 106 a joined belt (was 43, 63 of 120)
-const GHOST_POOL_CARRIES = [145, 101]; // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): the regenerated pool): the seed pool regenerated under bb-0.13.0 (server/seedPoolData.ts: 192 ghosts, SOFT_TARGET 150) carries a turret list on 145 and a joined belt on 101 (the test's console line "v070-rel: the bundled ghost pool: 192 snapshots; 145 carry a turret list, 101 a joined belt"; was 114, 110). BUMP-1E: the seed pool regenerated under bb-0.12.0 (R3, 04fab9a: 192 ghosts) carries a turret list on 114 and a joined belt on 110 (was 108, 106). bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61; BUMP-1D: was 43, 63
+// BUMP-1G (R3: the seed pool regenerated under bb-0.14.0): server/seedPoolData.ts (192 ghosts, 402,688 B, gen:ghosts at the R2 commit d48e7efe over the regenerated stand-in pool and SOFT1_PICKS) carries a turret list on 147 and a joined belt on 100
+// (the test's console line "v070-rel: the bundled ghost pool: 192 snapshots; 147 carry a turret list, 100 a joined belt"; was 145, 101)
+const GHOST_POOL_CARRIES = [147, 100]; // BUMP-1G: was [145, 101] (R3: the regenerated seed pool, bb-0.14.0). BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): the regenerated pool): the seed pool regenerated under bb-0.13.0 (server/seedPoolData.ts: 192 ghosts, SOFT_TARGET 150) carries a turret list on 145 and a joined belt on 101 (the test's console line "v070-rel: the bundled ghost pool: 192 snapshots; 145 carry a turret list, 101 a joined belt"; was 114, 110). BUMP-1E: the seed pool regenerated under bb-0.12.0 (R3, 04fab9a: 192 ghosts) carries a turret list on 114 and a joined belt on 110 (was 108, 106). bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61; BUMP-1D: was 43, 63

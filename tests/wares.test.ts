@@ -15,6 +15,7 @@ import { DRAW, drawWares, quotas, unlocked, unlockDay, waresOk, type Wares } fro
 import { heldPast, seatDay } from "../src/game/wares"; // REDO-X (FIX-ABE F3): the stand-ins' rule
 import { GATES_FIRST_DAY } from "../src/game/wares"; // BUMP-1F (GATES on by default): the three converters are held to the first unlock step after day 1
 import { isGatesPiece } from "../src/sim/gates"; // BUMP-1F (GATES on by default)
+import { withEffectFloor } from "../src/sim/effectFloor"; // BUMP-1G (EFFECT_FLOOR on): the draw before the effect floor (beforeFloor)
 import { SHAPES2_ODDS, isShapedRig } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on): the offer lever b (wares.ts holdShaped)
 import { RARITIES } from "../src/sim/content"; // REDO-X (FIX-ABE F3): the draw's rarity tiers
 import { migrateRun, newRun, rollShop, type Run } from "../src/game/run";
@@ -71,23 +72,44 @@ function standIns(seed: number, w: Wares): number {
 }
 /** BUMP-1D (SHAPES2 on): the draw before SHAPES2's offer lever (wares.ts holdShaped: SHAPES2_ODDS.minStock shaped rigs among the
  *  wares; tests/shapes2.offers.test.ts pins the lever). The lever at 0 draws exactly as the draw did without it, on the live
- *  catalogue: that is the draw seatsOf / standIns model (D1's, FIX-ABE's), whose every check stands as it was. */
+ *  catalogue: that is the draw seatsOf / standIns model (D1's, FIX-ABE's), whose every check stands as it was.
+ *  BUMP-1G (EFFECT_FLOOR on): and before the effect floor too (beforeFloor); was drawWares(seed) alone, with the floor off. */
 function beforeLever(seed: number): Wares {
   const k = SHAPES2_ODDS.minStock;
   SHAPES2_ODDS.minStock = 0;
-  try { return drawWares(seed); } finally { SHAPES2_ODDS.minStock = k; }
+  try { return beforeFloor(seed); } finally { SHAPES2_ODDS.minStock = k; }
 }
+/** BUMP-1G (EFFECT_FLOOR on, the flip of bb-0.14.0): the draw with the effect floor off, the lever as it stands. The floor (wares.ts holdEffects) runs last, after the lever
+ *  and the restocks, and in a run whose wares hold none of the SMUGGLER's SHOCK pool or none of its BURN pool (about 1 seed in 20) it swaps one drawn piece for a piece of that
+ *  pool: that is a second swap on top of the lever's, so the lever's checks (standInsLive) read this draw, as they read the live draw while the floor was off. */
+const beforeFloor = (seed: number): Wares => withEffectFloor(() => drawWares(seed), false);
 /** BUMP-1D: `standIns` for the live draw `w` of `seed` (the lever on): the model is checked on the draw before the lever (its seats
  *  and stand-ins exactly), and the live draw differs from it by the lever's swaps alone: as many shaped rigs in as drawn pieces
- *  out, none out that is a shaped rig or held past its seat's day. Returns the model's stand-ins (the lever adds none). */
+ *  out, none out that is a shaped rig or held past its seat's day. Returns the model's stand-ins (the lever adds none).
+ *  BUMP-1G (EFFECT_FLOOR on): those lever checks read `lever`, the live draw before the floor (was `w`; the floor was off), and the floor's own swaps are checked
+ *  between `lever` and the live draw `w`: as many pieces of the SMUGGLER's pools in as pieces out, the ones in from those pools, the ones out none of those pools,
+ *  no shaped rig, no gate and none held past its seat's day (wares.ts holdEffects' victims). Measured at BUMP-1G, the floor acts on 19 of the 300 seeds of the draw test below (13 of them
+ *  on the draw before the lever too); in the other 6 it is the lever that leaves the run without a piece of a pool, and the floor then repairs the lever's draw: seed 55434, where
+ *  the lever puts SPARK COMB in for LODESTONE, the run's only SHOCK piece, and the floor puts STATIC BRUSH in for ROTGAUGE, so the live draw differs from the draw before
+ *  the lever by a piece that is no shaped rig (the line this replaces, `comes in by the lever` read on the live draw, failed there). */
 function standInsLive(seed: number, w: Wares): number {
-  const base = beforeLever(seed), n = standIns(seed, base);
-  const added = Object.keys(w).filter((id) => !(id in base)), dropped = Object.keys(base).filter((id) => !(id in w));
+  const lever = beforeFloor(seed), base = beforeLever(seed), n = standIns(seed, base);
+  const added = Object.keys(lever).filter((id) => !(id in base)), dropped = Object.keys(base).filter((id) => !(id in lever)); // BUMP-1G: was w, w
   expect(added.length, `seed ${seed}: the lever swaps one for one`).toBe(dropped.length);
   for (const id of added) expect(isShapedRig(ITEMS[id]), `seed ${seed}: ${id} comes in by the lever`).toBe(true);
   for (const id of dropped) {
     expect(isShapedRig(ITEMS[id]), `seed ${seed}: ${id} goes out`).toBe(false);
     expect(heldPast(id), `seed ${seed}: ${id} goes out`).toBe(false);
+  }
+  const pools = new Set([...smugglerPool("SHOCK"), ...smugglerPool("BURN")]);
+  const floorIn = Object.keys(w).filter((id) => !(id in lever)), floorOut = Object.keys(lever).filter((id) => !(id in w));
+  expect(floorIn.length, `seed ${seed}: the floor swaps one for one`).toBe(floorOut.length);
+  for (const id of floorIn) expect(pools.has(id), `seed ${seed}: ${id} comes in by the floor`).toBe(true);
+  for (const id of floorOut) {
+    expect(pools.has(id), `seed ${seed}: ${id} goes out by the floor`).toBe(false);
+    expect(isShapedRig(ITEMS[id]), `seed ${seed}: ${id} goes out by the floor`).toBe(false);
+    expect(isGatesPiece(id), `seed ${seed}: ${id} goes out by the floor`).toBe(false);
+    expect(heldPast(id), `seed ${seed}: ${id} goes out by the floor`).toBe(false);
   }
   return n;
 }
@@ -125,6 +147,7 @@ describe("the per-run draw: a run's wares (DESIGN-wave3.md 4.1)", () => {
       // REDO-X (cap's ruling on FIX-ABE F3 / b1.smuggler, REVIEW-FIXABE): exactly 62 wares plus the run's stand-ins (one per
       // held ware that drew a slot, while its tier has a ware left), each open on its slot's day: 62-65 (was DRAW.active, 62)
       // BUMP-1D: the lever (SHAPES2) swaps shaped rigs in for drawn pieces, one for one: the count is the model's (standInsLive)
+      // BUMP-1G: was red at seed 55434 ("staticbrush comes in by the lever": expected false to be true) since EFFECT_FLOOR is on: the floor swaps a SHOCK or BURN piece in for a drawn one (19 of these 300 seeds, measured), which standInsLive now checks on its own (the count is still the model's)
       expect(p.active, `seed ${s}`).toBe(DRAW.active + standInsLive(s, w));
       expect(p.active).toBeGreaterThanOrEqual(55);
       expect(p.active).toBeLessThanOrEqual(70);

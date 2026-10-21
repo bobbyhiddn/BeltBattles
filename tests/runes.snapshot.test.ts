@@ -32,6 +32,16 @@ type Road = NonNullable<Parameters<typeof validateUpload>[3]>["road"]; // S8 (RU
 // made them (enchantCheck.ts: the ENCHANTER's offers and the drops derive from the seed), and these rows give the deck their own made-up seed (SEED), so the base deck is the first one that holds no word
 // (was the first deck of its day: weaver d6 sample-weaver-1 holds words now, "a legal day-6 build" refused, 201 -> 422 on the upload, 200 -> 404 on the match)
 const wordless = (s: { build: unknown }): boolean => !JSON.stringify(s.build).includes('"ench"');
+// BUMP-1G (R3: the seed pool regenerated under bb-0.14.0): no day-6 deck of the pool is wordless any more (all twelve hold one to three words; the only one without upgrades, weaver d6 sample-run-weaver-2, holds two: BRACED on its LOOM, RISING on a DARTGUN),
+// so the day-6 base can no longer be "the first deck that holds no word" (BUMP-1F's form, which finds nothing: "Cannot destructure property 'seed' of POOL.find(...)"). It is the pool's day-6 deck as the file chose it before BUMP-1F (the first without
+// upgrades and with mods) with its words taken out: `ench` on its items and turrets, and the `enchDir` / `grow` that ride with one (enchFields, grow: a piece takes neither without a word). Taking a word out moves no piece, so the
+// deck stays a legal day-6 build (the true rows say so); every other key (runes, road, losses, grade) stays as the pool wrote it. The day-6 rows and their expected verdicts are unchanged. Measured: with the two words left in, the first row (a legal build, true)
+// reads [false, false] on both sides, for want of the seed that made them
+const unworded = <T extends { build: unknown }>(s: T): T => {
+  const bare = <P extends object>(p: P): P => { const { ench: _e, enchDir: _d, grow: _g, ...rest } = p as Record<string, unknown>; return rest as P; };
+  const b = s.build as { items?: object[]; turrets?: object[] };
+  return { ...s, build: { ...b, ...(b.items ? { items: b.items.map(bare) } : {}), ...(b.turrets ? { turrets: b.turrets.map(bare) } : {}) } };
+};
 
 // S8 (the pools: road-fed (a48010b), T1e's form; RULING-S8-R9): `road`, given, goes to validateUpload as the server passes
 // a snapshot's road log (server/app.ts POST /v1/ghosts). Was: the seed only (every caller but the pool loop still passes none)
@@ -105,7 +115,8 @@ describe("RUNES-1 M3: snapshot v3, the client's and the server's checks agree", 
   // sample-weaver-1) is a par-field run's dusk deck now and carries that run's seed, while every row sets its own (SEED, or
   // none for a served ghost), so `base` is the deck without it (was the pool ghost as it is: "the same without its seed"
   // kept the par run's seed and met its offers: [false, false] for [true, true])
-  const { seed: _parSeed, ...base } = POOL.find((s) => s.day === 6 && s.build.upgrades === undefined && (s.build.mods?.length ?? 0) > 0 && wordless(s)) as unknown as Snap; // BUMP-1F: + wordless (see above)
+  // BUMP-1G: was `const { seed: _parSeed, ...base } = POOL.find((s) => s.day === 6 && s.build.upgrades === undefined && (s.build.mods?.length ?? 0) > 0 && wordless(s)) as unknown as Snap;` (BUMP-1F: + wordless; the regenerated pool has no wordless day-6 deck, see unworded above): the same find without wordless, words taken out
+  const { seed: _parSeed, ...base } = unworded(POOL.find((s) => s.day === 6 && s.build.upgrades === undefined && (s.build.mods?.length ?? 0) > 0) as unknown as Snap);
   const hero = base.hero as HeroId;
   const runes = legalRunes(SEED, hero, 6);
   const legal = withRunes(base, runes);
