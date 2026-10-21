@@ -68,7 +68,10 @@ const digest = (x: unknown): string => createHash("sha256").update(JSON.stringif
 // 0429c5ab7ac2209a0218c8e3d704000cbe862f0ab51eb9a227b2bfd040e95f09 on bump 605f220). V11_DIGEST (the v1.1 fixture) is unchanged: it holds exactly
 // BUMP-1F (the pools, R1 a9be2ad; RULING-BUMP1F-R5 R5.2 (1), R7.3): the stand-in pool regenerated ONCE under bb-0.13.0 (GATES and ENCHANT on: the bots hold converters and words in the codes; days 1-16, the same 192
 // decks' shape, src/sim/standInPoolData.ts rules bb-0.13.0), so POOL_DIGEST is that pool's reads, taken on bump1f (was 0d62d25f8a62aa14... on bump1e). V11_DIGEST (the v1.1 fixture) is unchanged (checked: it reads the same).
-const POOL_DIGEST = "e7325a2784f7775372272c4da5280402abc1b9080597ddf17ca3065e63df2f33";
+// BUMP-1G (the pools, R1 a5fb26be): the stand-in pool regenerated ONCE under bb-0.14.0 (every switch on, EFFECT_FLOOR on; days 1-16, the same 192 decks' shape, src/sim/standInPoolData.ts rules bb-0.14.0), so POOL_DIGEST is that pool's reads,
+// taken on bump1g c5514532 (was e7325a27... on bump1f). V11_DIGEST (the v1.1 fixture) is unchanged (checked: it reads the same).
+// BUMP-1G (the stand-in pool regenerated at bb-0.14.0, R1 a5fb26be): was e7325a27... [POOL_DIGEST]
+const POOL_DIGEST = "220ab4e63a24f84f7528d1948b33efeaffa5c425d1bf5ee6638983add091deac";
 const V11_DIGEST = "89b371a4b0720d4686dc934273c9033448b239bc5dc8f99d68b1fddd3abe15a2";
 /** Rune-less codes the encoders wrote on bx e1e1004 (see "a rune-less deck encodes byte for byte as on bx"). */
 const RICH_CODE = "18 0 u23/kiln64 press66 slagpot88/1:544434241404 2:68584838281808 3:79695949>48//scrapcannon0! carronade1";

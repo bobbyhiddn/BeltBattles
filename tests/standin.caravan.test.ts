@@ -577,7 +577,9 @@ describe("M5: a caravan pool stores each pick's gold spent (REQ-BFG-033), a full
     const e = standInPool("furnace", 4)[2], d = caravanCandidate("furnace", 4, 1, 3, STANDIN_MAX_STARS);
     expect([d.meta.policy, d.meta.seed]).toEqual(["loose", 1003]);
     expect([d.value, d.meta.spent, d.meta.soldLoss]).toEqual([65, 48, 0]);
-    expect([e.cost, e.spent]).toEqual([48, 45]);
+    // BUMP-1G: was [48, 45] (the stand-in pool regenerated at bb-0.14.0, R1 a5fb26be: the day-4 decks are the same six, re-scored, and #1 and #2 changed places: furnace d4 #2 is now the (cost 54, spent 49) deck that
+    // was #1, and the (48, 45) deck is #1; the same pin as standInPool.gen's, whose (cost, spent, drops) went [48, 45, 11] -> [54, 49, 15])
+    expect([e.cost, e.spent]).toEqual([54, 49]);
     expect(caravanCand(3, d).code).not.toBe(encodeStarred(poolRaw("furnace", 4, 2))); // the stored pick is no longer this run's deck
     expect(SALE_GAIN).toEqual({});
   });
