@@ -39,7 +39,7 @@ import { freeJoinsRules } from "../../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): 
 import { drawKeywordLayer, keywordCursorOff } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
 import { infoFree } from "./keywords"; // U2f (REQ-BFG-070): the room the ⓘ view grows into
 import { keywordsIdle } from "./keywords"; // CARD-2 (REQ-BFG-004, K1): a closed panel's next draw is a new open
-import { definitionAhead } from "./keywords"; // PRESENT-1 (S4 (b)): the note a finger's panel is about to show, for panelFit
+import { definitionAhead, type NoteHang } from "./keywords"; // PRESENT-1 (S4 (b)): the note a finger's panel is about to show, for panelFit; PRESENT-2 L: NoteHang
 import { nextBlocks } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS and the next-star line
 
 /**
@@ -102,6 +102,8 @@ import {
 } from "../../ui/abilityText";
 import { colourize, drawRich, lineText, lineWidth, PERK_COLOUR, wrapRich, type Span } from "../../ui/richText";
 import type { Sel } from "./layout";
+import { screenRect } from "./layout"; // PRESENT-2 L: the deck's screen rect, a hard line for a hanging note
+import { DECK } from "../../render/frame";
 import { describe, KIND_SUB, panelKind } from "./shop"; // WORDS-1: KIND_SUB, panelKind (a core's and gear's kind in plain words)
 import {
   deadEndLines, freeNote, SLOT_HINT, slotActions, slotColor, slotIcon, slotLabels, slotNotes, slotSub, slotTitle, socketLines, turretHint,
@@ -2081,6 +2083,23 @@ export function rulesCovered(box: Rect, lines: readonly { line: PLine | "rule"; 
 }
 
 /**
+ * PRESENT-2 L (REQ-BFG-081; cap's call on PRESENT-1's Question 4 (d) (i) and cap's ruling 0d0ef2465804aafb): for a finger's panel that
+ * already fills the growth limit (its top at the top bar: layout.ts panelArea's `most`), where the note cannot be made clear by growing the
+ * panel, what keywords.ts hangPlace needs to put the note just under the lowest rule row: that row's end, a box's covering a rule row, the
+ * carrier's pad (a note over it is counted) and what a note NEVER covers (the deck's cells, FIGHT, the cargo bar, the top bar). undefined for
+ * every other panel (the desk, the landscape column, a panel still below its limit): their notes are placed exactly as before.
+ */
+function noteHang(ctx: Ctx, plan: PanelPlan, lines: readonly { line: PLine | "rule"; y: number }[]): NoteHang | undefined {
+  const L = ctx.L;
+  if (!touchTap(ctx) || !L?.portrait || !L.bar || plan.r.y > L.bar.y + L.bar.h + 1) return undefined;
+  let ruleEnd = 0;
+  for (const v of lines) if (v.line !== "rule" && RULE_ROLES.has(v.line.block.role)) ruleEnd = Math.max(ruleEnd, v.y + (v.line.font === "5" ? 7 : 5));
+  if (!ruleEnd) return undefined;
+  const deck = L.frame ? screenRect(L, { x: L.frame.dx, y: L.frame.dy, w: DECK, h: DECK }) : null;
+  return { ruleEnd, covers: (b) => rulesCovered(b, lines).length > 0, pad: L.pad ?? null, hard: [deck, L.fight, L.cargo, L.bar].filter((q): q is Rect => !!q) };
+}
+
+/**
  * PRESENT-1 (S4 (b)): panelFit's note clause for the plan `d` of a panel in rect `r`: true where no definition is about to
  * show (the fit as it was), else where the box the layer will draw (keywords.ts definitionAhead: the same words, targets and
  * placement) fits defBoxPlace's rules and covers no rule row, and `r` is at least as tall as this open's chain has held it.
@@ -2091,7 +2110,7 @@ function noteClear(ctx: Ctx, d: NonNullable<ReturnType<typeof detailsPlan>>, r: 
   const plan = d.plan, lines = visibleLines(plan);
   const buttons = plan.column ? columnButtons(d.t.labels.length, plan.r, tap) : (plan.rects ?? []).map((b) => tapRect(b, tap, plan.r));
   const strip = d.hint ? hintStrip(d.hint, plan.r, ctx.game?.H).r : null;
-  const a = definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip }, lines, buttons, tap,
+  const a = definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip, hang: noteHang(ctx, plan, lines) }, lines, buttons, tap,
     ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
   return r.h >= a.hold && (!a.box || (a.fits && rulesCovered(a.box, lines).length === 0));
 }
@@ -2199,14 +2218,20 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   // CARD-3 (REQ-BFG-080, REQ-BFG-004, C): a band panel's how-to hint (its tip new), outside the panel's plan (CARD-4, S:
   // just under it). CARD-4 (K, D): the keyword layer keeps a shown note's box clear of it
   const strip = d.hint ? hintStrip(d.hint, r, ctx.game?.H) : null;
-  if (strip) drawHintStrip(g, strip);
+  // PRESENT-2 L (cap's ruling 0d0ef2465804aafb): at the growth limit a note that hangs under the last rule row can land where the strip is:
+  // the strip is not drawn while it shows, from the note's first frame (its place is worked out here, before the layer runs, as panelFit does);
+  // it is back in the frame the note closes. Its tip stays new: only the action completes it (tips.ts)
+  const hang = noteHang(ctx, plan, shown);
+  const yields = !!strip && !!hang && !!definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip: strip.r, hang }, shown, hits, tap,
+    ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan").place?.yieldsStrip;
+  if (strip && !yields) drawHintStrip(g, strip);
   // U2c (REQ-BFG-045, REQ-BFG-046): tap to explain (keywords.ts): the words' underlines and targets, the `?` button, the
   // shown definition or the KEYWORDS view, the desk's hover tooltip
   // U2f (REQ-BFG-070): the ⓘ view may grow past the panel (infoFree: above it on the phone, down the column on the desk)
   // EXPLAIN-1 (REQ-BFG-089, E3): the screen's size, so the icon's hover tooltip stays on it
   // CARD-2 (REQ-BFG-004, K1): the build screen asks for the first-sight notes in its caravan only (never in a refit, the
   // build screen between a fight's rounds; a fight's own faces never come here)
-  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, { ...d, strip: strip?.r ?? null }, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
+  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, { ...d, strip: strip?.r ?? null, hang }, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
     ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
 }
 

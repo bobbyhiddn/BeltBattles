@@ -536,6 +536,45 @@ export function defBoxPlace(box: Rect, own: readonly { glyph: Rect }[], head: re
   return { box: at(Math.max(0, Math.min(H - box.h, bot + 2))), fits: false };
 }
 
+/**
+ * PRESENT-2 L (REQ-BFG-081; cap's call on PRESENT-1's Question 4 (d) (i), and cap's ruling 0d0ef2465804aafb): a phone's panel that already
+ * fills the growth limit (its top at the top bar: layout.ts panelArea's `most`) cannot grow for its note, and its rows fill it: the note at
+ * the panel's foot covers 2-6 px of the last rule row. There the note leaves the foot: `hang`, built by inspector.ts for such a panel, says
+ * where the lowest rule row ends (`ruleEnd`), whether a box covers a rule row (`covers`), the carrier's pad (`pad`) and what a note NEVER
+ * covers (`hard`: the deck's cells, FIGHT, the cargo bar, the top bar). The note goes just under that row (1 px clear), hanging past the
+ * panel's foot onto the deck side as defBoxPlace's under-the-line candidate does: where that place is whole on the screen and covers no rule
+ * row, header or own word's row it is the place, even over the carrier's top edge (the bow pieces' barrels, the pad's margin, the hull's top
+ * plate: `overPad` says how far into the pad), never over a `hard` rect; a how-to strip there does not draw while the note shows
+ * (`yieldsStrip`). Where that place would cross a hard line, `blocked`: the note stays where defBoxPlace put it (today's foot place; the tests
+ * list such a state by name). With no `hang` (every other panel) or where `placed` covers no rule row, `placed` is returned as it is. Pure.
+ */
+export interface NoteHang {
+  ruleEnd: number;
+  covers: (box: Rect) => boolean;
+  pad: Rect | null;
+  hard: readonly Rect[];
+}
+export interface NotePlace {
+  box: Rect;
+  fits: boolean;
+  /** the note hangs under the last rule row (the panel is at its limit and the foot place covered a rule row) */
+  hung: boolean;
+  /** px of the note's box inside the carrier's pad (0: off it) */
+  overPad: number;
+  /** the note's place overlaps the how-to strip: the strip is not drawn while the note shows */
+  yieldsStrip: boolean;
+  /** a hang was wanted and its place crosses a hard line: the note keeps today's place */
+  blocked: boolean;
+}
+export function hangPlace(placed: { box: Rect; fits: boolean }, own: readonly { glyph: Rect }[], head: readonly Rect[], strip: Rect | null, H: number, hang?: NoteHang): NotePlace {
+  const plain: NotePlace = { ...placed, hung: false, overPad: 0, yieldsStrip: false, blocked: false };
+  if (!hang || !hang.covers(placed.box)) return plain;
+  const b: Rect = { ...placed.box, y: hang.ruleEnd + 1 };
+  const clear = b.y >= 0 && b.y + b.h <= H && !head.some((q) => overlaps(b, q)) && !own.some((t) => overlaps(t.glyph, b)) && !hang.hard.some((q) => overlaps(b, q)) && !hang.covers(b);
+  if (!clear) return { ...plain, blocked: true };
+  return { box: b, fits: true, hung: true, overPad: hang.pad && overlaps(b, hang.pad) ? b.y + b.h - hang.pad.y : 0, yieldsStrip: !!strip && overlaps(b, strip), blocked: false };
+}
+
 /** CARD-4 (D): a planned panel's header as defBoxPlace avoids it: its rows from the panel's top to the body's (the title,
  *  the sub line, the families, the ⓘ icon), and the drawn buttons (the band's in the header; the column's under the text). */
 export function panelHead(plan: Pick<PanelPlan, "r" | "y" | "rects" | "column">, buttons: readonly Rect[] = []): Rect[] {
@@ -558,9 +597,9 @@ export function panelHead(plan: Pick<PanelPlan, "r" | "y" | "rects" | "column">,
  * - the chain (CARD-5) goes on: the note that opened by itself has closed and no box shows: the next one the layer opens now.
  * Pure (panelFit, the tests).
  */
-export function definitionAhead(owner: object, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; strip?: Rect | null },
+export function definitionAhead(owner: object, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; strip?: Rect | null; hang?: NoteHang },
   lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, screen: { W: number; H: number } | undefined,
-  sight: boolean): { box: Rect | null; fits: boolean; hold: number } {
+  sight: boolean): { box: Rect | null; fits: boolean; hold: number; place?: NotePlace } {
   const none = { box: null, fits: true, hold: 0 };
   if (!tap) return none;
   const s0 = STATE.get(owner), s = s0 && s0.key === JSON.stringify(d.show) ? s0 : undefined;
@@ -590,9 +629,10 @@ export function definitionAhead(owner: object, run: Run, d: { show: Sel; t: Pane
   const shown = word === null ? undefined : words.find((w) => w.word === word) ?? targets.find((t) => t.word === word);
   if (!shown) return { box: null, fits: true, hold };
   const defLines = definitionLines(shown.text, r.w - 10);
-  const placed = defBoxPlace(definitionBox(r, plan.maxY + 2, defLines.length), targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === word),
-    panelHead(plan, buttons), d.strip ?? null, screen?.H);
-  return { box: placed.box, fits: placed.fits, hold };
+  const ownT = targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === word), head = panelHead(plan, buttons);
+  const placed = hangPlace(defBoxPlace(definitionBox(r, plan.maxY + 2, defLines.length), ownT, head, d.strip ?? null, screen?.H),
+    ownT, head, d.strip ?? null, screen?.H ?? Infinity, d.hang); // PRESENT-2 L: at the growth limit, under the last rule row
+  return { box: placed.box, fits: placed.fits, hold, place: placed };
 }
 
 /** The KEYWORDS view's pages: as many whole definitions as fit the body's height (`h`) each, the header row first. */
@@ -776,7 +816,7 @@ function underline(g: G, t: KwTarget): void {
  * definition or the KEYWORDS view; on the desk, the hover tooltip and the `help` cursor. `owner`: the screen (its state);
  * `ui`: the frame's regions; `buttons`: the drawn buttons' hit rects; `tap`: a finger's target height (0: a mouse).
  */
-export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null; strip?: Rect | null },
+export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null; strip?: Rect | null; hang?: NoteHang },
   lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, canvas?: HTMLCanvasElement | null,
   free: Rect | null = null, screen?: { W: number; H: number }, sight = false): void {
   // CARD-2 (REQ-BFG-004, K1): `sight`, the screen asks for the first-sight notes (inspector.ts drawDetails: the build
@@ -853,8 +893,9 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   // CARD-3 (REQ-BFG-087, D1; REVIEW-CARD2 open item 1): the box sits at the panel's foot, unless it would cover the word it
   // explains there (a short phone panel's last rows: TEMPER's BURN box over [BURN]+1). CARD-4 (REQ-BFG-087, D): then just
   // under the word's line, or above it only where that misses the header, never over the header or the hint strip
-  const box = shown ? defBoxPlace(definitionBox(r, bottom, defLines.length), targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === s.word),
-    panelHead(plan, buttons), d.strip ?? null, screen?.H).box : null;
+  const ownT = shown ? targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === s.word) : [], head = shown ? panelHead(plan, buttons) : [];
+  const box = shown ? hangPlace(defBoxPlace(definitionBox(r, bottom, defLines.length), ownT, head, d.strip ?? null, screen?.H),
+    ownT, head, d.strip ?? null, screen?.H ?? Infinity, d.hang).box : null; // PRESENT-2 L: at the growth limit, under the last rule row
   // PRESENT-1 (S4 (b)): the panel's height while this open's first-sight chain shows a note (definitionAhead's `hold`); 0 once it is over
   s.held = s.chain ? Math.max(s.held, box ? r.h : 0) : 0;
   targets.forEach((t, i) => {
