@@ -27,7 +27,8 @@ import { generateSamplePool } from "./samplePool";
 import { KEY_HEADER, SIG_HEADER, loadIdentity, memoryKeyStore } from "../src/net/identity";
 import { encodeSnapshot, ghostId, MAX_DAY, SNAPSHOT_V3, type GhostSnapshot } from "../src/net/snapshot";
 import { isReachable } from "../src/net/records"; // BUMP-1D (run 3, P7): the upload fixture's record must be one POST accepts
-import { RULES_VERSION, START_LIVES } from "../src/sim/content";
+import { RULES_VERSION } from "../src/sim/content";
+import { HEARTS_START } from "../src/sim/hearts"; // BUMP-1G P7: the requests below ask with the game's own start (10 hearts), not START_LIVES (5)
 // 0.7.0a: the game's side of the server (section 6, and the closed upload in section 3)
 import { fetchGhost, submitGhost, type GhostRequest } from "../src/net/ghostClient";
 // PACKS run 2 (REQ-BFG-063; oracle d44affbde25e285e, setup only): every upload below carries the tests' one player name,
@@ -406,7 +407,9 @@ async function main(): Promise<void> {
     if (!player2) throw new Error("no second device key");
     const day = mine.day;
     const poolIds = generateSamplePool().filter((s) => s.day === day).map((s) => ghostId(s));
-    const reqOf = (runs: number, seen: string[], wins = day - 1, lives = START_LIVES): GhostRequest => ({
+    // BUMP-1G P7: lives = HEARTS_START (was START_LIVES, 5): the regenerated pool's first deck with turrets and a join is furnace day 6 on 5W 10 lives (the seed pool
+    // holds records up to 10 lives), which D1 rightly keeps from a requester who holds 5W and 5 lives; bb-0.13.0's first such deck (furnace day 8, 2W 2 lives) was eligible
+    const reqOf = (runs: number, seen: string[], wins = day - 1, lives = HEARTS_START): GhostRequest => ({
       rules: RULES_VERSION, day, wins, lives, playerId: player2.playerId, seen, hero: "furnace", seed: 7, runs,
     });
     const fresh = await fetchGhost(base2, reqOf(0, []), 4000);
