@@ -455,7 +455,7 @@ describe("SHOPCARD-1 (REQ-BFG-115, F5): the desk's hover tooltip carries the who
 
 // ------------------------------------------------------------------------------------------------------ G4: every other card
 import { itemSlot } from "../src/ui/ui";
-import { SLOT_LATTICE, hasGrid, shapeGrid } from "../src/ui/shapePic";
+import { hasGrid, shapeGrid } from "../src/ui/shapePic";
 import { lcPartPlate, lcPartSub } from "../src/screens/lastChancePicker";
 import { drawChoiceCard } from "../src/screens/event/cards";
 import { drawDropCard, drawDropIcons } from "../src/screens/fork/drops";
@@ -498,9 +498,7 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
       }
       const c = fresh(24, 24);
       itemSlot(G(c), 2, 2, id, false, 0, 1);
-      // PRESENT-2 C2 (was: a tile's px is the kind's fill): the slot's grid is a lattice (shapePic.ts slotGrid): each cell's block corner is a lattice line, its tile clear
-      // (tests/present2.slot.test.ts pins every tile px exactly: the icon's own px or the face's; an icon may hold the fill's colour itself)
-      for (const t of geom.tiles) expect(c.at(2 + 1 + t.x - 1, 2 + 1 + t.y - 1), `${id}: a cell's block corner in the slot`).toBe(SLOT_LATTICE);
+      for (const t of geom.tiles) expect(c.at(2 + 1 + t.x + 1, 2 + 1 + t.y + 1), `${id}: a tile of the grid in the slot`).toBe(fillOf(id));
       const arrows = gridSpecOf(id).arrows.length;
       expect(limeIn(c, { x: 2, y: 2, w: 18, h: 18 }), `${id}: ${arrows} arrowheads`).toBeGreaterThanOrEqual(arrows * 7);
       // SC-0912: every arrowhead px lies inside the slot's 18 x 18 box (x 2..19 and y 2..19 on this 24 x 24 canvas), PICKAXE's included

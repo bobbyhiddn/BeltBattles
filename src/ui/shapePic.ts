@@ -189,12 +189,7 @@ export function drawGrid(g: G, spec: GridSpec, x: number, y: number, cell: numbe
     rect(g, px, py + t, t, 1, d ? seam : C.ink); // ... and last row
     rect(g, px + t, py + t, 1, 1, r && d && has(cx + 1, cy + 1) ? seam : C.ink); // the corner px: a seam only inside the shape
   });
-  drawHeads(g, spec, geom, x, y, head, t);
-  return { w: geom.w, h: geom.h };
-}
-
-/** The arrowheads of drawGrid (PRESENT-2 C2 moved them out so drawLattice draws the same ones): lime, base on the tile's edge, tip outward. */
-function drawHeads(g: G, spec: GridSpec, geom: GridGeom, x: number, y: number, head: number, t: number): void {
+  // the arrowheads: lime, base on the tile's edge, tip outward
   spec.arrows.forEach((a, i) => {
     const hd = geom.heads[i], rows = head === HEAD_BIG ? headRowsBig(t) : headRows(t);
     for (let k = 0; k < head; k++) { // k = 0 at the tile's edge (the base), head - 1 at the tip
@@ -205,26 +200,6 @@ function drawHeads(g: G, spec: GridSpec, geom: GridGeom, x: number, y: number, h
       else rect(g, x + hd.x + (head - 1 - k), y + hd.y + off, 1, run, C.lime);
     }
   });
-}
-
-/** PRESENT-2 C2 (REQ-BFG-113 (1); backlog #492 (6)): the line colour of the cargo slot's lattice: the bone of the game's palette, the brightest line the slot's
- *  dark face takes (PRESENT-2's picture, O/img/c2: the steel of the solid grid, dimmed, read worse over the icon). */
-export const SLOT_LATTICE = C.bone;
-
-/** PRESENT-2 C2: `spec` as a LATTICE at (x, y), the box's top-left, `cell` px a cell: the 1 px outline round each cell's block (the outline and the seams drawGrid
- *  draws) in `colour`, every tile left CLEAR, so what is drawn under it shows through; the arrowheads exactly as drawGrid draws them. The same box as drawGrid's
- *  (gridGeom). In the cargo slot a plain piece's solid grid covered 55-71% of its icon's opaque px (KILN and SCRAP CANNON read alike: PRESENT-1 Question 4 (a)); the lattice covers
- *  21-32% (tests/present2.slot.test.ts counts every piece). */
-export function drawLattice(g: G, spec: GridSpec, x: number, y: number, cell: number, head = HEAD_LEN, colour: string = SLOT_LATTICE): { w: number; h: number } {
-  const geom = gridGeom(spec, cell, head), t = cell - 1;
-  for (const tl of geom.tiles) {
-    const bx = x + tl.x - 1, by = y + tl.y - 1; // the cell's block (cell + 1 px square): its four edges, a seam being the neighbour's edge
-    rect(g, bx, by, cell + 1, 1, colour);
-    rect(g, bx, by + t + 1, cell + 1, 1, colour);
-    rect(g, bx, by, 1, cell + 1, colour);
-    rect(g, bx + t + 1, by, 1, cell + 1, colour);
-  }
-  drawHeads(g, spec, geom, x, y, head, t);
   return { w: geom.w, h: geom.h };
 }
 
@@ -265,19 +240,6 @@ export function shapeGrid(defId: string, cell?: number): HTMLCanvasElement {
   if (!c) {
     const spec = gridSpecOf(defId), geom = gridGeom(spec, cl, head), [cv, g] = makeCanvas(geom.w, geom.h);
     drawGrid(g, spec, 0, 0, cl, head);
-    CACHE.set(k, (c = cv));
-  }
-  return c;
-}
-
-/** PRESENT-2 C2: the cargo slot's grid (ui.ts itemSlot), drawn over the piece's icon: drawLattice at the slot's cell (iconCell, HEAD_LEN arrowheads), cached per piece.
- *  The same box as shapeGrid(defId, iconCell(defId)), so the slot's anchor and the star pips stay where they were. */
-export function slotGrid(defId: string): HTMLCanvasElement {
-  const k = `slot:${defId}`;
-  let c = CACHE.get(k);
-  if (!c) {
-    const cl = iconCell(defId), spec = gridSpecOf(defId), geom = gridGeom(spec, cl, HEAD_LEN), [cv, g] = makeCanvas(geom.w, geom.h);
-    drawLattice(g, spec, 0, 0, cl, HEAD_LEN);
     CACHE.set(k, (c = cv));
   }
   return c;

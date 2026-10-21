@@ -19,7 +19,7 @@ import { drawChoiceCard } from "../src/screens/event/cards";
 import { drawDropCard } from "../src/screens/fork/drops";
 import { lcPartGrid, lcPartPlate, lcPartSub } from "../src/screens/lastChancePicker";
 import { faceIcon } from "../src/screens/battleScout";
-import { HEAD_BIG, HEAD_LEN, SLOT_LATTICE, drawGridRight, gridCell, gridGeom, gridSpecOf, hasGrid, iconCell, shapeGridSize, shapePic } from "../src/ui/shapePic";
+import { HEAD_BIG, HEAD_LEN, drawGridRight, gridCell, gridGeom, gridSpecOf, hasGrid, iconCell, shapeGridSize, shapePic } from "../src/ui/shapePic";
 import { itemSlot } from "../src/ui/ui";
 import { ENCHANT_DEFS } from "../src/sim/enchant";
 import { footCount } from "../src/sim/foot";
@@ -91,9 +91,7 @@ describe("PRESENT-1 S1 (c): every piece bigger than one cell has a grid, a plain
     for (const id of plain) {
       const c = fresh(24, 24);
       itemSlot(G(c), 2, 2, id, false, 0, 1);
-      // PRESENT-2 C2 (was: a tile's px is C.steel2): the slot's grid is a lattice (shapePic.ts slotGrid): the block corner is a lattice line; the tile is clear
-      // (its px is the icon's own or the face's: tests/present2.slot.test.ts pins every tile px exactly; an icon may hold steel2 itself)
-      for (const t of gridGeom(gridSpecOf(id), gridCell(id)).tiles) expect(c.at(2 + 1 + t.x - 1, 2 + 1 + t.y - 1), `${id}: a cell's block corner in the slot`).toBe(SLOT_LATTICE);
+      for (const t of gridGeom(gridSpecOf(id), gridCell(id)).tiles) expect(c.at(2 + 1 + t.x + 1, 2 + 1 + t.y + 1), `${id}: a tile in the slot`).toBe(C.steel2);
       expect(limeIn(c, { x: 0, y: 0, w: 24, h: 24 }), `${id}: no arrowhead`).toBe(0);
       const three = fresh(24, 24);
       itemSlot(G(three), 2, 2, id, false, 0, 3);
