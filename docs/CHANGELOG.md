@@ -3,6 +3,15 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## Next release (battle rules bb-0.14.0; the release lane writes the label): a part of each kind in every shop, and fresh ghosts
+
+New battle rules: bb-0.14.0. Ghosts and uploads from bb-0.13.0 and older no longer meet this release's players. The
+stand-in and seed pools were rebuilt for the new rules and again cover days 1 to 16 (192 ghosts in the seed pool).
+- **Every run's shop stock holds at least one SHOCK part and one BURN part**, so the SMUGGLER always has a part of each
+  kind to offer and never reads NONE ON OFFER.
+- **Two late captains changed.** RATCHET's TEMPER holds BRACED from day 12 (it held FIERY), and GRIMHOLD's second ANVIL
+  comes on day 6 (it came on day 4).
+
 ## Next release (battle rules bb-0.13.0; the release lane writes the label): gates and enchantments
 
 New battle rules: bb-0.13.0. Ghosts and uploads from bb-0.12.0 and older no longer meet this release's players. The
