@@ -426,12 +426,16 @@ interface KwState {
    *  rule rows keeps that height until the chain's last note closes (definitionAhead's `hold`), so it never shrinks and grows
    *  back between two notes. */
   held: number;
+  /** PRESENT-2 P (cap's ruling 26addce8293da756): where the last shown note went on the landscape column (columnPlace); null: not a column's, or none shown. Read by the tests. */
+  place: "today" | "under" | "beside" | "fallback" | null;
+  /** PRESENT-2 P: the lines the last shown note drew (a box beside the column wraps to its own width); null: none shown. Read by the tests. */
+  note: RichLine[] | null;
 }
 const STATE = new WeakMap<object, KwState>();
 const stateOf = (owner: object, key: string): KwState => {
   let s = STATE.get(owner);
   if (!s || s.key !== key) {
-    s = { key, word: null, page: null, hover: null, opened: false, auto: null, rig: false, chain: false, held: 0 };
+    s = { key, word: null, page: null, hover: null, opened: false, auto: null, rig: false, chain: false, held: 0, place: null, note: null };
     STATE.set(owner, s);
   }
   return s;
@@ -578,6 +582,44 @@ export function hangPlace(placed: { box: Rect; fits: boolean }, own: readonly { 
   const clear = b.y >= 0 && b.y + b.h <= H && !head.some((q) => overlaps(b, q)) && !own.some((t) => overlaps(t.glyph, b)) && !hang.hard.some((q) => overlaps(b, q)) && !hang.covers(b);
   if (!clear) return { ...plain, blocked: true };
   return { box: b, fits: true, hung: true, overPad: hang.pad && overlaps(b, hang.pad) ? b.y + b.h - hang.pad.y : 0, yieldsStrip: !!strip && overlaps(b, strip), blocked: false };
+}
+
+/**
+ * PRESENT-2 P (REQ-BFG-081; PRESENT-1's ruling af2c96863a44ab41 item 4, and cap's ruling 26addce8293da756): on the landscape COLUMN (a panel sized to its content, buttons under its text) a shown
+ * definition at the foot of the text covered a rule row on 965 of 2,484 boxes on 844x390 @3. Where the column fits the panel there, `col` (built by inspector.ts) carries what the ladder needs, and
+ * the note takes the first place that works, in turn: (today) where defBoxPlace put it, if that covers no rule row; (under) under the panel's foot, under its buttons, at the column's full
+ * width, where the column has the room (the box and 2 px); (beside) beside the column, in the free strip between its edge and the carrier's drawing (one width a view: 2 px right of the column to
+ * 2 px left of the carrier), as tall as its text wrapped to that width, its top level with its word's line, moved up only as far as it must to end 2 px above the screen's foot, never above the
+ * column's top; (fallback) else today's place, which the tests list by name. A box never covers a `hard` rect (the carrier's drawing, a shop card, REROLL, a pack, the top bar, FIGHT, the foe
+ * card, the cargo bar, the panel), a rule row, the header or its own word's row, and sits whole on the screen. Pure.
+ */
+export interface ColumnSpec {
+  covers: (box: Rect) => boolean;
+  top: number;
+  areaBottom: number;
+  beside: { x0: number; x1: number } | null;
+  floor: number;
+  hard: readonly Rect[];
+}
+export interface ColumnNote {
+  box: Rect;
+  lines: RichLine[];
+  place: "today" | "under" | "beside" | "fallback";
+}
+export function columnPlace(text: string, placed: { box: Rect; fits: boolean }, lines: RichLine[], own: readonly { glyph: Rect }[], head: readonly Rect[], panel: Rect, col: ColumnSpec): ColumnNote {
+  if (!col.covers(placed.box)) return { box: placed.box, lines, place: "today" };
+  // `covers` is a test of y alone (the panel's rule rows are all inside the panel): a box BESIDE the column is out of the panel by x, so only the box under the panel is held to it
+  const whole = (b: Rect, apart: boolean): boolean => b.y >= 0 && b.y + b.h <= col.floor + 2 && !head.some((q) => overlaps(b, q)) && !own.some((t) => overlaps(t.glyph, b)) && !col.hard.some((q) => overlaps(b, q)) && (apart || !col.covers(b));
+  const h = lines.length * 9 + 3, under: Rect = { x: panel.x + 2, y: panel.y + panel.h + 2, w: panel.w - 4, h };
+  if (under.y + under.h <= col.areaBottom && whole(under, false)) return { box: under, lines, place: "under" };
+  if (col.beside && col.beside.x1 - col.beside.x0 >= 40) {
+    const w = col.beside.x1 - col.beside.x0, l2 = definitionLines(text, w - 6), h2 = l2.length * 9 + 3;
+    const word = own.length ? Math.min(...own.map((t) => t.glyph.y)) : placed.box.y, y = Math.min(word, col.floor - h2);
+    const beside: Rect = { x: col.beside.x0, y, w, h: h2 };
+    // no broken or clipped word: wrapRich sets a unit wider than the line on a line of its own, past the box's edge: such a note is not set beside
+    if (y >= col.top && l2.every((l) => lineWidth(l, "5") <= w - 6) && whole(beside, true)) return { box: beside, lines: l2, place: "beside" };
+  }
+  return { box: placed.box, lines, place: "fallback" };
 }
 
 /** CARD-4 (D): a planned panel's header as defBoxPlace avoids it: its rows from the panel's top to the body's (the title,
@@ -821,7 +863,7 @@ function underline(g: G, t: KwTarget): void {
  * definition or the KEYWORDS view; on the desk, the hover tooltip and the `help` cursor. `owner`: the screen (its state);
  * `ui`: the frame's regions; `buttons`: the drawn buttons' hit rects; `tap`: a finger's target height (0: a mouse).
  */
-export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null; strip?: Rect | null; hang?: NoteHang },
+export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null; strip?: Rect | null; hang?: NoteHang; column?: ColumnSpec },
   lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, canvas?: HTMLCanvasElement | null,
   free: Rect | null = null, screen?: { W: number; H: number }, sight = false): void {
   // CARD-2 (REQ-BFG-004, K1): `sight`, the screen asks for the first-sight notes (inspector.ts drawDetails: the build
@@ -899,8 +941,13 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   // explains there (a short phone panel's last rows: TEMPER's BURN box over [BURN]+1). CARD-4 (REQ-BFG-087, D): then just
   // under the word's line, or above it only where that misses the header, never over the header or the hint strip
   const ownT = shown ? targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === s.word) : [], head = shown ? panelHead(plan, buttons) : [];
-  const box = shown ? hangPlace(defBoxPlace(definitionBox(r, bottom, defLines.length), ownT, head, d.strip ?? null, screen?.H),
-    ownT, head, d.strip ?? null, screen?.H ?? Infinity, d.hang).box : null; // PRESENT-2 L: at the growth limit, under the last rule row
+  const foot = shown ? hangPlace(defBoxPlace(definitionBox(r, bottom, defLines.length), ownT, head, d.strip ?? null, screen?.H),
+    ownT, head, d.strip ?? null, screen?.H ?? Infinity, d.hang) : null; // PRESENT-2 L: at the growth limit, under the last rule row
+  // PRESENT-2 P (cap's ruling 26addce8293da756): on the landscape column, where that place covers a rule row: under the panel, else beside the column (columnPlace)
+  const cn = shown && foot && d.column ? columnPlace(shown.text, foot, defLines, ownT, head, r, d.column) : null;
+  const box = cn ? cn.box : foot ? foot.box : null, shownLines = cn ? cn.lines : defLines;
+  s.place = cn ? cn.place : null;
+  s.note = box ? shownLines : null;
   // PRESENT-1 (S4 (b)): the panel's height while this open's first-sight chain shows a note (definitionAhead's `hold`); 0 once it is over
   s.held = s.chain ? Math.max(s.held, box ? r.h : 0) : 0;
   targets.forEach((t, i) => {
@@ -911,7 +958,7 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   if (box) {
     rect(g, box.x, box.y, box.w, box.h, C.navy);
     rect(g, box.x, box.y, box.w, 1, C.slate1);
-    defLines.forEach((ln, i) => drawRich(g, ln, r.x + 5, box.y + 3 + i * 9, "5"));
+    shownLines.forEach((ln, i) => drawRich(g, ln, box.x + 3, box.y + 3 + i * 9, "5")); // PRESENT-2 P: box.x + 3 is r.x + 5 for today's box (x r.x + 2)
     ui.add({ id: "kwdef", r: box, block: true });
   }
   // the desk: a hovered word's definition in the shop's tooltip style, and the help cursor

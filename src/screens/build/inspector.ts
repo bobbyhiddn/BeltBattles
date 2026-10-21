@@ -39,7 +39,7 @@ import { freeJoinsRules } from "../../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): 
 import { drawKeywordLayer, keywordCursorOff } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
 import { infoFree } from "./keywords"; // U2f (REQ-BFG-070): the room the ⓘ view grows into
 import { keywordsIdle } from "./keywords"; // CARD-2 (REQ-BFG-004, K1): a closed panel's next draw is a new open
-import { definitionAhead, type NoteHang } from "./keywords"; // PRESENT-1 (S4 (b)): the note a finger's panel is about to show, for panelFit; PRESENT-2 L: NoteHang
+import { definitionAhead, type ColumnSpec, type NoteHang } from "./keywords"; // PRESENT-1 (S4 (b)): the note a finger's panel is about to show, for panelFit; PRESENT-2 L: NoteHang; P: ColumnSpec
 import { nextBlocks } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS and the next-star line
 
 /**
@@ -102,7 +102,7 @@ import {
 } from "../../ui/abilityText";
 import { colourize, drawRich, lineText, lineWidth, PERK_COLOUR, wrapRich, type Span } from "../../ui/richText";
 import type { Sel } from "./layout";
-import { screenRect } from "./layout"; // PRESENT-2 L: the deck's screen rect, a hard line for a hanging note
+import { carrierBox, screenRect } from "./layout"; // PRESENT-2 L: the deck's screen rect, a hard line for a hanging note; P: the carrier's drawn box
 import { DECK } from "../../render/frame";
 import { describe, KIND_SUB, panelKind } from "./shop"; // WORDS-1: KIND_SUB, panelKind (a core's and gear's kind in plain words)
 import {
@@ -2106,6 +2106,25 @@ function noteHang(ctx: Ctx, plan: PanelPlan, lines: readonly { line: PLine | "ru
 }
 
 /**
+ * PRESENT-2 P (cap's ruling 26addce8293da756): for a panel in the landscape COLUMN, what keywords.ts columnPlace needs to keep a shown definition off the rule rows: a box's covering a rule row, the
+ * column's top and the y its area ends, the free strip beside the column (2 px right of its edge to 2 px left of the carrier's DRAWING: layout.ts carrierBox, the widest the ship is ever drawn),
+ * the screen's foot less 2 px, and what a note never covers. undefined for every other panel (the portrait band, the desk's hover tips): their notes are placed as before.
+ */
+function columnSpec(ctx: Ctx, plan: PanelPlan, lines: readonly { line: PLine | "rule"; y: number }[]): ColumnSpec | undefined {
+  const L = ctx.L;
+  if (!plan.column || !L || L.portrait || !L.info || !L.cam || !L.bar) return undefined;
+  const cb = carrierBox(false), carrier = screenRect(L, { x: L.cam.x + cb.x0, y: L.cam.y + cb.y0, w: cb.w, h: cb.h });
+  const x0 = L.info.x + L.info.w + 2, x1 = carrier.x - 2;
+  return {
+    covers: (b) => rulesCovered(b, lines).length > 0,
+    top: L.info.y, areaBottom: L.info.y + L.info.h,
+    beside: x1 > x0 ? { x0, x1 } : null,
+    floor: (ctx.game?.H ?? Infinity) - 2,
+    hard: [carrier, ...(L.cards ?? []), L.reroll, ...(L.packs ?? []), L.bar, L.fight, L.foe, L.cargo, plan.r].filter((q): q is Rect => !!q),
+  };
+}
+
+/**
  * PRESENT-1 (S4 (b)): panelFit's note clause for the plan `d` of a panel in rect `r`: true where no definition is about to
  * show (the fit as it was), else where the box the layer will draw (keywords.ts definitionAhead: the same words, targets and
  * placement) fits defBoxPlace's rules and covers no rule row, and `r` is at least as tall as this open's chain has held it.
@@ -2237,7 +2256,7 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   // EXPLAIN-1 (REQ-BFG-089, E3): the screen's size, so the icon's hover tooltip stays on it
   // CARD-2 (REQ-BFG-004, K1): the build screen asks for the first-sight notes in its caravan only (never in a refit, the
   // build screen between a fight's rounds; a fight's own faces never come here)
-  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, { ...d, strip: strip?.r ?? null, hang }, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
+  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, { ...d, strip: strip?.r ?? null, hang, column: columnSpec(ctx, plan, shown) }, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
     ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
 }
 
