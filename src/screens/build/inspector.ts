@@ -39,6 +39,7 @@ import { freeJoinsRules } from "../../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): 
 import { drawKeywordLayer, keywordCursorOff } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
 import { infoFree } from "./keywords"; // U2f (REQ-BFG-070): the room the ⓘ view grows into
 import { keywordsIdle } from "./keywords"; // CARD-2 (REQ-BFG-004, K1): a closed panel's next draw is a new open
+import { definitionAhead } from "./keywords"; // PRESENT-1 (S4 (b)): the note a finger's panel is about to show, for panelFit
 import { nextBlocks } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS and the next-star line
 
 /**
@@ -2046,14 +2047,53 @@ function drawHintStrip(g: G, s: ReturnType<typeof hintStrip>): void {
  * description (fullText, zoom's D3) with its gaps at least GAP_MIN in the band (`at` "band": else it grows over the shop
  * rows), and at GAP while it grows (`at` "grown": it stops at the first height that shows them, or at panelArea's limit).
  * Elsewhere its kept text (keptWhole), as before: its gaps take the room it gets.
+ * PRESENT-1 (REQ-BFG-081; S4 (b), cap's ruling af2c96863a44ab41): on touch, a panel that is about to show a definition (a tap's
+ * or a first sight's: keywords.ts definitionAhead) also counts the note: it fits only where the note's box sits clear of
+ * every rule row of the panel (rulesCovered), and, while the first-sight chain is under way, is no shorter than the chain
+ * has made it (`hold`). With no note to show, the fit is exactly what it was.
  */
 export function panelFit(ctx: Ctx, sel: Sel, phone: boolean): (r: Rect, at?: "band" | "grown") => boolean | null {
   return (r, at = "band") => {
     const d = detailsPlan(ctx, sel, null, r);
     if (!d) return null;
-    if (!phone) return keptWhole(d.plan);
-    return fullText(d.plan) && gapsAtLeast(d.plan, at === "band" ? d.plan.gaps.min : d.plan.gaps.G);
+    const whole = phone ? fullText(d.plan) && gapsAtLeast(d.plan, at === "band" ? d.plan.gaps.min : d.plan.gaps.G) : keptWhole(d.plan);
+    return whole && noteClear(ctx, d, r);
   };
+}
+
+/** PRESENT-1 (S4 (b)): the roles whose rows are a panel's rules: a shown definition may cover a panel's flavour, hint,
+ *  reminder or caveat row (the ruling), never one of these. */
+const RULE_ROLES: ReadonlySet<Role> = new Set<Role>(["ability", "hits", "warn", "next", "merges", "merge", "row", "grid", "note"]);
+
+/**
+ * PRESENT-1 (REQ-BFG-081; S4 (b)): the rule rows of a panel's drawn `lines` (visibleLines) that box `box` covers, each with
+ * `clear` px (default 1) to spare between the row's glyphs and the box's edge: [] where the note sits clear of the rules.
+ * Pure (panelFit, the tests).
+ */
+export function rulesCovered(box: Rect, lines: readonly { line: PLine | "rule"; y: number }[], clear = 1): PLine[] {
+  const out: PLine[] = [];
+  for (const v of lines) {
+    if (v.line === "rule" || !RULE_ROLES.has(v.line.block.role)) continue;
+    const bottom = v.y + (v.line.font === "5" ? 7 : 5);
+    if (v.y - clear < box.y + box.h && box.y < bottom + clear) out.push(v.line);
+  }
+  return out;
+}
+
+/**
+ * PRESENT-1 (S4 (b)): panelFit's note clause for the plan `d` of a panel in rect `r`: true where no definition is about to
+ * show (the fit as it was), else where the box the layer will draw (keywords.ts definitionAhead: the same words, targets and
+ * placement) fits defBoxPlace's rules and covers no rule row, and `r` is at least as tall as this open's chain has held it.
+ */
+function noteClear(ctx: Ctx, d: NonNullable<ReturnType<typeof detailsPlan>>, r: Rect): boolean {
+  const tap = touchTap(ctx);
+  if (!tap) return true;
+  const plan = d.plan, lines = visibleLines(plan);
+  const buttons = plan.column ? columnButtons(d.t.labels.length, plan.r, tap) : (plan.rects ?? []).map((b) => tapRect(b, tap, plan.r));
+  const strip = d.hint ? hintStrip(d.hint, plan.r, ctx.game?.H).r : null;
+  const a = definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip }, lines, buttons, tap,
+    ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
+  return r.h >= a.hold && (!a.box || (a.fits && rulesCovered(a.box, lines).length === 0));
 }
 
 /** shoptap (D2): a plan's kept blocks fit and every one of their lines is drawn (T6's phone guarantee). */
