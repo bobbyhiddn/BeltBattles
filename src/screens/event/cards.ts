@@ -81,18 +81,27 @@ export function chipText(d: Delta, cost: boolean, day: number | undefined, bare:
   return count && cost && d.k === "item" ? `${SHRINE_COUNT} ${t}` : t;
 }
 
-function chip(g: G, x: number, cy: number, d: Delta, cost: boolean, dim: boolean, right: number, day?: number, bare = false, count = false): number {
+/** PRESENT-2 N (REQ-BFG-113 (1); backlog #492 (5)): where a chip goes and whether its part keeps its name, the rule of `chip` below as a pure function (the one
+ *  rule: chip draws from it, exchangePlan and the tests read it). `text` "" is a part's icon alone; `shown` false, no room for even the icon (the chip is not
+ *  drawn); `next` where the next chip starts. */
+export function chipPlan(x: number, d: Delta, cost: boolean, right: number, day: number | undefined, bare: boolean, count: boolean): { text: string; w: number; shown: boolean; next: number } {
   const icon = deltaIcon(d);
   let text = chipText(d, cost, day, bare, count); // HULL-1a: `day`; ENCHANT-2 (T3): `bare`, a part's icon alone (the word keeps the room); (T6 fix round) `count`, `1 NAME`
   let w = text ? icon.width + 2 + textWidth(text, "3") : icon.width;
   // 0.6.1c: road items draw from the whole catalogue, so a long part name can meet a long good on a
   // narrow card; with no room for its name the part still shows its icon (the card never hides a gain)
   if (x + w > right && d.k === "item") [text, w] = ["", icon.width];
-  if (x + w > right) return x;
+  if (x + w > right) return { text, w, shown: false, next: x };
+  return { text, w, shown: true, next: x + w + 5 };
+}
+
+function chip(g: G, x: number, cy: number, d: Delta, cost: boolean, dim: boolean, right: number, day?: number, bare = false, count = false): number {
+  const icon = deltaIcon(d), p = chipPlan(x, d, cost, right, day, bare, count);
+  if (!p.shown) return x;
   g.drawImage(icon, x, cy - Math.floor(icon.height / 2));
   const word = deltaColour(d); // ENCHANT-2 (T3): a word is printed in its own colour
-  if (text) drawText(g, text, x + icon.width + 2, cy - 2, dim ? C.slate3 : word ?? (cost ? C.red : C.lime), { font: "3" });
-  return x + w + 5;
+  if (p.text) drawText(g, p.text, x + icon.width + 2, cy - 2, dim ? C.slate3 : word ?? (cost ? C.red : C.lime), { font: "3" });
+  return p.next;
 }
 
 /** ENCHANT-2 (REQ-BFG-085, T3): the width a chip takes (chip's own sum), so a card that gains a WORD can keep room for it. */
@@ -117,6 +126,51 @@ export function exchangeForm(c: Choice, w: number, day?: number): "count" | "nam
   if (exchangeNeed(c, day, false, true) <= w) return "count";
   return exchangeNeed(c, day, false, false) <= w ? "name" : "bare";
 }
+
+/** PRESENT-2 N: how a card that GIVES a part keeps the part's name in its exchange line. `costBare`: the parts the card takes are icons alone (the card's own rule since 0.6.1c:
+ *  the cost may stay an icon where the line has no room; the gain never hides); `ownRow`: the names of the parts it gives that fit on no line beside the plates even so, drawn on a
+ *  row of their own under the line (exchange). A card that gives no part, a word card (exchangeForm) and a line that names its gain as it is: { costBare: false, ownRow: [] }. */
+export interface ExchangePlan {
+  costBare: boolean;
+  ownRow: string[];
+}
+
+/**
+ * PRESENT-2 N (REQ-BFG-113 (1), REQ-BFG-087; backlog #492 (5)): the TRADER's SWAP gives a PICKAXE for a SPIKE RAIL and the desk's line drew both parts as icons alone, because
+ * PRESENT-1's S1 plates (a shaped part's grid at the card's right end, for every shaped part the card takes or gives) took 15-40 px of the line. The card's own rule (the 0.6.1c comment in
+ * chip): it never hides a gain. So where the line as drawn leaves a part it GIVES without its name (icon alone, or not drawn), the parts it TAKES go to icons alone first (the cost
+ * may stay an icon); and where the gain's name fits no line beside the plates even so, it goes on a row of its own under the line. `room`: the line's width (exchangeRoom). Pure.
+ */
+export function exchangePlan(c: Choice, room: number, day?: number): ExchangePlan {
+  const none: ExchangePlan = { costBare: false, ownRow: [] };
+  if (exchangeForm(c, room, day) !== null || !c.gain.some((d) => d.k === "item")) return none;
+  const named = (costBare: boolean): boolean => {
+    let x = c.cost.length ? 0 : textWidth("FREE", "3") + 4;
+    for (const d of c.cost) x = chipPlan(x, d, true, room, day, costBare, false).next;
+    x += 7;
+    for (const d of c.gain) {
+      const p = chipPlan(x, d, false, room, day, false, false);
+      if (d.k === "item" && !(p.shown && p.text)) return false;
+      x = p.next;
+    }
+    return true;
+  };
+  if (named(false)) return none;
+  if (named(true)) return { costBare: true, ownRow: [] };
+  return { costBare: true, ownRow: c.gain.flatMap((d) => (d.k === "item" ? [itemName(d.def)] : [])) };
+}
+
+/** PRESENT-2 N: the width the grids of a card's shaped parts take at its right end (drawChoiceCard: every part it takes or gives, side by side, 2 px apart); 0 for none. */
+export function plateWidth(c: Choice): number {
+  const shaped = [...c.cost, ...c.gain].filter((d): d is Extract<Delta, { k: "item" }> => d.k === "item" && hasGrid(d.def));
+  return shaped.reduce((n, d) => n + shapeGridSize(d.def).w + 2, 0) + Math.max(0, shaped.length - 1) * 2;
+}
+
+/** PRESENT-2 N: the exchange line's width on a card `cw` px wide: the card less 10 px, and the plates with 4 px beside them. */
+export const exchangeRoom = (c: Choice, cw: number): number => cw - 10 - (plateWidth(c) ? plateWidth(c) + 4 : 0);
+
+/** PRESENT-2 N: the row of a part's name that fits no line: 9 px under the line's middle (the line's icons end 6 px under it, the note is 16 px under it: 3 px clear each side, REQ-BFG-087's 2 px least). */
+export const OWN_ROW_DY = 9;
 
 /**
  * ENCHANT-2W (REQ-BFG-085; W2, E2-01b): THE ASH SHRINE'S BLOCKED CARD 2, with nothing in cargo, drew `FREE -> NOTHING`, which is false: the card costs a cargo part and gives
@@ -167,12 +221,15 @@ export function exchange(g: G, x: number, cy: number, w: number, c: Choice, dim:
   // (the card's label already says OFFER CARGO PART). Every other card draws exactly as before.
   // T6 fix round (E2-01): on such a card the part it takes reads `1 NAME` where the line has the room (exchangeForm).
   const form = exchangeForm(c, w, day);
+  // PRESENT-2 N (REQ-BFG-113 (1)): a card that gives a part never leaves it without its name: the cost may go to an icon alone, and a name that fits no line has a row of its own (exchangePlan)
+  const plan = exchangePlan(c, w, day);
   if (!c.cost.length) cx += drawText(g, "FREE", cx, cy - 2, dim ? C.slate3 : C.lime, { font: "3" }) + 4;
-  else for (const d of c.cost) cx = chip(g, cx, cy, d, true, dim, right, day, form === "bare", form === "count");
+  else for (const d of c.cost) cx = chip(g, cx, cy, d, true, dim, right, day, form === "bare" || plan.costBare, form === "count");
   drawText(g, "→", cx, cy - 2, dim ? C.slate2 : C.slate4, { font: "3" });
   cx += 7;
   if (!c.gain.length) drawText(g, "NOTHING", cx, cy - 2, C.slate3, { font: "3" });
-  else for (const d of c.gain) cx = chip(g, cx, cy, d, false, dim, right, day);
+  else for (const d of c.gain) cx = chip(g, cx, cy, d, false, dim, right, day, plan.ownRow.length > 0);
+  if (plan.ownRow.length) drawText(g, `→ ${plan.ownRow.join(", ")}`, x, cy + OWN_ROW_DY, dim ? C.slate3 : C.lime, { font: "3" });
 }
 
 export interface CardView {
@@ -226,8 +283,8 @@ export function drawChoiceCard(g: G, r: Rect, c: Choice, i: number, v: CardView)
   // PRESENT-1 (S1 (b), REQ-BFG-113 (1)): EVERY such part, not the first (it was `.find`): the plates side by side from the card's right end, in
   // the exchange line's own order (what it takes, then what it gives), 2 px apart; the line keeps clear of all of them
   const shaped = [...c.cost, ...c.gain].filter((d): d is Extract<Delta, { k: "item" }> => d.k === "item" && hasGrid(d.def));
-  const plateW = shaped.reduce((n, d) => n + shapeGridSize(d.def).w + 2, 0) + Math.max(0, shaped.length - 1) * 2;
-  exchange(g, x + 5, y + 25, r.w - 10 - (plateW ? plateW + 4 : 0), c, dim, v.day, v.shrineWord); // ENCHANT-2W (W2): + word B for the shrine's blocked card
+  const plateW = plateWidth(c); // PRESENT-2 N: the same sum, one function (exchangeRoom, exchangePlan, the tests)
+  exchange(g, x + 5, y + 25, exchangeRoom(c, r.w), c, dim, v.day, v.shrineWord); // ENCHANT-2W (W2): + word B for the shrine's blocked card
   let platX = x + r.w - 4 - plateW;
   for (const d of shaped) {
     drawShapePlate(g, d.def, platX, y + 15, undefined, dim ? 0.5 : 1);
