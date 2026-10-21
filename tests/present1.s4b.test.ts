@@ -13,7 +13,7 @@ import { newRun } from "../src/game/run";
 import { installRaster, fresh, G as gOf } from "./raster.helpers";
 import { UI, type Rect } from "../src/ui/ui";
 import { TAP_CSS } from "../src/ui/tap";
-import { buildLayout, buildScale, phoneBarLift, phoneScreen, panelArea, PANEL_STEP, type Sel } from "../src/screens/build/layout";
+import { buildLayout, buildScale, phoneBarLift, phoneScreen, panelArea, type Sel } from "../src/screens/build/layout";
 import { runeRowFits, runeRowH, shiftLayout } from "../src/ui/runeBar";
 import type { Run, DuskFoe } from "../src/game/run";
 import { setTipsForTests } from "../src/ui/tips";
