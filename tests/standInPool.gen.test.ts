@@ -257,7 +257,7 @@ describe("stand-in pool", () => {
         }
       }
     }
-  });
+  }, 120_000); // BUMP-1G P7: 120 s (was the 30-s default): 13 s alone, 35 s beside twelve workers: a host timeout, not the rule
 
   // BUMP-1E: the replay of SALE_GAIN's one pick: furnace d4 #2 is candidate #3's day-4 deck, the loose run of seed 1003, and that run's meta books the gain (a sale loss of -6) to the gold
   // BUMP-1F (F5: parNpcDay never books a negative sale loss; RULING-BUMP1F-R5 R5.2 (2)): the title was "the one sale-gain pick: furnace d4 #2 is the loose run of seed 1003 (candidate #3 at day 4), whose meta books a sale loss of -6

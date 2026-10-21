@@ -284,7 +284,7 @@ describe("D3 over every deck that was valid before the pivot", () => {
       expect(bad).toEqual([]);
       expect(row.validAfter).toBe(row.validBefore);
       expect(row.validBefore, `${source}: the corpus holds valid decks`).toBeGreaterThan(0);
-    });
+    }, 120_000); // BUMP-1G P7: 120 s (was the 30-s default): the standin source takes 15 s alone, 36 s beside twelve workers: a host timeout, not the rule
   }
 
   it("reports moved, cargoed and dropped counts per source", () => {

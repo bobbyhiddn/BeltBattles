@@ -273,7 +273,7 @@ describe("the bb-0.14.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, 
     expect(branch.heroGate, JSON.stringify(branch)).toBeGreaterThan(0);
     console.log(`rc.seedpool (FLIP-X2): under bb-0.6.2 ${JSON.stringify(branch)}`);
     expect(checkPool(POOL)).toHaveLength(192); // BUMP-1D: was 120
-  });
+  }, 120_000); // BUMP-1G P7: 120 s (was the 30-s default): 13 s alone, 34 s beside twelve workers: a host timeout, not the rule
 
   it("a race deck that fails validateUpload never enters the pool: the generator throws on it", () => {
     const rich = (hero: HeroId, day: number, v: number) => {

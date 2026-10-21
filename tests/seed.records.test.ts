@@ -190,7 +190,7 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
       expect(strict.filter((e) => !budget.includes(e)), `${s.playerId} d${s.day}: every other strict line`).toEqual([]);
     }
     expect(checkPool(POOL)).toHaveLength(192); // BUMP-1D: was 120 (0.8.0 RC: was 60)
-  });
+  }, 120_000); // BUMP-1G P7: 120 s (was the 30-s default): 13 s alone, 33 s beside twelve workers: a host timeout, not the rule
 
   it("every label is reachable; the three drawn labels the refund rules out keep their wins at the nearest reachable lives", () => {
     for (const s of POOL) expect(isReachable(s.day, s.wins, s.lives), `${s.playerId} d${s.day} ${s.wins}W ${s.lives}`).toBe(true);

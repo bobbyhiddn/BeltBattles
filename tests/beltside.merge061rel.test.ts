@@ -364,7 +364,7 @@ describe("P15: stand-in pool v2 loads through the loader's D3 boundary (decodeSt
     }
     // measured on this branch (the D4 native re-bake empties it): 94 decks migrate, 230 rigs move, 63 are dropped
     expect([migrated, moved, drops.length]).toEqual(POOL_NATIVE ? [0, 0, 0] : [94, 230, 63]);
-  });
+  }, 120_000); // BUMP-1G P7: 120 s (was the 30-s default): 14 s alone, 35 s beside twelve workers: a host timeout, not the rule
 
   it("a deck with 2-star rigs and rotations round-trips through encodeStarred / decodeStarred; the loader and the harness codec agree on it", () => {
     // the Furnace's Kiln belt up column 4; each rig works one tile of it: TEMPER 2-star (4,4) from the west, SPLITTER
