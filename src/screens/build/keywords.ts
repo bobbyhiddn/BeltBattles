@@ -36,7 +36,7 @@ import { colourize, drawRich, lineText, lineWidth, wrapRich, type RichLine } fro
 import { glossaryEntry, glossaryHits, glossaryText, keywordRow, tapNote } from "../../ui/glossary";
 import { STAT_ICONS, statIconNote } from "../../ui/glossary"; // WORDS-1 (REQ-BFG-081): the stat icons' notes
 import { ICON_COLOUR } from "../../render/font"; // WORDS-1: a stat icon's underline in its colour ({RATE} yellow)
-import { FAMILY, familyNote, familyWord } from "../../ui/families"; // WORDS-1: the family tags' taps (familyTargets)
+import { FAMILY, famHeadParts, famHeadText, familyNote, familyWord } from "../../ui/families"; // WORDS-1: the family tags' taps (familyTargets); PRESENT-2 W (b): the head's words
 import type { ModuleTag } from "../../sim/content"; // WORDS-1
 import { tapRect, inside, type Rect, type UI } from "../../ui/ui";
 import type { TextOpts } from "../../ui/abilityText";
@@ -320,12 +320,17 @@ export function familyTargets(plan: Pick<PanelPlan, "r" | "famHead">, avoid: rea
     }
   };
   if (fh.names) {
-    // drawFamHead: "FORGE, TEMPO" in 3x5, under the sub line (x + 23, y + 19), or right-aligned on the sub line's second row
-    // (y + 19) or the title's (y + 5)
-    const words = fh.tags.map(familyWord), text = words.join(", "), x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - textWidth(text, "3"); // CARD-3
+    // drawFamHead: `FORGE FAMILY` or `FAMILIES: FORGE, TEMPO` in 3x5 (PRESENT-2 W (b); was "FORGE, TEMPO"), under the sub line (x + 23, y + 19), or
+    // right-aligned on the sub line's second row (y + 19) or the title's (y + 5)
+    const parts = famHeadParts(fh.tags, !!fh.explained), words = parts.names, text = famHeadText(fh.tags, !!fh.explained), x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - textWidth(text, "3"); // CARD-3
     const y0 = r.y + (fh.at === "title" ? 5 : 19);
+    if (fh.tags.length === 1) {
+      // one family: the whole head is its target (`FORGE FAMILY`: a tap on either word opens the note, whose key is `FORGE FAMILY`; the plain `FORGE`: the name)
+      push(fh.tags[0], { x: x0, y: y0, w: textWidth(text, "3"), h: GLYPH_H["3"] });
+      return out;
+    }
     fh.tags.forEach((tag, i) => {
-      const before = i ? textWidth(`${words.slice(0, i).join(", ")}, `, "3") + 1 : 0;
+      const lead = `${parts.prefix}${i ? `${words.slice(0, i).join(", ")}, ` : ""}`, before = lead ? textWidth(lead, "3") + 1 : 0;
       push(tag, { x: x0 + before, y: y0, w: textWidth(words[i], "3"), h: GLYPH_H["3"] });
     });
     return out;

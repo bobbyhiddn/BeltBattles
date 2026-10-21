@@ -23,7 +23,7 @@ import { heartsRun, livesCap } from "../../sim/hearts"; // RETUNE-1 run 2: the h
 import { HEROES, ITEMS, SIGNATURE_CORES, START_LIVES, classFactor, rigShape, type HeroId } from "../../sim/content";
 import type { ModuleTag } from "../../sim/content"; // 0.8.0 I1 M4: the families in the header
 import type { ItemDef } from "../../sim/content"; // SHOPCARD-1e (E3, E4): offerLabel
-import { drawFamilyMark, familiesOf, familySpans, familyWord } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
+import { drawFamilyMark, familiesOf, famHeadSpans, famHeadText } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2); PRESENT-2 W (b): the head's words
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
 import {
   arrowsOf, beltUsed, canSellTurret, connectedRouteCount, defOf, gearFor, gearOn, hitsOfRig, installedTurrets, itemByUid, routeInfo,
@@ -1596,7 +1596,7 @@ export interface PanelPlan {
   /** 0.8.0 I1 M4: the module's families in the header: named under the sub line ("sub"), or right-aligned on the row of
    *  the sub line's second line ("sub2") or of the title ("title"), named or (where the names don't fit) as their marks;
    *  null when none is given or the header has no room. */
-  famHead: { at: "sub" | "sub2" | "title"; tags: ModuleTag[]; names: boolean } | null;
+  famHead: { at: "sub" | "sub2" | "title"; tags: ModuleTag[]; names: boolean; explained?: boolean } | null;
   /** SPACE-1 (REQ-BFG-087): the gaps between the body's separate items, laid after the body's plan (which is exactly as
    *  without them) from the room it leaves: `before[i]`, the gap slots before body line i (gapSlots); `slots`, their sum;
    *  `px`, each slot's gap (all alike: `G` where the room holds it, less where it doesn't, 0 with no room or a cut);
@@ -1747,7 +1747,8 @@ function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { 
   // y+20..y+22; the body starts at y+24)
   const tags = [...families];
   const strip = !column && area.y + 25 + shift + 5 > area.y + area.h - 4 && !!sp.headerOnly;
-  const namesW = textWidth(tags.map(familyWord).join(", "), "3"), marksW = tags.length * 4 - 1; // CARD-3: the player's tags
+  const namesW = textWidth(famHeadText(tags, false), "3"), marksW = tags.length * 4 - 1; // CARD-3: the player's tags (the plain names: where the head sits is decided by them, as before PRESENT-2)
+  const explainedW = textWidth(famHeadText(tags), "3"); // PRESENT-2 W (b): the head says what the names are (`FORGE FAMILY`, `FAMILIES: FORGE, TEMPO`) where that fits the same place
   const titleFree = column || !labels.length || !!port?.shift;
   const beside = (text: string, font: FontId, free: boolean, gap = 6) => (w: number) => free && 23 + textWidth(text, font) + gap + w <= area.w - 4;
   const bySub2 = beside(subs[1] ?? "", "3", column && subs.length === 2), byTitle = beside(sp.title, "5", titleFree);
@@ -1756,7 +1757,7 @@ function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { 
   // buttons under the sub line) had no place at all
   const byTitleTight = beside(sp.title, "5", titleFree, 2);
   const underSub = subs.length === 1 && !shift;
-  const famHead: PanelPlan["famHead"] = !tags.length || strip || area.h < 28 ? null
+  const famHead0: PanelPlan["famHead"] = !tags.length || strip || area.h < 28 ? null
     : underSub && !body.tight && namesW <= area.w - 27 ? { at: "sub", tags, names: true }
     : bySub2(namesW) ? { at: "sub2", tags, names: true }
     : byTitle(namesW) ? { at: "title", tags, names: true }
@@ -1764,6 +1765,11 @@ function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { 
     : bySub2(marksW) ? { at: "sub2", tags, names: false }
     : byTitle(marksW) || byTitleTight(marksW) ? { at: "title", tags, names: false }
     : null;
+  // PRESENT-2 W (b) (cap's ruling 7d5006c5f3ca852f): one ladder a head, per view: the explained words (`FORGE FAMILY`, `FAMILIES: FORGE, TEMPO`) where they fit the place the plain names
+  // took (the head keeps today's place, colour and face), else the plain names as before, else the marks as before: no head loses the names it shows
+  const famHead: PanelPlan["famHead"] = famHead0 && famHead0.names
+    && (famHead0.at === "sub" ? explainedW <= area.w - 27 : famHead0.at === "sub2" ? bySub2(explainedW) : byTitle(explainedW))
+    ? { ...famHead0, explained: true } : famHead0;
   // SPACE-1 (REQ-BFG-087, D2, D3): the body above is planned exactly as without gaps; its separate items then take a gap
   // each (gapSlots) from the room left: up to G (the body face's GAP), all alike, less where the room is short. The
   // column, sized to its text, is sized with its gaps at G within its area (`o.gaps` false: none, the plan as before)
@@ -2244,7 +2250,7 @@ export function drawFamHead(g: G, plan: Pick<PanelPlan, "r" | "famHead">): void 
   const fh = plan.famHead, r = plan.r;
   if (!fh) return;
   if (fh.names) {
-    const spans = familySpans(fh.tags.map(familyWord).join(", "), C.slate4); // CARD-3 (REQ-BFG-107): the player's tags
+    const spans = famHeadSpans(fh.tags, C.slate4, !!fh.explained); // CARD-3 (REQ-BFG-107): the player's tags; PRESENT-2 W (b): `FORGE FAMILY`, `FAMILIES: FORGE, TEMPO` where the explained words fit
     if (fh.at === "sub") drawRich(g, spans, r.x + 23, r.y + 19, "3");
     else drawRich(g, spans, r.x + r.w - 4 - lineWidth(spans, "3"), r.y + (fh.at === "sub2" ? 19 : 5), "3");
     return;
