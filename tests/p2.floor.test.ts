@@ -101,7 +101,10 @@ const POOL_OFF_SHA256_BB0100 = "e9accebca818eed8c3455328e1b52731a3cad4b2505272d6
 const POOL_OFF_SHA256_BB0110 = "3a5f3e16491c3e79079b7e71e59883c3747a595e0341bd40642b710125ec40e6"; // BUMP-1E: BUMP-1D's POOL_OFF_SHA256, read in the bb-0.11.0 world
 // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): GATES and ENCHANT ship on, with the F-fixes, POISON_DPS 2, the braced RATCHET and OLD BULWARK's GREASE): the shipped world's NPC_DAY-off pool moved: was 2bc4a2fd... (BUMP-1E's). PROOF that the world alone moved it: the two rolled-back tests below
 // reproduce BUMP-1E's and BUMP-1D's pins EXACTLY once GATES and ENCHANT are off in scalingOff (the bb-0.10.0 world: e9accebc..., the bb-0.11.0 world: 3a5f3e16...); this digest is measured with the shipped switches (this test's own world)
-const POOL_OFF_SHA256 = "848b6f35d054036cde292bca9c05521fbc6786d1360bcf04c540ecd2b4934df4"; // BUMP-1E: was 3a5f3e16491c3e79079b7e71e59883c3747a595e0341bd40642b710125ec40e6 (the bb-0.11.0 world)
+// BUMP-1G: was 848b6f35... (BUMP-1F's) (the shipped world's NPC_DAY-off pool moved: EFFECT_FLOOR on, and B1 (the par bot's redraw keeps a rig's word, shopper.ts placeRig); the bb-0.11.0 world proof below still holds). Measured in a throwaway export of this tree:
+// with bump1g-base's shopper.ts, player.ts, lastChance.ts, npcWords.ts, rivalBuilds.ts and luckCapsData.ts put back and the floor off, this test's world reads BUMP-1F's pin exactly (the rules string put back to bb-0.13.0); adding the floor moves it, adding B1 moves it
+// again, and adding B2, G2's RATCHET and GRIMHOLD steps and the new luck caps (the tip) moves it no further: these 96 decks are the floor's and B1's alone [POOL_OFF_SHA256]
+const POOL_OFF_SHA256 = "e365dae30575be9c02f77fdb551c0dcff287f3f9cef34d11ee5337ac9f627846"; // BUMP-1E: was 3a5f3e16491c3e79079b7e71e59883c3747a595e0341bd40642b710125ec40e6 (the bb-0.11.0 world)
 /** BUMP-1D: `fn` in the bb-0.10.0 world: the 10-day run, without PLAIN_RIGS and SHAPES2 (each put back after it, even on a throw). */
 // Turning PLAIN_RIGS and SHAPES2 off and on again re-inserts their twelve pieces at the end of ITEMS (plainRigs.ts setPlainRigs, shapes2.ts setShapes2), in the
 // other order when SHAPES2 comes back first, and the shop's picks walk the catalogue in key order: a pool built after the toggle differs from one built before it

@@ -448,6 +448,10 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
   // written in this file's own world, where the 062b nest had re-added PLAIN_RIGS' ids at the END of ITEMS; a fresh process (a player's client, the server) has always had the canonical order, and its draws are the
   // same at bump1f-base and here (kit-1f/r6draws.sh, BB_R6_FRESH=1: draws 4a79c579dacfbb03, wares 1ca5d313edefbd95, 1,000-seed offer counts fb6271b30e939ae1 at both). Bisect: 0 of 108 moved at every first-parent commit
   // of bump1f-base..1459562; 91 at 6ce4bd8 and after. The odds are unchanged within noise (248 event-day-good cells over 1,000 seeds: mean z^2 0.56, max |z| 2.27, none over 3)
+  // BUMP-1G: was 47,825 B, sha16 4ccddf59fb5915e9 (BUMP-1F's file) (EFFECT_FLOOR ships on, src/sim/effectFloor.ts): REGENERATED with BB_WRITE_ROAD_DRAWS_080=1 (48,147 B, sha16 92baceda9986f949): 8 of the 108 choices moved
+  // (wreck 0, smuggler 6, trader 2: seeds 1 and 63353 on the smuggler's three held sets, seed 63353 on the trader's "some" and "many"), the 3 salvage rows, the smuggler row and the 91 swaps did not. The one cause is the floor: in
+  // this 0.9.11 world (the nest below) it puts COIL in and VENOM out of seed 1's wares and LODESTONE in and SEAMWELDER out of seed 63353's (a run whose wares hold no SHOCK piece gets one: the six smuggler rows read SHOCK:! on the early days, NONE ON OFFER,
+  // now COIL and LODESTONE), and the smuggler and the trader read the run's wares. Proved in a throwaway export of this tree: the same nest with withEffectFloor(fn, false) draws the BUMP-1F file exactly (0 of the 108 choices move)
   it("0.8.0: the live road draws (wave 3's commons in SALVAGE, the per-run draw) are the regenerated fixture's", () => {
     expect(SCALE_RIGS).toBe(true); // BUMP-1E: the switch ships on (the fixture is the world before it)
     // BUMP-1F (GATES and ENCHANT on by default, RULING-BUMP1F-R5 R5.2): the 0.9.11 world also has GATES off (the three converters are goods and join the swaps) and ENCHANT off (the ASH SHRINE is in the bag); was withScaleRigs(fn, false) alone.
@@ -528,7 +532,9 @@ describe("P10: expanded road rig draws and shared timing gear", () => {
     ]);
     // the per-run draw still moves the event draws themselves, and the whole set is the digest's
     expect(roadDraws(true).choices).not.toEqual(live.choices);
-    expect(createHash("sha256").update(JSON.stringify(live)).digest("hex").slice(0, 16)).toBe("80d382e496b23faa"); // BUMP-1F (R11.1): was "a20ec4386fd52951" (the canonical ITEMS order of 6ce4bd8 and the three gates as goods; kit-1f/r6draws.sh)
+    // BUMP-1G: was 80d382e496b23faa (BUMP-1F's digest) (EFFECT_FLOOR on: in the shipped world the floor puts STATIC BRUSH in and ROTGAUGE out of seed 55434's wares, so 5 of the 108 choices move, the smuggler's and the trader's of that seed (smuggler 3, trader 2);
+    // the salvage rows, the smuggler row and the swaps do not. The fixture's moved seeds (1 and 63353, in the 0.9.11 catalogue) are other draws, and the moved counts above hold: they count the shipped draws against the regenerated fixture. Measured in a throwaway export with withEffectFloor(fn, false))
+    expect(createHash("sha256").update(JSON.stringify(live)).digest("hex").slice(0, 16)).toBe("700dfe02f6f324e9"); // BUMP-1F (R11.1): was "a20ec4386fd52951" (the canonical ITEMS order of 6ce4bd8 and the three gates as goods; kit-1f/r6draws.sh)
   });
 
   it("the cards say RIG: the wreck and the smuggler name rigs, and nothing on the three events says GATE", () => {
