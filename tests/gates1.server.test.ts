@@ -119,6 +119,7 @@ function fixtures(): Fx[] {
   });
 }
 
+const rulesRank = (r: string): number => r.split(".").slice(1).map(Number).reduce((a, n) => a * 1000 + n, 0); // BUMP-1G: bb-0.<minor>.<patch> as a number
 describe("GATES-1: the client check and POST /v1/ghosts agree on the three gates, in both switch states", () => {
   let dir: string;
   let app: GhostServer;
@@ -134,7 +135,8 @@ describe("GATES-1: the client check and POST /v1/ghosts agree on the three gates
   });
 
   it("GATES_RULES: the literal of this rules version; the fixtures hold each of the three, the first on three belt tiles, none next to another", () => {
-    expect(GATES_RULES).toBe(RULES_VERSION);
+    expect(GATES_RULES).toBe("bb-0.13.0"); // BUMP-1G (BRIEF-BUMP1G P2: every other rules literal stays): was expect(GATES_RULES).toBe(RULES_VERSION); GATES went live at bb-0.13.0 and its gate keeps that literal; RULES_VERSION is bb-0.14.0 now
+    expect(rulesRank(GATES_RULES)).toBeLessThanOrEqual(rulesRank(RULES_VERSION));
     const fx = fixtures();
     const held = new Set(fx.flatMap((f) => f.s.build.items.map((p) => p.def)).filter((d) => GATES_IDS.includes(d)));
     expect([...held].sort()).toEqual([...THREE].sort());

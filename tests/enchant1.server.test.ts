@@ -85,6 +85,7 @@ function fixtures(): { name: string; s: GhostSnapshot; ok: boolean }[] {
   return out;
 }
 
+const rulesRank = (r: string): number => r.split(".").slice(1).map(Number).reduce((a, n) => a * 1000 + n, 0); // BUMP-1G: bb-0.<minor>.<patch> as a number
 describe("ENCHANT-1 E2: the client check and POST /v1/ghosts agree on the words, in both switch states", () => {
   let dir: string;
   let app: GhostServer;
@@ -100,7 +101,8 @@ describe("ENCHANT-1 E2: the client check and POST /v1/ghosts agree on the words,
   });
 
   it("ENCHANT_RULES: the literal of this rules version; the fixtures hold each kind of piece and the refusals", () => {
-    expect(ENCHANT_RULES).toBe(RULES_VERSION);
+    expect(ENCHANT_RULES).toBe("bb-0.13.0"); // BUMP-1G (BRIEF-BUMP1G P2: every other rules literal stays): was expect(ENCHANT_RULES).toBe(RULES_VERSION); ENCHANT went live at bb-0.13.0 and its gate keeps that literal; RULES_VERSION is bb-0.14.0 now
+    expect(rulesRank(ENCHANT_RULES)).toBeLessThanOrEqual(rulesRank(RULES_VERSION));
     const fx = fixtures();
     expect(fx.filter((f) => f.ok).map((f) => f.name)).toEqual(["rig-fiery", "rig-wide", "turret-massive", "factory-swift", "turret-echoing", "rig-growing"]);
     expect(fx.filter((f) => !f.ok).length).toBeGreaterThanOrEqual(10);

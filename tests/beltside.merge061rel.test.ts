@@ -508,11 +508,11 @@ describe("P18: RULES_VERSION", () => {
   // BUMP-1D (the pools): the title's pool clause was "(POOL_RULES: regenerated under bb-0.9.3 at Y7b2, nothing carried since FLIP-X2)":
   // the pool was regenerated for days 1-16 under bb-0.11.0 (8fc5e24), so it is scored under the rules of this build and nothing is carried
   it("is bb-0.11.0, BUMP-1D's bump (AZ-BUMP's was bb-0.10.0, Z-BUMP's bb-0.9.7, Y7b2's bb-0.9.3, BELTS's bb-0.8.3, the 0.8.0 release step's bb-0.8.0, BELTSIDE's own bb-0.6.2), and the stand-in pool was scored under it (POOL_RULES: regenerated under bb-0.11.0 at BUMP-1D, nothing carried since FLIP-X2)", () => {
-    expect(RULES_VERSION).toBe("bb-0.13.0") /* BUMP-1F: the bump (was bb-0.12.0; RULING-BUMP1F-R5 R5.2). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.14.0") /* BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F: the bump (was bb-0.12.0; RULING-BUMP1F-R5 R5.2). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     // Y7b2 (the pools): STAND_IN_DATA.rules = POOL_RULES = bb-0.9.3 (4d772e4; was bb-0.9.1 at BAL-2's c5e4780). RUNES-1's
     // bb-0.8.7 carried bb-0.8.6's pool (content.ts POOL_RULES_CARRIED, empty since FLIP-X2)
     // BUMP-1D (the pools): STAND_IN_DATA.rules = POOL_RULES = bb-0.11.0 (8fc5e24, the pool regenerated for days 1-16; was bb-0.9.3)
     expect(STAND_IN_DATA.rules).toBe(POOL_RULES);
-    expect([STAND_IN_DATA.rules, POOL_RULES]).toEqual(["bb-0.13.0", "bb-0.13.0"]); // BUMP-1F: the bump, the pool regenerated under bb-0.13.0 (was bb-0.12.0; RULING-BUMP1F-R5 R5.2). BUMP-1E: the bump (was bb-0.11.0).
+    expect([STAND_IN_DATA.rules, POOL_RULES]).toEqual(["bb-0.14.0", "bb-0.14.0"]); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the stand-in module's rules and POOL_RULES): was bb-0.13.0. BUMP-1F: the bump, the pool regenerated under bb-0.13.0 (was bb-0.12.0; RULING-BUMP1F-R5 R5.2). BUMP-1E: the bump (was bb-0.11.0).
   });
 });
