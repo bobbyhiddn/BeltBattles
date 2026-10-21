@@ -75,6 +75,14 @@ const OVER: Record<string, [number, number]> = {
 const YIELDS: Record<string, number> = {
   "new op-402x690, no rune": 24, "new op-402x690, a rune": 24, "new phone-390x844": 0, "new phone-390x660": 10, "new iphone15pm-430x739": 0,
 };
+/** PRESENT-2 F (REQ-BFG-081; PRESENT-1 Question 4 (d) (ii)): a panel grown up from the band for a note keeps the band's 3x5 face where the band shows its whole text in it (inspector.ts
+ *  detailsPlanOf's `small`). T, per view: [the notes whose grown panel still changed the body's face (panels that grow for their own text), the growth's total px over every box].
+ *  Before F (PRESENT-1's tip 4656d58630ee and PRESENT-2 at f48f9b7e: the same counts): faces 21, 533, 137, 55, 24 and the totals in GROWTH_BEFORE. */
+const FACES: Record<string, [number, number]> = {
+  "op-402x690, no rune": [0, 8328], "op-402x690, a rune": [4, 57050], "phone-390x844": [0, 5172], "phone-390x660": [2, 34904], "iphone15pm-430x739": [0, 9620],
+};
+/** The same totals before F (the growth px histograms of the base's T run, summed: kit/growsum.py): the growth falls on every view. */
+const GROWTH_BEFORE: Record<string, number> = { "op-402x690, no rune": 8784, "op-402x690, a rune": 61280, "phone-390x844": 8688, "phone-390x660": 35840, "iphone15pm-430x739": 10226 };
 const ov = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 /** What a note never covers (cap's ruling 0d0ef2465804aafb): the deck's cells, FIGHT, the cargo bar, the top bar. */
 const hardRects = (L: BuildLayout): Record<string, Rect> => ({ deck: screenRect(L, { x: L.frame.dx, y: L.frame.dy, w: DECK, h: DECK }), FIGHT: L.fight, cargo: L.cargo, bar: L.bar });
@@ -175,8 +183,8 @@ describe("PRESENT-1 S4 (b): a shown definition never covers a rule row of its pa
     const f = framed(w, h, dpr, runes);
     // the tallest a panel may grow: up to the top bar, never over the carrier (layout.ts panelArea's `most`)
     const limit = f.L.info.y + f.L.info.h - (f.L.bar.y + f.L.bar.h + 1);
-    let panels = 0, boxes = 0, grew = 0, tallest = 0, faces = 0, onCarrier = 0, deepest = 0;
-    const over: string[] = [], stuck: string[] = [], hist = new Map<number, number>(), crossed: string[] = [], hard = hardRects(f.L);
+    let panels = 0, boxes = 0, grew = 0, tallest = 0, faces = 0, onCarrier = 0, deepest = 0, total = 0;
+    const over: string[] = [], stuck: string[] = [], hist = new Map<number, number>(), crossed: string[] = [], hard = hardRects(f.L), lost: string[] = [];
     for (const p of allPanels()) {
       const pc = panelCtx(p.run, p.sel, f, true);
       const plain = pc.draw();
@@ -191,6 +199,9 @@ describe("PRESENT-1 S4 (b): a shown definition never covers a rule row of its pa
         boxes++;
         if (fr.area.h > plain.area.h) grew++;
         if (fr.d.plan.body.font !== plain.d.plan.body.font) faces++;
+        total += fr.area.h - plain.area.h;
+        // PRESENT-2 F: the band shows the panel's whole text in the 3x5 face (so only the note grows it): the grown panel keeps that face
+        if (plain.area.h === f.L.info.h && fr.area.h > plain.area.h && plain.d.plan.body.font === "3" && fullText(plain.d.plan) && gapsAtLeast(plain.d.plan, plain.d.plan.gaps.min) && fr.d.plan.body.font !== "3") lost.push(`${p.id} | ${wd}`);
         tallest = Math.max(tallest, fr.area.h);
         hist.set(fr.area.h - plain.area.h, (hist.get(fr.area.h - plain.area.h) ?? 0) + 1);
         const bad = covered(box, rowsOf(fr.d.plan));
@@ -214,6 +225,11 @@ describe("PRESENT-1 S4 (b): a shown definition never covers a rule row of its pa
     expect(stuck.length, `at the limit: ${[...stuckPanels].join("; ")}`).toBe(STUCK[name]);
     expect(crossed, crossed.slice(0, 5).join("\n")).toEqual([]);
     expect([onCarrier, deepest], `T ${name}: notes over the carrier's top, the deepest px into the pad`).toEqual(OVER[`T ${name}`]);
+    // PRESENT-2 F: a panel whose band shows its whole text in 3x5 keeps that face when a note grows it (none of them takes the 5x7 face); the face changes left are the panels
+    // that grow for their own text; the growth falls on every view
+    expect(lost, `grown panels that left the band's face: ${lost.slice(0, 5).join("; ")}`).toEqual([]);
+    expect([faces, total], `T ${name}: notes whose grown panel changed the body's face, the growth's total px`).toEqual(FACES[name]);
+    expect(total, `T ${name}: the growth falls (before F ${GROWTH_BEFORE[name]} px)`).toBeLessThan(GROWTH_BEFORE[name]);
   }, BIG);
 
   // "sight": every tip done, every first-sight note new (no how-to strip); "new": every tip new too (a strip under the panel, the note beside it)
@@ -339,6 +355,37 @@ describe("PRESENT-1 S4 (b): a shown definition never covers a rule row of its pa
     }
     expect(last2.area).toEqual(f.L.info); // the one first-sight note (SHOT) closed: the band, in the frame the press closed it
     expect(n).toBeGreaterThanOrEqual(0);
+  });
+
+  it("PRESENT-2 F: SHOT TOWER's offer panel on 402x690 with a rune holds its whole text in the band's 3x5 face; a note grows it for the note only, in the same face (before F: the 5x7 face, 57 -> 87)", () => {
+    setTipsForTests("done");
+    const f = framed(402, 690, 3, 1);
+    const p = allPanels().find((q) => q.id === "offer shottower")!;
+    const pc = panelCtx(p.run, p.sel, f, true), plain = pc.draw();
+    expect(plain.area).toEqual(f.L.info);
+    expect(plain.d!.plan.body.font, "the band's face").toBe("3");
+    expect(fullText(plain.d!.plan) && gapsAtLeast(plain.d!.plan, plain.d!.plan.gaps.min), "the band shows the whole text").toBe(true);
+    const grown: string[] = [], faces: string[] = [], rows: string[] = [], feet: string[] = [];
+    for (const wd of kwWords(plain.ui)) {
+      const st = keywordState(pc.ctx) as { word: string | null };
+      st.word = glossaryEntry(wd)?.word ?? wd;
+      const fr = pc.draw(), box = boxOf(fr.ui);
+      st.word = null;
+      if (!box || !fr.d) continue;
+      grown.push(`${wd} +${fr.area.h - plain.area.h} (${fr.d.plan.body.font === "3" ? "3x5" : "5x7"})`);
+      if (fr.d.plan.body.font !== "3") faces.push(wd);
+      if (covered(box, rowsOf(fr.d.plan)).length) rows.push(wd);
+      if (fr.area.y + fr.area.h !== plain.area.y + plain.area.h) feet.push(wd);
+    }
+    keywordsIdle(pc.ctx);
+    // eslint-disable-next-line no-console
+    console.log(`S4B-F2 offer shottower: band ${plain.area.h} px, notes: ${grown.join(", ")}`);
+    // before F (tests-fbase.log: the same harness at e80f8c6e) the notes grew it by 30, 30, 30 and 36 px in the 5x7 face (57 -> 87, 87, 87 and 93; PRESENT-1 run 3's "57 -> 87"); now the same
+    // notes, 6 px less each, in the band's face: the note's own lines are the rest of the growth
+    expect(grown, "every note, its growth in px and the grown panel's face").toEqual(["RATE +24 (3x5)", "BELT +24 (3x5)", "SLUG +24 (3x5)", "SWARM FAMILY +30 (3x5)"]);
+    expect(faces, "the grown panel keeps the band's face").toEqual([]);
+    expect(rows, "the note covers no rule row").toEqual([]);
+    expect(feet, "grown up: the foot stays").toEqual([]);
   });
 
   it("rulesCovered: a row the box covers, or touches within `clear`, counts; flavour, hint and reminder rows never do", () => {

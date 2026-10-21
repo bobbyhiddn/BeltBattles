@@ -1685,9 +1685,12 @@ const columnRows = (n: number, tap = 0): number => Math.ceil(n / (tap > 0 ? 2 : 
  *  (it would grow over the shop rows, D4) stays in the band in the band's face, 3x5, where that shows its full text
  *  (fullText) with its gaps at least 3x5's GAP_MIN; else the plan is as before. A grown panel still reads in 5x7. The
  *  face is chosen with the gaps on, whatever `o.gaps` asks, so the content is the same with the gaps off and on (SPACE-1's
- *  content first: the gaps never change what a plan shows). */
+ *  content first: the gaps never change what a plan shows).
+ *  PRESENT-2 F (REQ-BFG-081; PRESENT-1 Question 4 (d) (ii)): `o.small`, the band's face carried to a panel grown up from the band for a note
+ *  (detailsPlanOf): the body in the 3x5 face only, as the band itself planned it. */
 export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [],
-  o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean } = {}): PanelPlan {
+  o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean; small?: boolean } = {}): PanelPlan {
+  if (o.small) return planIn(sp, area, families, o, true);
   const p = planIn(sp, area, families, o, false);
   if (!o.inBand || p.column || p.headerOnly || p.body.font !== "5") return p;
   const on = { ...o, gaps: true }, big = o.gaps === false ? planIn(sp, area, families, on, false) : p;
@@ -2016,14 +2019,23 @@ function detailsPlanOf(ctx: Ctx, show: Sel, sp: Spec, t: PanelText, area: Rect, 
   const fams = selFamilies(ctx.run, show), tap = touchTap(ctx), band = !!ctx.L?.portrait, gaps = o.gaps !== false;
   // CARD-3 (REQ-BFG-080, B's lever 3): a finger's panel on a phone's band itself (panelArea's L.info, by its rect: the
   // tests and BuildScreen pass the same rect) may stay in the band in 3x5 (planPanel's `inBand`)
-  const I = ctx.L?.info, inBand = !!ctx.L?.phone && tap > 0 && !!I && area.x === I.x && area.y === I.y && area.w === I.w && area.h === I.h;
-  const plan = planPanel(planned(t), area, fams, { tap, band, gaps, inBand });
+  const I = ctx.L?.info, onPhone = !!ctx.L?.phone && tap > 0 && !!I, inBand = onPhone && area.x === I.x && area.y === I.y && area.w === I.w && area.h === I.h;
+  // PRESENT-2 F (REQ-BFG-081; PRESENT-1 Question 4 (d) (ii)): a panel grown UP from the band (the same x, width and foot, taller: layout.ts panelRect "up") for a
+  // definition keeps the face the band gave it where the band shows the panel's whole text in the 3x5 face (the fit it had before any note): only the note grows it, not
+  // a switch to the 5x7 face (539 of 2,429 grown notes on 402x690 with a rune took the body from 3x5 to 5x7 and 30-42 px of growth for it). Any other panel: as before
+  const grownUp = onPhone && !inBand && area.x === I!.x && area.w === I!.w && area.y + area.h === I!.y + I!.h && area.h > I!.h;
+  let small = false;
+  if (grownUp) {
+    const bp = planPanel(planned(t), I!, fams, { tap, band, gaps: true, inBand: true }); // with the gaps ON whatever `gaps` asks: SPACE-1's content first (the gaps never change what a plan shows)
+    small = bp.body.font === "3" && fullText(bp) && gapsAtLeast(bp, bp.gaps.min);
+  }
+  const plan = planPanel(planned(t), area, fams, { tap, band, gaps, inBand, small });
   // shoptap (D2): on the phone band a touch panel's optional button (TO CARGO) gives way where keeping it would cut the
   // panel's kept text (the extra button pushes the row under the sub line); its kept text always shows whole
   if (tap && !plan.column && !keptWhole(plan) && sp.actions.some((a) => a.optional)) {
     const lean: Spec = { ...sp, actions: sp.actions.filter((a) => !a.optional) };
     const lt: PanelText = { ...sp.text, labels: lean.actions.map((a) => a.label) };
-    const lp = planPanel(planned(lt), area, fams, { tap, band, gaps, inBand });
+    const lp = planPanel(planned(lt), area, fams, { tap, band, gaps, inBand, small });
     if (keptWhole(lp)) return { show, sp: lean, t: lt, plan: lp };
   }
   return { show, sp, t, plan };
