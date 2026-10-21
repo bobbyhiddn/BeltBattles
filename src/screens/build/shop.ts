@@ -11,7 +11,7 @@ import { drawText, icons, textWidth, wrap } from "../../render/font"; // PRESENT
 import { coinIcon, itemIcon } from "../../render/sprites";
 import type { Rect } from "../../ui/ui";
 import { colourize, drawRich, lineWidth, wrapRich, type RichLine } from "../../ui/richText"; // 0.6.2t (T4, T5)
-import { drawFamilyMarks, familiesText, familySpans } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
+import { drawFamilyMarks, famHeadSpans, familiesOf } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2); PRESENT-2 W (b): the tooltip's head (famHeadSpans)
 import { faceLines } from "../../ui/faces"; // TXT-095: the offer's tooltip, faces first (offerTooltip)
 import { plainRigStats } from "../../ui/faces"; // CARD-2 (REQ-BFG-084, K6): a plain rig's tooltip is its stat row
 import { statRow } from "../../ui/icons"; // CARD-2 (K6)
@@ -404,7 +404,9 @@ export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, text: string
   // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families, named in their colours under its kind (none: no line).
   // CARD-3 (REQ-BFG-087, D4; SPACE-1 open item 7): the family line and the effect are separate items: the gap G (3x5's)
   // between them (the effect's first line sat right under the names: 2 px, the pitch's)
-  const fam = familiesText(def.id), famLine = fam ? familySpans(fam) : null, fh = famLine ? 7 + GAP["3"] : 0;
+  // PRESENT-2 W (b) (REQ-BFG-081; the desk's hover is where a mouse meets a family head with no note opened): the line says what the names are, as the panel's head does
+  // (`FORGE FAMILY`, `FAMILIES: FORGE, TEMPO`: families.ts famHeadSpans); the box is as wide as its widest line, so the words lose nothing
+  const tags = familiesOf(def.id), famLine = tags.length ? famHeadSpans(tags) : null, fh = famLine ? 7 + GAP["3"] : 0;
   // PRESENT-1 (REQ-BFG-081; LIVE-PACKETS-0912 1 (5) g): the kind line in the panel's words (panelKind: a core's and gear's plain words, WORDS-1's
   // KIND_SUB), as the phone panel and the desk column say it; WORDS-1 changed only the panel's sub line (was describe(def): "RARE TURRET CORE")
   const kind = panelKind(def);
