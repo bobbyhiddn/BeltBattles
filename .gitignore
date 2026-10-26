@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-online/
 dist-demo/
+dist-app/
 shots/
 *.log
 .vite/

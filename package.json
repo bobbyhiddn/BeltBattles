@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "build:online": "tsc --noEmit && VITE_GHOST_SERVER=same-origin vite build --outDir dist-online",
     "build:demo": "tsc --noEmit && VITE_DEMO=1 vite build --outDir dist-demo",
+    "build:app": "tsc --noEmit && VITE_GHOST_SERVER=https://beltbattles.fly.dev VITE_NATIVE=1 vite build --outDir dist-app",
     "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
     "shot": "node scripts/shot.mjs",
@@ -30,9 +31,16 @@
     "luckcaps": "npm run build:luckcaps && node tools/dist/luckcaps/luckCaps.js"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.3",
     "playwright-core": "^1.55.0",
     "typescript": "~5.9.3",
     "vite": "^8.2.2",
     "vitest": "^4.0.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/preferences": "8.0.1"
   }
 }

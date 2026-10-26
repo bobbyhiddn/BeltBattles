@@ -1,0 +1,12 @@
+{
+  "appId": "com.bobbyhiddn.beltbattles",
+  "appName": "BeltBattles",
+  "webDir": "dist-app",
+  "backgroundColor": "#050B12",
+  "plugins": {
+    "SystemBars": {
+      "style": "DARK",
+      "initialViewportFitValueHint": "cover"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- M1: the page's own background (index.html: html, body { background: #050b12 }; capacitor.config.json backgroundColor).
+         The window, the launch screen and the system bars' backing all use it, so the app never flashes white. -->
+    <color name="bb_background">#050B12</color>
+</resources>

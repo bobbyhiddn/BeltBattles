@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BeltBattles</string>
+    <string name="title_activity_main">BeltBattles</string>
+    <string name="package_name">com.bobbyhiddn.beltbattles</string>
+    <string name="custom_url_scheme">com.bobbyhiddn.beltbattles</string>
+</resources>
