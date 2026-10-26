@@ -193,7 +193,15 @@ describe.each(KINDS)("a burst of parallel tries from one address, on %s", (kind)
     });
     hung.on("error", () => {}); // the client destroys its own socket below
     hung.write(job.body.slice(0, 5)); // the headers and 5 of the body's bytes: the server waits for the rest, holding the only place
-    await sleep(60);
+    // Wait until the server has registered the half-sent request (IDENT-1 FIX2: this was sleep(60), which a loaded host can overrun). The probe is
+    // an unsigned redeem from the same address: while the place is free it is a 401 that gives its count back (it takes nothing, and it is over inside
+    // one turn of the event loop, so it cannot be the one that holds the place when the hung request arrives); once the place is held it is a 429.
+    let probe = 0;
+    for (let i = 0; i < 200 && probe !== 429; i++) {
+      if (i > 0) await sleep(25);
+      probe = (await send(rig, "POST", "/v1/link/redeem", undefined, { "fly-client-ip": ip })).status;
+    }
+    expect(probe, "the server registered the half-sent request (within 5 s)").toBe(429);
     expect((await fire(rig, [again]))[0].status, "while the first hangs, its place is taken").toBe(429);
     hung.destroy(); // the client goes away
     let after = 0;
