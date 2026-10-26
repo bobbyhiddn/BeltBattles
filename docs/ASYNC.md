@@ -715,12 +715,14 @@ with nothing new is the list alone. Every 6 hours a refresh reads all of them ag
 rewrites it with more ids (a key linked to the player after the first DELETE), and a machine that holds that tombstone sees the new ids
 only at the next full read. A request waits at most 250 ms for a refresh and goes on with the set it holds, so a slow or stuck store
 cannot stall the ghost features. A refresh that fails (or reads one tombstone and then fails) changes nothing, is logged once, and is
-tried again 5 s later. A tombstone that cannot be read is logged once and left until the next full read. The set only grows. A DELETE
+tried again 5 s later. A tombstone whose text cannot be read is logged once and left until the next full read; one that the store
+lists but returns nothing for is read again at the next refresh. The set only grows. A DELETE
 adds its ids to its own machine at once. Across machines it is best effort: a new tombstone reaches another machine within about a
 minute, and ids added to an old one within 6 hours. A DELETE reads each Steam link before it removes it (two more requests on Tigris
-for each account), and removes only a link that names the player or one of its keys: `linkSteam` writes the player's record first and
-the link second, as a join does, so a store failure between the two leaves a listed account with no link (the retry writes it), and
-the record can list an account whose link is another player's, which stays.
+for each account), and removes only a link that names the player or one of its keys. A link that cannot be read names nobody: it is
+left as it is and logged (with no id), and the next link of that account overwrites it. `linkSteam` writes the player's record first
+and the link second, as a join does, so a store failure between the two leaves a listed account with no link (the retry writes it),
+and the record can list an account whose link is another player's, which stays.
 
 ## 0.8.0: rules bb-0.8.0 and the four-hero seed pool
 

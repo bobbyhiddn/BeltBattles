@@ -275,19 +275,24 @@ export class Links {
     const listed = await this.store.list("tombstones/");
     const toRead = full ? listed : listed.filter((k) => !this.goneHeld.has(k));
     const found = new Set<string>();
+    const absent = new Set<string>(); // listed, but the store returned nothing under the key (it left since the listing, or the listing ran ahead)
     let unreadable = 0;
     await eachInFlight(toRead, TOMBSTONE_READS_IN_FLIGHT, async (k) => {
-      const t = decodeTombstone(await this.store.get(k));
+      const text = await this.store.get(k);
+      const t = decodeTombstone(text);
       if (t) for (const id of t.ids) found.add(id);
+      else if (text === null) absent.add(k);
       else unreadable++;
     });
-    // Every read ended well: only now does the reload change anything. A tombstone that cannot be read is held all the same (it adds
-    // no id), so it is logged once and not read again until the next full read.
+    // Every read ended well: only now does the reload change anything. A tombstone whose text cannot be read is held all the same (it adds
+    // no id), so it is logged once and not read again until the next full read. A key counts as held only once its ids are in the set, so
+    // one the store returned nothing for is not held: the next refresh reads it again.
     for (const id of found) this.gone.add(id);
-    this.goneHeld = new Set(listed);
+    this.goneHeld = new Set(absent.size ? listed.filter((k) => !absent.has(k)) : listed);
     if (full) this.goneFullAt = began;
     this.goneLoadedAt = began;
     for (let i = 0; i < unreadable; i++) this.log("identity store: skipping an unreadable tombstone");
+    if (absent.size) this.log(`identity store: ${absent.size} listed tombstone(s) not found, to be read again at the next refresh`);
   }
 
   /**

@@ -48,7 +48,8 @@ async function otherMachineDeletes(rig: Rig, count: number, tag: string, first =
   return ids;
 }
 
-/** A spy on the tombstone reads of `rig`'s current server (take it after a restart). `gate` holds every read until it resolves; `failOn` fails the n-th. */
+/** A spy on the tombstone reads of `rig`'s current server (take it after a restart). `gate` holds every read until it resolves; `failOn` fails the n-th;
+ *  `absent` makes the store answer "nothing there" for those keys (a key the listing showed and the read then did not find). */
 interface Spy {
   reads: string[];
   lists: number;
@@ -56,12 +57,13 @@ interface Spy {
   max: number;
   gate: Promise<void> | null;
   failOn: ((n: number) => boolean) | null;
+  absent: Set<string>;
   restore(): void;
 }
 function spy(rig: Rig): Spy {
   const store = rig.app.links.store as { get: LinkStore["get"]; list: LinkStore["list"] };
   const get = store.get.bind(store), list = store.list.bind(store);
-  const s: Spy = { reads: [], lists: 0, inFlight: 0, max: 0, gate: null, failOn: null, restore: () => ((store.get = get), (store.list = list)) };
+  const s: Spy = { reads: [], lists: 0, inFlight: 0, max: 0, gate: null, failOn: null, absent: new Set(), restore: () => ((store.get = get), (store.list = list)) };
   store.get = async (k: string) => {
     if (!k.startsWith("tombstones/")) return get(k);
     const n = s.reads.push(k);
@@ -71,6 +73,7 @@ function spy(rig: Rig): Spy {
       await sleep(1); // an await boundary, so that reads that run side by side overlap
       if (s.gate) await s.gate;
       if (s.failOn?.(n)) throw new StorageError("identity read failed: HTTP 500");
+      if (s.absent.has(k)) return null;
       return await get(k);
     } finally {
       s.inFlight--;
@@ -521,6 +524,29 @@ describe.each(KINDS)("what a full read is for, on %s", (kind) => {
     await rig.app.links.settleReload();
     expect([s.reads.length, lines(rig.log, UNREADABLE)], "the full read reads it again and logs it once more").toEqual([6, 2]);
     expect(rig.app.links.goneCount).toBe(2);
+    s.restore();
+  });
+
+  it("a tombstone the store lists but returns nothing for is not held (its ids are not in the set): the next refresh reads it again, and an unreadable text is the other case", async () => {
+    const rig = await open(kind);
+    const [a, b, c] = await otherMachineDeletes(rig, 3, "a");
+    await rig.restart();
+    const s = spy(rig);
+    s.absent = new Set([`tombstones/${b}.json`]); // the listing shows it, the read finds nothing
+    await rig.app.links.settleReload();
+    expect([s.reads.length, rig.app.links.goneCount, rig.app.links.isGone(b)], "the first load read three, and two ids are in the set").toEqual([3, 2, false]);
+    expect(lines(rig.log, "1 listed tombstone(s) not found"), "said once, with a count and no id").toBe(1);
+    expect(lines(rig.log, UNREADABLE), "and it is not 'unreadable'").toBe(0);
+    s.absent.clear();
+    s.reads.length = 0;
+    rig.clock.now += TTL + 1;
+    await rig.app.links.settleReload();
+    expect(s.reads, "the next refresh reads that key again, and only that one").toEqual([`tombstones/${b}.json`]);
+    expect([rig.app.links.goneCount, rig.app.links.isGone(a), rig.app.links.isGone(b), rig.app.links.isGone(c)]).toEqual([3, true, true, true]);
+    s.reads.length = 0;
+    rig.clock.now += TTL + 1;
+    await rig.app.links.settleReload();
+    expect(s.reads, "and then it is held").toEqual([]);
     s.restore();
   });
 
