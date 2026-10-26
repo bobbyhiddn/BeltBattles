@@ -704,9 +704,23 @@ re-import; an empty IndexedDB plus a mirrored JWK restores the same key, so a pu
 mirrored link record, its player. On the web nothing changes.
 
 **Deletion.** `DELETE /v1/player` removes the player's profile, every link to it (keys and Steam) and its live code, and writes the
-tombstone. From then on none of its ghosts is served (an in-memory set, read on the first request and at start, refreshed every 60 s)
-and its ids answer 410. `ghost-admin purge-tombstoned [--apply]` removes the ghosts themselves in every rules version (a dry run by
-default). The device drops its key, its mirror and its link record; local progress stays.
+tombstone. From then on none of its ghosts is served and its ids answer 410. `ghost-admin purge-tombstoned [--apply]` removes the
+ghosts themselves in every rules version (a dry run by default). The device drops its key, its mirror and its link record; local
+progress stays.
+
+**The tombstone set** (IDENT-1 FIX2). The ids of every tombstone sit in an in-memory set on each machine. The first request, or the
+start, reads every tombstone, 8 reads at a time; until that has succeeded the routes answer 503, so a deleted player's ghost is never
+served from an incomplete set. A refresh every 60 s lists `tombstones/` and reads only the keys it does not hold yet, so a refresh
+with nothing new is the list alone. Every 6 hours a refresh reads all of them again: a DELETE that finds a tombstone already there
+rewrites it with more ids (a key linked to the player after the first DELETE), and a machine that holds that tombstone sees the new ids
+only at the next full read. A request waits at most 250 ms for a refresh and goes on with the set it holds, so a slow or stuck store
+cannot stall the ghost features. A refresh that fails (or reads one tombstone and then fails) changes nothing, is logged once, and is
+tried again 5 s later. A tombstone that cannot be read is logged once and left until the next full read. The set only grows. A DELETE
+adds its ids to its own machine at once. Across machines it is best effort: a new tombstone reaches another machine within about a
+minute, and ids added to an old one within 6 hours. A DELETE reads each Steam link before it removes it (two more requests on Tigris
+for each account), and removes only a link that names the player or one of its keys: `linkSteam` writes the player's record first and
+the link second, as a join does, so a store failure between the two leaves a listed account with no link (the retry writes it), and
+the record can list an account whose link is another player's, which stays.
 
 ## 0.8.0: rules bb-0.8.0 and the four-hero seed pool
 
