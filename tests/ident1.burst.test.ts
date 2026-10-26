@@ -4,6 +4,7 @@
 // synchronous step before the first await (FailureLimiter.tryCount), and the count is given back (giveBack) unless the try ends as a wrong
 // code, an await that throws included. Everything else holds as the checker tested it (tests/vident1.codes.test.ts, tests/ident1.codes.test.ts).
 // The count lives in each machine's memory, so across machines each machine counts its own: pinned below.
+import http from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { LINK_REDEEM_PREFIX, type Identity } from "../src/net/identity";
 import { CODE_ALPHABET } from "../server/links";
@@ -26,6 +27,16 @@ const KINDS: Kind[] = ["jsonl", "tigris"];
 /** A rig with the production limit (5 wrong codes per 10 minutes per address) and the global limiter out of the way. */
 const open = (kind: Kind, over: Opts = {}) => openRig(kind, { rateLimit: { windowMs: 60_000, max: 1_000_000 }, trustProxy: "fly", ...over });
 const codeOf = (r: Reply): string => String(r.json?.code);
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+/** `node:http`'s client side, which server/node.d.ts does not declare (it declares the server side only). */
+interface RawRequest {
+  write(chunk: string): void;
+  destroy(): void;
+  on(event: "error", cb: () => void): void;
+}
+const rawHttp = http as unknown as {
+  request(opts: { host: string; port: number; method: string; path: string; headers: Record<string, string> }): RawRequest;
+};
 /** A well-formed code nobody holds. */
 const wrong = (i: number): string => `ZZZZ-${CODE_ALPHABET[i % 31]}${CODE_ALPHABET[(i * 7 + 3) % 31]}ZZ`;
 
@@ -168,6 +179,30 @@ describe.each(KINDS)("a burst of parallel tries from one address, on %s", (kind)
       store.get = get;
     }
     await fullAllowance(rig, "10.3.0.1", key);
+  });
+
+  it("a client that goes away in the middle of its body gives its count back: while it hangs it holds its place, afterwards the address has it again", async () => {
+    const rig = await open(kind, { redeemLimit: { windowMs: 600_000, max: 1 } }); // a limit of ONE, so a held place shows
+    const key = await freshIdentity();
+    const ip = "10.6.0.1";
+    const [job] = await jobs(rig, ip, () => key, [wrong(1)]);
+    const [again] = await jobs(rig, ip, () => key, [wrong(2)]);
+    const url = new URL(rig.base);
+    const hung = rawHttp.request({
+      host: url.hostname, port: Number(url.port), method: "POST", path: "/v1/link/redeem", headers: { ...job.headers, "content-length": String(job.body.length) },
+    });
+    hung.on("error", () => {}); // the client destroys its own socket below
+    hung.write(job.body.slice(0, 5)); // the headers and 5 of the body's bytes: the server waits for the rest, holding the only place
+    await sleep(60);
+    expect((await fire(rig, [again]))[0].status, "while the first hangs, its place is taken").toBe(429);
+    hung.destroy(); // the client goes away
+    let after = 0;
+    for (let i = 0; i < 40 && after !== 403; i++) {
+      await sleep(25);
+      after = (await fire(rig, [again]))[0].status;
+    }
+    expect(after, "the place came back: a wrong code is a plain 403 again, not a 429").toBe(403);
+    expect((await fire(rig, [again]))[0].status, "and that one counted: the limit of one is used").toBe(429);
   });
 
   it("the closed gate's 403 (uploads closed) is not a wrong code and does not count", async () => {
