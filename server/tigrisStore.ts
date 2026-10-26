@@ -17,6 +17,7 @@
 // PUT succeeded, so 201 always means durable.
 
 import { endlessMaxDay, maxDayFor, type GhostSnapshot, type PoolEntry, checkSnapshot, ghostId } from "../src/net/snapshot"; // RUN-1 (D4, D6): the day buckets follow the rules' deepest day; ENDLESS-1: and an endless record's
+import { DEFAULT_BUCKET_CAP, DEFAULT_CACHE_MAX, oldestKeys, overflowKeys, type CacheStats, type CapItem } from "./bucketCap"; // S3: the cache's size
 import { S3Client } from "./s3";
 import { decodeRecord, encodeRecord, poolRecord, StorageError, type AddResult, type BucketScope, type GhostStore, type SeedCounts } from "./store";
 
@@ -68,6 +69,7 @@ async function mapLimit<T>(items: readonly T[], limit: number, fn: (item: T) => 
 
 interface Bucket {
   byKey: Map<string, PoolEntry>; // objects known to exist under this prefix
+  at: Map<string, number>; // S3: the PLAYER objects held (key -> upload time, ms): what the bucket cap and the ceiling order by. Pool keys are never in it
   bad: Set<string>; // keys whose body failed to decode: not fetched again while they exist
   listedAt: number; // clock at the start of the last successful LIST; 0 = never listed
   retryAt: number; // after a failed LIST: no new attempt before this
@@ -82,6 +84,10 @@ export interface TigrisStoreOptions {
   maxBuckets?: number; // cached (rules, day) buckets before the least recently used is dropped; default 64
   concurrency?: number; // parallel GETs, PUTs and DELETEs; default 16
   retryMs?: number; // wait after a failed bucket LIST before trying again; default 5 s
+  /** S3: player ghosts one bucket keeps in memory (the newest; seed ghosts never count); default 2,000 (bucketCap.ts). */
+  bucketCap?: number;
+  /** S3: player ghosts the whole cache keeps; past it the least recently used bucket loses its oldest first; default 12,000 (bucketCap.ts). */
+  cacheMax?: number;
   now?: () => number;
   log?: (line: string) => void;
 }
@@ -94,6 +100,11 @@ export class TigrisStore implements GhostStore {
   private readonly maxBuckets: number;
   private readonly concurrency: number;
   private readonly retryMs: number;
+  private readonly bucketCap: number; // S3
+  private readonly cacheMax: number; // S3
+  private evictedByCap = 0; // S3: player ghosts dropped from memory since this store was made
+  private evictedByCeiling = 0;
+  private readonly adding = new Map<string, Promise<AddResult>>(); // S3: add() single flight: the stores in flight right now, by object key
   private readonly now: () => number;
   private readonly log: (line: string) => void;
 
@@ -103,8 +114,25 @@ export class TigrisStore implements GhostStore {
     this.maxBuckets = opts.maxBuckets ?? 64;
     this.concurrency = opts.concurrency ?? 16;
     this.retryMs = opts.retryMs ?? 5_000;
+    this.bucketCap = Math.max(1, opts.bucketCap ?? DEFAULT_BUCKET_CAP);
+    this.cacheMax = Math.max(1, opts.cacheMax ?? DEFAULT_CACHE_MAX);
     this.now = opts.now ?? Date.now;
     this.log = opts.log ?? (() => {});
+  }
+
+  /** S3: what /v1/health reports about the cache. Reads memory only. */
+  cacheStats(): CacheStats {
+    return {
+      buckets: this.buckets.size, playerGhosts: this.playerGhosts(), bucketCap: this.bucketCap, ceiling: this.cacheMax,
+      evictedByCap: this.evictedByCap, evictedByCeiling: this.evictedByCeiling,
+    };
+  }
+
+  /** Player ghosts held across all buckets. */
+  private playerGhosts(): number {
+    let n = 0;
+    for (const b of this.buckets.values()) n += b.at.size;
+    return n;
   }
 
   get where(): string {
@@ -127,7 +155,7 @@ export class TigrisStore implements GhostStore {
     const k = `${rules}|${day}`;
     let b = this.buckets.get(k);
     if (!b) {
-      b = { byKey: new Map(), bad: new Set(), listedAt: 0, retryAt: 0, inflight: null, usedAt: 0, view: null, poolView: null };
+      b = { byKey: new Map(), at: new Map(), bad: new Set(), listedAt: 0, retryAt: 0, inflight: null, usedAt: 0, view: null, poolView: null };
       this.buckets.set(k, b);
       if (this.buckets.size > this.maxBuckets) {
         let oldest: string | null = null, at = Infinity;
@@ -144,21 +172,89 @@ export class TigrisStore implements GhostStore {
     const id = ghostId(s);
     const key = objectKey("player", s.rules, s.day, id);
     const b = this.slot(s.rules, s.day);
-    if (b.byKey.has(key)) return { id, created: false };
-    const entry = { id, snapshot: s };
-    if (await this.s3.head(key)) {
-      this.remember(b, key, entry); // stored by an earlier request or another machine
-      return { id, created: false };
+    // S3 (S2-REPORT section 4): single flight per key. Two identical uploads in flight used to both pass the check below, both HEAD, both PUT the
+    // same content-addressed key and both answer 201. Now the second waits for the first and then looks again: held -> 200 (created: false), as
+    // a sequential re-send is; if the first failed (storage down) the second tries for itself.
+    for (;;) {
+      if (b.byKey.has(key)) return { id, created: false };
+      const flying = this.adding.get(key);
+      if (!flying) break;
+      await flying.catch(() => {});
     }
-    await this.s3.put(key, encodeRecord(id, at, s)); // durable first...
-    this.remember(b, key, entry); // ...then indexed
-    return { id, created: true };
+    const run = this.store1(b, key, { id, snapshot: s }, at);
+    this.adding.set(key, run);
+    try {
+      return await run;
+    } finally {
+      if (this.adding.get(key) === run) this.adding.delete(key);
+    }
   }
 
-  private remember(b: Bucket, key: string, e: PoolEntry): void {
+  private async store1(b: Bucket, key: string, entry: PoolEntry, at: number): Promise<AddResult> {
+    if (await this.s3.head(key)) {
+      this.remember(b, key, entry, at); // stored by an earlier request or another machine
+      return { id: entry.id, created: false };
+    }
+    await this.s3.put(key, encodeRecord(entry.id, at, entry.snapshot)); // durable first...
+    this.remember(b, key, entry, at); // ...then indexed
+    return { id: entry.id, created: true };
+  }
+
+  /** Index a player ghost this process just stored (or found stored). S3: it is the newest of its bucket; if the bucket is over its cap, the
+   *  oldest ghost of the kind that holds more leaves memory (never storage), and if the cache is over its ceiling the least recently used
+   *  bucket gives up its oldest ghosts. */
+  private remember(b: Bucket, key: string, e: PoolEntry, at: number): void {
     b.byKey.set(key, e);
+    b.at.set(key, at);
     b.view = null;
     b.poolView = null;
+    this.capBucket(b);
+    this.enforceCeiling(b);
+  }
+
+  private items(b: Bucket): CapItem[] {
+    return [...b.at].map(([key, at]) => ({ key, at, endless: b.byKey.get(key)?.snapshot.mode === "endless" }));
+  }
+
+  /** Forget one player ghost in memory (the object stays in storage). */
+  private drop(b: Bucket, key: string, why: "cap" | "ceiling"): void {
+    b.byKey.delete(key);
+    if (b.at.delete(key)) {
+      if (why === "cap") this.evictedByCap++;
+      else this.evictedByCeiling++;
+    }
+    b.view = null;
+    b.poolView = null;
+  }
+
+  /** S3: at most bucketCap player ghosts in a bucket. */
+  private capBucket(b: Bucket): void {
+    if (b.at.size <= this.bucketCap) return;
+    for (const key of overflowKeys(this.items(b), this.bucketCap)) this.drop(b, key, "cap");
+  }
+
+  /** S3: at most cacheMax player ghosts in the cache. The least recently used bucket loses its oldest ghosts first; the bucket in use (`current`)
+   *  is the last resort (only when nothing else holds a ghost). */
+  private enforceCeiling(current: Bucket): void {
+    for (;;) {
+      const excess = this.playerGhosts() - this.cacheMax;
+      if (excess <= 0) return;
+      let victim: Bucket | null = null;
+      for (const c of this.buckets.values()) if (c !== current && c.at.size > 0 && (victim === null || c.usedAt < victim.usedAt)) victim = c;
+      victim ??= current.at.size > 0 ? current : null;
+      if (!victim) return;
+      for (const key of oldestKeys(this.items(victim), excess)) this.drop(victim, key, "ceiling");
+    }
+  }
+
+  /** S3: how many of its newest player objects a bucket's LIST may fetch. The first load takes the newest bucketCap (never more than the
+   *  ceiling); a re-list keeps what the bucket holds and grows only into room the cache has free, so a bucket the ceiling trimmed is not
+   *  refilled from storage at every TTL just to be trimmed again. */
+  private windowFor(b: Bucket): number {
+    if (b.listedAt === 0) return Math.min(this.bucketCap, this.cacheMax);
+    let others = 0;
+    for (const c of this.buckets.values()) if (c !== b) others += c.at.size;
+    return Math.min(this.bucketCap, Math.max(b.at.size, this.cacheMax - others, 0));
   }
 
   async bucket(rules: string, day: number, scope: BucketScope = "all"): Promise<readonly PoolEntry[]> {
@@ -215,13 +311,16 @@ export class TigrisStore implements GhostStore {
     return b.poolView;
   }
 
-  /** LIST the bucket, GET only keys not held yet, drop keys that vanished. */
+  /** LIST the bucket, GET only the keys that are not held yet and that the bucket keeps, drop keys that vanished or aged out of the cap.
+   *  S3: "keeps" = every seed (pool) key, and the newest `windowFor(b)` player keys by LastModified; older player objects are listed but never
+   *  fetched. A LIST still reads every key of the prefix (1,000 a page): the S3 API cannot list by time. */
   private async refresh(rules: string, day: number, b: Bucket): Promise<void> {
     const started = this.now();
     const before = new Set(b.byKey.keys()); // keys written during this refresh are kept
     const listed = await this.s3.listAll(bucketPrefix(rules, day));
     const present = new Set<string>();
-    const missing: string[] = [];
+    const missing: string[] = []; // pool keys not held yet: always fetched
+    const players: { key: string; at: number; listed: boolean }[] = []; // every player object listed, held or not
     for (const o of listed) {
       const k = parseKey(o.key);
       if (!k || k.rules !== rules || k.day !== day) {
@@ -234,7 +333,24 @@ export class TigrisStore implements GhostStore {
         continue;
       }
       present.add(o.key);
-      if (!b.byKey.has(o.key) && !b.bad.has(o.key)) missing.push(o.key);
+      if (b.bad.has(o.key)) continue;
+      if (k.kind === "pool") {
+        if (!b.byKey.has(o.key)) missing.push(o.key);
+        continue;
+      }
+      players.push({ key: o.key, at: o.modified ?? b.at.get(o.key) ?? 0, listed: o.modified !== undefined });
+    }
+    // S3: the newest first (a tie by key, so the cut is the same on every machine); only the first `window` of them are fetched (when not held yet).
+    // Held ghosts are NOT dropped for being outside the window: the cap below decides who leaves, kind-aware (a ghost held from an upload that
+    // this process took stays while its kind holds fewer than the other; only a bucket with nothing held yet is cut by time alone)
+    players.sort((x, y) => y.at - x.at || (x.key < y.key ? 1 : x.key > y.key ? -1 : 0));
+    const keep = players.slice(0, this.windowFor(b));
+    const fetchAt = new Map<string, number>();
+    for (const p of keep) {
+      if (!b.byKey.has(p.key)) {
+        missing.push(p.key);
+        fetchAt.set(p.key, p.at);
+      } else if (p.listed) b.at.set(p.key, p.at); // a held ghost takes the time storage gives it, so the order is one clock's
     }
     await mapLimit(missing, this.concurrency, async (key) => {
       const text = await this.s3.getText(key);
@@ -244,18 +360,26 @@ export class TigrisStore implements GhostStore {
         const k = parseKey(key)!;
         if (e.id !== k.id || e.snapshot.rules !== rules || e.snapshot.day !== day) throw new Error("the record does not match its key");
         b.byKey.set(key, e);
+        if (k.kind === "player") b.at.set(key, fetchAt.get(key) ?? 0);
       } catch (err) {
         b.bad.add(key);
         this.skipped++;
         this.log(`ghost store: skipping bad object ${key}: ${err instanceof Error ? err.message : String(err)}`);
       }
     });
-    for (const key of before) if (!present.has(key)) b.byKey.delete(key);
+    for (const key of before) {
+      if (!present.has(key)) {
+        b.byKey.delete(key);
+        b.at.delete(key);
+      }
+    }
     for (const key of b.bad) if (!present.has(key)) b.bad.delete(key);
     b.listedAt = started;
     b.retryAt = 0;
     b.view = null;
     b.poolView = null;
+    this.capBucket(b); // ghosts stored during the refresh may have put it over
+    this.enforceCeiling(b);
   }
 
   async replacePool(rules: string, entries: readonly PoolEntry[]): Promise<SeedCounts> {

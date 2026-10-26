@@ -21,6 +21,8 @@ export interface FakeS3Options {
   region?: string; // default "auto", as on Tigris
   buckets?: string[]; // created up front
   pageSize?: number; // most keys per LIST page, whatever max-keys asks; default 1000
+  /** S3: the time (ms) a PUT stamps on its object as LastModified. Default: none, so the object lists with the old constant time. */
+  clock?: () => number;
 }
 
 export type FakeOp = "PUT" | "GET" | "HEAD" | "DELETE" | "LIST" | "OTHER";
@@ -38,7 +40,10 @@ interface Stored {
   body: Uint8Array;
   type: string;
   etag: string;
+  modified?: number; // S3: LastModified, ms since the epoch; absent = DEFAULT_MODIFIED
 }
+
+const DEFAULT_MODIFIED = Date.parse("2026-09-24T00:00:00.000Z"); // what every object listed as before S3 gave the fake a clock
 
 const TOKEN_MARK = "c+/="; // continuation tokens carry + / = so the client must encode them
 
@@ -98,10 +103,10 @@ export class FakeS3 {
   }
 
   /** Write an object directly, as another machine (or a stray tool) would. */
-  putObject(bucket: string, key: string, body: string): void {
+  putObject(bucket: string, key: string, body: string, modified?: number): void {
     this.createBucket(bucket);
     const bytes = new TextEncoder().encode(body);
-    this.buckets.get(bucket)!.set(key, { body: bytes, type: "application/json", etag: `"${hex(bytes, "md5")}"` });
+    this.buckets.get(bucket)!.set(key, { body: bytes, type: "application/json", etag: `"${hex(bytes, "md5")}"`, ...(modified !== undefined ? { modified } : {}) });
   }
 
   getObject(bucket: string, key: string): string | undefined {
@@ -199,7 +204,7 @@ export class FakeS3 {
     if (!objects) return this.answer(res, entry, "NoSuchBucket", "the bucket does not exist", 404);
     if (op === "LIST") return this.list(res, entry, bucket, objects, q);
     if (op === "PUT") {
-      objects.set(key, { body, type: header(req, "content-type") || "application/octet-stream", etag: `"${hex(body, "md5")}"` });
+      objects.set(key, { body, type: header(req, "content-type") || "application/octet-stream", etag: `"${hex(body, "md5")}"`, ...(this.opts.clock ? { modified: this.opts.clock() } : {}) });
       entry.status = 200;
       res.statusCode = 200;
       res.setHeader("etag", objects.get(key)!.etag);
@@ -288,7 +293,7 @@ export class FakeS3 {
     const truncated = all.length > page.length;
     const contents = page.map((k) => {
       const o = objects.get(k)!;
-      return `<Contents><Key>${xmlEscape(k)}</Key><LastModified>2026-09-24T00:00:00.000Z</LastModified><ETag>${xmlEscape(o.etag)}</ETag><Size>${o.body.length}</Size><StorageClass>STANDARD</StorageClass></Contents>`;
+      return `<Contents><Key>${xmlEscape(k)}</Key><LastModified>${new Date(o.modified ?? DEFAULT_MODIFIED).toISOString()}</LastModified><ETag>${xmlEscape(o.etag)}</ETag><Size>${o.body.length}</Size><StorageClass>STANDARD</StorageClass></Contents>`;
     }).join("");
     const next = truncated ? `<NextContinuationToken>${xmlEscape(TOKEN_MARK + btoa(page[page.length - 1]))}</NextContinuationToken>` : "";
     const cont = token !== undefined ? `<ContinuationToken>${xmlEscape(token)}</ContinuationToken>` : "";

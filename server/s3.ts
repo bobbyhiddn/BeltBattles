@@ -38,6 +38,8 @@ export class S3Error extends StorageError {
 export interface ListedObject {
   key: string;
   size: number;
+  /** S3: the object's LastModified as ms since the epoch (absent when the answer has none or it does not parse): the bucket cap keeps the newest. */
+  modified?: number;
 }
 
 export interface ListPage {
@@ -61,7 +63,9 @@ export function parseListV2(xml: string): ListPage {
   for (const m of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
     const key = /<Key>([^<]*)<\/Key>/.exec(m[1]);
     const size = /<Size>(\d+)<\/Size>/.exec(m[1]);
-    if (key) objects.push({ key: xmlText(key[1]), size: size ? Number(size[1]) : -1 });
+    const lm = /<LastModified>([^<]*)<\/LastModified>/.exec(m[1]); // S3: kept, so a bucket load can fetch only the newest
+    const at = lm ? Date.parse(lm[1]) : NaN;
+    if (key) objects.push({ key: xmlText(key[1]), size: size ? Number(size[1]) : -1, ...(Number.isFinite(at) ? { modified: at } : {}) });
   }
   const truncated = /<IsTruncated>\s*true\s*<\/IsTruncated>/.test(xml);
   const token = /<NextContinuationToken>([^<]+)<\/NextContinuationToken>/.exec(xml);

@@ -12,6 +12,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { checkSnapshot, ghostId, type GhostSnapshot, type PoolEntry } from "../src/net/snapshot";
+import { DEFAULT_BUCKET_CAP, DEFAULT_CACHE_MAX, oldestKeys, overflowKeys, type CacheStats, type CapItem } from "./bucketCap"; // S3: the cache's size
 
 export const STORE_FILE = "ghosts.jsonl";
 export const POOL_FILE = "pool.jsonl";
@@ -53,6 +54,8 @@ export interface GhostStore {
    * the caller). Pool entries of other rules versions and all player uploads are untouched.
    */
   replacePool(rules: string, entries: readonly PoolEntry[]): Promise<SeedCounts>;
+  /** S3: the cache's size (buckets, player ghosts held, the cap and the ceiling, what was dropped). Reads memory only; /v1/health reports it. */
+  cacheStats?(): CacheStats;
 }
 
 /** Storage is down or refused a request: the server answers 503 rather than 500. */
@@ -91,10 +94,70 @@ export class JsonlStore implements GhostStore {
   private pool = new Map<string, PoolEntry>(); // stand-in pool by id, all rules versions (pool.jsonl)
   private buckets = new Map<string, PoolEntry[]>(); // "rules|day" -> pool entries, then uploads
   private poolBuckets = new Map<string, PoolEntry[]>(); // "rules|day" -> pool entries only (0.7.0a D2)
+  // S3 (the same cap as the Tigris store's, bucketCap.ts): player ghosts in memory are the newest `bucketCap` of a bucket and `cacheMax` in all; the
+  // file keeps every line. `known` holds the id of every upload ever loaded or added (strings only), so a re-sent ghost that left memory is still 200.
+  private readonly bucketCap: number;
+  private readonly cacheMax: number;
+  private known = new Set<string>();
+  private order = new Map<string, number>(); // player id -> arrival number (file order, then adds): older = smaller
+  private seq = 0;
+  private used = new Map<string, number>(); // bucket key -> the last time a match read it (a counter): the least recently used loses first
+  private tick = 0;
+  private evictedByCap = 0;
+  private evictedByCeiling = 0;
 
-  constructor(readonly dataDir: string) {
+  constructor(readonly dataDir: string, opts: { bucketCap?: number; cacheMax?: number } = {}) {
     this.file = join(dataDir, STORE_FILE);
     this.poolFile = join(dataDir, POOL_FILE);
+    this.bucketCap = Math.max(1, opts.bucketCap ?? DEFAULT_BUCKET_CAP);
+    this.cacheMax = Math.max(1, opts.cacheMax ?? DEFAULT_CACHE_MAX);
+  }
+
+  /** S3: what /v1/health reports about the cache. */
+  cacheStats(): CacheStats {
+    return {
+      buckets: this.buckets.size, playerGhosts: this.players.size, bucketCap: this.bucketCap, ceiling: this.cacheMax,
+      evictedByCap: this.evictedByCap, evictedByCeiling: this.evictedByCeiling,
+    };
+  }
+
+  /** The player ghosts of one bucket that may be dropped (an upload that is also a seed ghost counts as a seed ghost: never dropped). */
+  private droppable(k: string): CapItem[] {
+    const out: CapItem[] = [];
+    for (const e of this.buckets.get(k) ?? []) if (this.players.has(e.id) && !this.pool.has(e.id)) out.push({ key: e.id, at: this.order.get(e.id) ?? 0, endless: e.snapshot.mode === "endless" });
+    return out;
+  }
+
+  private forget(k: string, id: string, why: "cap" | "ceiling"): void {
+    const b = this.buckets.get(k);
+    const i = b ? b.findIndex((x) => x.id === id) : -1;
+    if (b && i >= 0) b.splice(i, 1);
+    this.players.delete(id);
+    this.order.delete(id);
+    if (why === "cap") this.evictedByCap++;
+    else this.evictedByCeiling++;
+  }
+
+  private capBucket(k: string): void {
+    const items = this.droppable(k);
+    if (items.length <= this.bucketCap) return;
+    for (const id of overflowKeys(items, this.bucketCap)) this.forget(k, id, "cap");
+  }
+
+  /** Past cacheMax player ghosts the least recently read bucket (the one in use, `current`, last) loses its oldest first. */
+  private enforceCeiling(current: string | null): void {
+    for (;;) {
+      const excess = this.players.size - this.cacheMax;
+      if (excess <= 0) return;
+      let victim: string | null = null;
+      for (const k of this.buckets.keys()) {
+        if (k === current || this.droppable(k).length === 0) continue;
+        if (victim === null || (this.used.get(k) ?? 0) < (this.used.get(victim) ?? 0)) victim = k;
+      }
+      victim ??= current !== null && this.droppable(current).length > 0 ? current : null;
+      if (victim === null) return;
+      for (const id of oldestKeys(this.droppable(victim), excess)) this.forget(victim, id, "ceiling");
+    }
   }
 
   get where(): string {
@@ -106,7 +169,13 @@ export class JsonlStore implements GhostStore {
     mkdirSync(this.dataDir, { recursive: true });
     this.pool = this.readFile(this.poolFile);
     this.players = this.readFile(this.file);
+    for (const id of this.players.keys()) {
+      this.known.add(id);
+      this.order.set(id, ++this.seq); // file order = arrival order
+    }
     this.reindex();
+    for (const k of [...this.buckets.keys()]) this.capBucket(k); // S3: only the newest of each bucket stay in memory (the file keeps every line)
+    this.enforceCeiling(null);
     return this.size;
   }
 
@@ -145,16 +214,23 @@ export class JsonlStore implements GhostStore {
   async add(snapshot: GhostSnapshot, at = Date.now()): Promise<AddResult> {
     const s = checkSnapshot(snapshot);
     const id = ghostId(s);
-    if (this.players.has(id)) return { id, created: false };
+    if (this.known.has(id)) return { id, created: false }; // S3: known, not players: an upload that left memory is still stored
     appendFileSync(this.file, encodeRecord(id, at, s) + "\n"); // durable first, then indexed
     const e = { id, snapshot: s };
+    this.known.add(id);
     this.players.set(id, e);
+    this.order.set(id, ++this.seq);
     this.index(e);
+    const k = bucketKey(s.rules, s.day);
+    this.capBucket(k); // S3: the newest of the bucket stay in memory; the oldest of the kind that holds more leaves it
+    this.enforceCeiling(k);
     return { id, created: true };
   }
 
   async bucket(rules: string, day: number, scope: BucketScope = "all"): Promise<readonly PoolEntry[]> {
-    return (scope === "pool" ? this.poolBuckets : this.buckets).get(bucketKey(rules, day)) ?? [];
+    const k = bucketKey(rules, day);
+    if (this.buckets.has(k)) this.used.set(k, ++this.tick); // only buckets that exist: a request cannot grow this map
+    return (scope === "pool" ? this.poolBuckets : this.buckets).get(k) ?? [];
   }
 
   get size(): number {
