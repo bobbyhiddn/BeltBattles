@@ -1,0 +1,172 @@
+# M1 (BRIEF-M1 Goal 4): builds the BeltBattles Android App Bundle (AAB) on a GitHub-hosted Linux runner. It never uploads to Google Play: the
+# first AAB goes to a closed test track by hand in Play Console (the operator steps are in the M1 report).
+#
+# RUNS ONLY when started by hand (Actions > Android AAB > Run workflow, input `rebuild`) or when a tag android-v<version> or
+# android-v<version>-r<N> is pushed, <version> being package.json's. Never on a branch push or a pull request.
+#
+# VERSION: versionName is package.json's version; versionCode = (major*10000 + minor*100 + patch)*100 + rebuild, so 0.9.13 is 91300 and
+# 0.9.13 rebuilt once is 91301 (scripts/android-version.mjs, the one formula). Gradle gets both as -P properties.
+#
+# SIGNING: four repository secrets hold the upload key: ANDROID_UPLOAD_KEYSTORE_BASE64 (`base64 -w0` of the keystore),
+# ANDROID_UPLOAD_KEYSTORE_PASSWORD, ANDROID_UPLOAD_KEY_ALIAS and ANDROID_UPLOAD_KEY_PASSWORD. With all four set, the release AAB is signed
+# with that key (jarsigner, Play App Signing's upload key). With any of them missing the job builds an UNSIGNED release AAB plus a debug
+# APK for sideloading, and says so in the job summary. No secret is echoed, written into the repo or passed on a command line.
+
+name: Android AAB
+
+on:
+  workflow_dispatch:
+    inputs:
+      rebuild:
+        description: "Rebuild number 0-99: 0 for a new version, 1 and up to upload the same version again (versionCode = (major*10000 + minor*100 + patch)*100 + rebuild)"
+        required: false
+        default: "0"
+        type: string
+  push:
+    tags:
+      - "android-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  aab:
+    name: Build the AAB
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      # A step's `if:` cannot read secrets, so the job holds a flag made from them: "true" only when all four upload-key secrets are set.
+      HAVE_UPLOAD_KEY: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 != '' && secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD != '' && secrets.ANDROID_UPLOAD_KEY_ALIAS != '' && secrets.ANDROID_UPLOAD_KEY_PASSWORD != '' }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Validate the Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java 21 (Temurin)
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install the packages
+        run: npm ci
+
+      - name: Build the web app into dist-app
+        run: npm run build:app
+
+      - name: Copy the web app and the plugins into the Android project
+        run: npx cap sync android
+
+      - name: Work out the version
+        id: version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          REBUILD_INPUT: ${{ inputs.rebuild }}
+        run: |
+          set -euo pipefail
+          if [ "$REF_TYPE" = "tag" ]; then
+            node scripts/android-version.mjs --tag "$REF_NAME" | tee -a "$GITHUB_OUTPUT"
+          else
+            node scripts/android-version.mjs --rebuild "${REBUILD_INPUT:-0}" | tee -a "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build the release AAB (Gradle leaves it unsigned)
+        working-directory: android
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.versionName }}
+          VERSION_CODE: ${{ steps.version.outputs.versionCode }}
+        run: ./gradlew bundleRelease --no-daemon "-PbbVersionName=$VERSION_NAME" "-PbbVersionCode=$VERSION_CODE"
+
+      - name: Write the upload keystore
+        if: env.HAVE_UPLOAD_KEY == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.keystore"
+
+      - name: Sign the AAB with the upload key
+        if: env.HAVE_UPLOAD_KEY == 'true'
+        env:
+          STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          OUT_NAME: BeltBattles-${{ steps.version.outputs.versionName }}-${{ steps.version.outputs.versionCode }}-release.aab
+        run: |
+          set -euo pipefail
+          mkdir -p dist-aab
+          jarsigner -keystore "$RUNNER_TEMP/upload.keystore" -storepass:env STORE_PASSWORD -keypass:env KEY_PASSWORD \
+            -sigalg SHA256withRSA -digestalg SHA-256 \
+            -signedjar "dist-aab/$OUT_NAME" android/app/build/outputs/bundle/release/app-release.aab "$KEY_ALIAS"
+          jarsigner -verify "dist-aab/$OUT_NAME"
+
+      - name: Keep the unsigned AAB (the upload key is not set)
+        if: env.HAVE_UPLOAD_KEY != 'true'
+        env:
+          OUT_NAME: BeltBattles-${{ steps.version.outputs.versionName }}-${{ steps.version.outputs.versionCode }}-release-UNSIGNED.aab
+        run: |
+          set -euo pipefail
+          mkdir -p dist-aab
+          cp android/app/build/outputs/bundle/release/app-release.aab "dist-aab/$OUT_NAME"
+
+      - name: Build a debug APK for sideloading (the upload key is not set)
+        if: env.HAVE_UPLOAD_KEY != 'true'
+        working-directory: android
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.versionName }}
+          VERSION_CODE: ${{ steps.version.outputs.versionCode }}
+        run: ./gradlew assembleDebug --no-daemon "-PbbVersionName=$VERSION_NAME" "-PbbVersionCode=$VERSION_CODE"
+
+      - name: Keep the debug APK (the upload key is not set)
+        if: env.HAVE_UPLOAD_KEY != 'true'
+        env:
+          OUT_NAME: BeltBattles-${{ steps.version.outputs.versionName }}-${{ steps.version.outputs.versionCode }}-debug.apk
+        run: |
+          set -euo pipefail
+          mkdir -p dist-aab
+          cp android/app/build/outputs/apk/debug/app-debug.apk "dist-aab/$OUT_NAME"
+
+      - name: Say what was built in the job summary
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.versionName }}
+          VERSION_CODE: ${{ steps.version.outputs.versionCode }}
+        run: |
+          {
+            echo "## BeltBattles Android build"
+            echo ""
+            echo "versionName $VERSION_NAME, versionCode $VERSION_CODE"
+            echo ""
+            if [ "$HAVE_UPLOAD_KEY" = "true" ]; then
+              echo "The release AAB is SIGNED with the upload key. Upload it to Play Console by hand (nothing here uploads it)."
+            else
+              echo "The upload-key secrets are not all set, so the release AAB is UNSIGNED (Play will not take it) and a debug APK was built for sideloading."
+            fi
+            echo ""
+            echo '```'
+            ls -l dist-aab
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the build as an artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: beltbattles-${{ steps.version.outputs.versionName }}-${{ steps.version.outputs.versionCode }}-android
+          path: dist-aab/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Delete the upload keystore
+        if: always() && env.HAVE_UPLOAD_KEY == 'true'
+        run: rm -f "$RUNNER_TEMP/upload.keystore"

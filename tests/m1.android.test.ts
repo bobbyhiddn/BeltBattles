@@ -122,3 +122,119 @@ describe("M1 Goal 1: the committed android/ project (cap add android, Capacitor 
     }
   });
 });
+
+describe("M1 Goal 4: the version reaches Gradle as -P properties", () => {
+  it("android/app/build.gradle reads bbVersionCode and bbVersionName, and a local build without them keeps the template's 1 and \"1.0\"", () => {
+    const gradle = read("android/app/build.gradle");
+    expect(gradle).toContain("versionCode((project.findProperty('bbVersionCode') ?: '1').toString().toInteger())");
+    expect(gradle).toContain("versionName((project.findProperty('bbVersionName') ?: '1.0').toString())");
+    // the template's two literals are gone, and the edit is only those two lines (plus their comment)
+    expect(gradle).not.toMatch(/versionCode 1\b/);
+    expect(gradle).not.toMatch(/versionName "1\.0"/);
+    expect(gradle.match(/bbVersion/g)).toHaveLength(4); // the two lines, and the comment's two mentions
+  });
+
+  it("the workflow passes both, from scripts/android-version.mjs's output, to bundleRelease and assembleDebug", () => {
+    const wf = read(".github/workflows/android.yml");
+    expect(wf).toContain("node scripts/android-version.mjs --tag \"$REF_NAME\"");
+    expect(wf).toContain("node scripts/android-version.mjs --rebuild \"${REBUILD_INPUT:-0}\"");
+    expect(wf).toContain('./gradlew bundleRelease --no-daemon "-PbbVersionName=$VERSION_NAME" "-PbbVersionCode=$VERSION_CODE"');
+    expect(wf).toContain('./gradlew assembleDebug --no-daemon "-PbbVersionName=$VERSION_NAME" "-PbbVersionCode=$VERSION_CODE"');
+    expect(wf).toContain("VERSION_NAME: ${{ steps.version.outputs.versionName }}");
+    expect(wf).toContain("VERSION_CODE: ${{ steps.version.outputs.versionCode }}");
+    expect(wf).not.toContain("-PbbVersionCode=91300"); // never a literal: the version comes from package.json through the formula
+  });
+});
+
+describe("M1 Goal 4: .github/workflows/android.yml (text checks: no runner, no SDK and no Gradle exist on the dev host)", () => {
+  const wf = read(".github/workflows/android.yml");
+  /** The workflow's lines with comments and blank lines dropped (a comment may name anything). */
+  const lines = wf.split("\n").filter((l) => l.trim() !== "" && !l.trim().startsWith("#"));
+  const body = lines.join("\n");
+  const SECRETS = ["ANDROID_UPLOAD_KEYSTORE_BASE64", "ANDROID_UPLOAD_KEYSTORE_PASSWORD", "ANDROID_UPLOAD_KEY_ALIAS", "ANDROID_UPLOAD_KEY_PASSWORD"];
+
+  /** The `on:` block's text: from `on:` to the next top-level key. */
+  const onBlock = (): string => body.match(/^on:\n((?: {2}.*\n?)+)/m)?.[1] ?? "";
+
+  it("runs only on workflow_dispatch (input `rebuild`, default 0) and on pushed tags android-v*: no branch push, no pull request, no schedule", () => {
+    const on = onBlock();
+    expect(on.length).toBeGreaterThan(0);
+    expect([...on.matchAll(/^ {2}([\w_]+):/gm)].map((m) => m[1]).sort()).toEqual(["push", "workflow_dispatch"]);
+    expect(on).toMatch(/workflow_dispatch:\n {4}inputs:\n {6}rebuild:/);
+    expect(on).toMatch(/default: "0"/);
+    expect(on).toMatch(/push:\n {4}tags:\n {6}- "android-v\*"\n?$/);
+    expect(on).not.toMatch(/branches|pull_request|schedule|paths|workflow_run|release:/);
+  });
+
+  it("holds read-only permissions (contents: read), one job with a timeout, on one ubuntu-24.04 runner", () => {
+    expect(body).toMatch(/^permissions:\n {2}contents: read\n(?=\w)/m);
+    expect((body.match(/^ {2}\w+:\n {4}name:/gm) ?? []).length).toBe(1); // one job
+    expect(body).toMatch(/timeout-minutes: \d+/);
+    expect(body.match(/runs-on: (.+)/g)).toEqual(["runs-on: ubuntu-24.04"]);
+    expect(body).not.toMatch(/write/); // no permission is raised anywhere
+  });
+
+  it("builds in the brief's order: checkout, Node 22 with the npm cache, Temurin 21, npm ci, build:app, cap sync, the version, then ./gradlew bundleRelease", () => {
+    const at = (s: string): number => body.indexOf(s);
+    const order = ["uses: actions/checkout@", "uses: actions/setup-node@", "uses: actions/setup-java@", "run: npm ci", "run: npm run build:app", "run: npx cap sync android", "scripts/android-version.mjs", "./gradlew bundleRelease"];
+    for (const s of order) expect(at(s), s).toBeGreaterThan(-1);
+    for (let i = 1; i < order.length; i++) expect(at(order[i]), `${order[i - 1]} before ${order[i]}`).toBeGreaterThan(at(order[i - 1]));
+    expect(body).toMatch(/uses: actions\/setup-node@v\d+\n {8}with:\n {10}node-version: 22\n {10}cache: npm/);
+    expect(body).toMatch(/uses: actions\/setup-java@v\d+\n {8}with:\n {10}distribution: temurin\n {10}java-version: "21"/);
+    expect(body).toMatch(/working-directory: android\n(?: {8}env:\n(?: {10}.*\n)+)? {8}run: \.\/gradlew bundleRelease/);
+  });
+
+  it("uses only the official actions/* actions (and gradle/actions/wrapper-validation), each pinned to a major version; nothing third-party", () => {
+    const uses = [...body.matchAll(/^\s+(?:- )?uses: (\S+)$/gm)].map((m) => m[1]);
+    expect(uses.length).toBeGreaterThanOrEqual(5);
+    for (const u of uses) expect(u, u).toMatch(/^(actions\/(checkout|setup-node|setup-java|upload-artifact)|gradle\/actions\/wrapper-validation)@v\d+$/);
+    expect(uses.some((u) => u.startsWith("actions/upload-artifact@"))).toBe(true);
+    expect(body).not.toMatch(/docker:\/\/|\.\/\.github\/actions|@main|@master|@latest/);
+  });
+
+  it("signs with the four upload-key secrets when all are set (a job-level flag: a step's `if:` cannot read secrets), and says UNSIGNED when not", () => {
+    for (const s of SECRETS) expect(body, s).toContain(`secrets.${s}`);
+    // the flag is made from all four, at the job level; the steps test the flag
+    expect(body).toMatch(/^ {6}HAVE_UPLOAD_KEY: \$\{\{ (secrets\.\w+ != '' && ){3}secrets\.\w+ != '' \}\}$/m);
+    for (const s of SECRETS) expect(body.match(/^ {6}HAVE_UPLOAD_KEY: .*$/m)![0], s).toContain(s);
+    for (const m of body.matchAll(/^ {8}if: (.*)$/gm)) {
+      expect(m[1], "an if: that reads a secret").not.toMatch(/secrets\./);
+      expect(m[1]).toMatch(/env\.HAVE_UPLOAD_KEY/);
+    }
+    // the keystore is written to $RUNNER_TEMP with base64 in a run step, never by a third-party action, and deleted in an always() step
+    expect(body).toMatch(/printf '%s' "\$KEYSTORE_BASE64" \| base64 --decode > "\$RUNNER_TEMP\/upload\.keystore"/);
+    expect(body).toMatch(/if: always\(\) && env\.HAVE_UPLOAD_KEY == 'true'\n {8}run: rm -f "\$RUNNER_TEMP\/upload\.keystore"/);
+    expect(body).toMatch(/jarsigner -keystore "\$RUNNER_TEMP\/upload\.keystore" -storepass:env STORE_PASSWORD -keypass:env KEY_PASSWORD/);
+    // the unsigned path: an UNSIGNED release AAB, a debug APK, and the job summary says so
+    expect(body).toContain("-release-UNSIGNED.aab");
+    expect(body).toContain("./gradlew assembleDebug");
+    expect(body).toMatch(/-debug\.apk/);
+    expect(body).toMatch(/release AAB is UNSIGNED/);
+    expect(body).toContain('>> "$GITHUB_STEP_SUMMARY"');
+  });
+
+  it("never echoes a secret, writes one into the repo or onto a command line, and never uploads to Google Play", () => {
+    // a secret appears only as an `env:` value (NAME: ${{ secrets.X }}); never inside a run block
+    for (const m of body.matchAll(/^.*secrets\..*$/gm)) {
+      expect(m[0], "a secret outside an env: mapping").toMatch(/^ {6,10}[A-Z0-9_]+: \$\{\{ (secrets\.[A-Z0-9_]+ != '' && )*secrets\.[A-Z0-9_]+( != '')? \}\}$/);
+    }
+    // no echo line names a secret or its variable
+    const printing = lines.filter((l) => /\b(echo|printf|cat|tee)\b/.test(l) && /secrets\.|PASSWORD|KEYSTORE_BASE64|KEY_ALIAS|\$KEY|\$STORE/.test(l));
+    expect(printing.map((l) => l.trim())).toEqual([`printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.keystore"`]); // the one use: into base64, into the file
+    for (const l of lines) if (/\b(echo|cat|tee)\b/.test(l)) expect(l, l).not.toMatch(/secrets\.|PASSWORD|KEYSTORE_BASE64|KEY_ALIAS|\$KEY|\$STORE/);
+    expect(body).not.toMatch(/set -x|xtrace|-x\b.*bash|ACTIONS_STEP_DEBUG|add-mask/);
+    // a password goes to jarsigner as an environment variable's name, never as its value
+    expect(body).not.toMatch(/-storepass [^:]|-keypass [^:]|-storepass:env \$|-keypass:env \$/);
+    // nothing talks to Play
+    expect(body).not.toMatch(/upload-google-play|r0adkll|fastlane|supply|androidpublisher|play\.google|publishBundle|publishRelease/i);
+    // and nothing is committed or pushed
+    expect(body).not.toMatch(/git (push|commit|tag|add)|gh release|contents: write/);
+  });
+
+  it("names the artifact and the files with the versionName and the versionCode, and fails if there is nothing to upload", () => {
+    expect(body).toContain("name: beltbattles-${{ steps.version.outputs.versionName }}-${{ steps.version.outputs.versionCode }}-android");
+    expect(body).toContain("BeltBattles-${{ steps.version.outputs.versionName }}-${{ steps.version.outputs.versionCode }}-release.aab");
+    expect(body).toContain("if-no-files-found: error");
+    expect(body).toMatch(/path: dist-aab\/\*/);
+  });
+});
