@@ -598,6 +598,34 @@ the match route, profiles and the page for its whole length, and a burst of them
 - Tests build the app in-process and keep the in-thread validator (the `createGhostServer` default); the worker is tested on a test-only worker
   script (`tests/s2.*.test.ts`) and on the built bundle. With uploads closed no worker is started.
 
+## S3: a memory cap and abuse limits
+
+LAUNCH-0 measured two things S2 left alone: the cache held every ghost of every cached `(rules, day)` bucket for ever (a ghost is 2.2 KB of heap
+at day 10, 3.9 KB at day 25), and the limits (120 requests a minute per IP) ignored what a request costs. S3 (`server/bucketCap.ts`, `budget.ts`,
+`ipLimits.ts`, `limits.ts`; the store, validator and app changes are at call sites) adds, all in memory and all bounded:
+
+- **The cache has a size.** A bucket keeps at most `BB_GHOST_BUCKET_CAP` (2000) PLAYER ghosts in memory: the newest by upload time. Seed-pool
+  ghosts never count and are never dropped. The cache as a whole keeps at most `BB_GHOST_CACHE_MAX` (12000 for the 256 MB machine under
+  `--max-old-space-size=96`; 40000 suits 512 MB under 300); past it the least recently used bucket loses its oldest ghosts first. A bucket
+  holds a run's ghosts and ENDLESS ghosts, and a match reads only one kind; when a bucket is over its cap the oldest ghost of the kind that
+  holds MORE leaves, so neither kind can be crowded out below half the cap. Nothing is deleted from storage: a dropped ghost is still an object
+  in Tigris (a line in ghosts.jsonl), just not matched. A bucket load LISTs the prefix (LastModified is kept), sorts by it, and fetches only the
+  newest N player objects (and every pool object); a re-list fetches only new keys that make the cut, and never refills a bucket the ceiling
+  trimmed beyond the room the cache has. The LIST itself still reads every key (1,000 a page): S3 cannot list by time.
+- **The deck check has a budget** (`budget.ts`), in front of `validator.validate`, after every cheap refusal: at most 1 check in flight per key and
+  4 per client address (a quarter of S2's queue; `BB_GHOST_CHECK_KEY_INFLIGHT` and `BB_GHOST_CHECK_IP_INFLIGHT`), and a token bucket of CHECK MILLISECONDS per key (60 s, +50 ms/s) and per address (60 s, +100 ms/s).
+  The worker times `validateUpload` with `performance.now()` and returns it with the verdict; the verdict charges it (the balance may go
+  below zero, floored at one bucket). A balance at or below zero, or a busy slot, is `429 {"error": ..., "limit": ...}` with `Retry-After` (the seconds until
+  the balance is positive; 2 for a busy slot). Nothing is stored and the upload never joins S2's queue.
+- **New keys per address per day** (`ipLimits.ts`): a key the server has not seen (not accepted since boot, no stored profile) counts against
+  the address that brings it; past `BB_GHOST_NEW_KEYS_PER_IP_DAY` (500) in 24 hours it is `429 new-keys`. A seen key keeps working from any
+  address. Applies to `POST /v1/ghosts` and `PUT /v1/profile`.
+- **IPv6** addresses key every per-IP limit (this one, the check budget, and the 120-a-minute limiter) on their /64. `clientIp`'s proxy trust is as it was.
+- **`GET /v1/health`** keeps every field it had and adds `cache` (`buckets`, `playerGhosts`, `bucketCap`, `ceiling`, `evictedByCap`,
+  `evictedByCeiling`) and `limits` (429 counts by reason since boot: `rate`, `keyInflight`, `ipInflight`, `keyBudget`, `ipBudget`, `newKeys`, `total`).
+- **The client:** a 429 on upload or profile is silent and not retried, like any non-2xx (`src/net/ghostClient.ts`, `src/game/online.ts`); it
+  never reads `Retry-After`. An honest player never meets one (S3 report: the worst honest case against each limit).
+
 ## Operations: the ghost admin tool (0.7.0)
 
 Uploads don't open without a way to clean the store (the genre study's R4: a bulk wipe by version or by

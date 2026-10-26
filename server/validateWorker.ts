@@ -19,10 +19,12 @@ const message = (e: unknown): string => (e instanceof Error ? e.message : String
 
 port.on("message", (m: WorkerRequest) => {
   if (!m || m.type !== "job") return;
+  const t0 = performance.now(); // S3: the check is synchronous, so its time here is its own CPU; it goes back with the verdict (server/budget.ts charges it)
   try {
-    send({ type: "result", id: m.id, result: validateUpload(m.build, m.day, m.rules, m.opts) });
+    const result = validateUpload(m.build, m.day, m.rules, m.opts);
+    send({ type: "result", id: m.id, result, ms: performance.now() - t0 });
   } catch (e) {
-    send({ type: "failed", id: m.id, error: e instanceof Error ? e.stack ?? e.message : String(e) });
+    send({ type: "failed", id: m.id, error: e instanceof Error ? e.stack ?? e.message : String(e), ms: performance.now() - t0 });
   }
 });
 

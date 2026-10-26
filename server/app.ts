@@ -28,6 +28,10 @@
 //                                       that day's dusk (src/net/records.ts isReachable), named with
 //                                       the day: "record: 0W 1 lives is no record a run carries into
 //                                       dusk 1". Nothing is stored
+//                                   429 { error, limit } + Retry-After  S3: after every refusal above and before the deck check's queue: a key that
+//                                       is new to this server past its address's daily allowance ("new-keys", keyLimits in ipLimits.ts), a key or an
+//                                       address with a deck check already in flight ("key-inflight", "ip-inflight"), or one that has used its share of
+//                                       check time ("key-budget", "ip-budget": budget.ts). Nothing is stored and the upload never joins the queue
 //                                   503 { error } + Retry-After  S2: the deck check (validateUpload) runs in a worker thread (validator.ts)
 //                                       with a queue of 16 and a 10 s deadline; an upload that finds the queue full, passes its deadline or
 //                                       loses its worker is refused with one line and a Retry-After (seconds). Nothing is stored. Every other
@@ -61,6 +65,9 @@ import { profileStoreFor, type ProfileStore } from "./profileStore";
 import { sha256Hex } from "./sigv4";
 import { JsonlStore, StorageError, type GhostStore } from "./store";
 import { OverloadError, createInThreadValidator, type Validator } from "./validator"; // S2: the deck check (validateUpload) behind a Validator
+import { CheckBudget, isRefusal, type Refusal } from "./budget"; // S3: the check budget and the in-flight caps
+import { NewKeyLimiter, RateLimiter, ipKey } from "./ipLimits"; // S3: every per-IP limit keys on ipKey (an IPv6 /64); the request limiter moved here, bounded
+import { DEFAULT_LIMITS, zeroCounts, type Counts429, type Limits } from "./limits";
 
 export const DEFAULT_ORIGINS = ["http://127.0.0.1:7778"]; // the local Shore
 
@@ -118,6 +125,9 @@ export interface ServerOptions {
    * thread, a queue of 16, a 10 s deadline, 503 + Retry-After on overload. The caller owns it and closes it; close() below does not.
    */
   validator?: Validator;
+  /** S3: the abuse limits (limits.ts; every field optional, the defaults are DEFAULT_LIMITS; main.ts passes config.ts readLimitsConfig's). `now` is the
+   *  clock the check budget and the new-key window read (default Date.now): tests move it to wait for a refill without waiting. */
+  limits?: Partial<Limits> & { now?: () => number };
 }
 
 export interface GhostServer {
@@ -125,6 +135,8 @@ export interface GhostServer {
   store: GhostStore;
   /** S2: the deck check in use (stats() is what /v1/health reports). */
   validator: Validator;
+  /** S3: the limiters in use and the 429 counts by reason since boot (what /v1/health's `limits` block reports). */
+  limits: { budget: CheckBudget; newKeys: NewKeyLimiter; requests: RateLimiter; refused: Counts429 };
   listen(port: number, host?: string): Promise<number>;
   close(): Promise<void>;
 }
@@ -195,22 +207,7 @@ function utf8(body: Uint8Array): string {
   }
 }
 
-class RateLimiter {
-  private hits = new Map<string, { start: number; n: number }>();
-  constructor(readonly windowMs: number, readonly max: number) {}
-
-  allow(ip: string, now: number): boolean {
-    if (this.hits.size > 10_000) {
-      for (const [k, h] of this.hits) if (now - h.start >= this.windowMs) this.hits.delete(k);
-    }
-    let h = this.hits.get(ip);
-    if (!h || now - h.start >= this.windowMs) {
-      h = { start: now, n: 0 };
-      this.hits.set(ip, h);
-    }
-    return ++h.n <= this.max;
-  }
-}
+// S3: the per-IP request limiter (120 a minute) is ipLimits.ts's RateLimiter now: the same fixed window, keyed on ipKey and bounded.
 
 const IP_TEXT = /^[0-9A-Fa-f:.]{2,45}$/; // an IPv4 or IPv6 literal; anything else is ignored
 
@@ -320,9 +317,41 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   const clock = opts.now ?? (() => Date.now()); // PROFILE-UP
   const trustProxy = opts.trustProxy ?? "none";
   const validator = opts.validator ?? createInThreadValidator(); // S2
+  // S3: the abuse limits (limits.ts). Every one keys on ipKey (an IPv4 address, an IPv6 /64); all are in memory only and bounded (ipLimits.ts, budget.ts)
+  const lim: Limits = { ...DEFAULT_LIMITS, ...opts.limits };
+  const lclock = opts.limits?.now ?? (() => Date.now());
+  const budget = new CheckBudget({ keyMs: lim.checkKeyMs, keyRefill: lim.checkKeyRefill, ipMs: lim.checkIpMs, ipRefill: lim.checkIpRefill, ipInflight: lim.checkIpInflight, keyInflight: lim.checkKeyInflight }, lclock);
+  // "seen" = accepted since boot, or a stored profile (asked only when an address is over its daily allowance of new keys)
+  const newKeys = new NewKeyLimiter({ perIp: lim.newKeysPerIpDay, known: async (id) => (await profiles.get(id)) !== null });
+  const refused = zeroCounts(); // 429s since boot, by reason (/v1/health)
   const page = opts.staticDir === undefined ? null : loadPage(opts.staticDir);
   if (page) log(`serving the game page ${page.file} (${page.body.length} bytes) at / and /index.html`);
   const started = Date.now();
+
+  /** S3: a refusal of the budget as the 429 it is: one line naming the limit, `limit` as the machine-readable name, Retry-After in seconds. */
+  const limitError = (r: Refusal): HttpError => {
+    refused[r.limit === "key-inflight" ? "keyInflight" : r.limit === "ip-inflight" ? "ipInflight" : r.limit === "key-budget" ? "keyBudget" : "ipBudget"]++;
+    return new HttpError(429, r.message, { limit: r.limit }, r.retryAfterS);
+  };
+
+  /** S3: a key this server has not seen is counted against the address that brings it (ipLimits.ts NewKeyLimiter); past the address's daily
+   *  allowance it is a 429. A key already seen (accepted since boot, or with a stored profile) passes whatever the count. */
+  async function admitKey(ip: string, playerId: string): Promise<void> {
+    const wait = await newKeys.admit(ip, playerId, lclock());
+    if (wait === null) return;
+    refused.newKeys++;
+    throw new HttpError(429, `new key limit: this address has brought ${lim.newKeysPerIpDay} keys the server has not seen in 24 hours, try again later`, { limit: "new-keys" }, wait);
+  }
+
+  /** S3: PUT /v1/profile's store with the new-key gate in front of its first read, which putProfile makes only after the signature has verified
+   *  and the body has decoded (so a refusal is as cheap as the other 4xx and only a real key is counted). Writes pass through. */
+  const gatedProfiles = (ip: string): ProfileStore => ({
+    get: async (id) => {
+      await admitKey(ip, id);
+      return profiles.get(id);
+    },
+    put: (id, record) => profiles.put(id, record),
+  });
 
   async function route(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const method = req.method ?? "GET";
@@ -346,6 +375,10 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
             checks: vs.checks, queueFull: vs.queueFull, timeouts: vs.timeouts, restarts: vs.restarts, errors: vs.errors, warmMs: vs.warmMs,
           },
           memory: { rssMb: mb(mem.rss), heapUsedMb: mb(mem.heapUsed), heapLimitMb: mb(getHeapStatistics().heap_size_limit), workerHeapLimitMb: vs.workerHeapLimitMb },
+          // S3: the ghost cache's size (buckets, player ghosts held, the cap and the ceiling, what was dropped: memory only, no storage) and the 429s
+          // by reason since boot (rate = the 120 a minute limiter; the rest are budget.ts's and the new-key limit's). Both read memory only
+          cache: store.cacheStats?.() ?? null,
+          limits: { ...refused, total: Object.values(refused).reduce((a, n) => a + n, 0) },
         });
       case "/v1/ghosts": {
         only("POST");
@@ -407,15 +440,25 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         // verdict is validateUpload's own. The queue being full, the 10 s deadline passing or the worker dying is a 503 + Retry-After, nothing
         // stored. Nothing this request read before the await can change under it (the checks above use only this request's own values, and
         // store.add below is idempotent: see docs/ASYNC.md, S2), so there is nothing to re-check after it
+        // S3 (BRIEF-S3 goals 2 and 3): the abuse limits, after every cheap refusal above and before the queue. The signature has verified, so the key is
+        // real: a key this server has not seen counts against its address's daily allowance (429 new-keys), then the deck check needs a place (at most
+        // 1 per key, `checkIpInflight` per address) and a positive balance of check time (key and address) or the upload is a 429 with Retry-After:
+        // nothing stored, never in the queue. The verdict's own running time is charged when it comes back (validator.ts CostReporter)
+        const ip = ipKey(clientIp(req, trustProxy));
+        await admitKey(ip, signer.playerId);
+        const ticket = budget.admit(ip, signer.playerId);
+        if (isRefusal(ticket)) throw limitError(ticket);
         let v: Validation;
         try {
           v = await validator.validate({
             build: snap.build, day: snap.day, rules: snap.rules,
             opts: { seed: snap.seed, ...(snap.lastChance ? { lastChance: snap.lastChance } : {}), ...(snap.road ? { road: snap.road } : {}), ...(snap.firstRun ? { firstRun: true } : {}) },
-          });
+          }, (ms) => ticket.charge(ms));
         } catch (e) {
           if (e instanceof OverloadError) throw new HttpError(503, e.message, {}, e.retryAfterS);
           throw e;
+        } finally {
+          ticket.release();
         }
         if (!v.ok) throw new HttpError(422, "deck failed validation", { errors: v.errors });
         // 0.8.0 H2 (backlog 325): the (wins, lives) record must be one a run can carry into this day's dusk, as the seed
@@ -456,7 +499,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         only("PUT");
         const r = await putProfile({
           uploads, key: firstHeader(req, KEY_HEADER), sig: firstHeader(req, SIG_HEADER), readBody: (max) => readBody(req, max),
-          store: profiles, now: clock,
+          store: gatedProfiles(ipKey(clientIp(req, trustProxy))), now: clock, // S3: a key new to this server counts against its address's daily allowance
         });
         if (r.status !== 200) throw new HttpError(r.status, r.error);
         return send(res, 200, r.profile);
@@ -496,7 +539,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
 
   const server = createServer((req, res) => {
     const t0 = Date.now();
-    const ip = clientIp(req, trustProxy); // the rate limit's key, held in memory only: never logged
+    const ip = ipKey(clientIp(req, trustProxy)); // the rate limit's key (S3: an IPv6 address as its /64), held in memory only: never logged
     const url = new URL(req.url ?? "/", "http://ghost.local");
     const origin = typeof req.headers.origin === "string" ? req.headers.origin : "";
     const allowed = origin !== "" && origins.has(origin);
@@ -509,7 +552,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
     res.setHeader("vary", "Origin");
     const finish = (e?: unknown) => {
       if (e instanceof HttpError) {
-        if (e.status === 429) res.setHeader("retry-after", Math.ceil(limiter.windowMs / 1000));
+        if (e.status === 429) res.setHeader("retry-after", e.retryAfter ?? Math.ceil(limiter.windowMs / 1000)); // S3: the budget and the new-key limit name their own wait
         else if (e.retryAfter !== undefined) res.setHeader("retry-after", e.retryAfter); // S2: the deck check's 503s
         if (e.status === 413) res.setHeader("connection", "close");
         send(res, e.status, { error: e.message, ...e.extra });
@@ -535,7 +578,10 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
       }
       return finish(new HttpError(403, "origin not allowed"));
     }
-    if (!limiter.allow(ip, t0)) return finish(new HttpError(429, "rate limit exceeded, slow down"));
+    if (!limiter.allow(ip, t0)) {
+      refused.rate++; // S3: counted for /v1/health
+      return finish(new HttpError(429, "rate limit exceeded, slow down"));
+    }
     route(req, res, url).then(() => finish(), finish);
   });
   server.requestTimeout = 10_000; // slow-body guard
@@ -545,6 +591,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
     server,
     store,
     validator,
+    limits: { budget, newKeys, requests: limiter, refused },
     listen: (port, host = "127.0.0.1") => new Promise<number>((resolve, reject) => {
       server.once("error", reject);
       server.listen(port, host, () => {

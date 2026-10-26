@@ -42,7 +42,10 @@ async function rig(validatorOpts: Partial<WorkerValidatorOptions>, staticDir?: s
   const backend = jsonlBackend();
   await backend.setup();
   const validator = createWorkerValidator({ script: SCRIPT, ...validatorOpts });
-  const app = backend.server({ uploads: "open", log: () => {}, rateLimit: { windowMs: 60_000, max: 1_000_000 }, matchSalt: () => 0, validator, ...(staticDir ? { staticDir } : {}) });
+  // S3: these tests are about the QUEUE, which sits behind S3's in-flight caps (budget.ts: 1 deck check per key, 4 per address). They send one key's
+  // uploads at once on purpose (18 to fill the queue, a stuck one and one behind it), so the caps are raised out of the way here; tests/s3.budget.test.ts
+  // has the caps themselves
+  const app = backend.server({ uploads: "open", log: () => {}, rateLimit: { windowMs: 60_000, max: 1_000_000 }, matchSalt: () => 0, validator, limits: { checkKeyInflight: 1000, checkIpInflight: 1000 }, ...(staticDir ? { staticDir } : {}) });
   const base = `http://127.0.0.1:${await app.listen(0)}`;
   const r = { app, base, backend, validator };
   rigs.push(r);

@@ -40,8 +40,8 @@ export interface ValidateJob {
 export type WorkerRequest = ValidateJob & { type: "job"; id: number };
 export type WorkerReply =
   | { type: "ready"; warmed: boolean; warmMs: number; heapLimitMb: number; error?: string } // the road-cap warm-up is over (or failed); jobs may now be sent
-  | { type: "result"; id: number; result: Validation }
-  | { type: "failed"; id: number; error: string } // validateUpload threw: the worker is fine, the request gets the usual 500
+  | { type: "result"; id: number; result: Validation; ms?: number } // S3: ms = validateUpload's own time in the worker (performance.now); absent from a test worker
+  | { type: "failed"; id: number; error: string; ms?: number } // validateUpload threw: the worker is fine, the request gets the usual 500
   | { type: "log"; line: string };
 
 /** Why an upload was not checked. app.ts answers 503 with a Retry-After header of `retryAfterS` seconds; nothing is stored. */
@@ -72,10 +72,15 @@ export interface ValidatorStats {
   workerHeapLimitMb: number | null; // the heap limit V8 gave the worker, read INSIDE the worker (null until it is ready)
 }
 
+/** S3: told how long a deck check RAN, in ms (the check is synchronous, so that is its own CPU time): once, as soon as a check that ran is over
+ *  (a verdict, a throw, a deadline that stopped it, a worker that died), before validate()'s promise settles; never for a job that did not run
+ *  (refused as the queue was full, dropped while waiting, closed). server/budget.ts charges it to the key and the address that sent the upload. */
+export type CostReporter = (ms: number) => void;
+
 export interface Validator {
   readonly kind: "worker" | "in-thread";
   /** The verdict of validateUpload(build, day, rules, opts). Rejects with OverloadError when the check could not be done in time. */
-  validate(job: ValidateJob): Promise<Validation>;
+  validate(job: ValidateJob, onCost?: CostReporter): Promise<Validation>;
   stats(): ValidatorStats;
   /** Reject every waiting and running job with an OverloadError and stop the worker. */
   close(): Promise<void>;
@@ -86,7 +91,8 @@ export function createInThreadValidator(): Validator {
   let checks = 0, errors = 0;
   return {
     kind: "in-thread",
-    async validate(job) {
+    async validate(job, onCost) {
+      const t0 = performance.now();
       try {
         const v = validateUpload(job.build, job.day, job.rules, job.opts);
         checks++;
@@ -94,6 +100,8 @@ export function createInThreadValidator(): Validator {
       } catch (e) {
         errors++;
         throw e;
+      } finally {
+        onCost?.(performance.now() - t0); // S3: the check ran inline, so its time is the time it took
       }
     },
     stats: () => ({
@@ -152,6 +160,20 @@ interface Job {
   resolve: (v: Validation) => void;
   reject: (e: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+  onCost?: CostReporter; // S3
+  startedAt: number; // S3: performance.now() when the job was sent to the worker; 0 = it never ran
+  costed: boolean; // S3: the cost was reported
+}
+
+/** S3: report a job's running time once. `ms`: the worker's own timing when it sent one, else the time since the job was sent. */
+function reportCost(j: Job, ms?: number): void {
+  if (j.startedAt === 0 || j.costed) return;
+  j.costed = true;
+  try {
+    j.onCost?.(ms ?? performance.now() - j.startedAt);
+  } catch {
+    // a reporter must never stop the queue
+  }
 }
 
 export function createWorkerValidator(o: WorkerValidatorOptions): WorkerValidator {
@@ -222,6 +244,7 @@ export function createWorkerValidator(o: WorkerValidatorOptions): WorkerValidato
       const j = running;
       running = null;
       clearTimeout(j.timer);
+      reportCost(j); // S3: it ran until the worker went
       j.reject(new OverloadError("worker-died", "deck check worker restarted, try again shortly", retry.died));
     }
     n.restarts++;
@@ -253,6 +276,7 @@ export function createWorkerValidator(o: WorkerValidatorOptions): WorkerValidato
         if (!j || j.id !== m.id) return;
         running = null;
         clearTimeout(j.timer);
+        reportCost(j, m.ms); // S3: before the promise settles, so the caller's charge is in when it resumes
         if (m.type === "result") {
           streak = 0;
           n.checks++;
@@ -274,9 +298,11 @@ export function createWorkerValidator(o: WorkerValidatorOptions): WorkerValidato
     running = j;
     try {
       const msg: WorkerRequest = { type: "job", id: j.id, ...j.req };
+      j.startedAt = performance.now(); // S3
       worker.postMessage(msg);
     } catch (e) {
       // not cloneable (a bug upstream): this job fails like a throwing check; the worker is untouched
+      j.startedAt = 0; // S3: it never ran
       running = null;
       clearTimeout(j.timer);
       n.errors++;
@@ -289,6 +315,7 @@ export function createWorkerValidator(o: WorkerValidatorOptions): WorkerValidato
     n.timeouts++;
     if (running === j) {
       running = null;
+      reportCost(j); // S3: it ran until its deadline stopped it
       j.reject(timeoutError());
       retire(gen, `was stopped: a deck check ran past its ${timeoutMs} ms deadline`);
       return;
@@ -309,7 +336,7 @@ export function createWorkerValidator(o: WorkerValidatorOptions): WorkerValidato
   return {
     kind: "worker",
     start,
-    validate(req) {
+    validate(req, onCost) {
       if (closed) return Promise.reject(new OverloadError("unavailable", "deck check is shutting down, try again shortly", retry.died));
       start();
       // A job that can start at once takes the running place; otherwise it needs one of the maxQueued waiting places.
@@ -319,7 +346,7 @@ export function createWorkerValidator(o: WorkerValidatorOptions): WorkerValidato
         return Promise.reject(new OverloadError("queue-full", `deck check queue is full (${maxQueued} waiting), try again shortly`, retry.full));
       }
       return new Promise<Validation>((resolve, reject) => {
-        const job: Job = { id: nextId++, req, resolve, reject, timer: setTimeout(() => expire(job), timeoutMs) };
+        const job: Job = { id: nextId++, req, resolve, reject, timer: setTimeout(() => expire(job), timeoutMs), ...(onCost ? { onCost } : {}), startedAt: 0, costed: false };
         waiting.push(job);
         pump();
       });

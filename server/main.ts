@@ -12,7 +12,8 @@
 import { fileURLToPath } from "node:url";
 import { RULES_VERSION } from "../src/sim/content";
 import { createGhostServer, type GhostServer } from "./app";
-import { ConfigError, openStore, readConfig, readValidatorConfig, type Config, type ValidatorConfig } from "./config";
+import { ConfigError, openStore, readConfig, readLimitsConfig, readValidatorConfig, type Config, type ValidatorConfig } from "./config";
+import type { Limits } from "./limits"; // S3
 import { createWorkerValidator, type WorkerValidator } from "./validator"; // S2: the deck check off the request thread
 
 const log = (line: string) => console.log(line);
@@ -28,10 +29,14 @@ const command = argv[0] !== undefined && !argv[0].startsWith("--") ? argv.shift(
 
 let cfg: Config;
 let vcfg: ValidatorConfig | undefined; // S2: read for `serve` only, so a bad BB_GHOST_VALIDATE_* never stops the deploy's `seed` release command
+let lcfg: Limits | undefined; // S3: the memory cap and the abuse limits, read for `serve` only for the same reason
 try {
   if (command !== "serve" && command !== "seed") throw new ConfigError(`unknown command "${command}": use serve (the default) or seed`);
   cfg = readConfig(argv, process.env);
-  if (command === "serve") vcfg = readValidatorConfig(process.env);
+  if (command === "serve") {
+    vcfg = readValidatorConfig(process.env);
+    lcfg = readLimitsConfig(process.env);
+  }
 } catch (e) {
   fail(e, e instanceof ConfigError ? 2 : 1);
 }
@@ -45,8 +50,9 @@ function serve(): void {
     : undefined;
   try {
     app = createGhostServer({
-      store: openStore(cfg.store, log), origins: cfg.origins, rateLimit: { windowMs: 60_000, max: cfg.rate }, log,
+      store: openStore(cfg.store, log, lcfg!), origins: cfg.origins, rateLimit: { windowMs: 60_000, max: cfg.rate }, log,
       uploads: cfg.uploads, trustProxy: cfg.trustProxy, staticDir: cfg.staticDir, ...(validator ? { validator } : {}),
+      limits: lcfg!, // S3: the memory cap went to the store above; the abuse limits are the app's
     });
   } catch (e) {
     fail(e, 2); // e.g. BB_GHOST_STATIC without an index.html
@@ -56,6 +62,8 @@ function serve(): void {
       log(`ghost server (rules ${RULES_VERSION}, store ${app.store.kind}, uploads ${cfg.uploads}) listening on http://${cfg.host}:${p}; CORS origins: ${cfg.origins.join(" ")}; rate ${cfg.rate}/min per ${cfg.trustProxy === "fly" ? "client IP (Fly-Client-IP)" : "socket IP"}`);
       // S2 (was BUMP-1E P6's warmRoadCap on this thread): the deck-check worker starts after the port is open and warms roadCap's memo for days
       // 1-25 INSIDE itself; an upload that arrives meanwhile waits in the queue
+      const lc = lcfg!;
+      log(`limits: cache ${lc.bucketCap} player ghosts a bucket, ${lc.cacheMax} in all; new keys ${lc.newKeysPerIpDay} per address a day; deck check time per key ${lc.checkKeyMs} ms (+${lc.checkKeyRefill} ms/s), per address ${lc.checkIpMs} ms (+${lc.checkIpRefill} ms/s), ${lc.checkIpInflight} in flight per address, ${lc.checkKeyInflight} per key`);
       if (validator) {
         log(`deck check: worker thread, queue ${vc.queue}, deadline ${vc.timeoutMs} ms, worker heap setting ${vc.workerHeapMb} MB (young ${vc.workerYoungMb} MB); NODE_OPTIONS="${process.env.NODE_OPTIONS ?? ""}"`);
         validator.start();

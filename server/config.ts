@@ -23,11 +23,22 @@
 //   BB_GHOST_VALIDATE_HEAP_MB     the worker's resourceLimits.maxOldGenerationSizeMb (default 64). A process-wide
 //                                 NODE_OPTIONS=--max-old-space-size=N overrides it (Node 20 and 22 give every thread the flag's
 //                                 limit); /v1/health reports the limit the worker really has
-//   BB_GHOST_VALIDATE_YOUNG_MB    the worker's resourceLimits.maxYoungGenerationSizeMb (default 8; Node's own is 48). A smaller one trades
 //                                 a few more scavenges (about 15% more CPU for a deck check) for a lower peak RSS during a deep check
+//   S3, the memory cap and the abuse limits (limits.ts has the defaults and the reasons; read by main.ts through readLimitsConfig, for `serve` only):
+//   BB_GHOST_BUCKET_CAP           player ghosts one (rules, day) bucket keeps in memory: the newest (default 2000); seed ghosts never count
+//   BB_GHOST_CACHE_MAX            player ghosts the whole cache keeps (default 12000, sized for 256 MB under --max-old-space-size=96; 40000 for
+//                                 512 MB under 300); past it the least recently used bucket loses its oldest ghosts first
+//   BB_GHOST_NEW_KEYS_PER_IP_DAY  keys the server has not seen that one client address (an IPv6 /64) may bring in 24 hours (default 500)
+//   BB_GHOST_CHECK_KEY_MS         check time one key may use: a full balance, ms of deck check (default 60000)
+//   BB_GHOST_CHECK_KEY_REFILL     what a key earns back, ms of check time per second (default 50)
+//   BB_GHOST_CHECK_IP_MS          the same for one client address (default 60000) and
+//   BB_GHOST_CHECK_IP_REFILL      its refill, ms per second (default 100)
+//   BB_GHOST_CHECK_IP_INFLIGHT    deck checks one address may have waiting or running at once (default 4)
+//   BB_GHOST_CHECK_KEY_INFLIGHT   deck checks one key may have waiting or running at once (default 1)
 
 import { resolve } from "node:path";
 import { DEFAULT_ORIGINS } from "./app";
+import { DEFAULT_LIMITS, type Limits } from "./limits";
 import { S3Client, type Addressing, type S3Options } from "./s3";
 import { JsonlStore, type GhostStore } from "./store";
 import { TigrisStore } from "./tigrisStore";
@@ -157,15 +168,32 @@ export function readValidatorConfig(env: Env): ValidatorConfig {
   };
 }
 
-/** Open the configured store. JSON lines: read the files now. Tigris: no I/O until a request needs it. */
-export function openStore(cfg: StoreConfig, log: (line: string) => void): GhostStore {
+/** S3: the memory cap and the abuse limits (BB_GHOST_BUCKET_CAP ... BB_GHOST_CHECK_IP_INFLIGHT), each with its default from limits.ts; a bad value names the setting. */
+export function readLimitsConfig(env: Env): Limits {
+  const d = DEFAULT_LIMITS;
+  const n = (name: string, fallback: number, min: number, max: number) => int(env[name] || String(fallback), name, min, max);
+  return {
+    bucketCap: n("BB_GHOST_BUCKET_CAP", d.bucketCap, 10, 1_000_000),
+    cacheMax: n("BB_GHOST_CACHE_MAX", d.cacheMax, 100, 10_000_000),
+    newKeysPerIpDay: n("BB_GHOST_NEW_KEYS_PER_IP_DAY", d.newKeysPerIpDay, 1, 1_000_000),
+    checkKeyMs: n("BB_GHOST_CHECK_KEY_MS", d.checkKeyMs, 100, 3_600_000),
+    checkKeyRefill: n("BB_GHOST_CHECK_KEY_REFILL", d.checkKeyRefill, 1, 1_000_000),
+    checkIpMs: n("BB_GHOST_CHECK_IP_MS", d.checkIpMs, 100, 3_600_000),
+    checkIpRefill: n("BB_GHOST_CHECK_IP_REFILL", d.checkIpRefill, 1, 1_000_000),
+    checkIpInflight: n("BB_GHOST_CHECK_IP_INFLIGHT", d.checkIpInflight, 1, 1000),
+    checkKeyInflight: n("BB_GHOST_CHECK_KEY_INFLIGHT", d.checkKeyInflight, 1, 1000),
+  };
+}
+
+/** Open the configured store. JSON lines: read the files now. Tigris: no I/O until a request needs it. S3: `caps` is the memory cap (bucketCap, cacheMax). */
+export function openStore(cfg: StoreConfig, log: (line: string) => void, caps: Pick<Limits, "bucketCap" | "cacheMax"> = DEFAULT_LIMITS): GhostStore {
   if (cfg.kind === "jsonl") {
-    const store = new JsonlStore(cfg.dataDir);
+    const store = new JsonlStore(cfg.dataDir, caps);
     const loaded = store.load();
     log(`ghost store jsonl ${store.file}: ${loaded} ghosts loaded, ${store.skipped} bad lines skipped`);
     return store;
   }
-  const store = new TigrisStore(new S3Client({ ...cfg.s3, log }), { ttlMs: cfg.ttlMs, log });
-  log(`ghost store tigris, ${store.where}: buckets load on their first match request, cached ${cfg.ttlMs / 1000} s`);
+  const store = new TigrisStore(new S3Client({ ...cfg.s3, log }), { ttlMs: cfg.ttlMs, log, bucketCap: caps.bucketCap, cacheMax: caps.cacheMax });
+  log(`ghost store tigris, ${store.where}: buckets load on their first match request, cached ${cfg.ttlMs / 1000} s; at most ${caps.bucketCap} player ghosts a bucket and ${caps.cacheMax} in all`);
   return store;
 }
