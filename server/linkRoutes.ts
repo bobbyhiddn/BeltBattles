@@ -17,7 +17,9 @@
 //                                                                      wrong, expired or used code, or a code whose player has become
 //                                                                      a device itself: one line, never which) | 409 the key is linked
 //                                                                      elsewhere, or its player has other keys or a Steam account | 410
-//                                                                      | 429 too many wrong codes from this address
+//                                                                      | 429 too many wrong codes from this address (a try is counted
+//                                                                      when it arrives, before anything is awaited, and given back
+//                                                                      unless it ends as a wrong code; per machine, in memory)
 //   GET    /v1/profile?at=<ms>  (no body; the signed text is `at=<ms>`) -> 200 { player, profile | null } | 410
 //   DELETE /v1/player       {"at"}                                  -> 200 { deleted: true }
 //   POST   /v1/link/steam   {"at","ticket","identity","appid"}      -> 200 { player, profile } | 501 while off | 403 (the ticket, the
@@ -39,7 +41,8 @@ export type RouteReply = { status: 200; body: Record<string, unknown> } | { stat
 /** How many wrong codes one client address may try, and in how long a time. */
 export const REDEEM_FAILS = { windowMs: 10 * 60_000, max: 5 };
 
-/** Failed redeems per client address (held in memory only, never logged), on top of the global limiter. */
+/** Failed redeems per client address (held in memory only, never logged), on top of the global limiter. The count lives in this
+ *  machine's memory: with several machines each counts its own (docs/ASYNC.md says so). */
 export class FailureLimiter {
   private readonly hits = new Map<string, number[]>();
   constructor(readonly windowMs: number = REDEEM_FAILS.windowMs, readonly max: number = REDEEM_FAILS.max) {}
@@ -58,10 +61,26 @@ export class FailureLimiter {
     return this.live(ip, now).length >= this.max;
   }
 
-  fail(ip: string, now: number): void {
+  /**
+   * Count a try for this address, unless the address is over the limit already: the check and the count are ONE synchronous step, so
+   * a burst of parallel tries cannot all pass the check before any of them is counted (IDENT-1 FIX, F2). False: over the limit,
+   * nothing counted. The caller gives the count back (`giveBack`) unless the try ends as a wrong code.
+   */
+  tryCount(ip: string, now: number): boolean {
     const l = this.live(ip, now);
+    if (l.length >= this.max) return false;
     l.push(now);
     this.hits.set(ip, l);
+    return true;
+  }
+
+  /** Give back the one count `tryCount(ip, at)` took: the try did not end as a wrong code. Nothing if that count has left the window. */
+  giveBack(ip: string, at: number): void {
+    const l = this.hits.get(ip);
+    const i = l ? l.lastIndexOf(at) : -1;
+    if (!l || i < 0) return;
+    l.splice(i, 1);
+    if (l.length === 0) this.hits.delete(ip);
   }
 
   /** Seconds until the oldest counted failure leaves the window. */
@@ -149,17 +168,26 @@ export async function linkCode(r: LinkRequest): Promise<RouteReply> {
 }
 
 export async function linkRedeem(r: LinkRequest): Promise<RouteReply> {
-  // the failed-try limit first: an address that is over it learns nothing about any code, right or wrong
-  if (r.failures.blocked(r.ip, r.now())) {
+  // The failed-try limit first: an address that is over it learns nothing about any code, right or wrong. The check and the count of
+  // this try are ONE synchronous step, before the first await: a burst of parallel tries from one address cannot all pass the check
+  // before any is counted (IDENT-1 FIX, F2). A try that does not end as a wrong code (the redeem's own 403) gives its count back:
+  // a success, a 401/400/422/413, a 409, a 410, the closed gate's 403 and an await that throws (503) never count.
+  const at = r.now();
+  if (!r.failures.tryCount(r.ip, at)) {
     return { status: 429, error: "too many wrong codes, try again later", retryAfter: r.failures.retryAfter(r.ip, r.now()) };
   }
-  const o = await bodyRoute(r, LINK_REDEEM_PREFIX, 512, true, ["at", "code"]);
-  if ("status" in o) return o;
-  if (typeof o.body.code !== "string") return { status: 400, error: "code: expected the typed code as text" };
-  await r.links.ensureFresh();
-  const j = await r.links.redeem(o.signer, o.body.code);
-  if (j.status === 403) r.failures.fail(r.ip, r.now());
-  return j.status === 200 ? { status: 200, body: { player: j.player, profile: j.profile } } : j;
+  let wrong = false;
+  try {
+    const o = await bodyRoute(r, LINK_REDEEM_PREFIX, 512, true, ["at", "code"]);
+    if ("status" in o) return o;
+    if (typeof o.body.code !== "string") return { status: 400, error: "code: expected the typed code as text" };
+    await r.links.ensureFresh();
+    const j = await r.links.redeem(o.signer, o.body.code);
+    wrong = j.status === 403;
+    return j.status === 200 ? { status: 200, body: { player: j.player, profile: j.profile } } : j;
+  } finally {
+    if (!wrong) r.failures.giveBack(r.ip, at);
+  }
 }
 
 /** GET /v1/profile?at=<ms>: `query` is the raw query text without the "?". The signature covers its exact bytes. */

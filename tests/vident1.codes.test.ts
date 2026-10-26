@@ -105,8 +105,12 @@ describe.each(KINDS)("a code's life on %s", (kind) => {
     }
   });
 
+  // REWRITTEN by IDENT-1 FIX (F2): this test is about the code being single-use under a race, but its six tries come from ONE address with
+  // the production limit of 5, and it passed only because the limit was not atomic (all six passed the check). With the fix a sixth parallel
+  // try can be answered 429 while the others are in flight, so the rig takes the limiter out of the way (as the other race tests here do)
+  // and every assertion below is the checker's own, unchanged. The limiter under a parallel burst is tests/ident1.burst.test.ts's.
   it("six keys racing one code: one 200 and five refusals, one key linked, and no key left half-linked", async () => {
-    const rig = await open(kind);
+    const rig = await open(kind, { redeemLimit: NOLIMIT });
     const keys = [B, C, D, E, await freshIdentity(), await freshIdentity()];
     const code = codeOf(await requestCode(rig, A));
     const rs = await Promise.all(keys.map((k) => redeemCode(rig, k, code)));
@@ -271,7 +275,8 @@ describe.each(KINDS)("the wrong-code limit on %s", (kind) => {
     expect((await from(none, C, code2, "10.1.0.99")).status, "a spoofed address header is ignored").toBe(429);
   });
 
-  it.fails("FINDING: the limit is checked before the wrong code is counted, so a burst of parallel tries all get through: 40 parallel wrong codes should leave at most 5 answered 403", async () => {
+  // FIXED by IDENT-1 FIX (F2): the try is counted before the first await (the `.fails` of the checker's run is dropped).
+  it("FINDING: the limit is checked before the wrong code is counted, so a burst of parallel tries all get through: 40 parallel wrong codes should leave at most 5 answered 403", async () => {
     const rig = await open(kind);
     const keys = await Promise.all(Array.from({ length: 8 }, () => freshIdentity()));
     const rs = await Promise.all(Array.from({ length: 40 }, (_, i) => redeemCode(rig, keys[i % keys.length], `ZZZZ-ZZ${String.fromCharCode(65 + (i % 26))}${i % 10 < 2 ? "A" : "B"}`)));
