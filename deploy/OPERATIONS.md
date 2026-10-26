@@ -144,7 +144,7 @@ What a player can lose in the switch: the uploads and profile writes of the minu
 
 ### 3.4 The nightly snapshot, kept 30 days   (NEEDS YOUR GO-AHEAD)
 
-A Tigris snapshot is a point-in-time view of the whole bucket, taken in one request and costing nothing extra. A restore is a fork of a snapshot into a new bucket (section 4); there is no in-place restore.
+A Tigris snapshot is a point-in-time view of the whole bucket, taken in one request and costing nothing extra. A restore is a fork of a snapshot into a new bucket (section 4): Tigris's docs recommend that ("out-of-place recovery") and describe no command that restores a bucket in place (a permissions paragraph mentions that an Editor may "restore a bucket snapshot" without saying how, so do not rely on it).
 
 **How to take one.** Either of these makes one snapshot:
 ```
