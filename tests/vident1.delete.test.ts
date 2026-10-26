@@ -157,6 +157,7 @@ describe.each(KINDS)("DELETE /v1/player on %s", (kind) => {
     rig.clock.now += 59_000;
     const lag = await servedTo(sibling, 30);
     rig.clock.now += 2_000; // 61 s after the sibling loaded its set
+    await sibling.app.links.settleReload(); // (IDENT-1 FIX2: a request waits at most 250 ms for a reload, which a loaded host can pass on Tigris: await it)
     const after = await servedTo(sibling, 30);
     expect(after.owners, "after the cache turns, the sibling serves none").toEqual([D.playerId]);
     expect(lag.owners.length).toBeGreaterThan(0); // (the 59 s answer is whatever it is; this only shows the check reads)

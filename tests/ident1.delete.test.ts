@@ -191,6 +191,7 @@ describe.each(KINDS)("a deleted player's ghosts on %s", (kind) => {
     expect((await postGhost(second, A, gA2)).status).toBe(201); // and takes A's upload: A is not deleted yet
     expect((await deleteMe(rig, A)).status).toBe(200); // through the first server
     rig.clock.now += 1000; // the clocks are one: the second server's refresh time has passed
+    await second.app.links.settleReload(); // (IDENT-1 FIX2: a request waits at most 250 ms for a reload, which a loaded host can pass on Tigris: await it)
     expect(new Set(await served(second, D.playerId, 25))).toEqual(new Set([ghostId(gC)]));
     expect(await postGhost(second, A, uploadFor(A, A.playerId, { runId: "a-3" }))).toMatchObject({ status: 410, json: GONE });
     expect(await readProfile(second, A)).toMatchObject({ status: 410, json: GONE });

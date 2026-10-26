@@ -9,7 +9,7 @@
 // Both backing stores (JSON lines, and Tigris on the fake S3) where the store matters.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Identity } from "../src/net/identity";
-import { CODE_TTL_MS, MAX_LINKED, hashCode, normalizeCode } from "../server/links";
+import { CODE_TTL_MS, MAX_LINKED, TOMBSTONE_FULL_READ_MS, hashCode, normalizeCode } from "../server/links";
 import type { LinkStore } from "../server/linkStore";
 import { StorageError } from "../server/store";
 import { testIdentity } from "./netIdentity";
@@ -103,7 +103,9 @@ describe.each(KINDS)("N4: SHOW MY CODE on a full player, on %s", (kind) => {
 });
 
 describe("F4: tombstones", () => {
-  it.each(KINDS)("any signing key can make a tombstone with one DELETE, however little it has: 25 fresh keys, 25 tombstones, and each one is read again by every refresh (%s)", async (kind) => {
+  // (IDENT-1 FIX2: kept as it was; only the title and the log line changed. A refresh no longer reads them all again: it reads what is new, and the
+  // first load and the 6-hourly full read read every one, 8 at a time. tests/ident1.tombstones.test.ts counts the refreshes.)
+  it.each(KINDS)("any signing key can make a tombstone with one DELETE, however little it has: 25 fresh keys, 25 tombstones, and the first load reads each one (%s)", async (kind) => {
     const rig = await open(kind);
     const keys = await Promise.all(Array.from({ length: 25 }, () => freshIdentity()));
     for (const k of keys) expect((await deleteMe(rig, k)).status).toBe(200);
@@ -119,18 +121,21 @@ describe("F4: tombstones", () => {
       const lists = mine.filter((r) => r.op === "LIST" && r.key === "tombstones/").length;
       const heads = mine.filter((r) => r.op === "HEAD" && r.key.startsWith("tombstones/")).length;
       const gets = mine.filter((r) => r.op === "GET" && r.key.startsWith("tombstones/")).length;
-      console.log(`VIDENT1FIX F4 on tigris: one refresh with ${keys.length} tombstones = ${lists} LIST + ${heads} HEAD + ${gets} GET = ${mine.length} requests (sequential)`);
-      expect([lists, heads, gets], "one LIST, then a HEAD and a GET for every tombstone, one after the other").toEqual([1, 25, 25]);
+      console.log(`VIDENT1FIX F4 on tigris: the first load with ${keys.length} tombstones = ${lists} LIST + ${heads} HEAD + ${gets} GET = ${mine.length} requests (8 reads at a time)`);
+      expect([lists, heads, gets], "one LIST, then a HEAD and a GET for every tombstone").toEqual([1, 25, 25]);
     }
   });
 
-  it("a request that arrives when the tombstone set is stale waits for the WHOLE reload: a match, an upload and a code request are all held behind the first read, and go on when the reload ends", async () => {
+  // IDENT-1 FIX2 rewrote this test to the fixed outcome. It was: "a request that arrives when the tombstone set is stale waits for the WHOLE reload: a
+  // match, an upload and a code request are all held behind the first read, and go on when the reload ends". The reload here is the 6-hourly full read
+  // (a refresh reads only what is new), so it still has all 30 tombstones to read, with the first read hanging.
+  it("a request that arrives when the tombstone set is stale waits at most 250 ms for the reload: a match, an upload and a code request are answered while the first read hangs, with the set they hold; the reload ends when it is released", async () => {
     const rig = await open("jsonl");
     const dev = await freshIdentity();
     for (const k of await Promise.all(Array.from({ length: 30 }, () => freshIdentity()))) expect((await deleteMe(rig, k)).status).toBe(200);
     await rig.restart();
     await rig.app.links.ensureFresh(); // the first load
-    rig.clock.now += 61_000; // the 60 s the set is trusted are over
+    rig.clock.now += TOMBSTONE_FULL_READ_MS; // 6 hours on: the set is stale, and the next reload is a full read
     const store = rig.app.links.store as { get: LinkStore["get"] };
     const real = store.get.bind(store);
     let release!: () => void;
@@ -139,7 +144,7 @@ describe("F4: tombstones", () => {
     store.get = async (k: string) => {
       if (k.startsWith("tombstones/")) {
         reads++;
-        if (reads === 1) await gate; // the first tombstone read hangs (a slow store); the rest follow it one by one
+        if (reads === 1) await gate; // the first tombstone read hangs (a slow store); the others go on beside it (8 in flight at most)
       }
       return real(k);
     };
@@ -150,18 +155,20 @@ describe("F4: tombstones", () => {
         postGhost(rig, dev, uploadFor(dev, dev.playerId, { runId: "held" })),
         requestCode(rig, dev),
       ].map((p, i) => p.then((r) => ((done[i] = true), r)));
-      await sleep(300);
-      expect(done, "all three are held: none has been answered").toEqual([false, false, false]);
-      expect(reads, "behind ONE read in flight (the reload reads the tombstones one after another)").toBe(1);
-      release();
-      const rs = await Promise.all(ps);
-      expect([200, 404], "the match: the held upload may land before it is served").toContain(rs[0].status);
-      expect(rs.slice(1).map((r) => r.status), "and the upload and the code request are answered once it ends").toEqual([201, 200]);
-      expect(reads, "the reload read every tombstone").toBe(30);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const rs = await Promise.race([Promise.all(ps), new Promise<null>((resolve) => (timer = setTimeout(() => resolve(null), 10_000)))]);
+      clearTimeout(timer);
+      expect(done, "all three were answered while the first read still hangs").toEqual([true, true, true]);
+      if (!rs) return;
+      expect([200, 404], "the match").toContain(rs[0].status);
+      expect(rs.slice(1).map((r) => r.status), "the upload and the code request").toEqual([201, 200]);
+      expect(reads, "the other reads were not held up by the stuck one: all 30 were started").toBe(30);
     } finally {
       release();
-      store.get = real;
     }
+    await rig.app.links.settleReload();
+    store.get = real;
+    expect(reads, "released, the reload ended; it read each tombstone once").toBe(30);
   });
 });
 
