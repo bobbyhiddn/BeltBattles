@@ -69,8 +69,13 @@ const serverUrl = resolveServerUrl(location.search, (() => {
     return null;
   }
 })(), { origin: location.origin });
+// M1 (the Android app, BRIEF-M1 Goal 2): from here the game starts in start(): at once on the web (below the hook), and in the app
+// once src/native/boot.ts has settled (Preferences registered first, so startOnline's loadIdentity finds the key mirror). The body
+// is deliberately not re-indented, so this job's change to the file stays a few lines.
+let game!: Game;
+const start = (): void => {
 if (serverUrl) startOnline(serverUrl);
-const game = new Game(canvas, (g) => new TitleScreen(g));
+game = new Game(canvas, (g) => new TitleScreen(g));
 game.start();
 
 (window as unknown as { bb: unknown }).bb = {
@@ -713,3 +718,18 @@ game.start();
     return { x: r.left + x * k, y: r.top + y * k };
   },
 };
+};
+
+// M1 (BRIEF-M1 Goal 2): the ONE import of the phone app's boot (src/native/boot.ts, the only module that imports @capacitor/*), behind the
+// INLINE test below, written here and not as `if (NATIVE)` from src/native.ts: this Vite folds the inline test in a web build, which
+// then drops the boot chunk, and does NOT fold a const imported from another module (that ships the chunk in every web build). The
+// web path calls start() at once, as before. The app path calls it when the boot settles, whether it worked or not, so the game always
+// starts, and every loadIdentity (startOnline's, the title's rows') runs after the Capacitor plugins are in place.
+if (import.meta.env.VITE_NATIVE === "1") {
+  import("./native/boot")
+    .then((m) => m.installNative({ back: () => (game as Game | undefined)?.back() ?? true }))
+    .catch((e) => console.error("[beltbattles] the native boot failed; the game starts without it:", e))
+    .finally(start);
+} else {
+  start();
+}

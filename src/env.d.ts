@@ -9,6 +9,10 @@ interface ImportMetaEnv {
   /** C1 (BRIEF-C1 item 5): "1" makes the free demo's build (`npm run build:demo`, into dist-demo/; src/demo.ts DEMO). Unset (every
    *  other build) DEMO is false. Nothing reads it yet: job D3 builds the demo on top of it. */
   readonly VITE_DEMO?: string;
+  /** M1 (BRIEF-M1 Goal 2): "1" makes the phone app's web build (`npm run build:app`, into dist-app/; src/native.ts NATIVE, and main.ts's
+   *  inline test that loads src/native/boot.ts, the only module that imports @capacitor/*). Unset (every other build) no Capacitor code is
+   *  in the bundle. */
+  readonly VITE_NATIVE?: string;
   /** Vite's own: true under the dev server and vitest, false in a build. */
   readonly DEV: boolean;
 }

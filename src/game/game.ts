@@ -54,6 +54,9 @@ export interface Screen {
   up?(x: number, y: number): void;
   cancel?(): void;
   key?(k: string): void;
+  /** M1 (the Android app): true while this is the root screen with nothing open on it (the title, with no card up). The phone's Back
+   *  button minimizes the app there instead of doing Escape's action (Game.back). Absent: never. */
+  atRoot?(): boolean;
   /** SHAPES-1 (REQ-BFG-086 S3): the mouse wheel (deltaY, deltaMode); true when the screen used it. */
   wheel?(dy: number, mode?: number): boolean;
 }
@@ -438,6 +441,16 @@ export class Game implements InputSink {
       return;
     }
     if (this.wipeDir === 0) this.screen.key?.(k);
+  }
+
+  /** M1 (the Android app, BRIEF-M1 Goal 3): the phone's Back button. It does what the Escape key does (key("Escape"): the name entry or
+   *  a modal card first, then the screen), and says whether the press was used: false only at the bare title (the root screen with no
+   *  card, modal, name entry or screen change in progress), where Escape does nothing, so the app minimizes instead (src/native/boot.ts).
+   *  Every other screen's Back is its own Escape, so it never minimizes mid-run. */
+  back(): boolean {
+    const bare = !this.covered && !this.transitioning && this.screen.atRoot?.() === true;
+    this.key("Escape");
+    return !bare;
   }
 
   // ------------------------------------------------------------ shared widgets

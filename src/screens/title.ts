@@ -378,6 +378,12 @@ export class TitleScreen implements Screen {
     this.gate(() => {});
   }
 
+  /** M1 (the Android app): nothing is open on the title (no HOW TO PLAY card, no OPTIONS card): the phone's Back minimizes the app here
+   *  (game.ts back). With either open, Back is Escape, which closes it. */
+  atRoot(): boolean {
+    return !this.help && !this.menu;
+  }
+
   key(k: string): void {
     if (k === "Escape") {
       this.help = false;
