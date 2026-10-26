@@ -11,8 +11,8 @@ import { MAX_LINKED, decodePlayer, decodeTombstone } from "../server/links";
 import { testIdentity } from "./netIdentity";
 import { earnedWire } from "./profileupWire";
 import {
-  closeRigs, deleteMe, fakeSteam, freshIdentity, identityRecords, linkSteamCall, openRig, postGhost, profileStored, putWire, redeemCode, requestCode, uploadFor,
-  type Kind, type Opts, type Reply, type Rig,
+  closeRigs, deleteMe, fakeSteam, freshIdentity, identityRecords, linkSteamCall, openRig, openSibling, postGhost, profileStored, putWire, redeemCode, requestCode,
+  theFake, uploadFor, type Kind, type Opts, type Reply, type Rig,
 } from "./identRig";
 
 let A: Identity;
@@ -111,6 +111,21 @@ describe.each(KINDS)("F3: keys, over the redeem route, on %s", (kind) => {
     expect(await under(rig, "links/keys/"), "and now linked").toContain(`links/keys/${K.playerId}.json`);
   });
 
+  it("two machines over one store, writes one after the other: each reads the record fresh (never its cache) for the cap, so the 65th key is 409 on both", async () => {
+    const rig = await open(kind);
+    await seed(rig, A, ids(MAX_LINKED - 2));
+    const sibling = await openSibling(rig, { rateLimit: { windowMs: 60_000, max: 1_000_000 }, redeemLimit: NOLIMIT });
+    const [k63, k64, k65, k66] = await Promise.all([freshIdentity(), freshIdentity(), freshIdentity(), freshIdentity()]);
+    expect((await redeemCode(rig, k63, codeOf(await requestCode(rig, A)))).status).toBe(200); // this machine: 62 -> 63
+    const six4 = await redeemCode(sibling, k64, codeOf(await requestCode(sibling, A))); // the other machine: 63 -> 64, with its own (stale) cache
+    expect([six4.status, six4.json?.player], six4.text).toEqual([200, A.playerId]);
+    expect((await listOf(rig, A))?.keys).toHaveLength(MAX_LINKED);
+    const code = codeOf(await requestCode(rig, A));
+    expect((await redeemCode(rig, k65, code)).json, "this machine's cache said 63").toEqual(FULL_KEYS);
+    expect((await redeemCode(sibling, k66, code)).json, "the other machine's cache said 63 too").toEqual(FULL_KEYS);
+    expect(await under(rig, "links/keys/")).toHaveLength(MAX_LINKED);
+  });
+
   it("the last two places raced for by five lone keys through one known Steam account: exactly two get in and three are 409", async () => {
     const accounts: Record<string, string> = { aa01: steamId(0) };
     for (let i = 1; i <= 5; i++) accounts[`bb0${i}`] = steamId(0);
@@ -194,7 +209,13 @@ describe.each(KINDS)("F3: DELETE of a full player (64 keys and 64 Steam accounts
     const everyone = [A.playerId, ...keys];
     expect(everyone).toHaveLength(MAX_LINKED + 1);
     await rig.restart();
+    const requestsBefore = kind === "tigris" ? theFake().requests.length : 0;
     expect((await deleteMe(rig, from === "a device" ? dev : A)).status).toBe(200);
+    if (kind === "tigris") {
+      const mine = theFake().requests.slice(requestsBefore).filter((r) => r.bucket === rig.bucket);
+      const ops = (op: string) => mine.filter((r) => r.op === op).length;
+      console.log(`VIDENT1FIX DELETE of a full player from ${from} on tigris: ${mine.length} S3 requests (${ops("GET")} GET, ${ops("HEAD")} HEAD, ${ops("PUT")} PUT, ${ops("DELETE")} DELETE, ${ops("LIST")} LIST), all one after the other`);
+    }
     const records = await identityRecords(rig);
     expect(Object.keys(records), "the tombstone is all that is left: no link, no player record, no Steam link, no code").toEqual([`tombstones/${A.playerId}.json`]);
     const tomb = decodeTombstone(records[`tombstones/${A.playerId}.json`]);
