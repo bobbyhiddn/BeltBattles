@@ -26,7 +26,7 @@
 //                                 a few more scavenges (about 15% more CPU for a deck check) for a lower peak RSS during a deep check
 //   S3, the memory cap and the abuse limits (limits.ts has the defaults and the reasons; read by main.ts through readLimitsConfig, for `serve` only):
 //   BB_GHOST_BUCKET_CAP           player ghosts one (rules, day) bucket keeps in memory: the newest (default 2000); seed ghosts never count
-//   BB_GHOST_CACHE_MAX            player ghosts the whole cache keeps (default 12000, sized for 256 MB under --max-old-space-size=96; 40000 for
+//   BB_GHOST_CACHE_MAX            player ghosts the whole cache keeps (default 6000, sized for 256 MB under --max-old-space-size=96; 30000 for
 //                                 512 MB under 300); past it the least recently used bucket loses its oldest ghosts first
 //   BB_GHOST_NEW_KEYS_PER_IP_DAY  keys the server has not seen that one client address (an IPv6 /64) may bring in 24 hours (default 500)
 //   BB_GHOST_CHECK_KEY_MS         check time one key may use: a full balance, ms of deck check (default 60000)

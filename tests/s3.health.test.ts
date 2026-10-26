@@ -114,7 +114,7 @@ describe("S3 /v1/health: the shape", () => {
     expect(h.validator).toMatchObject({ kind: "in-thread", state: "in-thread" });
     expect(Object.keys(h.memory).sort()).toEqual(MEMORY_KEYS);
     expect(Object.keys(h.cache).sort()).toEqual(CACHE_KEYS);
-    expect(h.cache).toEqual({ buckets: 0, playerGhosts: 0, bucketCap: 2000, ceiling: 12000, evictedByCap: 0, evictedByCeiling: 0 });
+    expect(h.cache).toEqual({ buckets: 0, playerGhosts: 0, bucketCap: 2000, ceiling: 6000, evictedByCap: 0, evictedByCeiling: 0 });
     expect(Object.keys(h.limits).sort()).toEqual(LIMIT_KEYS);
     expect(h.limits).toEqual({ rate: 0, keyInflight: 0, ipInflight: 0, keyBudget: 0, ipBudget: 0, newKeys: 0, total: 0 });
   });

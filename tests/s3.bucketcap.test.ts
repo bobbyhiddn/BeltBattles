@@ -380,7 +380,7 @@ describe("S3 TigrisStore on the fake S3", () => {
   it("cacheStats: zeros for a store nothing has touched, and the configured cap and ceiling", () => {
     const store = tigrisFor(fake, name, { bucketCap: 7, cacheMax: 70 });
     expect(store.cacheStats()).toEqual({ buckets: 0, playerGhosts: 0, bucketCap: 7, ceiling: 70, evictedByCap: 0, evictedByCeiling: 0 });
-    expect(new TigrisStore(store.s3).cacheStats()).toMatchObject({ bucketCap: 2000, ceiling: 12000 }); // the documented defaults
+    expect(new TigrisStore(store.s3).cacheStats()).toMatchObject({ bucketCap: 2000, ceiling: 6000 }); // the documented defaults
   });
 });
 

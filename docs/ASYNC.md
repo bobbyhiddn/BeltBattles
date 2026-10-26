@@ -605,8 +605,9 @@ at day 10, 3.9 KB at day 25), and the limits (120 requests a minute per IP) igno
 `ipLimits.ts`, `limits.ts`; the store, validator and app changes are at call sites) adds, all in memory and all bounded:
 
 - **The cache has a size.** A bucket keeps at most `BB_GHOST_BUCKET_CAP` (2000) PLAYER ghosts in memory: the newest by upload time. Seed-pool
-  ghosts never count and are never dropped. The cache as a whole keeps at most `BB_GHOST_CACHE_MAX` (12000 for the 256 MB machine under
-  `--max-old-space-size=96`; 40000 suits 512 MB under 300); past it the least recently used bucket loses its oldest ghosts first. A bucket
+  ghosts never count and are never dropped. The cache as a whole keeps at most `BB_GHOST_CACHE_MAX` (6000 for the 256 MB machine under
+  `--max-old-space-size=96`; 30000 suits 512 MB under 300); past it the least recently used bucket that is over its fair share (the ceiling
+  split over the buckets that hold ghosts) loses its oldest ghosts first, down to that share and no further. A bucket
   holds a run's ghosts and ENDLESS ghosts, and a match reads only one kind; when a bucket is over its cap the oldest ghost of the kind that
   holds MORE leaves, so neither kind can be crowded out below half the cap. Nothing is deleted from storage: a dropped ghost is still an object
   in Tigris (a line in ghosts.jsonl), just not matched. A bucket load LISTs the prefix (LastModified is kept), sorts by it, and fetches only the

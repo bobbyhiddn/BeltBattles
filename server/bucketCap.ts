@@ -17,12 +17,14 @@ export const DEFAULT_BUCKET_CAP = 2_000;
 
 /**
  * Player ghosts the whole cache keeps, sized for the 256 MB Fly machine under S2's NODE_OPTIONS=--max-old-space-size=96. The WORST case is every
- * ghost a deep one: measured, a day-25 snapshot is 3.9 KB of heap as parsed objects and about 0.2 KB more in the store's maps (a day-10 one 2.2 KB),
- * so 12,000 ghosts are at most 50 MB. With the process's own 12-17 MB (code, the 192 seed ghosts, the limiter maps) that is 62-67 MB of the 96 MB
- * old space (about 65-70%), which leaves V8 its room to collect and the request path its working set; at the day mix of LAUNCH-0 (2.6-2.9 KB a ghost)
- * it is 35 MB. For the 512 MB machine with --max-old-space-size=300 (S5): 40,000 (at most 168 MB, 62% of 300).
+ * ghost a deep one. Measured on the built bundle (S3 report, bench): a day-25 ghost is 4.2 KB of heap in the store's maps (a day-10 one 2.3 KB), 4.7-4.9 KB
+ * counted at the server level after a collection, and loading a bucket makes about 30 MB of garbage on top that the old space has to absorb. Loading all
+ * 25 days of 3,000 stored ghosts in turn gave, by ceiling: 12,000 -> heapUsed 81 MB of the 96 (84%), peak RSS 208 MB; 10,000 -> 212 MB; 8,000 -> 71 MB
+ * (74%), 197 MB; 6,000 -> 64 MB (67%), 193 MB. The S2 server (no cap) died of heap exhaustion on the 12th bucket. 6,000 keeps the live heap at 2/3 of the old
+ * space and the RSS peak at 193 MB of the ~215 MB the machine has, and a bucket still holds hundreds of ghosts to pick from. For the 512 MB machine with
+ * --max-old-space-size=300 (S5): 30,000 (40,000 was measured too: heap 215 MB of 300, peak RSS 334 MB).
  */
-export const DEFAULT_CACHE_MAX = 12_000;
+export const DEFAULT_CACHE_MAX = 6_000;
 
 /** What /v1/health reports about the cache (the `cache` block). */
 export interface CacheStats {

@@ -86,7 +86,7 @@ export interface TigrisStoreOptions {
   retryMs?: number; // wait after a failed bucket LIST before trying again; default 5 s
   /** S3: player ghosts one bucket keeps in memory (the newest; seed ghosts never count); default 2,000 (bucketCap.ts). */
   bucketCap?: number;
-  /** S3: player ghosts the whole cache keeps; past it the least recently used bucket loses its oldest first; default 12,000 (bucketCap.ts). */
+  /** S3: player ghosts the whole cache keeps; past it the least recently used bucket loses its oldest first; default 6,000 (bucketCap.ts). */
   cacheMax?: number;
   now?: () => number;
   log?: (line: string) => void;
