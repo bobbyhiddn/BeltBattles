@@ -609,7 +609,9 @@ at day 10, 3.9 KB at day 25), and the limits (120 requests a minute per IP) igno
   `--max-old-space-size=96`; 30000 suits 512 MB under 300); past it the least recently used bucket that is over its fair share (the ceiling
   split over the buckets that hold ghosts) loses its oldest ghosts first, down to that share and no further. A bucket
   holds a run's ghosts and ENDLESS ghosts, and a match reads only one kind; when a bucket is over its cap the oldest ghost of the kind that
-  holds MORE leaves, so neither kind can be crowded out below half the cap. Nothing is deleted from storage: a dropped ghost is still an object
+  holds MORE leaves, so neither kind can be crowded out below half the cap in a running process (a bucket with nothing held yet is cut by time
+  alone: after a restart the older ghosts of a kind that a flood of the other kind pushed out of the newest N objects are not cached). Two identical
+  uploads in flight store once (`TigrisStore.add` is single flight per key). Nothing is deleted from storage: a dropped ghost is still an object
   in Tigris (a line in ghosts.jsonl), just not matched. A bucket load LISTs the prefix (LastModified is kept), sorts by it, and fetches only the
   newest N player objects (and every pool object); a re-list fetches only new keys that make the cut, and never refills a bucket the ceiling
   trimmed beyond the room the cache has. The LIST itself still reads every key (1,000 a page): S3 cannot list by time.
