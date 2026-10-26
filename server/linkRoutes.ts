@@ -14,12 +14,16 @@
 //
 //   POST   /v1/link/code    {"at"}                                  -> 200 { code: "XXXX-XXXX", expiresAt } | 410 the player was deleted
 //   POST   /v1/link/redeem  {"at","code"}                           -> 200 { player, profile } | 403 "that code did not work" (a
-//                                                                      wrong, expired or used code: one line, never which) | 409 the
-//                                                                      key is linked elsewhere, or its player has other keys or a Steam
-//                                                                      account | 410 | 429 too many wrong codes from this address
+//                                                                      wrong, expired or used code, or a code whose player has become
+//                                                                      a device itself: one line, never which) | 409 the key is linked
+//                                                                      elsewhere, or its player has other keys or a Steam account | 410
+//                                                                      | 429 too many wrong codes from this address
 //   GET    /v1/profile?at=<ms>  (no body; the signed text is `at=<ms>`) -> 200 { player, profile | null } | 410
 //   DELETE /v1/player       {"at"}                                  -> 200 { deleted: true }
-//   POST   /v1/link/steam   {"at","ticket","identity","appid"}      -> 200 { player, profile } | 501 while off | 403 | 409 | 410 | 502
+//   POST   /v1/link/steam   {"at","ticket","identity","appid"}      -> 200 { player, profile } | 501 while off | 403 (the ticket, the
+//                                                                      App ID, Steam's refusal, or "that Steam account could not be
+//                                                                      linked": the account's player has become a device itself; the
+//                                                                      ticket is not spent) | 409 | 410 | 502
 // The request log is app.ts's, unchanged: time, method, path, status and duration. No player id, no address, no code, no ticket.
 
 import {
@@ -204,5 +208,6 @@ export async function linkSteam(r: LinkRequest): Promise<RouteReply> {
   }
   await r.links.ensureFresh();
   const j = await r.links.linkSteam(o.signer, s.steamId);
+  if (j.status === 403) r.tickets.release(ticket); // the account's player is a device (damaged data): nothing was linked, the ticket is not spent
   return j.status === 200 ? { status: 200, body: { player: j.player, profile: j.profile } } : j;
 }

@@ -172,10 +172,11 @@ describe.each(KINDS)("a code's life on %s", (kind) => {
 });
 
 describe.each(KINDS)("FINDING: a stale code from a key that has since joined another player, on %s", (kind) => {
-  // X shows a code (a lone key is its own player), then X redeems A's code and becomes A's device. X's code stays live for up to 10
-  // minutes. Z redeems it. The right answer is a refusal, or Z joining A (X's player is A now): never a player record of X, which is no
-  // longer a player. `it.fails`: this passes while the product does what it does today (Z becomes a device of "player" X).
-  it.fails("Z must not become a device of X; and the two worse consequences: X's device is tombstoned when Z deletes, and X's own profile is orphaned", async () => {
+  // X shows a code (a lone key is its own player), then X redeems A's code and becomes A's device. X's code used to stay live for up to 10
+  // minutes, and Z redeemed it. The right answer is a refusal, or Z joining A (X's player is A now): never a player record of X, which is no
+  // longer a player. FIXED by IDENT-1 FIX (F1): `join` deletes the joining key's own live code, so the stale code is the plain refusal
+  // (the `.fails` of the checker's run is dropped).
+  it("Z must not become a device of X; and the two worse consequences: X's device is tombstoned when Z deletes, and X's own profile is orphaned", async () => {
     const rig = await open(kind, { redeemLimit: NOLIMIT });
     const X = await freshIdentity(), Z = await freshIdentity();
     const stale = codeOf(await requestCode(rig, X));
@@ -188,18 +189,24 @@ describe.each(KINDS)("FINDING: a stale code from a key that has since joined ano
     expect(nested, "Z is a device of the 'player' X, which is itself a device of A").toBe(false);
   });
 
-  it("(the consequence, recorded as it is today) Z deleting 'its player' tombstones X, a living device of A: X's uploads are 410 afterwards", async () => {
+  // REWRITTEN by IDENT-1 FIX (F1): the checker's version recorded the wrong outcome as it was (Z became a device of X, Z's delete tombstoned
+  // X, a living device of A) and returned early once the product was fixed. This one asserts the fixed outcome.
+  it("(the consequence, fixed) Z, who held X's old code, is refused and is nobody's device; Z deleting 'its player' is a delete of Z alone: X, a living device of A, still uploads under A", async () => {
     const rig = await open(kind, { redeemLimit: NOLIMIT });
     const X = await freshIdentity(), Z = await freshIdentity();
     const stale = codeOf(await requestCode(rig, X));
-    expect((await linkVia(rig, A, X)).joined.status).toBe(200);
+    expect((await linkVia(rig, A, X)).joined.status).toBe(200); // X now belongs to A
     const z = await redeemCode(rig, Z, stale);
-    if (z.status !== 200 || (z.json as { player?: string } | null)?.player !== X.playerId) return; // the product was fixed: nothing to record
+    expect(z.status, z.text).toBe(403);
+    expect(z.json).toEqual(REFUSED);
+    expect(await linkRecords(rig, "links/keys/"), "only X is linked, and to A").toEqual([`links/keys/${X.playerId}.json`]);
     expect((await postGhost(rig, X, uploadFor(X, A.playerId, { runId: "x-1" }))).status, "X is a working device of A").toBe(201);
-    expect((await deleteMe(rig, Z)).status).toBe(200);
+    expect((await deleteMe(rig, Z)).status).toBe(200); // Z is a lone key: this deletes Z's own player and nobody else
     const after = await postGhost(rig, X, uploadFor(X, A.playerId, { runId: "x-2" }));
-    expect(after.status, "A's device X can no longer upload, because a stranger who held X's old code deleted 'player X'").toBe(410);
+    expect(after.status, "A's device X still uploads: a stranger who held X's old code could not delete 'player X'").toBe(201);
     expect(rig.app.links.isGone(A.playerId), "A itself was not deleted").toBe(false);
+    expect(rig.app.links.isGone(X.playerId), "X was not deleted").toBe(false);
+    expect(rig.app.links.isGone(Z.playerId), "Z deleted itself").toBe(true);
   });
 });
 

@@ -7,6 +7,8 @@
 //    first key's own ID, never a new kind of string, so the pool, the match query, ghost-admin and the names code see nothing new.
 //  - A key links to at most one player. A redeeming key whose player already has other keys or a Steam account is refused (409):
 //    nothing is ever re-pointed silently. A lone key is allowed: its stored profile is merged into P's (mergeWire), then removed.
+//  - A key that joins a player stops being one: `join` deletes its own live code and its own players/<key>.json in the same step that
+//    writes its link. A code (or a Steam account) whose player has a links/keys/ record is refused (403), never followed.
 //  - A link code is 8 characters of a 31 symbol alphabet (no 0 O 1 I L), about 40 bits, live 10 minutes, single use, stored hashed.
 //    A new code replaces the player's live one. Single use holds when two redeems race in one process: every change runs one at a
 //    time (`locked`), and the code is consumed (deleted) before anything is linked. Across machines see the REPORT (section 6).
@@ -334,6 +336,10 @@ export class Links {
       const player = rec.player;
       if (this.isGone(player)) return refused;
       if (this.isGone(signer)) return { status: 410, error: "this key was deleted" };
+      // A code names a PLAYER. A key that is linked to another player is a device, and a device is never a player: `join` deletes the
+      // live code of a key that joins, so no path leaves such a code, and this catches damaged data. It is the one plain refusal of a
+      // used code (and counts as any refused code does); the code's record is left as it is and the link is not followed.
+      if (await this.keyLink(player, true)) return refused;
       const decision = await this.canJoin(signer, player);
       if (decision.status !== 200) return decision;
       // the reads that can fail (the two profiles) happen first, with nothing changed; then the code is consumed (deleted) before
@@ -368,20 +374,35 @@ export class Links {
   /** Link `signer` to `player`: its stored profile is merged into the player's and removed, then the records are written.
    *  Called inside a change, after canJoin said yes. `spend` runs after the reads that can fail and before the first write. */
   private async join(signer: string, player: string, already: boolean, spend?: () => Promise<void>): Promise<Outcome<Joined>> {
-    // 1. the reads first (StorageError here changes nothing): the lone key's profile and the player's
+    // 1. the reads first (StorageError here changes nothing): the lone key's profile, the player's, and the lone key's own player
+    //    record (canJoin saw to it that it holds no key and no Steam account: at most the hash of a live code of its own)
     const mine = already ? null : await this.profiles.get(signer);
     const theirs = await this.profiles.get(player);
     const merged = mine ? mergeWire(theirs?.profile ?? null, mine.profile) : null;
+    const own = already ? null : await this.playerRecord(signer, true);
     await spend?.();
     if (!already) {
-      // 2. the merged profile is the player's now
+      // 2. the key stops being a player, so its own live code goes before anything points at the player: a live code of a key that is
+      //    a device would let a stranger make a device of a "player" that is itself a device (IDENT-1 FIX, F1)
+      if (own?.code) await this.store.delete(codeKey(own.code));
+      // 3. the merged profile is the player's now
       if (merged) await this.profiles.put(player, { profile: merged, receivedAt: this.now() });
-      // 3. the player's record names the key before the key's record points at the player: a crash between the two leaves a
+      // 4. the player's record names the key before the key's record points at the player: a crash between the two leaves a
       //    listed key that is not linked (harmless; the next redeem finishes it), never a link nobody can find to delete
       const prec = (await this.playerRecord(player, true)) ?? { keys: [], steam: [], at: this.now() };
       if (!prec.keys.includes(signer)) await this.putPlayer(player, { ...prec, keys: [...prec.keys, signer], at: this.now() });
       await this.putKeyLink(signer, { player, at: this.now() });
-      // 4. the key's own record is gone now (its ghosts stay as they are)
+      // 5. the key's own player record goes in the same step (it is no player now; its ghosts stay as they are). Its code is dead
+      //    already, so a failure here leaves an inert record at worst, never a live code: the join stands
+      if (own) {
+        try {
+          await this.store.delete(playerOf(signer));
+          this.playerCache.delete(signer);
+        } catch (e) {
+          this.log(`identity store: could not remove a joined key's own player record: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      // 6. the key's own profile record is gone now (its ghosts stay as they are)
       if (mine) {
         try {
           await this.profiles.delete?.(signer);
@@ -406,6 +427,10 @@ export class Links {
       if (this.isGone(mine)) return { status: 410, error: "this player was deleted" };
       const known = decodeKeyLink(await this.store.get(steamKey(steamId)));
       if (known && !this.isGone(known.player)) {
+        // The account's player must still be a player. A key that is linked to another player is a device (a Steam link left on a key
+        // that later joined someone: join refuses that with 409, so this is damaged data): refused with 403, nothing is followed or
+        // re-pointed, and the route gives the ticket back, as it does for Steam's own refusal.
+        if (await this.keyLink(known.player, true)) return { status: 403, error: "that Steam account could not be linked" };
         if (known.player === mine) return { status: 200, player: mine, profile: (await this.profiles.get(mine))?.profile ?? null };
         const decision = await this.canJoin(signer, known.player);
         if (decision.status !== 200) return decision;
