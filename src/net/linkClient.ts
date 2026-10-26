@@ -18,8 +18,9 @@
 
 import { DELETE_PREFIX, KEY_HEADER, LINK_CODE_PREFIX, LINK_REDEEM_PREFIX, LINK_STEAM_PREFIX, SIG_HEADER, indexedDbKeyStore, type Identity, type KeyStore, type SignDomain } from "./identity";
 import { MIRROR_JWK, MIRROR_LINK, capacitorMirror, type IdentityMirror } from "./identityMirror";
-import { browserLinkStorage, clearLink, encodeLink, writeLink, type LinkStorage } from "./linkState";
+import { browserLinkStorage, clearLink, encodeLink, readLink, writeLink, type LinkStorage } from "./linkState";
 import { mergeRemoteProfile } from "./profileSync";
+import { syncHistoryAfterLink } from "./historySync"; // IDENT-2 (REQ-BFG-122 clause 4): the run history follows the player (a module cycle: historySync.ts imports forgetDeletedPlayer; both only call each other at run time)
 import { decodeWireValue, type WireProfile } from "./profileWire";
 
 export type LinkFailure = { ok: false; status?: number; error: string };
@@ -87,11 +88,40 @@ export async function requestLinkCode(baseUrl: string, id: Identity, deps: LinkD
   if (!a.ok) return a;
   const { code, expiresAt } = a.json;
   if (typeof code !== "string" || typeof expiresAt !== "number") return { ok: false, status: 200, error: "the answer holds no code" };
+  await noteShowing(baseUrl, id, deps);
   return { ok: true, code, expiresAt };
 }
 
+/**
+ * IDENT-2 (REQ-BFG-122 clause 4): the device that SHOWS a code counts as linked too. It is the player's first device, and its run history
+ * must reach the device that enters the code, so it gets the link record of a device whose player is its own key (here and in the native
+ * mirror, as `adopt` writes one); a device that has a record for this key already keeps it. Then its history goes up in the background
+ * (net/historySync.ts), so the entries are there by the time the other device enters the code. Never throws, never delays the code card.
+ */
+async function noteShowing(baseUrl: string, id: Identity, deps: LinkDeps): Promise<void> {
+  try {
+    const store = deps.store === undefined ? browserLinkStorage() : deps.store;
+    const keyId = id.keyId ?? id.playerId;
+    const have = readLink(store);
+    if (store && !(have && have.key === keyId)) {
+      const rec = { v: 1 as const, player: keyId, key: keyId, at: Math.floor((deps.now ?? (() => Date.now()))()) };
+      if (writeLink(rec, store)) {
+        const mirror = deps.mirror === undefined ? capacitorMirror() : deps.mirror;
+        try {
+          await mirror?.set(MIRROR_LINK, encodeLink(rec));
+        } catch {
+          /* the mirror is a safety net: the link holds without it */
+        }
+      }
+    }
+    syncHistoryAfterLink(baseUrl, id, deps);
+  } catch {
+    /* showing a code is never held back by the history */
+  }
+}
+
 /** The server named the player this key now belongs to: write the link (here and in the mirror) and merge the profile it sent. */
-async function adopt(json: Record<string, unknown>, id: Identity, deps: LinkDeps): Promise<RedeemResult> {
+async function adopt(baseUrl: string, json: Record<string, unknown>, id: Identity, deps: LinkDeps): Promise<RedeemResult> {
   const player = json.player;
   if (typeof player !== "string" || !PLAYER_ID.test(player)) return { ok: false, status: 200, error: "the answer names no player" };
   const store = deps.store === undefined ? browserLinkStorage() : deps.store;
@@ -116,13 +146,14 @@ async function adopt(json: Record<string, unknown>, id: Identity, deps: LinkDeps
     }
   }
   if (profile) mergeRemoteProfile(profile, store);
+  syncHistoryAfterLink(baseUrl, id, deps); // IDENT-2: the device's runs go up under the player, the player's come down (background; a device with no link record does nothing)
   return { ok: true, player };
 }
 
 /** ENTER A CODE: this device's key joins the player that made the code. */
 export async function redeemLinkCode(baseUrl: string, id: Identity, typed: string, deps: LinkDeps = {}): Promise<RedeemResult> {
   const a = await call(baseUrl, "POST", "/v1/link/redeem", LINK_REDEEM_PREFIX, id, { code: String(typed).slice(0, 32) }, deps);
-  return a.ok ? adopt(a.json, id, deps) : a;
+  return a.ok ? adopt(baseUrl, a.json, id, deps) : a;
 }
 
 /** The device's half of a deletion: the link record, the mirror's copies and the key itself are dropped (the next online use makes a
@@ -167,5 +198,5 @@ export async function forgetDeletedPlayer(deps: LinkDeps = {}): Promise<DeleteRe
  *  player. No UI and no Steam SDK here: the desktop build will call it. 501 while the server has Steam linking off. */
 export async function linkSteam(baseUrl: string, id: Identity, ticketHex: string, steamIdentity: string, appid: number, deps: LinkDeps = {}): Promise<RedeemResult> {
   const a = await call(baseUrl, "POST", "/v1/link/steam", LINK_STEAM_PREFIX, id, { ticket: ticketHex, identity: steamIdentity, appid }, deps);
-  return a.ok ? adopt(a.json, id, deps) : a;
+  return a.ok ? adopt(baseUrl, a.json, id, deps) : a;
 }

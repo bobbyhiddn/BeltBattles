@@ -40,11 +40,18 @@ export const LINK_STEAM_PREFIX = "bb-link-steam-1\n";
 export const PROFILE_GET_PREFIX = "bb-profile-get-1\n";
 /** DELETE /v1/player: delete the player's online data. */
 export const DELETE_PREFIX = "bb-delete-1\n";
+// IDENT-2 (REQ-BFG-122 clause 4): run history follows the player. Two more domains, additive: the seven above and their bytes never change.
+/** PUT /v1/history: a key of the player uploads one finished run's entry (the signed bytes are the body {at, entry}). */
+export const HISTORY_PREFIX = "bb-history-1\n";
+/** GET /v1/history: the signed history reads. The signed text is the exact path and query (`/v1/history?at=<ms>` for the list,
+ *  `/v1/history?at=<ms>&id=<id>` for one entry), so the signature of a list read is no signature of an entry read. */
+export const HISTORY_GET_PREFIX = "bb-history-get-1\n";
 
 /** The domains a signature may be made in (a closed set: the prefix is never caller text). */
 export type SignDomain =
   | typeof UPLOAD_PREFIX | typeof PROFILE_PREFIX
-  | typeof LINK_CODE_PREFIX | typeof LINK_REDEEM_PREFIX | typeof LINK_STEAM_PREFIX | typeof PROFILE_GET_PREFIX | typeof DELETE_PREFIX;
+  | typeof LINK_CODE_PREFIX | typeof LINK_REDEEM_PREFIX | typeof LINK_STEAM_PREFIX | typeof PROFILE_GET_PREFIX | typeof DELETE_PREFIX
+  | typeof HISTORY_PREFIX | typeof HISTORY_GET_PREFIX;
 export const KEY_HEADER = "x-bb-key";
 export const SIG_HEADER = "x-bb-sig";
 export const IDENTITY_DB = "beltbattles-identity";
@@ -148,6 +155,8 @@ const PREFIX_BYTES: Record<SignDomain, Uint8Array> = {
   [LINK_STEAM_PREFIX]: new TextEncoder().encode(LINK_STEAM_PREFIX),
   [PROFILE_GET_PREFIX]: new TextEncoder().encode(PROFILE_GET_PREFIX),
   [DELETE_PREFIX]: new TextEncoder().encode(DELETE_PREFIX),
+  [HISTORY_PREFIX]: new TextEncoder().encode(HISTORY_PREFIX), // IDENT-2
+  [HISTORY_GET_PREFIX]: new TextEncoder().encode(HISTORY_GET_PREFIX), // IDENT-2
 };
 
 /** The bytes a signature covers: the domain's prefix in UTF-8 (UPLOAD_PREFIX unless a domain is given), then the exact
