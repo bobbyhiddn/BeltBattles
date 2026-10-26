@@ -50,22 +50,24 @@ describe("H2 M2: the smoke's env line (tools/smoke.ts envReport)", () => {
     expect(fly).toEqual({
       BB_GHOST_STORE: "tigris", BB_GHOST_UPLOADS: "open", BB_GHOST_TRUST_PROXY: "fly", BB_GHOST_HOST: "0.0.0.0",
       BB_GHOST_PORT: "8080", BB_GHOST_STATIC: "/app/public", BB_GHOST_ORIGINS: "https://beltbattles.fly.dev", BB_GHOST_CACHE_TTL_S: "600",
+      NODE_OPTIONS: "--max-old-space-size=96", // S2: the main thread's (and, by Node's override, the deck-check worker's) heap limit; the smoke runs its own server without it
     });
     expect(flyTomlEnv(OPEN_TOML)).toEqual({ ...fly, BB_GHOST_UPLOADS: "open" });
     expect(flyTomlEnv(CLOSED_TOML)).toEqual({ ...fly, BB_GHOST_UPLOADS: "closed" });
     expect(flyTomlEnv('[env]\n  A = "1" # note\n[[vm]]\n  B = "2"\n[env.x]\n  C = "3"\n')).toEqual({ A: "1" });
   });
 
-  it("fly.toml at HEAD (uploads open, as tests/server-config.test.ts pins): uploads, port, page, origins and cache TTL named as differing", () => {
+  it("fly.toml at HEAD (uploads open, as tests/server-config.test.ts pins): uploads, port, page, origins, cache TTL and (S2) NODE_OPTIONS named as differing", () => {
     const fly = flyTomlEnv(HEAD_TOML);
     expect(fly.BB_GHOST_UPLOADS).toBe("open");
     const lines = envReport(ENV, fly);
     checkTrue(lines, fly);
     expect(lineOf(lines, "BB_GHOST_UPLOADS")).toEqual(["  BB_GHOST_UPLOADS=closed   DIFFERS: fly.toml has open"]); // the smoke runs its own server closed
     expect(differList(lines)).toContain("BB_GHOST_UPLOADS");
-    expect(differList(lines)).toEqual(["BB_GHOST_UPLOADS", "BB_GHOST_PORT", "BB_GHOST_STATIC", "BB_GHOST_ORIGINS", "BB_GHOST_CACHE_TTL_S"]);
-    expect(lines[0]).toBe("env against fly.toml's [env] (read now): 3 as fly.toml; 5 differ (BB_GHOST_UPLOADS, BB_GHOST_PORT, BB_GHOST_STATIC, BB_GHOST_ORIGINS, BB_GHOST_CACHE_TTL_S); 6 not in fly.toml:");
+    expect(differList(lines)).toEqual(["BB_GHOST_UPLOADS", "BB_GHOST_PORT", "BB_GHOST_STATIC", "BB_GHOST_ORIGINS", "BB_GHOST_CACHE_TTL_S", "NODE_OPTIONS"]);
+    expect(lines[0]).toBe("env against fly.toml's [env] (read now): 3 as fly.toml; 6 differ (BB_GHOST_UPLOADS, BB_GHOST_PORT, BB_GHOST_STATIC, BB_GHOST_ORIGINS, BB_GHOST_CACHE_TTL_S, NODE_OPTIONS); 6 not in fly.toml:");
     expect(lineOf(lines, "BB_GHOST_CACHE_TTL_S")).toEqual(["  BB_GHOST_CACHE_TTL_S unset (the server's default)   DIFFERS: fly.toml has 600"]);
+    expect(lineOf(lines, "NODE_OPTIONS")).toEqual(["  NODE_OPTIONS unset (the server's default)   DIFFERS: fly.toml has --max-old-space-size=96"]); // S2
   });
 
   it("a fixture fly.toml with BB_GHOST_UPLOADS = \"open\": the uploads difference is named, with both values", () => {
@@ -74,11 +76,11 @@ describe("H2 M2: the smoke's env line (tools/smoke.ts envReport)", () => {
     const lines = envReport(ENV, fly);
     checkTrue(lines, fly);
     expect(lineOf(lines, "BB_GHOST_UPLOADS")).toEqual(["  BB_GHOST_UPLOADS=closed   DIFFERS: fly.toml has open"]);
-    expect(differList(lines)).toEqual(["BB_GHOST_UPLOADS", "BB_GHOST_PORT", "BB_GHOST_STATIC", "BB_GHOST_ORIGINS", "BB_GHOST_CACHE_TTL_S"]);
+    expect(differList(lines)).toEqual(["BB_GHOST_UPLOADS", "BB_GHOST_PORT", "BB_GHOST_STATIC", "BB_GHOST_ORIGINS", "BB_GHOST_CACHE_TTL_S", "NODE_OPTIONS"]);
   });
 
   // 0.8.0 U2 M1 (oracle 9f153fecb7b1b642): the HEAD case's former checks, kept on a closed fixture
-  it("a fixture fly.toml with BB_GHOST_UPLOADS = \"closed\" (the code's default, and the rollback's switch: deploy-080 with -e BB_GHOST_UPLOADS=closed): uploads as fly.toml; port, page, origins and cache TTL named as differing", () => {
+  it("a fixture fly.toml with BB_GHOST_UPLOADS = \"closed\" (the code's default, and the rollback's switch: deploy-080 with -e BB_GHOST_UPLOADS=closed): uploads as fly.toml; port, page, origins, cache TTL and (S2) NODE_OPTIONS named as differing", () => {
     expect(CLOSED_TOML).not.toBe(OPEN_TOML);
     const fly = flyTomlEnv(CLOSED_TOML);
     expect(fly.BB_GHOST_UPLOADS).toBe("closed");
@@ -86,8 +88,8 @@ describe("H2 M2: the smoke's env line (tools/smoke.ts envReport)", () => {
     checkTrue(lines, fly);
     expect(lineOf(lines, "BB_GHOST_UPLOADS")).toEqual(["  BB_GHOST_UPLOADS=closed   as fly.toml"]);
     expect(differList(lines)).not.toContain("BB_GHOST_UPLOADS");
-    expect(differList(lines)).toEqual(["BB_GHOST_PORT", "BB_GHOST_STATIC", "BB_GHOST_ORIGINS", "BB_GHOST_CACHE_TTL_S"]);
-    expect(lines[0]).toBe("env against fly.toml's [env] (read now): 4 as fly.toml; 4 differ (BB_GHOST_PORT, BB_GHOST_STATIC, BB_GHOST_ORIGINS, BB_GHOST_CACHE_TTL_S); 6 not in fly.toml:");
+    expect(differList(lines)).toEqual(["BB_GHOST_PORT", "BB_GHOST_STATIC", "BB_GHOST_ORIGINS", "BB_GHOST_CACHE_TTL_S", "NODE_OPTIONS"]);
+    expect(lines[0]).toBe("env against fly.toml's [env] (read now): 4 as fly.toml; 5 differ (BB_GHOST_PORT, BB_GHOST_STATIC, BB_GHOST_ORIGINS, BB_GHOST_CACHE_TTL_S, NODE_OPTIONS); 6 not in fly.toml:");
     expect(lineOf(lines, "BB_GHOST_CACHE_TTL_S")).toEqual(["  BB_GHOST_CACHE_TTL_S unset (the server's default)   DIFFERS: fly.toml has 600"]);
   });
 
