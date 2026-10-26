@@ -1,0 +1,180 @@
+// VERIFY-IDENT1-FIX1 (REQ-BFG-122) step 4e, written by the independent re-checker (cap_xi): THE OPEN NOTES, REPRODUCED. FIX-REPORT section 7 left N1 to N5
+// open, and run 3 left F4 and F5. These tests do not state a wish: they PIN WHAT THE PRODUCT DOES TODAY, so that each rating in the report rests on
+// a run, and so that the day one of them is fixed the matching test fails and says so (then rewrite it to the fixed outcome).
+//   N1  the Steam write order: a store failure between linkSteam's two writes leaves a Steam link the player's record does not list
+//   N4  SHOW MY CODE on a full player still makes a code
+//   F4  tombstones are never removed, every refresh re-reads all of them, and a request that arrives when the set is stale waits for the whole reload
+//   F5  a typed ß reads as SS (and ligatures as their letters): other spellings of the same code, never a different code
+// Both backing stores (JSON lines, and Tigris on the fake S3) where the store matters.
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Identity } from "../src/net/identity";
+import { CODE_TTL_MS, MAX_LINKED, hashCode, normalizeCode } from "../server/links";
+import type { LinkStore } from "../server/linkStore";
+import { StorageError } from "../server/store";
+import { testIdentity } from "./netIdentity";
+import {
+  closeRigs, deleteMe, fakeSteam, freshIdentity, identityRecords, linkSteamCall, matchAs, openRig, postGhost, redeemCode, requestCode, theFake,
+  uploadFor, type Kind, type Opts, type Reply, type Rig,
+} from "./identRig";
+
+let A: Identity, B: Identity;
+beforeAll(async () => {
+  [A, B] = await Promise.all([0, 1].map((n) => testIdentity(n)));
+});
+afterAll(closeRigs);
+
+const KINDS: Kind[] = ["jsonl", "tigris"];
+const NOLIMIT = { windowMs: 600_000, max: 1_000_000 };
+const open = (kind: Kind, over: Opts = {}) => openRig(kind, { rateLimit: { windowMs: 60_000, max: 1_000_000 }, redeemLimit: NOLIMIT, ...over });
+const codeOf = (r: Reply): string => String(r.json?.code);
+const NO_STEAM = { error: "that Steam account could not be linked" };
+const FULL_KEYS = { error: "this player already has the most linked devices it can have" };
+const under = async (rig: Rig, prefix: string) => Object.keys(await identityRecords(rig)).filter((k) => k.startsWith(prefix)).sort();
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+const S1 = "76561198000000021";
+const ids = (n: number, tag = "k"): string[] => Array.from({ length: n }, (_, i) => `${tag}${String(i).padStart(4, "0")}${"x".repeat(30)}`);
+
+describe.each(KINDS)("N1: the Steam write order, on %s", (kind) => {
+  it("a store failure between linkSteam's two writes: the retry answers 200 and never repairs the record; the key can then join another player; the account is then refused to everybody; a DELETE leaves its link record behind", async () => {
+    const steam = fakeSteam({ aa01: S1, aa02: S1, aa03: S1, aa04: S1, aa05: S1, aa06: S1 });
+    const rig = await open(kind, { steam });
+    const [K, Z] = [await freshIdentity(), await freshIdentity()];
+    // 1. fail the write of players/<K>.json: it is the SECOND write of linkSteam's unknown-account path
+    const store = rig.app.links.store as { put: LinkStore["put"] };
+    const real = store.put.bind(store);
+    store.put = async (k: string, t: string) => {
+      if (k === `players/${K.playerId}.json`) throw new StorageError("identity write failed: HTTP 500");
+      return real(k, t);
+    };
+    const first = await (async (): Promise<Reply> => {
+      try {
+        return await linkSteamCall(rig, K, "aa01", "bb-ghost", 480);
+      } finally {
+        store.put = real;
+      }
+    })();
+    expect(first.status, first.text).toBe(503);
+    expect(await under(rig, "links/steam/"), "the first write stood").toEqual([`links/steam/${S1}.json`]);
+    expect(await under(rig, "players/"), "the second did not").toEqual([]);
+    expect((await linkSteamCall(rig, Z, "aa01", "bb-ghost", 480)).json, "(the ticket of the failed try stays spent, as before the fix)").toEqual({ error: "that Steam ticket was used already" });
+    // 2. the retry with a fresh ticket: the account is 'already yours', so nothing is written
+    const retry = await linkSteamCall(rig, K, "aa02", "bb-ghost", 480);
+    expect([retry.status, retry.json?.player], retry.text).toEqual([200, K.playerId]);
+    expect(await under(rig, "players/"), "NOT repaired: the player's record still does not list the account").toEqual([]);
+    // 3. so the key's own record does not stop it joining another player (the 409 rule reads that record)
+    const joined = await redeemCode(rig, K, codeOf(await requestCode(rig, A)));
+    expect([joined.status, joined.json?.player], joined.text).toEqual([200, A.playerId]);
+    // 4. the Steam link now names a key that is a device: the guard refuses the account to everybody, K and A included
+    for (const [who, id, ticket] of [["a stranger", Z, "aa03"], ["the device itself", K, "aa04"], ["its player", A, "aa05"]] as const) {
+      const r = await linkSteamCall(rig, id, ticket, "bb-ghost", 480);
+      expect([r.status, r.json], who).toEqual([403, NO_STEAM]);
+    }
+    // 5. a DELETE of the player does not remove it: no record lists it
+    expect((await deleteMe(rig, A)).status).toBe(200);
+    expect(await under(rig, "links/steam/"), "the Steam link (the Steam id and a key id) survives the deletion").toEqual([`links/steam/${S1}.json`]);
+    // and it is only re-pointed when somebody links the account again (its player is gone by then)
+    const again = await linkSteamCall(rig, Z, "aa06", "bb-ghost", 480);
+    expect([again.status, again.json?.player]).toEqual([200, Z.playerId]);
+  });
+});
+
+describe.each(KINDS)("N4: SHOW MY CODE on a full player, on %s", (kind) => {
+  it("the code is made (200) and shown; the entering device gets the 409 and the code stays live; a device the player has already is told nothing either", async () => {
+    const rig = await open(kind);
+    const dev = await freshIdentity();
+    const keys = [...ids(MAX_LINKED - 1), dev.playerId];
+    const s = rig.app.links.store;
+    await s.put(`players/${A.playerId}.json`, JSON.stringify({ keys, steam: [], at: rig.clock.now }));
+    for (const k of keys) await s.put(`links/keys/${k}.json`, JSON.stringify({ player: A.playerId, at: rig.clock.now }));
+    await rig.restart();
+    const shown = await requestCode(rig, A);
+    expect([shown.status, typeof shown.json?.code], "the full player's first key is shown a code").toEqual([200, "string"]);
+    const fromDevice = await requestCode(rig, dev);
+    expect(fromDevice.status, "so is a device of it").toBe(200);
+    const entering = await freshIdentity();
+    const r = await redeemCode(rig, entering, codeOf(fromDevice));
+    expect([r.status, r.json], "the 409 comes only now, on the entering device").toEqual([409, FULL_KEYS]);
+    const live = Object.keys(await identityRecords(rig)).filter((k) => k.startsWith("linkcodes/"));
+    expect(live, "and the code is still live (unspent)").toHaveLength(1);
+  });
+});
+
+describe("F4: tombstones", () => {
+  it.each(KINDS)("any signing key can make a tombstone with one DELETE, however little it has: 25 fresh keys, 25 tombstones, and each one is read again by every refresh (%s)", async (kind) => {
+    const rig = await open(kind);
+    const keys = await Promise.all(Array.from({ length: 25 }, () => freshIdentity()));
+    for (const k of keys) expect((await deleteMe(rig, k)).status).toBe(200);
+    expect(await under(rig, "tombstones/"), "a key that never uploaded, linked or stored anything still writes one").toHaveLength(25);
+    expect(await under(rig, "players/")).toEqual([]);
+    expect(await under(rig, "links/keys/")).toEqual([]);
+    if (kind === "tigris") {
+      await rig.restart();
+      const fake = theFake();
+      const from = fake.requests.length;
+      await rig.app.links.ensureFresh();
+      const mine = fake.requests.slice(from).filter((r) => r.bucket === rig.bucket);
+      const lists = mine.filter((r) => r.op === "LIST" && r.key === "tombstones/").length;
+      const heads = mine.filter((r) => r.op === "HEAD" && r.key.startsWith("tombstones/")).length;
+      const gets = mine.filter((r) => r.op === "GET" && r.key.startsWith("tombstones/")).length;
+      console.log(`VIDENT1FIX F4 on tigris: one refresh with ${keys.length} tombstones = ${lists} LIST + ${heads} HEAD + ${gets} GET = ${mine.length} requests (sequential)`);
+      expect([lists, heads, gets], "one LIST, then a HEAD and a GET for every tombstone, one after the other").toEqual([1, 25, 25]);
+    }
+  });
+
+  it("a request that arrives when the tombstone set is stale waits for the WHOLE reload: a match, an upload and a code request are all held behind the first read, and go on when the reload ends", async () => {
+    const rig = await open("jsonl");
+    const dev = await freshIdentity();
+    for (const k of await Promise.all(Array.from({ length: 30 }, () => freshIdentity()))) expect((await deleteMe(rig, k)).status).toBe(200);
+    await rig.restart();
+    await rig.app.links.ensureFresh(); // the first load
+    rig.clock.now += 61_000; // the 60 s the set is trusted are over
+    const store = rig.app.links.store as { get: LinkStore["get"] };
+    const real = store.get.bind(store);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let reads = 0;
+    store.get = async (k: string) => {
+      if (k.startsWith("tombstones/")) {
+        reads++;
+        if (reads === 1) await gate; // the first tombstone read hangs (a slow store); the rest follow it one by one
+      }
+      return real(k);
+    };
+    const done = [false, false, false];
+    try {
+      const ps = [
+        matchAs(rig, B.playerId),
+        postGhost(rig, dev, uploadFor(dev, dev.playerId, { runId: "held" })),
+        requestCode(rig, dev),
+      ].map((p, i) => p.then((r) => ((done[i] = true), r)));
+      await sleep(300);
+      expect(done, "all three are held: none has been answered").toEqual([false, false, false]);
+      expect(reads, "behind ONE read in flight (the reload reads the tombstones one after another)").toBe(1);
+      release();
+      const rs = await Promise.all(ps);
+      expect([200, 404], "the match: the held upload may land before it is served").toContain(rs[0].status);
+      expect(rs.slice(1).map((r) => r.status), "and the upload and the code request are answered once it ends").toEqual([201, 200]);
+      expect(reads, "the reload read every tombstone").toBe(30);
+    } finally {
+      release();
+      store.get = real;
+    }
+  });
+});
+
+describe("F5: other spellings of a code", () => {
+  it("a typed ß is read as SS and the ligatures ﬀ ﬅ ﬆ as FF ST ST; every other special case stays invalid; no spelling reaches a code the plain letters could not", async () => {
+    expect(normalizeCode("ABCD-EFß")).toBe("ABCDEFSS");
+    expect(normalizeCode("ABCDﬀGH")).toBe("ABCDFFGH");
+    expect(normalizeCode("ABCDEFﬆ")).toBe("ABCDEFST");
+    expect(normalizeCode("ABCDEFﬅ")).toBe("ABCDEFST");
+    for (const s of ["ABCDEFGı", "ABCDEFGİ", "ABCDEFǰ", "ABCDEFŉ", "ABCDEFﬁ", "ABCDEFﬂ", "ABCDEFﬃ", "ABCDEFẞ", "ＡＢＣＤＥＦＧＨ", "ABCD-EFG0", "ABCD-EFGO", "ABCD-EFGI", "ABCD-EFGL"]) {
+      expect(normalizeCode(s), JSON.stringify(s)).toBeNull();
+    }
+    // through the route: the code is live under its plain letters and redeemed through the ß
+    const rig = await open("jsonl");
+    await rig.app.links.store.put(`linkcodes/${hashCode("ABCDEFSS")}.json`, JSON.stringify({ player: A.playerId, expiresAt: rig.clock.now + CODE_TTL_MS }));
+    const r = await redeemCode(rig, B, "abcd-efß");
+    expect([r.status, r.json?.player], r.text).toEqual([200, A.playerId]);
+  });
+});
