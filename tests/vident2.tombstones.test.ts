@@ -30,6 +30,9 @@ afterAll(closeRigs);
 
 const KINDS: Kind[] = ["jsonl", "tigris"];
 const TTL = 60_000; // the refresh time (server/links.ts TOMBSTONE_TTL_MS)
+// LITERALS, not the exported constants: a probe built from TOMBSTONE_FULL_READ_MS or TOMBSTONE_READS_IN_FLIGHT would follow a mutated constant and never notice (the first version of FIX2's own tests did)
+const SIX_HOURS = 6 * 60 * 60_000;
+const POOL = 8;
 const REFRESH_FAILED = "tombstone refresh failed, keeping the set";
 const UNREADABLE = "skipping an unreadable tombstone";
 const salter = (): (() => number) => {
@@ -447,7 +450,7 @@ describe.each(KINDS)("B. after this machine's own DELETE no request serves that 
     s.readGate = g.gate;
     s.exempt.add(`tombstones/${w.P.playerId}.json`); // (the DELETE's own read of an earlier tombstone of P is not the reload's)
     expect((await deleteMe(w.rig, w.P)).status).toBe(200);
-    expect(s.reads.length, "the full read started and is stuck with the pool full").toBe(TOMBSTONE_READS_IN_FLIGHT);
+    expect(s.reads.length, "the full read started and is stuck with the pool full").toBe(POOL);
     await everythingRefused(w, "while every read of the full read hangs");
     g.release();
     s.readGate = null;
@@ -772,7 +775,7 @@ describe("F. FIX2's decisions", () => {
     expect(links.isGone(K)).toBe(false);
   });
 
-  it.each([[TOMBSTONE_FULL_READ_MS - 1, 0, "1 ms short of 6 hours on the clock: a refresh reads nothing"], [TOMBSTONE_FULL_READ_MS, 3, "at 6 hours on the clock: the full read (3 hours late in real time, the clock having run 3 hours behind from the step on)"]] as const)(
+  it.each([[SIX_HOURS - 1, 0, "1 ms short of 6 hours on the clock: a refresh reads nothing"], [SIX_HOURS, 3, "at 6 hours on the clock: the full read (3 hours late in real time, the clock having run 3 hours behind from the step on)"]] as const)(
     "the 6-hour full read is anchored to clock readings, so a step back of 3 hours delays it by 3 hours of real time (probe at %i ms)",
     async (probe, reads, why) => {
       const t0 = 10_000_000;
@@ -795,6 +798,10 @@ describe("F. FIX2's decisions", () => {
 // ============================================================================================================== G. counts and reads in flight at the fake S3
 
 describe("G. request counts and reads in flight at the fake S3 (Tigris)", () => {
+  it("the constants are the specified ones: a request waits 250 ms, the full read is every 6 hours, 8 reads are in flight", () => {
+    expect([TOMBSTONE_WAIT_MS, TOMBSTONE_FULL_READ_MS, TOMBSTONE_READS_IN_FLIGHT]).toEqual([250, SIX_HOURS, POOL]);
+  });
+
   it("k new tombstones (1, 7, 8, 9) cost the LIST plus k reads", async () => {
     const rig = await open("tigris");
     await otherMachineDeletes(rig, 5, "a");
@@ -813,7 +820,7 @@ describe("G. request counts and reads in flight at the fake S3 (Tigris)", () => 
     expect(rig.app.links.goneCount).toBe(5 + 1 + 7 + 8 + 9);
   });
 
-  it.each([[TOMBSTONE_FULL_READ_MS - 1, false], [TOMBSTONE_FULL_READ_MS, true]] as const)(
+  it.each([[SIX_HOURS - 1, false], [SIX_HOURS, true]] as const)(
     "the full read comes 6 hours after the first load began and not 1 ms before (probe at %i ms); the next one 6 hours after THAT one began",
     async (probe, full) => {
       const rig = await open("tigris");
@@ -836,11 +843,11 @@ describe("G. request counts and reads in flight at the fake S3 (Tigris)", () => 
       await rig.app.links.settleReload();
       expect(fakeCounts(rig, m), "61 s after the full read: only the new one").toEqual({ list: 1, head: 1, get: 1 });
       await otherMachineDeletes(rig, 1, "later");
-      rig.clock.now = s + TOMBSTONE_FULL_READ_MS - 1;
+      rig.clock.now = s + SIX_HOURS - 1;
       m = mark();
       await rig.app.links.settleReload();
       expect(fakeCounts(rig, m), "6 h - 1 ms after the full read: only the new one").toEqual({ list: 1, head: 1, get: 1 });
-      rig.clock.now = s + TOMBSTONE_FULL_READ_MS + TTL + 1;
+      rig.clock.now = s + SIX_HOURS + TTL + 1;
       m = mark();
       await rig.app.links.settleReload();
       expect(fakeCounts(rig, m), "a refresh more than 6 h after the full read: every tombstone again").toEqual({ list: 1, head: 9, get: 9 });
@@ -860,7 +867,7 @@ describe("G. request counts and reads in flight at the fake S3 (Tigris)", () => 
         await rig.app.links.settleReload();
         const c = fakeCounts(rig, m);
         expect([c.head, c.get], `${what}: HEAD and GET`).toEqual([expectedReads, expectedReads]);
-        expect(inst.max(), `${what}: the most requests in flight at the fake`).toBe(Math.min(TOMBSTONE_READS_IN_FLIGHT, expectedReads));
+        expect(inst.max(), `${what}: the most requests in flight at the fake`).toBe(Math.min(POOL, expectedReads));
       };
       await phase("first load", 40);
       await otherMachineDeletes(rig, 30, "b");
@@ -934,13 +941,13 @@ describe.each(KINDS)("H. a reload that fails at the LAST read, or in the middle 
     s.failOn = (n) => n === 1;
     const p = rig.app.links.settleReload();
     await sleep(150);
-    expect(s.reads.length, "8 reads started and are waiting").toBe(TOMBSTONE_READS_IN_FLIGHT);
+    expect(s.reads.length, "8 reads started and are waiting").toBe(POOL);
     expect(lines(rig.log, REFRESH_FAILED)).toBe(0);
     g.release();
     await p;
     expect(lines(rig.log, REFRESH_FAILED), "the one failure").toBe(1);
     expect(s.inFlight, "it was reported only when the reads in flight had ended").toBe(0);
-    expect(s.reads.length, "and no new read was started after the failure").toBe(TOMBSTONE_READS_IN_FLIGHT);
+    expect(s.reads.length, "and no new read was started after the failure").toBe(POOL);
     expect(rig.app.links.goneCount, "nothing applied").toBe(3);
     s.restore();
   });
