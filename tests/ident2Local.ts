@@ -11,7 +11,7 @@ import { NOW } from "./profileupWire";
 export type Mem = Storage & { keys(): string[]; sets: number; log: string[] };
 
 /** A localStorage stand-in that counts its writes (`log`: the key of every setItem, in order). `full`: every write throws what a full storage throws. */
-export function mem(over: { full?: boolean } = {}): Mem {
+export function mem(over: { full?: boolean; max?: number } = {}): Mem {
   const m = new Map<string, string>();
   const s: Mem = {
     get length() { return m.size; }, clear: () => m.clear(), key: (i: number) => [...m.keys()][i] ?? null,
@@ -19,7 +19,8 @@ export function mem(over: { full?: boolean } = {}): Mem {
     setItem: (k: string, v: string) => {
       s.sets++;
       s.log.push(k);
-      if (over.full) throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+      // `max`: a value over this many characters does not fit (what is left of a nearly full storage)
+      if (over.full || (over.max !== undefined && String(v).length > over.max)) throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
       m.set(k, String(v));
     },
     removeItem: (k: string) => void m.delete(k), keys: () => [...m.keys()].sort(), sets: 0, log: [],

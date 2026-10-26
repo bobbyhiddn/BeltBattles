@@ -102,23 +102,31 @@ export async function requestLinkCode(baseUrl: string, id: Identity, deps: LinkD
  */
 async function noteShowing(baseUrl: string, id: Identity, deps: LinkDeps): Promise<void> {
   try {
-    const store = deps.store === undefined ? browserLinkStorage() : deps.store;
-    const keyId = id.keyId ?? id.playerId;
-    const have = readLink(store);
-    if (store && !(have && have.key === keyId)) {
-      const rec = { v: 1 as const, player: keyId, key: keyId, at: Math.floor((deps.now ?? (() => Date.now()))()) };
-      if (writeLink(rec, store)) {
-        const mirror = deps.mirror === undefined ? capacitorMirror() : deps.mirror;
-        try {
-          await mirror?.set(MIRROR_LINK, encodeLink(rec));
-        } catch {
-          /* the mirror is a safety net: the link holds without it */
-        }
-      }
-    }
+    await selfLink(id, deps);
     syncHistoryAfterLink(baseUrl, id, deps);
   } catch {
     /* showing a code is never held back by the history */
+  }
+}
+
+/** The link record of a device whose player is its own key (the player's first device): written, here and in the native mirror, unless the
+ *  device has a record for this key already. Used by SHOW MY CODE and by a Steam link that names the key's own player. Never throws. */
+async function selfLink(id: Identity, deps: LinkDeps): Promise<void> {
+  try {
+    const store = deps.store === undefined ? browserLinkStorage() : deps.store;
+    const keyId = id.keyId ?? id.playerId;
+    const have = readLink(store);
+    if (!store || (have && have.key === keyId)) return;
+    const rec = { v: 1 as const, player: keyId, key: keyId, at: Math.floor((deps.now ?? (() => Date.now()))()) };
+    if (!writeLink(rec, store)) return;
+    const mirror = deps.mirror === undefined ? capacitorMirror() : deps.mirror;
+    try {
+      await mirror?.set(MIRROR_LINK, encodeLink(rec));
+    } catch {
+      /* the mirror is a safety net: the link holds without it */
+    }
+  } catch {
+    /* a record that cannot be written leaves the device unlinked, as it was */
   }
 }
 
@@ -138,6 +146,8 @@ async function adopt(baseUrl: string, json: Record<string, unknown>, id: Identit
     } catch {
       /* the mirror is a safety net: the link holds without it */
     }
+  } else {
+    await selfLink(id, deps); // IDENT-2: a Steam link on the player's first key names that key's own player: the device counts as linked, as one that shows a code does
   }
   let profile: WireProfile | null = null;
   if (json.profile !== null && json.profile !== undefined) {

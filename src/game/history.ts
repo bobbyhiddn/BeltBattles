@@ -228,7 +228,14 @@ export function recordRunEnd(run: Run, deps: HistoryDeps = {}): string[] {
     state.entries.sort((a, b) => newestFirst(a.entry, b.entry));
     trim(state.entries, linkedTo(store));
     applyBudget(state.entries);
-    return writeHistory(state, store) && state.entries.some((l) => l.entry.id === entry.id) ? [entry.id] : [];
+    if (!state.entries.some((l) => l.entry.id === entry.id)) return [];
+    if (!writeHistory(state, store)) {
+      // a storage that is nearly full: the records are about nine tenths of the bytes, so try once more with none (the rows and the summaries
+      // stay): the run is in the history all the same (independent review of IDENT-2, finding 7)
+      for (const l of state.entries) l.entry = withoutRecords(l.entry);
+      if (!writeHistory(state, store)) return [];
+    }
+    return [entry.id];
   } catch {
     return [];
   }

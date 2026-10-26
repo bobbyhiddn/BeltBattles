@@ -70,17 +70,21 @@ function recordProblem(e: HistoryEntry): string | null {
 export async function putHistory(r: HistoryRequest): Promise<RouteReply> {
   const o = await opened(r, HISTORY_PREFIX, HISTORY_BODY_MAX_BYTES, true); // 403, 401, 413, 400 (UTF-8)
   if ("status" in o) return o;
-  const b = fieldsOf(o.text, ["at", "entry"]);
-  if (typeof b === "string") return { status: 400, error: b };
+  let at: unknown;
   let entry: HistoryEntry;
   try {
+    const b = fieldsOf(o.text, ["at", "entry"]);
+    if (typeof b === "string") return { status: 400, error: b };
+    at = b.at;
     entry = decodeEntryValue(b.entry);
+    if (JSON.stringify(b.entry) !== encodeEntry(entry)) return { status: 400, error: "entry: not in the canonical form (fixed field order, no spaces)" };
   } catch (e) {
     if (e instanceof HistoryWireError) return { status: e.status, error: e.message };
-    throw e;
+    // a value nested thousands deep parses, then JSON.stringify throws a RangeError (a 16 KB body can do it): that body is no entry. A plain
+    // 400, not a 500 with a stack in the log (independent review of IDENT-2, finding 1)
+    return { status: 400, error: "body: not exactly {\"at\",\"entry\"} in the canonical form" };
   }
-  if (JSON.stringify(b.entry) !== encodeEntry(entry)) return { status: 400, error: "entry: not in the canonical form (fixed field order, no spaces)" };
-  const late = atProblem(b.at, r.now());
+  const late = atProblem(at, r.now());
   if (late) return { status: 422, error: late };
   await r.links.ensureFresh();
   const player = await r.links.playerOfKey(o.signer);
@@ -93,7 +97,7 @@ export async function putHistory(r: HistoryRequest): Promise<RouteReply> {
   }
   const why = recordProblem(entry);
   if (why) return { status: 422, error: why };
-  return exclusive(player, () => store(r, player, entry));
+  return exclusive(player, () => store(r, player, o.signer, entry));
 }
 
 /**
@@ -101,7 +105,7 @@ export async function putHistory(r: HistoryRequest): Promise<RouteReply> {
  * object (a GET); a new entry writes it (a PUT) and, when that passes the cap, deletes the oldest (a DELETE). So 2 requests for any PUT
  * and 3 for a new entry at the cap, besides the identity lookups (a cached key link; one HEAD when it is cold).
  */
-async function store(r: HistoryRequest, player: string, entry: HistoryEntry): Promise<RouteReply> {
+async function store(r: HistoryRequest, player: string, signer: string, entry: HistoryEntry): Promise<RouteReply> {
   const text = encodeEntry(entry);
   const names = await r.history.list(player);
   const known = names.find((n) => n.id === entry.id);
@@ -118,6 +122,12 @@ async function store(r: HistoryRequest, player: string, entry: HistoryEntry): Pr
     return { status: 422, error: `history: this player already holds ${HISTORY_PLAYER_MAX} entries, all newer than this one` };
   }
   await r.history.put(player, name, text);
+  // a DELETE that ran while the write was in flight (this machine's tombstone set knows it at once): the object must not outlive the player.
+  // Another machine's late write is the purge's (ghost-admin purge-tombstoned)
+  if (r.links.isGone(player) || r.links.isGone(signer)) {
+    await r.history.delete(player, name);
+    return { status: 410, error: "this player was deleted" };
+  }
   // over the cap, the OLDEST go, after the write (a failed write loses nothing); the new entry always gets in
   const over = names.length + (known ? 0 : 1) - HISTORY_PLAYER_MAX;
   if (over > 0) {

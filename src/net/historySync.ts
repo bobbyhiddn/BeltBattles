@@ -87,11 +87,14 @@ export async function historyIdle(): Promise<void> {
 type Verdict = "done" | "stop" | "gone" | "absent";
 /** What a status means for an entry just sent. */
 function verdict(status: number | undefined, error: string): Verdict {
-  if (status === 200 || status === 201 || status === 409) return "done"; // stored, stored already, or a different entry holds the id
+  // `error` is the server's own words, or "HTTP <status>" when the answer carried none (a proxy's page: not the server's, so never final)
+  const theirs = !/^HTTP \d{3}$/.test(error);
+  if (status === 409) return theirs ? "done" : "stop"; // a different entry holds the id
+  if (status === 200 || status === 201) return "stop"; // reached only for an answer that was not the server's (the stored case is handled by the caller)
   if (status === 404 || status === 405) return "absent"; // a server without these routes
   if (status === 410) return "gone";
   // the server refused the entry's content: sending it again would be refused again, so it is finished with. A wrong clock is not that
-  if (status === 400 || status === 413 || status === 422) return /^at:/.test(error) ? "stop" : "done";
+  if (status === 400 || status === 413 || status === 422) return theirs && !/^at:/.test(error) ? "done" : "stop";
   return "stop"; // 401, 403 (uploads closed), 429, 5xx, no answer: keep the entries, try at the next trigger
 }
 

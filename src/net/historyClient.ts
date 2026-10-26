@@ -16,6 +16,10 @@ import { HISTORY_BODY_MAX_BYTES, HistoryWireError, checkEntry, decodeEntryValue,
 
 export type HistoryFailure = { ok: false; status?: number; error: string };
 
+/** A downloaded entry may be dated this far ahead of the device's clock (a day): the server's own bound is its clock plus 10 minutes, and the
+ *  device's clock may run behind it. */
+const DOWNLOAD_AHEAD_MS = 86_400_000;
+
 export interface HistoryNetDeps {
   fetch?: typeof fetch;
   now?: () => number;
@@ -74,7 +78,9 @@ export async function putHistoryEntry(baseUrl: string, id: Identity, entry: Hist
     if (body.length > HISTORY_BODY_MAX_BYTES) return { ok: false, error: `the entry is over ${HISTORY_BODY_MAX_BYTES} bytes: not sent` };
     const r = await go(baseUrl, "/v1/history", { method: "PUT", headers: { "content-type": "application/json", ...(await signed(id, body, HISTORY_PREFIX)) }, body }, deps);
     if ("ok" in r) return r;
-    if (r.status === 200 || r.status === 201) return { ok: true, created: r.status === 201 };
+    // only the server's own answer counts as stored: it names the id (a page from a proxy that answers 200 does not)
+    if ((r.status === 200 || r.status === 201) && r.json.id === entry.id) return { ok: true, created: r.status === 201 };
+    if (r.status === 200 || r.status === 201) return { ok: false, status: r.status, error: "the answer is not the server's: it names no such entry" };
     return failure(r.status, r.json);
   } catch (e) {
     return { ok: false, error: errText(e) };
@@ -112,7 +118,8 @@ export async function getHistoryEntry(baseUrl: string, id: Identity, entryId: st
     if (r.status !== 200) return failure(r.status, r.json);
     try {
       const entry = decodeEntryValue(r.json.entry);
-      checkEntry(entry, nowMs(deps));
+      // the caps the server held it to, except that a device whose clock runs behind is not told a good entry comes from the future
+      checkEntry(entry, nowMs(deps), DOWNLOAD_AHEAD_MS);
       if (entry.id !== entryId) return { ok: false, status: 200, error: "the answer is another entry" };
       return { ok: true, entry };
     } catch (e) {
