@@ -404,6 +404,29 @@ describe("a server without the history routes (IDENT-1 only), and the hourly gat
     expect(n).toBe(1);
   });
 
+  it("a failed entry read ends the sync without stamping it: the next page load tries again at once; the entries read before it are kept", async () => {
+    const A = await device(0);
+    writeLink({ v: 1, player: A.id.playerId, key: A.id.keyId!, at: NOW }, A.store);
+    const listed = [entryOf("r2-1-1", {}, NOW - 2000), entryOf("r1-1-1", {}, NOW - 3000)];
+    let readStatus = 200;
+    const f = (async (input: RequestInfo | URL) => {
+      const u = new URL(String(input));
+      if (!u.search.includes("&id=")) return new Response(JSON.stringify({ entries: listed.map((e) => ({ id: e.id, finishedAt: e.finishedAt })) }), { status: 200 });
+      const e = listed.find((x) => u.search.endsWith(`&id=${x.id}`))!;
+      // the first entry reads well; the second one's read fails while readStatus says so
+      return e.id === "r1-1-1" && readStatus !== 200 ? new Response('{"error":"down"}', { status: readStatus }) : new Response(JSON.stringify({ entry: e }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const dep = { store: A.store, now: () => NOW, fetch: f };
+    readStatus = 503;
+    expect(await startupHistorySync(BASE + "/r", A.id, dep)).toMatchObject({ status: "failed", received: 1 });
+    expect(ids(A)).toEqual(["r2-1-1"]); // the read before the failure was merged
+    expect(readHistory(A.store).state.syncedAt).toBeUndefined(); // and the sync is not stamped
+    readStatus = 200;
+    expect(await startupHistorySync(BASE + "/r", A.id, dep)).toMatchObject({ status: "ok", received: 1 });
+    expect(ids(A)).toEqual(["r2-1-1", "r1-1-1"]);
+    expect(readHistory(A.store).state.syncedAt).toBe(NOW);
+  });
+
   it("a newer build's history store is left alone by the sync: no request, no write", async () => {
     const A = await device(0);
     writeLink({ v: 1, player: A.id.playerId, key: A.id.keyId!, at: NOW }, A.store);

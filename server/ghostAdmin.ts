@@ -102,11 +102,15 @@ export interface HistoryHeld {
   name: HistoryName;
 }
 
-/** The history objects `store` holds under history/<id>/ for each id, ids in sorted order (so a dry run prints the same plan twice). */
-async function heldIn(store: HistoryStore, ids: ReadonlySet<string>): Promise<HistoryHeld[]> {
-  const out: HistoryHeld[] = [];
-  for (const id of [...ids].sort()) for (const name of await store.list(id)) out.push({ id, name });
-  return out;
+/** The history objects `store` holds under history/<id>/ for each id, ids in sorted order (so a dry run prints the same plan twice). One LIST
+ *  for each id, `limit` at a time (a batch job at 100,000 tombstones is 100,000 LISTs: one after another it would take an hour). */
+async function heldIn(store: HistoryStore, ids: ReadonlySet<string>, limit = 1): Promise<HistoryHeld[]> {
+  const sorted = [...ids].sort();
+  const names: HistoryName[][] = sorted.map(() => []);
+  await eachLimit(sorted.map((_, k) => k), limit, async (k) => {
+    names[k] = await store.list(sorted[k]);
+  });
+  return sorted.flatMap((id, k) => names[k].map((name) => ({ id, name })));
 }
 
 /** The ids every readable tombstone in `links` names, and how many records were not tombstones. */
@@ -306,7 +310,7 @@ export class TigrisAdmin implements AdminStore {
 
   /** IDENT-2: the run history in the bucket: history/<id>/<time>-<entry>.json (one LIST for each id). */
   history(ids: ReadonlySet<string>): Promise<HistoryHeld[]> {
-    return heldIn(new TigrisHistoryStore(this.s3), ids);
+    return heldIn(new TigrisHistoryStore(this.s3), ids, this.concurrency);
   }
 
   async removeHistory(held: readonly HistoryHeld[]): Promise<number> {
