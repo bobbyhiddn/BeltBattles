@@ -144,19 +144,31 @@ export class JsonlStore implements GhostStore {
     for (const id of overflowKeys(items, this.bucketCap)) this.forget(k, id, "cap");
   }
 
-  /** Past cacheMax player ghosts the least recently read bucket (the one in use, `current`, last) loses its oldest first. */
-  private enforceCeiling(current: string | null): void {
+  /** Past cacheMax player ghosts the least recently read bucket that holds more than its fair share (cacheMax over the buckets holding ghosts) loses
+   *  its oldest first, down to the share and no further (as the Tigris store does: a bucket in use is not emptied). */
+  private enforceCeiling(): void {
     for (;;) {
       const excess = this.players.size - this.cacheMax;
       if (excess <= 0) return;
-      let victim: string | null = null;
+      const sizes = new Map<string, number>();
       for (const k of this.buckets.keys()) {
-        if (k === current || this.droppable(k).length === 0) continue;
-        if (victim === null || (this.used.get(k) ?? 0) < (this.used.get(victim) ?? 0)) victim = k;
+        const n = this.droppable(k).length;
+        if (n > 0) sizes.set(k, n);
       }
-      victim ??= current !== null && this.droppable(current).length > 0 ? current : null;
-      if (victim === null) return;
-      for (const id of oldestKeys(this.droppable(victim), excess)) this.forget(victim, id, "ceiling");
+      const share = Math.max(1, Math.floor(this.cacheMax / Math.max(1, sizes.size)));
+      const lru = (over: number): string | null => {
+        let victim: string | null = null;
+        for (const [k, n] of sizes) if (n > over && (victim === null || (this.used.get(k) ?? 0) < (this.used.get(victim) ?? 0))) victim = k;
+        return victim;
+      };
+      let victim = lru(share);
+      let n = victim === null ? 0 : Math.min(excess, sizes.get(victim)! - share);
+      if (victim === null) {
+        victim = lru(0);
+        if (victim === null) return;
+        n = Math.min(excess, sizes.get(victim)!);
+      }
+      for (const id of oldestKeys(this.droppable(victim), n)) this.forget(victim, id, "ceiling");
     }
   }
 
@@ -175,7 +187,7 @@ export class JsonlStore implements GhostStore {
     }
     this.reindex();
     for (const k of [...this.buckets.keys()]) this.capBucket(k); // S3: only the newest of each bucket stay in memory (the file keeps every line)
-    this.enforceCeiling(null);
+    this.enforceCeiling();
     return this.size;
   }
 
@@ -223,7 +235,7 @@ export class JsonlStore implements GhostStore {
     this.index(e);
     const k = bucketKey(s.rules, s.day);
     this.capBucket(k); // S3: the newest of the bucket stay in memory; the oldest of the kind that holds more leaves it
-    this.enforceCeiling(k);
+    this.enforceCeiling();
     return { id, created: true };
   }
 

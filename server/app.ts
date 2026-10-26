@@ -29,7 +29,7 @@
 //                                       the day: "record: 0W 1 lives is no record a run carries into
 //                                       dusk 1". Nothing is stored
 //                                   429 { error, limit } + Retry-After  S3: after every refusal above and before the deck check's queue: a key that
-//                                       is new to this server past its address's daily allowance ("new-keys", keyLimits in ipLimits.ts), a key or an
+//                                       is new to this server past its address's daily allowance ("new-keys", NewKeyLimiter in ipLimits.ts), a key or an
 //                                       address with a deck check already in flight ("key-inflight", "ip-inflight"), or one that has used its share of
 //                                       check time ("key-budget", "ip-budget": budget.ts). Nothing is stored and the upload never joins the queue
 //                                   503 { error } + Retry-After  S2: the deck check (validateUpload) runs in a worker thread (validator.ts)
@@ -318,7 +318,8 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   const trustProxy = opts.trustProxy ?? "none";
   const validator = opts.validator ?? createInThreadValidator(); // S2
   // S3: the abuse limits (limits.ts). Every one keys on ipKey (an IPv4 address, an IPv6 /64); all are in memory only and bounded (ipLimits.ts, budget.ts)
-  const lim: Limits = { ...DEFAULT_LIMITS, ...opts.limits };
+  const lim: Limits = { ...DEFAULT_LIMITS };
+  for (const [k, v] of Object.entries(opts.limits ?? {})) if (typeof v === "number") (lim as unknown as Record<string, number>)[k] = v; // a field left undefined keeps its default
   const lclock = opts.limits?.now ?? (() => Date.now());
   const budget = new CheckBudget({ keyMs: lim.checkKeyMs, keyRefill: lim.checkKeyRefill, ipMs: lim.checkIpMs, ipRefill: lim.checkIpRefill, ipInflight: lim.checkIpInflight, keyInflight: lim.checkKeyInflight }, lclock);
   // "seen" = accepted since boot, or a stored profile (asked only when an address is over its daily allowance of new keys)

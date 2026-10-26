@@ -209,7 +209,7 @@ export class TigrisStore implements GhostStore {
     b.view = null;
     b.poolView = null;
     this.capBucket(b);
-    this.enforceCeiling(b);
+    this.enforceCeiling();
   }
 
   private items(b: Bucket): CapItem[] {
@@ -233,28 +233,41 @@ export class TigrisStore implements GhostStore {
     for (const key of overflowKeys(this.items(b), this.bucketCap)) this.drop(b, key, "cap");
   }
 
-  /** S3: at most cacheMax player ghosts in the cache. The least recently used bucket loses its oldest ghosts first; the bucket in use (`current`)
-   *  is the last resort (only when nothing else holds a ghost). */
-  private enforceCeiling(current: Bucket): void {
+  /** S3: a bucket's fair share of the ceiling: cacheMax split evenly over the buckets that hold player ghosts (and `b`, which is about to). */
+  private share(b?: Bucket): number {
+    let live = 0;
+    for (const c of this.buckets.values()) if (c.at.size > 0 || c === b) live++;
+    return Math.max(1, Math.floor(this.cacheMax / Math.max(1, live)));
+  }
+
+  /** S3: at most cacheMax player ghosts in the cache. The least recently used bucket that holds more than its fair share loses its oldest ghosts
+   *  first, down to the share and no further (so a bucket in use is never emptied, which would leave its matches to the seed pool until its next
+   *  re-list); the loop goes on to the next least recently used until the cache fits. If every bucket is at or under its share (rounding), the least
+   *  recently used bucket gives up its oldest. */
+  private enforceCeiling(): void {
     for (;;) {
       const excess = this.playerGhosts() - this.cacheMax;
       if (excess <= 0) return;
+      const share = this.share();
       let victim: Bucket | null = null;
-      for (const c of this.buckets.values()) if (c !== current && c.at.size > 0 && (victim === null || c.usedAt < victim.usedAt)) victim = c;
-      victim ??= current.at.size > 0 ? current : null;
-      if (!victim) return;
-      for (const key of oldestKeys(this.items(victim), excess)) this.drop(victim, key, "ceiling");
+      for (const c of this.buckets.values()) if (c.at.size > share && (victim === null || c.usedAt < victim.usedAt)) victim = c;
+      let n = victim ? Math.min(excess, victim.at.size - share) : 0;
+      if (!victim) {
+        for (const c of this.buckets.values()) if (c.at.size > 0 && (victim === null || c.usedAt < victim.usedAt)) victim = c;
+        if (!victim) return;
+        n = Math.min(excess, victim.at.size);
+      }
+      for (const key of oldestKeys(this.items(victim), n)) this.drop(victim, key, "ceiling");
     }
   }
 
-  /** S3: how many of its newest player objects a bucket's LIST may fetch. The first load takes the newest bucketCap (never more than the
-   *  ceiling); a re-list keeps what the bucket holds and grows only into room the cache has free, so a bucket the ceiling trimmed is not
-   *  refilled from storage at every TTL just to be trimmed again. */
+  /** S3: how many of its newest player objects a bucket's LIST may fetch: what it already holds, or the room the cache has free, or its fair
+   *  share, whichever is most (never more than the cap or the ceiling). So a re-list never refills a bucket the ceiling trimmed beyond what the
+   *  cache can keep (no refetching at every TTL just to be trimmed again), and a bucket that was trimmed to nothing still gets its share back. */
   private windowFor(b: Bucket): number {
-    if (b.listedAt === 0) return Math.min(this.bucketCap, this.cacheMax);
     let others = 0;
     for (const c of this.buckets.values()) if (c !== b) others += c.at.size;
-    return Math.min(this.bucketCap, Math.max(b.at.size, this.cacheMax - others, 0));
+    return Math.min(this.bucketCap, this.cacheMax, Math.max(b.at.size, this.cacheMax - others, this.share(b)));
   }
 
   async bucket(rules: string, day: number, scope: BucketScope = "all"): Promise<readonly PoolEntry[]> {
@@ -379,7 +392,7 @@ export class TigrisStore implements GhostStore {
     b.view = null;
     b.poolView = null;
     this.capBucket(b); // ghosts stored during the refresh may have put it over
-    this.enforceCeiling(b);
+    this.enforceCeiling();
   }
 
   async replacePool(rules: string, entries: readonly PoolEntry[]): Promise<SeedCounts> {

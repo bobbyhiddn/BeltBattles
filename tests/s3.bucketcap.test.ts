@@ -250,17 +250,19 @@ describe("S3 TigrisStore on the fake S3", () => {
       await store.add(s, at4[at4.length - 1]);
       expect(store.cacheStats().playerGhosts).toBeLessThanOrEqual(6);
     }
-    // 8 ghosts were stored, the ceiling is 6: the two OLDEST of day 3 (the bucket used longest ago) left memory; day 4 (in use) kept all four
+    // 8 ghosts were stored, the ceiling is 6, two buckets hold ghosts, so each one's fair share is 3. The ceiling takes the OLDEST ghost of the least recently
+    // used bucket that is over its share, down to the share and no further: day 3 (4 held when day 4 reached 3) gave up its oldest, and when day 4 reached 4
+    // (itself over its share, day 3 at its share) day 4 gave up its oldest. Neither bucket is emptied; each keeps its newest three
     expect(store.cacheStats()).toMatchObject({ buckets: 2, playerGhosts: 6, evictedByCeiling: 2, evictedByCap: 0 });
-    expect(heldIds(store, 3).sort()).toEqual(d3.slice(2).map(ghostId).sort());
-    expect(heldIds(store, 4).sort()).toEqual(d4.map(ghostId).sort());
+    expect(heldIds(store, 3).sort()).toEqual(d3.slice(1).map(ghostId).sort());
+    expect(heldIds(store, 4).sort()).toEqual(d4.slice(1).map(ghostId).sort());
     expect(stored()).toBe(8 + 3); // storage keeps all of it
-    // reading day 3 loads its window (the 4 newest objects) and the bucket now in use wins the room back from day 4's oldest
+    // reading day 3 lists it: the window is its share (3) and the three newest objects are the ones it holds, so nothing is fetched and nothing moves
+    fake.requests.length = 0;
     const day3 = await store.bucket(RULES, 3);
-    expect(idsOf(day3)).toEqual([...d3, ...seeds3].map(ghostId).sort());
-    expect(store.cacheStats()).toMatchObject({ playerGhosts: 6, evictedByCeiling: 4 });
-    expect(heldIds(store, 3).sort()).toEqual(d3.map(ghostId).sort());
-    expect(heldIds(store, 4).sort()).toEqual(d4.slice(2).map(ghostId).sort());
+    expect(idsOf(day3)).toEqual([...d3.slice(1), ...seeds3].map(ghostId).sort());
+    expect(gets().filter((k) => k.includes("/player/"))).toEqual([]);
+    expect(store.cacheStats()).toMatchObject({ playerGhosts: 6, evictedByCeiling: 2 });
     // seed ghosts of both buckets are untouched by any of it
     expect(idsOf(await store.bucket(RULES, 3, "pool"))).toHaveLength(seeds3.length);
     expect(idsOf(await store.bucket(RULES, 4, "pool"))).toHaveLength(seeds4.length);
@@ -277,18 +279,44 @@ describe("S3 TigrisStore on the fake S3", () => {
     [variant(base3, "ws3-1"), variant(base4, "ws4-1")].forEach(putSeed);
     await store.bucket(RULES, 3); // first load: window 4
     expect(store.cacheStats().playerGhosts).toBe(4);
-    await store.bucket(RULES, 4); // first load: 8 > 6, so day 3 (the least recently used) gives up its 2 oldest
-    expect(store.cacheStats()).toMatchObject({ playerGhosts: 6, evictedByCeiling: 2 });
-    expect(heldIds(store, 3).sort()).toEqual(d3.slice(2).map(ghostId).sort());
+    await store.bucket(RULES, 4); // first load: its window is its fair share (3); 4 + 3 = 7 > 6, so day 3 (over its share of 3) gives up its oldest
+    expect(store.cacheStats()).toMatchObject({ playerGhosts: 6, evictedByCeiling: 1 });
+    expect(heldIds(store, 3).sort()).toEqual(d3.slice(1).map(ghostId).sort());
+    expect(heldIds(store, 4).sort()).toEqual(d4.slice(1).map(ghostId).sort());
     clock += 100_000; // both buckets are past their TTL
     fake.requests.length = 0;
     await store.bucket(RULES, 3);
     await store.bucket(RULES, 4);
     expect(lists()).toBeGreaterThanOrEqual(2); // both really were re-listed...
-    expect(gets()).toEqual([]); // ...and nothing was fetched: day 3's window is what it holds (the room is full), day 4's is its four
-    expect(store.cacheStats()).toMatchObject({ playerGhosts: 6, evictedByCeiling: 2 });
+    expect(gets().filter((k) => k.includes("/player/"))).toEqual([]); // ...and no ghost was fetched: each window is what the bucket holds (its share), the room is full
+    expect(store.cacheStats()).toMatchObject({ playerGhosts: 6, evictedByCeiling: 1 });
+    expect(heldIds(store, 3).sort()).toEqual(d3.slice(1).map(ghostId).sort());
+    expect(heldIds(store, 4).sort()).toEqual(d4.slice(1).map(ghostId).sort());
+  });
+
+  it("the ceiling never empties a bucket in use and a re-list never starves one: two buckets share a ceiling of 4, two ghosts each, stable across re-lists", async () => {
+    // (BENCH finding: with 'the least recently used bucket loses everything' day 1 was served from the seed pool alone, for ever, once days 4-6 had loaded)
+    let clock = 10;
+    const store = tigrisFor(fake, name, { bucketCap: 4, cacheMax: 4, ttlMs: 60_000, now: () => ++clock });
+    const d3 = Array.from({ length: 4 }, (_, i) => variant(base3, `sv3-${i}`));
+    const d4 = Array.from({ length: 4 }, (_, i) => variant(base4, `sv4-${i}`));
+    d3.forEach((s, i) => putPlayer(s, 100 + i));
+    d4.forEach((s, i) => putPlayer(s, 200 + i));
+    await store.bucket(RULES, 3); // alone: its window is the whole ceiling, 4
+    expect(heldIds(store, 3)).toHaveLength(4);
+    await store.bucket(RULES, 4); // a second bucket: the fair share is 2 each; day 4 loads its 2 newest, day 3 gives up its 2 oldest and keeps its share
+    expect(heldIds(store, 4).sort()).toEqual(d4.slice(2).map(ghostId).sort());
     expect(heldIds(store, 3).sort()).toEqual(d3.slice(2).map(ghostId).sort());
-    expect(heldIds(store, 4).sort()).toEqual(d4.map(ghostId).sort());
+    expect(store.cacheStats()).toMatchObject({ playerGhosts: 4, evictedByCeiling: 2 });
+    clock += 100_000; // both are past their TTL
+    fake.requests.length = 0;
+    await store.bucket(RULES, 3);
+    await store.bucket(RULES, 4);
+    expect(lists()).toBeGreaterThanOrEqual(2);
+    expect(gets().filter((k) => k.includes("/player/"))).toEqual([]); // each window is its share: nothing to fetch, nothing to trim again
+    expect(heldIds(store, 3)).toHaveLength(2);
+    expect(heldIds(store, 4)).toHaveLength(2);
+    expect(store.cacheStats()).toMatchObject({ playerGhosts: 4, evictedByCeiling: 2 });
   });
 
   it("a ceiling below the bucket cap bounds even a lone bucket, and its first load fetches no more than the ceiling", async () => {
@@ -411,13 +439,15 @@ describe("S3 JsonlStore: the same cap in memory; the file keeps every line", () 
     const d4 = Array.from({ length: 4 }, (_, i) => variant(base4, `x4-${i}`));
     for (const s of d3) await store.add(s, 1);
     for (const s of d4) await store.add(s, 1);
+    // two buckets, ceiling 6: each one's fair share is 3, so each gave up its oldest (day 3 when day 4 had 3, day 4 when it reached 4): neither is emptied
     expect(store.cacheStats()).toMatchObject({ playerGhosts: 6, evictedByCeiling: 2, evictedByCap: 0 });
-    expect(ids(await store.bucket(RULES, 3))).toEqual([seed3, ...d3.slice(2)].map(ghostId).sort()); // day 3 lost its two oldest
-    expect(ids(await store.bucket(RULES, 4))).toEqual([seed4, ...d4].map(ghostId).sort());
-    // day 3 was read first, so it is the least recently used: an upload to a third bucket (7 > 6) takes day 3's oldest ghost
+    expect(ids(await store.bucket(RULES, 3))).toEqual([seed3, ...d3.slice(1)].map(ghostId).sort());
+    expect(ids(await store.bucket(RULES, 4))).toEqual([seed4, ...d4.slice(1)].map(ghostId).sort());
+    // day 3 was read first, so it is the least recently used: an upload to a third bucket (7 > 6) gives each bucket a share of 2, and day 3 (over it, read
+    // longest ago) gives up its oldest ghost
     await store.add(variant(base5, "x5"), 1);
-    expect(ids(await store.bucket(RULES, 3))).toEqual([seed3, d3[3]].map(ghostId).sort());
-    expect(ids(await store.bucket(RULES, 4))).toEqual([seed4, ...d4].map(ghostId).sort());
+    expect(ids(await store.bucket(RULES, 3))).toEqual([seed3, ...d3.slice(2)].map(ghostId).sort());
+    expect(ids(await store.bucket(RULES, 4))).toEqual([seed4, ...d4.slice(1)].map(ghostId).sort());
     expect(store.cacheStats()).toMatchObject({ playerGhosts: 6, evictedByCeiling: 3, evictedByCap: 0 });
     expect(lines(dir)).toHaveLength(9); // every upload is still a line
   });
