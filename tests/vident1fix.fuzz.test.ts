@@ -102,38 +102,38 @@ async function fuzz(kind: Kind, seed: number, steps: number): Promise<Record<str
   const count = (k: string) => (stat[k] = (stat[k] ?? 0) + 1);
   const pick = <T,>(xs: T[]): T => xs[Math.floor(rnd() * xs.length)];
   let uploads = 0;
-  for (let step = 0; step < steps; step++) {
+  type Out = { op: string; reply: Reply | null };
+  /** One random step, its choices made now (so the run is replayable from the seed); `exclusive` steps never run beside another. */
+  const make = (): { exclusive: boolean; run: () => Promise<Out> } => {
     const r = rnd();
     const who = pick(crowd);
-    let op = "";
-    let reply: Reply | null = null;
     if (r < 0.2) {
-      op = "code";
-      reply = await requestCode(rig, who);
-      if (reply.status === 200) issued.push({ code: String(reply.json?.code), by: who });
-    } else if (r < 0.55) {
-      op = "redeem";
-      const live = issued.length ? (rnd() < 0.6 ? issued[issued.length - 1].code : pick(issued.slice(-6)).code) : "ZZZZ-ZZZZ";
-      reply = await redeemCode(rig, who, rnd() < 0.1 ? "ZZZZ-ZZZZ" : live);
-    } else if (r < 0.7) {
-      op = "steam";
-      reply = await linkSteamCall(rig, who, pick(ticketNames), "bb-ghost", 480);
-    } else if (r < 0.725) {
-      op = "delete";
-      reply = await deleteMe(rig, who);
-    } else if (r < 0.82) {
-      op = "upload";
-      const player = await rig.app.links.playerOfKey(who.playerId, true);
-      reply = await postGhost(rig, who, uploadFor(who, rnd() < 0.5 ? who.playerId : player, { runId: `f-${seed}-${uploads++}` }));
-    } else if (r < 0.86) {
-      op = "restart";
-      await rig.restart();
-    } else if (r < 0.9) {
-      op = "clock";
-      rig.clock.now += CODE_TTL_MS + 1000;
-    } else {
-      // a key that is gone is replaced by a new one, so the crowd keeps producing joins
-      op = "fresh";
+      return { exclusive: false, run: async () => {
+        const reply = await requestCode(rig, who);
+        if (reply.status === 200) issued.push({ code: String(reply.json?.code), by: who });
+        return { op: "code", reply };
+      } };
+    }
+    if (r < 0.55) {
+      const code = rnd() < 0.1 ? "ZZZZ-ZZZZ" : issued.length ? (rnd() < 0.6 ? issued[issued.length - 1].code : pick(issued.slice(-6)).code) : "ZZZZ-ZZZZ";
+      return { exclusive: false, run: async () => ({ op: "redeem", reply: await redeemCode(rig, who, code) }) };
+    }
+    if (r < 0.7) {
+      const ticket = pick(ticketNames);
+      return { exclusive: false, run: async () => ({ op: "steam", reply: await linkSteamCall(rig, who, ticket, "bb-ghost", 480) }) };
+    }
+    if (r < 0.725) return { exclusive: false, run: async () => ({ op: "delete", reply: await deleteMe(rig, who) }) };
+    if (r < 0.82) {
+      const own = rnd() < 0.5, runId = `f-${seed}-${uploads++}`;
+      return { exclusive: false, run: async () => {
+        const player = own ? who.playerId : await rig.app.links.playerOfKey(who.playerId, true);
+        return { op: "upload", reply: await postGhost(rig, who, uploadFor(who, player, { runId })) };
+      } };
+    }
+    if (r < 0.86) return { exclusive: true, run: async () => (await rig.restart(), { op: "restart", reply: null }) };
+    if (r < 0.9) return { exclusive: true, run: async () => ((rig.clock.now += CODE_TTL_MS + 1000), { op: "clock", reply: null }) };
+    // a key that is gone is replaced by a new one, so the crowd keeps producing joins
+    return { exclusive: true, run: async () => {
       await rig.app.links.ensureFresh();
       const gone = crowd.filter((k) => k !== A && rig.app.links.isGone(k.playerId));
       if (gone.length) {
@@ -141,14 +141,31 @@ async function fuzz(kind: Kind, seed: number, steps: number): Promise<Record<str
         all.push(fresh);
         crowd = crowd.map((k) => (k === gone[0] ? fresh : k));
       }
+      return { op: "fresh", reply: null };
+    } };
+  };
+  for (let step = 0; step < steps; step++) {
+    const first = make();
+    // a third of the steps run two to four requests at once: the lock, the limiter and the caches under real interleaving
+    const batch = [first];
+    if (!first.exclusive && rnd() < 0.33) {
+      for (let n = 1 + Math.floor(rnd() * 3); n > 0; n--) {
+        const next = make();
+        if (!next.exclusive) batch.push(next);
+      }
     }
-    count(op);
-    if (reply) {
-      count(`${op} ${reply.status}`);
-      expect(OK_STATUS[op], `seed ${seed} step ${step}: ${op} answered ${reply.status} ${reply.text}`).toContain(reply.status);
+    const outs = await Promise.all(batch.map((b) => b.run()));
+    if (batch.length > 1) count("parallel batch");
+    for (const { op, reply } of outs) {
+      count(op);
+      if (reply) {
+        count(`${op} ${reply.status}`);
+        expect(OK_STATUS[op], `seed ${seed} step ${step}: ${op} answered ${reply.status} ${reply.text}`).toContain(reply.status);
+      }
     }
+    const what = outs.map((o) => `${o.op}${o.reply ? " " + o.reply.status : ""}`).join(" + ");
     const bad = problems(parse(await identityRecords(rig)));
-    expect(bad, `seed ${seed} step ${step} after ${op}${reply ? " " + reply.status : ""}`).toEqual([]);
+    expect(bad, `seed ${seed} step ${step} after ${what}`).toEqual([]);
   }
   // the end: delete every key ever made; nothing but tombstones may remain
   for (const k of all) await deleteMe(rig, k);
