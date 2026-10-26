@@ -5,6 +5,8 @@
 // there is no `document` (tests, a server), the row is not drawn at all: never a dead button. The state is never kept here:
 // it is read from `document.fullscreenElement` each time it is drawn, so it cannot go stale. Nothing here touches the sim.
 
+import { NATIVE } from "../native"; // M1: the app's build flag (a plain const: nothing is imported behind it)
+
 /** The part of `document` read here (tests pass a fake). */
 export interface FullscreenDoc {
   fullscreenEnabled?: boolean;
@@ -17,9 +19,12 @@ export interface FullscreenDoc {
 
 const pageDocument = (): FullscreenDoc | undefined => (typeof document === "undefined" ? undefined : document);
 
-/** The browser can do fullscreen here (`document.fullscreenEnabled` is true). */
+/** The browser can do fullscreen here (`document.fullscreenEnabled` is true). M1 (the Android app): never inside the app (NATIVE: a build
+ *  made by `npm run build:app`). The app is already the whole screen, and Capacitor's WebChromeClient declines every fullscreen view the
+ *  page asks for (BridgeWebChromeClient.onShowCustomView calls onCustomViewHidden at once), so a FULLSCREEN row there could only be a
+ *  dead button. Every web build has NATIVE false: nothing changes there. */
 export function fullscreenAvailable(doc: FullscreenDoc | undefined = pageDocument()): boolean {
-  return doc?.fullscreenEnabled === true;
+  return !NATIVE && doc?.fullscreenEnabled === true;
 }
 
 /** The page is fullscreen now (some element is). */

@@ -219,6 +219,41 @@ describe("M1 Goal 3: the Back button's map (Game.back), over a real Game on fake
   });
 });
 
+describe("M1: C1's FULLSCREEN row inside the app", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+  /** src/core/fullscreen.ts as a build with VITE_NATIVE = `native` loads it (undefined: not set at all). */
+  async function fullscreen(native?: string) {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+    if (native !== undefined) vi.stubEnv("VITE_NATIVE", native);
+    return import("../src/core/fullscreen");
+  }
+  const capable = { fullscreenEnabled: true, fullscreenElement: null, addEventListener() {}, removeEventListener() {} };
+
+  it("every web build is as C1 made it: the row shows wherever document.fullscreenEnabled is true (NATIVE is false)", async () => {
+    for (const v of [undefined, "", "0", "true"]) {
+      const f = await fullscreen(v);
+      expect(f.fullscreenAvailable(capable), JSON.stringify(v)).toBe(true);
+      expect(f.fullscreenRow(capable), JSON.stringify(v)).toEqual({ label: "FULLSCREEN: OFF", active: false });
+    }
+  });
+
+  it("in the app (VITE_NATIVE=1) there is no FULLSCREEN row at all, whatever the WebView says: Capacitor's WebChromeClient declines the fullscreen view, so it could only be a dead button", async () => {
+    const f = await fullscreen("1");
+    expect(f.fullscreenAvailable(capable)).toBe(false);
+    expect(f.fullscreenRow(capable)).toBeNull();
+    const calls: string[] = [];
+    f.toggleFullscreen({ ...capable, documentElement: { requestFullscreen: () => void calls.push("request") } }); // nothing asks for it either
+    expect(calls).toEqual([]);
+    // the Capacitor source this rests on (read at install: node_modules/@capacitor/android)
+    const client = readFileSync(join(ROOT, "node_modules/@capacitor/android/capacitor/src/main/java/com/getcapacitor/BridgeWebChromeClient.java"), "utf8");
+    expect(client).toMatch(/public void onShowCustomView\(View view, CustomViewCallback callback\) \{\s*callback\.onCustomViewHidden\(\);/);
+  });
+});
+
 describe("M1 Goal 3: what a background kill loses (no save on pause is added)", () => {
   it("every change to the build is saved as it is made (touched(), reroll, packs) and every screen change saves too, so a kill loses what a web reload would", () => {
     const build = code("src/screens/build/build.ts");
