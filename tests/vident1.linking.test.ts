@@ -9,6 +9,7 @@ import { join } from "node:path";
 import type { Identity } from "../src/net/identity";
 import { mergeWire, type WireProfile } from "../src/net/profileWire";
 import { startingBuild } from "../src/sim/ai";
+import { MAX_LINKED } from "../server/links";
 import { testIdentity } from "./netIdentity";
 import { earnedWire } from "./profileupWire";
 import {
@@ -243,22 +244,47 @@ describe.each(KINDS)("a linked device is never matched against its own player's 
 });
 
 describe.each(KINDS)("many devices on one player, on %s", (kind) => {
-  it.fails("FINDING (note): a player's record names every key linked to it, however many: 66 devices linked, then the record must list 66 (the reader refuses a list over 64, and the next link rewrites the record from nothing)", async () => {
+  // REWRITTEN by IDENT-1 FIX (F3) to the rule that was built: the checker's version wanted 66 links to be written and read back, but the
+  // reader takes at most 64 keys (MAX_LINKED) and the fix keeps that limit and refuses the link past it instead (409, the store
+  // unchanged). Drops the `.fails`. The rule: 64 keys besides the first fit and read back whole; the next link is 409; with the cap
+  // filled, a restart and a DELETE from the first key tombstone every id and leave no link record; the tombstone reads back whole after a
+  // second restart.
+  it("FINDING (note): a player's record names every key linked to it up to 64 (MAX_LINKED, P not counted): the 65th key's link is 409 and changes nothing; with 64 linked, a restart and a DELETE from the first key tombstone all 65 ids and leave no link record, and the tombstone reads back whole after a second restart", async () => {
     const rig = await open(kind);
-    const keys = await Promise.all(Array.from({ length: 66 }, () => freshIdentity()));
-    for (const k of keys) {
+    const keys = await Promise.all(Array.from({ length: MAX_LINKED + 2 }, () => freshIdentity()));
+    const linked = keys.slice(0, MAX_LINKED);
+    const over = keys.slice(MAX_LINKED);
+    for (const k of linked) {
       const r = await redeemCode(rig, k, codeOf(await requestCode(rig, A)));
       expect(r.status, r.text).toBe(200);
     }
     const players = JSON.parse((await identityRecords(rig))[`players/${A.playerId}.json`]) as { keys: string[] };
-    // and a deletion must then tombstone every one of them (after a restart, so nothing is served from memory)
+    expect(players.keys, "the record names all 64, in the order they linked").toEqual(linked.map((k) => k.playerId));
+    // the link past the cap: 409 with one plain line, and not one record changes (the live code included, which stays unspent)
+    const code = codeOf(await requestCode(rig, A));
+    const before = await identityRecords(rig);
+    for (const k of over) {
+      const r = await redeemCode(rig, k, code);
+      expect(r.status, r.text).toBe(409);
+      expect(r.json).toEqual({ error: "this player already has the most linked devices it can have" });
+    }
+    expect(await identityRecords(rig)).toEqual(before);
+    expect((await postGhost(rig, over[0], uploadFor(over[0], A.playerId, { runId: "o-1" }))).status, "the 65th key is nobody's device").toBe(403);
+    // a deletion then tombstones every one of them (after a restart, so nothing is served from memory)
     await rig.restart();
     expect((await deleteMe(rig, A)).status).toBe(200);
-    const tomb = JSON.parse((await identityRecords(rig))[`tombstones/${A.playerId}.json`]) as { ids: string[] };
-    const stillLinked = Object.keys(await identityRecords(rig)).filter((k) => k.startsWith("links/keys/")).length;
-    console.log(`VIDENT1 66 devices on ${kind}: the player record lists ${players.keys.length} keys; after DELETE the tombstone names ${tomb.ids.length} ids (66 keys + the player = 67 expected); ${stillLinked} link records survive the delete`);
-    expect(players.keys.length).toBe(66);
-    expect(tomb.ids.length).toBe(67);
+    const records = await identityRecords(rig);
+    const tomb = JSON.parse(records[`tombstones/${A.playerId}.json`]) as { ids: string[] };
+    const stillLinked = Object.keys(records).filter((k) => k.startsWith("links/keys/")).length;
+    console.log(`VIDENT1 ${MAX_LINKED} devices on ${kind}: the player record lists ${players.keys.length} keys; after DELETE the tombstone names ${tomb.ids.length} ids (${MAX_LINKED} keys + the player expected); ${stillLinked} link records survive the delete`);
+    expect(tomb.ids.length).toBe(MAX_LINKED + 1);
+    expect([...tomb.ids].sort()).toEqual([A.playerId, ...linked.map((k) => k.playerId)].sort());
     expect(stillLinked).toBe(0);
+    expect(Object.keys(records).filter((k) => k.startsWith("players/") || k.startsWith("linkcodes/")), "no player record, no live code").toEqual([]);
+    // the tombstone reads back whole after a second restart: every id is gone, and the 65th key (never linked) is not
+    await rig.restart();
+    expect((await postGhost(rig, linked[0], uploadFor(linked[0], A.playerId, { runId: "l-1" }))).status, "a device of the deleted player").toBe(410);
+    for (const id of [A, ...linked]) expect(rig.app.links.isGone(id.playerId), id.playerId).toBe(true);
+    expect(rig.app.links.isGone(over[0].playerId)).toBe(false);
   });
 });

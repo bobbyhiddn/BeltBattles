@@ -9,6 +9,8 @@
 //    nothing is ever re-pointed silently. A lone key is allowed: its stored profile is merged into P's (mergeWire), then removed.
 //  - A key that joins a player stops being one: `join` deletes its own live code and its own players/<key>.json in the same step that
 //    writes its link. A code (or a Steam account) whose player has a links/keys/ record is refused (403), never followed.
+//  - A player has room for MAX_LINKED keys besides its first, and MAX_LINKED Steam accounts. The link that would pass either is refused
+//    (409) before anything is spent or written, and every reader takes what the writers can write (decodePlayer, decodeTombstone).
 //  - A link code is 8 characters of a 31 symbol alphabet (no 0 O 1 I L), about 40 bits, live 10 minutes, single use, stored hashed.
 //    A new code replaces the player's live one. Single use holds when two redeems race in one process: every change runs one at a
 //    time (`locked`), and the code is consumed (deleted) before anything is linked. Across machines see the REPORT (section 6).
@@ -33,6 +35,14 @@ export const CODE_LENGTH = 8;
 export const CODE_TTL_MS = 10 * 60_000;
 /** A signed body's `at` may be this far from the server's clock (the replay bound). */
 export const AT_WINDOW_MS = 10 * 60_000;
+/**
+ * The most keys that may be linked to one player (players/<P>.json `keys`), and the most Steam accounts (`steam`). The first key's own
+ * id, P, is implicit and NOT counted: a full player is P and this many keys, so this many + 1 devices, and its tombstone names this
+ * many + 1 ids. The writers (`join`, `linkSteam`) refuse the link that would pass it (409, nothing stored) and the readers (`idList`)
+ * take exactly what the writers can write: ONE constant for both, so a record can never be written that reads back as nothing
+ * (IDENT-1 FIX, F3). The tombstone is the one list read without a count limit (below).
+ */
+export const MAX_LINKED = 64;
 
 const POSITIVE_TTL_MS = 10 * 60_000;
 const NEGATIVE_TTL_MS = 30_000;
@@ -44,9 +54,9 @@ export interface KeyLink {
   at: number;
 }
 export interface PlayerRecord {
-  /** The keys linked to the player, besides its own (the first key's id is the player's id). */
+  /** The keys linked to the player, besides its own (the first key's id is the player's id, and is not counted): at most MAX_LINKED. */
   keys: string[];
-  /** The Steam ids linked to the player. */
+  /** The Steam ids linked to the player: at most MAX_LINKED. */
   steam: string[];
   at: number;
   /** The hash of the player's live link code, if any (so a new code can replace it). */
@@ -64,7 +74,7 @@ export interface Tombstone {
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
 const isId = (x: unknown): x is string => typeof x === "string" && ID_PATTERN.test(x);
 const isMs = (x: unknown): x is number => typeof x === "number" && Number.isSafeInteger(x) && x >= 0;
-const idList = (x: unknown): string[] | null => (Array.isArray(x) && x.length <= 64 && x.every(isId) ? (x as string[]) : null);
+const idList = (x: unknown, max: number): string[] | null => (Array.isArray(x) && x.length <= max && x.every(isId) ? (x as string[]) : null);
 
 function parse(text: string | null): unknown {
   if (text === null) return null;
@@ -82,7 +92,7 @@ export function decodeKeyLink(text: string | null): KeyLink | null {
 export function decodePlayer(text: string | null): PlayerRecord | null {
   const o = parse(text);
   if (!isObj(o) || !isMs(o.at)) return null;
-  const keys = idList(o.keys), steam = idList(o.steam);
+  const keys = idList(o.keys, MAX_LINKED), steam = idList(o.steam, MAX_LINKED);
   if (!keys || !steam) return null;
   if (o.code !== undefined && !(typeof o.code === "string" && /^[0-9a-f]{64}$/.test(o.code))) return null;
   return { keys, steam, at: o.at, ...(typeof o.code === "string" ? { code: o.code } : {}) };
@@ -94,7 +104,10 @@ export function decodeCode(text: string | null): CodeRecord | null {
 export function decodeTombstone(text: string | null): Tombstone | null {
   const o = parse(text);
   if (!isObj(o) || !isMs(o.at)) return null;
-  const ids = idList(o.ids);
+  // No count limit: a tombstone is the deny list of a deleted player, and one that read back as nothing would serve that player's ghosts
+  // again. A full player's names P and MAX_LINKED keys (MAX_LINKED + 1 ids); whatever more a delete merged in (a signer the record did
+  // not list, an earlier tombstone's ids) still reads back whole.
+  const ids = idList(o.ids, Infinity);
   return ids ? { at: o.at, ids } : null;
 }
 
@@ -317,8 +330,9 @@ export class Links {
   }
 
   /**
-   * The new device's key redeems a code. One refusal for a wrong, expired or used code (403: it never says which). 409: the key
-   * is linked to another player already, or its own player has other keys or a Steam account (nothing is re-pointed silently).
+   * The new device's key redeems a code. One refusal for a wrong, expired or used code, or one whose player is a device itself
+   * (403: it never says which). 409: the key is linked to another player already, or its own player has other keys or a Steam
+   * account (nothing is re-pointed silently), or the player it would join is full (MAX_LINKED keys).
    * 410: the key was deleted. A lone key's stored profile is merged into the player's (mergeWire) and removed.
    */
   redeem(signer: string, typed: string): Promise<Outcome<Joined>> {
@@ -354,7 +368,7 @@ export class Links {
 
   /**
    * May `signer` join `player`? 200 with `already` when it belongs to it. 409 when it is linked elsewhere, or its own player has
-   * other keys or a Steam account. A lone key may.
+   * other keys or a Steam account, or `player` already has MAX_LINKED keys. A lone key may.
    */
   private async canJoin(signer: string, player: string): Promise<{ status: 200; already: boolean } | { status: 409; error: string }> {
     if (signer === player) return { status: 200, already: true };
@@ -367,6 +381,12 @@ export class Links {
     const own = await this.playerRecord(signer, true);
     if (own && (own.keys.length > 0 || own.steam.length > 0)) {
       return { status: 409, error: "this device already has linked devices or a Steam account" };
+    }
+    // the player has room for one more key (IDENT-1 FIX, F3): checked here, before the code is spent or anything is written, so the
+    // refusal changes nothing. A key the record lists already (a crash left its link unwritten) takes no new place.
+    const target = await this.playerRecord(player, true);
+    if (target && target.keys.length >= MAX_LINKED && !target.keys.includes(signer)) {
+      return { status: 409, error: "this player already has the most linked devices it can have" };
     }
     return { status: 200, already: false };
   }
@@ -418,7 +438,8 @@ export class Links {
 
   /**
    * A verified Steam account for the signing key. A known Steam id links the key to that id's player (the redeem rules: 409 when
-   * the key's player has other keys or a Steam account); an unknown one maps the Steam id to the key's own canonical player.
+   * the key's player has other keys or a Steam account, or the account's player is full; 403 when the account's player is a device
+   * itself); an unknown one maps the Steam id to the key's own canonical player (409 when that player has MAX_LINKED accounts).
    */
   linkSteam(signer: string, steamId: string): Promise<Outcome<Joined>> {
     return this.locked(async () => {
@@ -437,6 +458,10 @@ export class Links {
         return this.join(signer, known.player, decision.already);
       }
       const prec = (await this.playerRecord(mine, true)) ?? { keys: [], steam: [], at: this.now() };
+      // room for one more account (IDENT-1 FIX, F3), checked before anything is written; an account the record lists already takes none
+      if (!prec.steam.includes(steamId) && prec.steam.length >= MAX_LINKED) {
+        return { status: 409, error: "this player already has the most Steam accounts it can have" };
+      }
       await this.store.put(steamKey(steamId), JSON.stringify({ player: mine, at: this.now() }));
       if (!prec.steam.includes(steamId)) await this.putPlayer(mine, { ...prec, steam: [...prec.steam, steamId], at: this.now() });
       return { status: 200, player: mine, profile: (await this.profiles.get(mine))?.profile ?? null };

@@ -16,7 +16,9 @@
 //   POST   /v1/link/redeem  {"at","code"}                           -> 200 { player, profile } | 403 "that code did not work" (a
 //                                                                      wrong, expired or used code, or a code whose player has become
 //                                                                      a device itself: one line, never which) | 409 the key is linked
-//                                                                      elsewhere, or its player has other keys or a Steam account | 410
+//                                                                      elsewhere, or its player has other keys or a Steam account, or
+//                                                                      the player it would join has 64 keys linked already (MAX_LINKED;
+//                                                                      the code is not spent, nothing is stored) | 410
 //                                                                      | 429 too many wrong codes from this address (a try is counted
 //                                                                      when it arrives, before anything is awaited, and given back
 //                                                                      unless it ends as a wrong code; per machine, in memory)
@@ -25,7 +27,8 @@
 //   POST   /v1/link/steam   {"at","ticket","identity","appid"}      -> 200 { player, profile } | 501 while off | 403 (the ticket, the
 //                                                                      App ID, Steam's refusal, or "that Steam account could not be
 //                                                                      linked": the account's player has become a device itself; the
-//                                                                      ticket is not spent) | 409 | 410 | 502
+//                                                                      ticket is not spent) | 409 (as redeem's, or the player has 64
+//                                                                      Steam accounts linked already) | 410 | 502
 // The request log is app.ts's, unchanged: time, method, path, status and duration. No player id, no address, no code, no ticket.
 
 import {
