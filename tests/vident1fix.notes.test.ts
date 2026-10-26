@@ -1,9 +1,10 @@
 // VERIFY-IDENT1-FIX1 (REQ-BFG-122) step 4e, written by the independent re-checker (cap_xi): THE OPEN NOTES, REPRODUCED. FIX-REPORT section 7 left N1 to N5
 // open, and run 3 left F4 and F5. These tests do not state a wish: they PIN WHAT THE PRODUCT DOES TODAY, so that each rating in the report rests on
 // a run, and so that the day one of them is fixed the matching test fails and says so (then rewrite it to the fixed outcome).
-//   N1  the Steam write order: a store failure between linkSteam's two writes leaves a Steam link the player's record does not list
+// IDENT-1 FIX2 fixed N1 and F4, so those two tests were rewritten to the fixed outcome (each says what it was); N4 and F5 still pin today.
+//   N1  the Steam write order: linkSteam writes the player's record first and the Steam link second (it was the other way round)
 //   N4  SHOW MY CODE on a full player still makes a code
-//   F4  tombstones are never removed, every refresh re-reads all of them, and a request that arrives when the set is stale waits for the whole reload
+//   F4  any key can still make a tombstone, and a request that arrives when the set is stale waits at most 250 ms for the reload (it waited for the whole one)
 //   F5  a typed ß reads as SS (and ligatures as their letters): other spellings of the same code, never a different code
 // Both backing stores (JSON lines, and Tigris on the fake S3) where the store matters.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -27,7 +28,6 @@ const KINDS: Kind[] = ["jsonl", "tigris"];
 const NOLIMIT = { windowMs: 600_000, max: 1_000_000 };
 const open = (kind: Kind, over: Opts = {}) => openRig(kind, { rateLimit: { windowMs: 60_000, max: 1_000_000 }, redeemLimit: NOLIMIT, ...over });
 const codeOf = (r: Reply): string => String(r.json?.code);
-const NO_STEAM = { error: "that Steam account could not be linked" };
 const FULL_KEYS = { error: "this player already has the most linked devices it can have" };
 const under = async (rig: Rig, prefix: string) => Object.keys(await identityRecords(rig)).filter((k) => k.startsWith(prefix)).sort();
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -35,15 +35,17 @@ const S1 = "76561198000000021";
 const ids = (n: number, tag = "k"): string[] => Array.from({ length: n }, (_, i) => `${tag}${String(i).padStart(4, "0")}${"x".repeat(30)}`);
 
 describe.each(KINDS)("N1: the Steam write order, on %s", (kind) => {
-  it("a store failure between linkSteam's two writes: the retry answers 200 and never repairs the record; the key can then join another player; the account is then refused to everybody; a DELETE leaves its link record behind", async () => {
+  // IDENT-1 FIX2 rewrote this test to the fixed outcome. It was: "a store failure between linkSteam's two writes: the retry answers 200 and never
+  // repairs the record; the key can then join another player; the account is then refused to everybody; a DELETE leaves its link record behind".
+  it("a store failure between linkSteam's two writes (the record first, the link second): the key cannot join another player, the retry REPAIRS the link, the account is refused to nobody, and a DELETE leaves no link record behind", async () => {
     const steam = fakeSteam({ aa01: S1, aa02: S1, aa03: S1, aa04: S1, aa05: S1, aa06: S1 });
     const rig = await open(kind, { steam });
-    const [K, Z] = [await freshIdentity(), await freshIdentity()];
-    // 1. fail the write of players/<K>.json: it is the SECOND write of linkSteam's unknown-account path
+    const [K, Z, W] = [await freshIdentity(), await freshIdentity(), await freshIdentity()];
+    // 1. fail the write of links/steam/<S1>.json: it is the SECOND write of linkSteam's unknown-account path (the player's record goes first)
     const store = rig.app.links.store as { put: LinkStore["put"] };
     const real = store.put.bind(store);
     store.put = async (k: string, t: string) => {
-      if (k === `players/${K.playerId}.json`) throw new StorageError("identity write failed: HTTP 500");
+      if (k === `links/steam/${S1}.json`) throw new StorageError("identity write failed: HTTP 500");
       return real(k, t);
     };
     const first = await (async (): Promise<Reply> => {
@@ -54,27 +56,28 @@ describe.each(KINDS)("N1: the Steam write order, on %s", (kind) => {
       }
     })();
     expect(first.status, first.text).toBe(503);
-    expect(await under(rig, "links/steam/"), "the first write stood").toEqual([`links/steam/${S1}.json`]);
-    expect(await under(rig, "players/"), "the second did not").toEqual([]);
+    expect(await under(rig, "players/"), "the first write stood: the record lists the account").toEqual([`players/${K.playerId}.json`]);
+    expect(JSON.parse((await identityRecords(rig))[`players/${K.playerId}.json`]).steam).toEqual([S1]);
+    expect(await under(rig, "links/steam/"), "the second did not").toEqual([]);
     expect((await linkSteamCall(rig, Z, "aa01", "bb-ghost", 480)).json, "(the ticket of the failed try stays spent, as before the fix)").toEqual({ error: "that Steam ticket was used already" });
-    // 2. the retry with a fresh ticket: the account is 'already yours', so nothing is written
+    // 2. so the key's own record DOES stop it joining another player (the 409 rule reads that record)
+    const joined = await redeemCode(rig, K, codeOf(await requestCode(rig, A)));
+    expect([joined.status, joined.json], joined.text).toEqual([409, { error: "this device already has linked devices or a Steam account" }]);
+    // 3. the retry with a fresh ticket repairs the link
     const retry = await linkSteamCall(rig, K, "aa02", "bb-ghost", 480);
     expect([retry.status, retry.json?.player], retry.text).toEqual([200, K.playerId]);
-    expect(await under(rig, "players/"), "NOT repaired: the player's record still does not list the account").toEqual([]);
-    // 3. so the key's own record does not stop it joining another player (the 409 rule reads that record)
-    const joined = await redeemCode(rig, K, codeOf(await requestCode(rig, A)));
-    expect([joined.status, joined.json?.player], joined.text).toEqual([200, A.playerId]);
-    // 4. the Steam link now names a key that is a device: the guard refuses the account to everybody, K and A included
-    for (const [who, id, ticket] of [["a stranger", Z, "aa03"], ["the device itself", K, "aa04"], ["its player", A, "aa05"]] as const) {
+    expect(await under(rig, "links/steam/"), "REPAIRED: the link is there").toEqual([`links/steam/${S1}.json`]);
+    // 4. nothing refuses the account (the F1 Steam guard has no device to find): K's own login is a plain 200, and a stranger's login joins K's player
+    for (const [who, id, ticket] of [["the key itself", K, "aa03"], ["a stranger", Z, "aa04"]] as const) {
       const r = await linkSteamCall(rig, id, ticket, "bb-ghost", 480);
-      expect([r.status, r.json], who).toEqual([403, NO_STEAM]);
+      expect([r.status, r.json?.player], who).toEqual([200, K.playerId]);
     }
-    // 5. a DELETE of the player does not remove it: no record lists it
-    expect((await deleteMe(rig, A)).status).toBe(200);
-    expect(await under(rig, "links/steam/"), "the Steam link (the Steam id and a key id) survives the deletion").toEqual([`links/steam/${S1}.json`]);
-    // and it is only re-pointed when somebody links the account again (its player is gone by then)
-    const again = await linkSteamCall(rig, Z, "aa06", "bb-ghost", 480);
-    expect([again.status, again.json?.player]).toEqual([200, Z.playerId]);
+    // 5. a DELETE of the player removes the link: its record lists it, and it names the player
+    expect((await deleteMe(rig, K)).status).toBe(200);
+    expect(await under(rig, "links/steam/"), "no Steam link (a Steam id and a key id) survives the deletion").toEqual([]);
+    // and the account is free: its next owner is a new player
+    const again = await linkSteamCall(rig, W, "aa05", "bb-ghost", 480);
+    expect([again.status, again.json?.player]).toEqual([200, W.playerId]);
   });
 });
 

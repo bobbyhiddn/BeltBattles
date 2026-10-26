@@ -15,8 +15,10 @@
 //    A new code replaces the player's live one. Single use holds when two redeems race in one process: every change runs one at a
 //    time (`locked`), and the code is consumed (deleted) before anything is linked. Across machines see the REPORT (section 6).
 //  - Deleting a player removes its profile, its links (keys and Steam) and its live code, and writes tombstones/<P>.json naming P
-//    and every key id that was linked to it. A tombstoned id's ghosts are never served and its uploads answer 410: the set is held
-//    in memory, loaded at start and refreshed on a timer (other machines), and updated at once on a delete.
+//    and every key id that was linked to it. A Steam link is removed only if it names an id the delete tombstones (the player or one
+//    of its keys): a record can list an account whose link names somebody else, and that link is theirs (IDENT-1 FIX2, N1). A
+//    tombstoned id's ghosts are never served and its uploads answer 410: the set is held in memory, loaded at start and refreshed on a
+//    timer (other machines), and updated at once on a delete.
 // Lookups are cached in memory (a key's player, a player's record). A positive entry lives 10 minutes, a "nothing there" entry 30
 // seconds, so an upload costs at most one extra store read when the cache is cold, and a link another machine made shows within
 // half a minute. The caches are this process's only state: the store is the truth.
@@ -462,8 +464,13 @@ export class Links {
       if (!prec.steam.includes(steamId) && prec.steam.length >= MAX_LINKED) {
         return { status: 409, error: "this player already has the most Steam accounts it can have" };
       }
-      await this.store.put(steamKey(steamId), JSON.stringify({ player: mine, at: this.now() }));
+      // The player's record names the account before the account's link points at the player, as `join` orders its writes (IDENT-1 FIX2,
+      // N1). A store failure between the two leaves a listed account with no link: that stops the key joining another player (the 409
+      // rule reads the record), the retry writes the link, and a DELETE has no link to remove. The other order left a link that the
+      // record did not list: the retry answered 200 and never repaired it, the key could then join another player, and a DELETE left
+      // the link behind.
       if (!prec.steam.includes(steamId)) await this.putPlayer(mine, { ...prec, steam: [...prec.steam, steamId], at: this.now() });
+      await this.store.put(steamKey(steamId), JSON.stringify({ player: mine, at: this.now() }));
       return { status: 200, player: mine, profile: (await this.profiles.get(mine))?.profile ?? null };
     });
   }
@@ -471,10 +478,28 @@ export class Links {
   // ------------------------------------------------------------------------------------------------------ deletion
 
   /**
+   * Remove links/steam/<steamId>.json, an account the deleted player's record lists, only when the link names an id this delete tombstones
+   * (the player or one of its keys). The record can list an account whose link is missing (linkSteam's second write failed: nothing to
+   * remove), or whose link names somebody else (that player linked the account after the first write: the link is theirs and stays), so
+   * the link is read first (IDENT-1 FIX2, N1). A link that cannot be read names no id, so it is left as it is and logged (with no id in
+   * the line); to every reader it is no link, and the next link of that account overwrites it.
+   */
+  private async dropSteamLink(steamId: string, tombstoned: ReadonlySet<string>): Promise<void> {
+    const text = await this.store.get(steamKey(steamId));
+    if (text === null) return;
+    const link = decodeKeyLink(text);
+    if (!link) {
+      this.log("identity store: left an unreadable Steam link in place");
+      return;
+    }
+    if (tombstoned.has(link.player)) await this.store.delete(steamKey(steamId));
+  }
+
+  /**
    * Delete the player the signing key belongs to: its profile, every link to it (keys and Steam), its live code; and write the
    * tombstone naming the player and every key id linked to it. The tombstone goes first, so a crash half way leaves a deleted
    * player whose cleanup the next call finishes (a delete of a deleted player is a success). The ghosts stay in the store until
-   * `ghost-admin purge-tombstoned`; none is served from this call on.
+   * `ghost-admin purge-tombstoned`; none is served from this call on. A Steam link goes only if it names one of the tombstoned ids.
    */
   deletePlayer(signer: string): Promise<{ player: string; ids: number }> {
     return this.locked(async () => {
@@ -493,7 +518,8 @@ export class Links {
         removals.push(() => this.profiles.delete?.(id) ?? Promise.resolve());
         if (id !== player && id !== signer) removals.push(dropLink(id));
       }
-      for (const s of rec?.steam ?? []) removals.push(() => this.store.delete(steamKey(s)));
+      const tombstoned = new Set(ids);
+      for (const s of rec?.steam ?? []) removals.push(() => this.dropSteamLink(s, tombstoned));
       if (rec?.code) removals.push(() => this.store.delete(codeKey(rec.code!)));
       removals.push(async () => {
         await this.store.delete(playerOf(player));
