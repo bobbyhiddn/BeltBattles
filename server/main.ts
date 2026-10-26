@@ -14,6 +14,7 @@ import { RULES_VERSION } from "../src/sim/content";
 import { createGhostServer, type GhostServer } from "./app";
 import { ConfigError, openStore, readConfig, readLimitsConfig, readValidatorConfig, type Config, type ValidatorConfig } from "./config";
 import type { Limits } from "./limits"; // S3
+import { readAlertsConfig } from "./alerts"; // S4: the alert thresholds (BB_ALERT_*); a bad one fails createGhostServer's call below, which exits 2
 import { createWorkerValidator, type WorkerValidator } from "./validator"; // S2: the deck check off the request thread
 
 const log = (line: string) => console.log(line);
@@ -53,6 +54,7 @@ function serve(): void {
       store: openStore(cfg.store, log, lcfg!), origins: cfg.origins, rateLimit: { windowMs: 60_000, max: cfg.rate }, log,
       uploads: cfg.uploads, trustProxy: cfg.trustProxy, staticDir: cfg.staticDir, ...(validator ? { validator } : {}),
       limits: lcfg!, // S3: the memory cap went to the store above; the abuse limits are the app's
+      alerts: { cfg: readAlertsConfig(process.env) }, // S4: GET /v1/health/alerts
     });
   } catch (e) {
     fail(e, 2); // e.g. BB_GHOST_STATIC without an index.html

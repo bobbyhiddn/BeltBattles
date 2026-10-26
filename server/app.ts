@@ -5,7 +5,9 @@
 //
 //   GET  /v1/health                 never touches storage and never waits on the deck-check worker; reports the store kind, and (S2) the
 //                                   validator (kind, worker state, queue depth, running, counters) and memory (RSS, heap, heap limits)
-//   POST /v1/ghosts                 body: canonical GhostSnapshot JSON, signed by the device key
+//   GET  /v1/health/alerts          S4 (alerts.ts): 200 {"status":"ok",...} when every alert rule is quiet, 503 {"status":"alert","alerts":[{"rule","detail"}]} otherwise;
+//                                   like /v1/health it reads memory only. For an outside monitor; Fly's own check stays on /v1/health
+//   POST /v1/ghosts                body: canonical GhostSnapshot JSON, signed by the device key
 //                                   (x-bb-key, x-bb-sig; src/net/identity.ts) -> 201 { id } (200 if
 //                                   already stored). Refusals, in the order they are checked:
 //                                   403 { error } while uploads are closed (the body is not read)
@@ -68,6 +70,7 @@ import { OverloadError, createInThreadValidator, type Validator } from "./valida
 import { CheckBudget, isRefusal, type Refusal } from "./budget"; // S3: the check budget and the in-flight caps
 import { NewKeyLimiter, RateLimiter, ipKey } from "./ipLimits"; // S3: every per-IP limit keys on ipKey (an IPv6 /64); the request limiter moved here, bounded
 import { DEFAULT_LIMITS, zeroCounts, type Counts429, type Limits } from "./limits";
+import { Alerts, type AlertsOptions } from "./alerts"; // S4: the sampler and the rules behind GET /v1/health/alerts
 
 export const DEFAULT_ORIGINS = ["http://127.0.0.1:7778"]; // the local Shore
 
@@ -128,6 +131,8 @@ export interface ServerOptions {
   /** S3: the abuse limits (limits.ts; every field optional, the defaults are DEFAULT_LIMITS; main.ts passes config.ts readLimitsConfig's). `now` is the
    *  clock the check budget and the new-key window read (default Date.now): tests move it to wait for a refill without waiting. */
   limits?: Partial<Limits> & { now?: () => number };
+  /** S4: the alert thresholds, the sampler's clock and the machine's memory (alerts.ts; main.ts passes readAlertsConfig's). Default: DEFAULT_ALERTS. */
+  alerts?: AlertsOptions;
 }
 
 export interface GhostServer {
@@ -137,6 +142,8 @@ export interface GhostServer {
   validator: Validator;
   /** S3: the limiters in use and the 429 counts by reason since boot (what /v1/health's `limits` block reports). */
   limits: { budget: CheckBudget; newKeys: NewKeyLimiter; requests: RateLimiter; refused: Counts429 };
+  /** S4: the health sampler and its rules (what GET /v1/health/alerts answers). */
+  alerts: Alerts;
   listen(port: number, host?: string): Promise<number>;
   close(): Promise<void>;
 }
@@ -328,6 +335,11 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   const page = opts.staticDir === undefined ? null : loadPage(opts.staticDir);
   if (page) log(`serving the game page ${page.file} (${page.body.length} bytes) at / and /index.html`);
   const started = Date.now();
+  // S4: the sampler behind GET /v1/health/alerts reads the same sources /v1/health does, synchronously (no storage, no wait on the worker); it starts with listen() and stops with close()
+  const alerts = new Alerts(() => {
+    const mem = process.memoryUsage();
+    return { uptimeMs: Date.now() - started, validator: validator.stats(), rssBytes: mem.rss, heapUsedBytes: mem.heapUsed, heapLimitBytes: getHeapStatistics().heap_size_limit, cache: store.cacheStats?.() ?? null, refused };
+  }, opts.alerts);
 
   /** S3: a refusal of the budget as the 429 it is: one line naming the limit, `limit` as the machine-readable name, Retry-After in seconds. */
   const limitError = (r: Refusal): HttpError => {
@@ -381,6 +393,12 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
           cache: store.cacheStats?.() ?? null,
           limits: { ...refused, total: Object.values(refused).reduce((a, n) => a + n, 0) },
         });
+      case "/v1/health/alerts": {
+        // S4 (alerts.ts): the rules over the sampler's ring. 200 when quiet, 503 with the reasons. Reads memory only, like /v1/health; HEAD too, as an outside monitor may use it
+        if (method !== "GET" && method !== "HEAD") throw new HttpError(405, "use GET or HEAD");
+        const a = alerts.answer();
+        return send(res, a.status, a.body);
+      }
       case "/v1/ghosts": {
         only("POST");
         // 1. before the body is read: nothing is parsed, validated or stored (Node discards the rest)
@@ -593,14 +611,17 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
     store,
     validator,
     limits: { budget, newKeys, requests: limiter, refused },
+    alerts,
     listen: (port, host = "127.0.0.1") => new Promise<number>((resolve, reject) => {
       server.once("error", reject);
       server.listen(port, host, () => {
         const a = server.address();
+        alerts.start(); // S4
         resolve(typeof a === "object" && a ? a.port : port);
       });
     }),
     close: () => new Promise<void>((resolve) => {
+      alerts.stop(); // S4
       server.close(() => resolve());
       server.closeAllConnections();
     }),
