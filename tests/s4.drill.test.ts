@@ -276,6 +276,50 @@ describe("S4 the drill: the failure cases, on this bucket", () => {
     expect((await ghostOps(["verify", snapDir, "--exact"], B)).code).toBe(0);
   });
 
+  it("`ghost-ops drill` runs the drill's checks against B in one command: PASS with the time taken; FAIL when an object is missing, extra or when revalidate would delete", async () => {
+    const pass = await ghostOps(["drill", snapDir], B);
+    expect(pass.code, pass.text).toBe(0);
+    expect(pass.text).toMatch(/drill PASS in \d+\.\d\d s/);
+    expect(pass.text).toContain("PASS  verify --exact");
+    expect(pass.text).toContain("PASS  the per-(rules, day) counts equal the snapshot's");
+    expect(pass.text).toContain("PASS  revalidate (dry run) deletes 0");
+    expect(pass.text).toContain("14 upload object(s) in the bucket");
+    expect(pass.text).toContain("0 of 14 uploads would be deleted");
+    // an object gone from B: verify fails, and the later checks are not run
+    const gone = fake.keys(B, "profiles/")[0];
+    const body = fake.getObject(B, gone)!;
+    fake.deleteObject(B, gone);
+    const miss = await ghostOps(["drill", snapDir], B);
+    expect(miss.code).toBe(1);
+    expect(miss.text).toMatch(/drill FAIL in \d+\.\d\d s/);
+    expect(miss.text).toContain("FAIL  verify --exact");
+    expect(miss.text).not.toContain("revalidate (dry run)");
+    fake.putObject(B, gone, body);
+    // an object B has and the snapshot does not: --exact fails it
+    fake.putObject(B, "ghosts/bb-0.12.0/d04/player/not-in-the-snapshot.json", "{}");
+    expect((await ghostOps(["drill", snapDir], B)).code).toBe(1);
+    fake.deleteObject(B, "ghosts/bb-0.12.0/d04/player/not-in-the-snapshot.json");
+    expect((await ghostOps(["drill", snapDir], B)).code).toBe(0);
+    // a ghost that fails revalidation, taken into a snapshot and restored: counts and bytes are equal, but the dry run would delete it
+    const bad = "bb-bad", bad2 = "bb-bad2";
+    fake.createBucket(bad);
+    fake.createBucket(bad2);
+    for (const k of fake.keys(A)) fake.putObject(bad, k, fake.getObject(A, k)!);
+    const upload = fake.keys(bad, "ghosts/").find((k) => k.includes("/player/"))!;
+    const rec = JSON.parse(fake.getObject(bad, upload)!) as { snapshot: { wins: number } };
+    rec.snapshot.wins = (rec.snapshot.wins + 1) % 9; // the id (a hash of the snapshot) no longer matches
+    fake.putObject(bad, upload, JSON.stringify(rec));
+    expect((await ghostOps(["snapshot", "--out", join(root, "bad")], bad)).code).toBe(0);
+    const badDir = join(root, "bad", (await readdir(join(root, "bad")))[0]);
+    expect((await ghostOps(["restore", badDir, "--apply"], bad2)).code).toBe(0);
+    const reval = await ghostOps(["drill", badDir], bad2);
+    expect(reval.code).toBe(1);
+    expect(reval.text).toContain("1 of 14 uploads would be deleted");
+    expect(reval.text).toContain("FAIL  revalidate (dry run) deletes 0");
+    expect(reval.text).toContain("PASS  verify --exact");
+    expect(fake.count("DELETE")).toBe(0); // the drill only reads
+  }, 120_000);
+
   it("an unsafe key in A is refused by the next snapshot (exit 1, named), and a storage fault mid-snapshot leaves only a .partial directory", async () => {
     fake.putObject(A, "ghosts/../../escape.json", "x");
     const snaps = join(root, "snaps2");

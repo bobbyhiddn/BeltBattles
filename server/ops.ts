@@ -498,7 +498,7 @@ interface Comparison {
 /** The snapshot's objects against the bucket: every one present with the same bytes; keys the snapshot lacks listed by prefix (a failure with `exact`). */
 async function compareWithStore(store: OpsStore, snap: Snapshot, o: { exact: boolean; concurrency: number }, say: Out): Promise<Comparison> {
   const listing = await store.list(snap.manifest.prefix);
-  say(`  bucket holds ${plural(listing.length, "object")} under ${snap.manifest.prefix === "" ? "the whole bucket" : `prefix ${JSON.stringify(snap.manifest.prefix)}`}`);
+  say(`  bucket holds ${plural(listing.length, "object")}${snap.manifest.prefix === "" ? "" : ` under prefix ${JSON.stringify(snap.manifest.prefix)}`}`);
   const inStore = new Map(listing.map((x) => [x.key, x]));
   const want = new Set(snap.manifest.objects.map((x) => x.key));
   const missing: string[] = [], changed: string[] = [];
@@ -726,7 +726,7 @@ export async function drill(store: OpsStore, s3: S3Options, dir: string, o: { ru
     steps.push({ name: "the per-(rules, day) counts equal the snapshot's", ok: same });
     const records = (await admin.read(o.rules, true)).records;
     const plan = makePlan({ command: "revalidate", rules: o.rules, apply: false, pool: false }, { records, other: [] });
-    say(`  revalidate (dry run): ${plan.delete.length} record(s) would be deleted of ${records.length}`);
+    say(`  revalidate (dry run): ${plan.delete.length} of ${plural(records.filter((r) => r.kind === "upload").length, "upload")} would be deleted`);
     steps.push({ name: "revalidate (dry run) deletes 0", ok: plan.delete.length === 0 });
   }
   const pass = steps.every((s) => s.ok);
