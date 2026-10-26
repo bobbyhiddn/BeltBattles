@@ -1,8 +1,8 @@
 // VERIFY-IDENT1 (REQ-BFG-122) step 4c, written by the independent checker (cap_zeta): LINKING RULES. Who may join whom, what a link
 // changes and what it leaves alone: 409s that spend nothing, a player with two keys that cannot be re-pointed, a lone key's profile
 // merged and removed (its ghosts untouched), the upload rule (the player, the key's own id, nobody else), no deck rule relaxed, and a
-// linked device never matched against its own player's ghosts. Both backing stores. `it.fails` marks a FINDING: the check states the right
-// behaviour, passes while the product is wrong, and starts failing the day the product is fixed.
+// linked device never matched against its own player's ghosts. Both backing stores. `it.fails` marked a FINDING: the check states the right
+// behaviour, passed while the product was wrong, and starts failing the day the product is fixed. IDENT-1 FIX fixed F3: the `.fails` is dropped.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";

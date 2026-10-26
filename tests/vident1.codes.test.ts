@@ -1,8 +1,8 @@
 // VERIFY-IDENT1 (REQ-BFG-122) step 4a, written by the independent checker (cap_zeta): LINK CODES. A used code, the edges of its 10
 // minutes, two redeems racing in one process, a new code killing the old, the wrong-code limit and its sliding window, every spelling of a
 // code, the store and the log scanned for the code, and 10,000 generated codes. Both backing stores (JSON lines and the Tigris fake).
-// A check marked FINDING states the right behaviour and is `it.fails`: it passes while the product is wrong and starts failing the day
-// the product is fixed (then drop the `.fails`).
+// A check marked FINDING states the right behaviour and was `it.fails`: it passed while the product was wrong and starts failing the day
+// the product is fixed (then drop the `.fails`). IDENT-1 FIX fixed F1 and F2: the `.fails` of this file are dropped, none is left.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";

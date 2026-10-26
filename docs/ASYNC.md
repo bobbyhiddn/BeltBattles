@@ -681,8 +681,14 @@ profile}` (501 while `BB_STEAM_WEB_API_KEY` and `BB_STEAM_APP_IDS` are not both 
 
 **Link codes.** 8 symbols of `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (no 0 O 1 I L), shown `XXXX-XXXX` (about 40 bits), live 10 minutes,
 single use, one live code per player (a new one replaces it). A wrong, expired or used code gets one refusal that never says which
-(403); wrong codes are limited to 5 per client address in 10 minutes (429). A redeeming key whose player has other keys or a Steam
-account, or that is linked elsewhere, gets 409: nothing is re-pointed. A lone key's profile is merged into the player's
+(403), and so does a code whose player has since become a device itself (only damaged data makes one: a key that joins a player takes
+its own live code and player record with it); wrong codes are limited to 5 per client address in 10 minutes (429; a try is counted when
+it arrives, before anything is awaited, and given back unless it ends as a wrong code, so a burst of parallel tries cannot pass 5; the
+count is in each machine's memory, so each machine counts its own). A redeeming key whose player has other keys or a Steam account, or
+that is linked elsewhere, gets 409: nothing is re-pointed. So does a link past the room a player has: 64 keys besides its first key,
+and 64 Steam accounts (`this player already has the most linked devices it can have`, `this player already has the most Steam accounts
+it can have`); the store and the code are left as they were. A Steam account whose player is itself a device is refused with 403
+(`that Steam account could not be linked`) and its ticket is not spent. A lone key's profile is merged into the player's
 (`mergeWire`) and removed; its old ghosts stay as they are.
 
 **The client.** `beltbattles.link.v1` (written only when linked) holds `{player,key,at,readAt}`. `Identity.playerId` is the player
