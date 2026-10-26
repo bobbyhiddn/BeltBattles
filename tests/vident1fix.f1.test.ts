@@ -7,14 +7,16 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Identity } from "../src/net/identity";
 import { mergeWire, type WireProfile } from "../src/net/profileWire";
+import { runAdmin } from "../server/ghostAdmin";
 import { CODE_TTL_MS, hashCode, normalizeCode } from "../server/links";
 import type { LinkStore } from "../server/linkStore";
 import { StorageError } from "../server/store";
 import { testIdentity } from "./netIdentity";
+import { FAKE_CREDS } from "./netStores";
 import { earnedWire } from "./profileupWire";
 import {
   closeRigs, deleteMe, fakeSteam, freshIdentity, ghostCount, identityRecords, linkSteamCall, linkVia, matchAs, openRig, postGhost, profileStored, putWire,
-  readProfile, redeemCode, requestCode, uploadFor, type Kind, type Opts, type Reply, type Rig,
+  readProfile, redeemCode, requestCode, theFake, uploadFor, type Kind, type Opts, type Reply, type Rig,
 } from "./identRig";
 
 let A: Identity;
@@ -33,6 +35,19 @@ const USED = { error: "that Steam ticket was used already" };
 const codeOf = (r: Reply): string => String(r.json?.code);
 const under = async (rig: Rig, prefix: string) => Object.keys(await identityRecords(rig)).filter((k) => k.startsWith(prefix)).sort();
 const S1 = "76561198000000011", S2 = "76561198000000012";
+
+/** `ghost-admin <args>` against the rig's own storage (the directory, or the fake S3's bucket), as vident1.delete runs it. */
+async function ghostAdmin(rig: Rig, args: string[]): Promise<{ code: number; out: string[] }> {
+  const env: Record<string, string> = rig.kind === "tigris"
+    ? {
+        BB_GHOST_STORE: "tigris", AWS_ACCESS_KEY_ID: FAKE_CREDS.accessKeyId, AWS_SECRET_ACCESS_KEY: FAKE_CREDS.secretAccessKey,
+        AWS_ENDPOINT_URL_S3: theFake().endpoint, BUCKET_NAME: rig.bucket, BB_GHOST_S3_ADDRESSING: "path",
+      }
+    : { BB_GHOST_STORE: "jsonl" };
+  const out: string[] = [];
+  const code = await runAdmin([...args, ...(rig.kind === "tigris" ? [] : ["--data", rig.dir])], env, (l) => out.push(l));
+  return { code, out };
+}
 
 /** `typed` as a live code of `player`, written into the store by hand (damaged data: no path makes a code like it any more). */
 async function handmade(rig: Rig, player: string, typed: string, expiresAt = rig.clock.now + CODE_TTL_MS): Promise<string> {
@@ -422,6 +437,37 @@ describe.each(KINDS)("F1: the inert players/<key>.json that a failed removal lea
     for (const id of group) expect((await postGhost(rig, who.get(id)!, uploadFor(who.get(id)!, id, { runId: `post-${id.slice(0, 3)}` }))).status, id.slice(0, 4)).toBe(410);
     expect((await requestCode(rig, X)).status, "the inert record cannot make X a player again").toBe(410);
     expect((await postGhost(rig, S, uploadFor(S, S.playerId, { runId: "s-new" }))).status, "a stranger is not affected").toBe(201);
+  });
+
+  it("ghost-admin purge-tombstoned reads the tombstones only: with the inert record in the store its dry run plans, and --apply removes, exactly the deleted group's ghosts; the inert record is not its business", async () => {
+    const rig = await open(kind, { redeemLimit: NOLIMIT });
+    const [X, S] = [await freshIdentity(), await freshIdentity()];
+    for (const [k, id, run] of [[A, A.playerId, "a-old"], [X, X.playerId, "x-old"], [S, S.playerId, "s-old"]] as const) {
+      expect((await postGhost(rig, k, uploadFor(k, id, { runId: run }))).status).toBe(201);
+    }
+    await requestCode(rig, X);
+    const store = rig.app.links.store as { delete: LinkStore["delete"] };
+    const real = store.delete.bind(store);
+    store.delete = async (k: string) => {
+      if (k === `players/${X.playerId}.json`) throw new StorageError("identity delete failed: HTTP 500");
+      return real(k);
+    };
+    try {
+      expect((await linkVia(rig, A, X)).joined.status).toBe(200);
+    } finally {
+      store.delete = real;
+    }
+    expect(await under(rig, "players/"), "the inert record is there").toContain(`players/${X.playerId}.json`);
+    expect((await deleteMe(rig, A)).status).toBe(200);
+    expect(ghostCount(rig)).toBe(3);
+    const dry = await ghostAdmin(rig, ["purge-tombstoned"]);
+    expect(dry.code, dry.out.join("\n")).toBe(0);
+    expect(dry.out.filter((l) => l.startsWith("  delete ")), dry.out.join("\n")).toHaveLength(2);
+    expect(ghostCount(rig), "a dry run changes nothing").toBe(3);
+    const applied = await ghostAdmin(rig, ["purge-tombstoned", "--apply"]);
+    expect(applied.code, applied.out.join("\n")).toBe(0);
+    expect(ghostCount(rig), "A's and X's ghosts are gone, the stranger's stays").toBe(1);
+    expect(await under(rig, "players/"), "the inert record is exactly as it was").toEqual([`players/${X.playerId}.json`]);
   });
 
   it("an interrupted join (the link write fails after the redeemed code was spent): X's retry with a fresh code heals it, and the leftovers are dead (no live code of X, a harmless listed key)", async () => {
