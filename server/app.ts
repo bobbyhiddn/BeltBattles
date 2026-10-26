@@ -7,7 +7,7 @@
 //                                   validator (kind, worker state, queue depth, running, counters) and memory (RSS, heap, heap limits)
 //   GET  /v1/health/alerts          S4 (alerts.ts): 200 {"status":"ok",...} when every alert rule is quiet, 503 {"status":"alert","alerts":[{"rule","detail"}]} otherwise;
 //                                   like /v1/health it reads memory only. For an outside monitor; Fly's own check stays on /v1/health
-//   POST /v1/ghosts                body: canonical GhostSnapshot JSON, signed by the device key
+//   POST /v1/ghosts                 body: canonical GhostSnapshot JSON, signed by the device key
 //                                   (x-bb-key, x-bb-sig; src/net/identity.ts) -> 201 { id } (200 if
 //                                   already stored). Refusals, in the order they are checked:
 //                                   403 { error } while uploads are closed (the body is not read)
