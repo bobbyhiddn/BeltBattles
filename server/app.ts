@@ -70,7 +70,8 @@ import { OverloadError, createInThreadValidator, type Validator } from "./valida
 import { CheckBudget, isRefusal, type Refusal } from "./budget"; // S3: the check budget and the in-flight caps
 import { NewKeyLimiter, RateLimiter, ipKey } from "./ipLimits"; // S3: every per-IP limit keys on ipKey (an IPv6 /64); the request limiter moved here, bounded
 import { DEFAULT_LIMITS, zeroCounts, type Counts429, type Limits } from "./limits";
-import { Alerts, type AlertsOptions } from "./alerts"; // S4: the sampler and the rules behind GET /v1/health/alerts
+import { Alerts, RequestCounters, type AlertsOptions } from "./alerts"; // S4: the sampler and the rules behind GET /v1/health/alerts, and the 5xx counters
+import { S3_FAILURES } from "./s3"; // S4: /v1/health errors.storage
 
 export const DEFAULT_ORIGINS = ["http://127.0.0.1:7778"]; // the local Shore
 
@@ -336,9 +337,13 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   if (page) log(`serving the game page ${page.file} (${page.body.length} bytes) at / and /index.html`);
   const started = Date.now();
   // S4: the sampler behind GET /v1/health/alerts reads the same sources /v1/health does, synchronously (no storage, no wait on the worker); it starts with listen() and stops with close()
+  const counters = new RequestCounters(); // requests answered and the 5xx among them, by route (/v1/health `errors`)
   const alerts = new Alerts(() => {
     const mem = process.memoryUsage();
-    return { uptimeMs: Date.now() - started, validator: validator.stats(), rssBytes: mem.rss, heapUsedBytes: mem.heapUsed, heapLimitBytes: getHeapStatistics().heap_size_limit, cache: store.cacheStats?.() ?? null, refused };
+    return {
+      uptimeMs: Date.now() - started, validator: validator.stats(), rssBytes: mem.rss, heapUsedBytes: mem.heapUsed, heapLimitBytes: getHeapStatistics().heap_size_limit,
+      cache: store.cacheStats?.() ?? null, refused, errors: { requests: counters.requests, serverErrors: counters.serverErrors, storage: S3_FAILURES.count },
+    };
   }, opts.alerts);
 
   /** S3: a refusal of the budget as the 429 it is: one line naming the limit, `limit` as the machine-readable name, Retry-After in seconds. */
@@ -392,6 +397,8 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
           // by reason since boot (rate = the 120 a minute limiter; the rest are budget.ts's and the new-key limit's). Both read memory only
           cache: store.cacheStats?.() ?? null,
           limits: { ...refused, total: Object.values(refused).reduce((a, n) => a + n, 0) },
+          // S4: answers since boot, the 5xx among them by route, and storage errors (an S3 request that failed after its retries: s3.ts S3_FAILURES)
+          errors: { requests: counters.requests, serverErrors: counters.serverErrors, byRoute: { ...counters.byRoute }, storage: S3_FAILURES.count },
         });
       case "/v1/health/alerts": {
         // S4 (alerts.ts): the rules over the sampler's ring. 200 when quiet, 503 with the reasons. Reads memory only, like /v1/health; HEAD too, as an outside monitor may use it
@@ -587,6 +594,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
       }
       // time, method, path, status and duration only. No client address (the limiter keeps it in
       // memory) and no query string (it carries the anonymous player id): neither is needed here.
+      counters.record(url.pathname, res.statusCode); // S4: the 5xx counters (/v1/health `errors`)
       log(`${new Date().toISOString()} ${req.method} ${url.pathname} ${res.statusCode} ${Date.now() - t0}ms`);
     };
     if (req.method === "OPTIONS") {

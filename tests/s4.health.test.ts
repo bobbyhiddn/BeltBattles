@@ -73,7 +73,7 @@ describe("S4 /v1/health/alerts: the route", () => {
     const h = (await getJson(`${url}/v1/health`)).body;
     expect(Object.keys(h).slice(0, 6)).toEqual(OLD_FIELDS);
     expect(h).toMatchObject({ ok: true, rules: RULES_VERSION, store: "jsonl", uploads: "open" });
-    expect(Object.keys(h).slice(6, 10)).toEqual(["validator", "memory", "cache", "limits"]);
+    expect(Object.keys(h).slice(6)).toEqual(["validator", "memory", "cache", "limits", "errors"]);
     const a = await getJson(`${url}/v1/health/alerts`);
     expect(a.status).toBe(200);
     expect(a.body).toMatchObject({ status: "ok", alerts: [] });

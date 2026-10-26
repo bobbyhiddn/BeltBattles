@@ -108,7 +108,7 @@ describe("S3 /v1/health: the shape", () => {
     apps.push(app);
     const base = `http://127.0.0.1:${await app.listen(0)}`;
     const h = await getHealth(base);
-    expect(Object.keys(h)).toEqual([...OLD_FIELDS, "validator", "memory", "cache", "limits"]);
+    expect(Object.keys(h)).toEqual([...OLD_FIELDS, "validator", "memory", "cache", "limits", "errors"]); // S4 appended `errors` (tests/s4.counters.test.ts)
     expect(h).toMatchObject({ ok: true, rules: RULES_VERSION, store: "jsonl", ghosts: 0, uploads: "open" });
     expect(Object.keys(h.validator).sort()).toEqual(VALIDATOR_KEYS);
     expect(h.validator).toMatchObject({ kind: "in-thread", state: "in-thread" });
@@ -128,7 +128,7 @@ describe("S3 /v1/health: the shape", () => {
     const h = await getHealth(base);
     expect(h.cache).toEqual({ buckets: 1, playerGhosts: 2, bucketCap: 2, ceiling: 70, evictedByCap: 1, evictedByCeiling: 0 });
     expect(h.ghosts).toBe(2); // `ghosts` is still what the process holds in memory
-    expect(Object.keys(h)).toEqual([...OLD_FIELDS, "validator", "memory", "cache", "limits"]);
+    expect(Object.keys(h)).toEqual([...OLD_FIELDS, "validator", "memory", "cache", "limits", "errors"]); // S4 appended `errors`
     expect(fake.keys("bb-test", "ghosts/")).toHaveLength(3); // the third upload pushed the first out of memory, not out of storage
   });
 
@@ -143,7 +143,7 @@ describe("S3 /v1/health: the shape", () => {
     const { base } = await serve({ store, validator: instant() });
     const h = await getHealth(base);
     expect(h.cache).toBeNull();
-    expect(Object.keys(h)).toEqual([...OLD_FIELDS, "validator", "memory", "cache", "limits"]);
+    expect(Object.keys(h)).toEqual([...OLD_FIELDS, "validator", "memory", "cache", "limits", "errors"]); // S4 appended `errors`
   });
 });
 

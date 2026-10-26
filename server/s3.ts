@@ -28,10 +28,15 @@ export interface S3Options {
   log?: (line: string) => void; // retries are logged here
 }
 
+/** S4: S3 requests that failed after their retries (or were refused) since this process started: /v1/health `errors.storage`. Counted where the failure is born, so a
+ *  store that wraps it in a StorageError of its own does not count it twice. One server process serves one bucket, so the count is the process's. */
+export const S3_FAILURES = { count: 0 };
+
 export class S3Error extends StorageError {
   constructor(message: string, readonly status: number | null = null, readonly code: string | null = null) {
     super(message);
     this.name = "S3Error";
+    S3_FAILURES.count++; // S4
   }
 }
 

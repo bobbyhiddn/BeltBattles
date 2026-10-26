@@ -230,6 +230,23 @@ export class SampleRing {
   }
 }
 
+/** Paths whose 5xx answers are counted under their own name; any other path is "other", so the counter stays small whatever a client asks for. */
+const COUNTED_PATHS = new Set(["/v1/health", "/v1/health/alerts", "/v1/ghosts", "/v1/ghosts/match", "/v1/profile", "/", "/index.html"]);
+
+/** Requests answered since boot and the 5xx among them, by route (the `errors` block of /v1/health and the server-errors rule). Memory only. */
+export class RequestCounters {
+  requests = 0;
+  serverErrors = 0;
+  readonly byRoute: Record<string, number> = {};
+  record(pathname: string, status: number): void {
+    this.requests++;
+    if (status < 500) return;
+    this.serverErrors++;
+    const route = COUNTED_PATHS.has(pathname) ? pathname : "other";
+    this.byRoute[route] = (this.byRoute[route] ?? 0) + 1;
+  }
+}
+
 export interface Alert {
   rule: RuleName;
   detail: string;
