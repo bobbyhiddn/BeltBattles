@@ -3,7 +3,8 @@
 // and gold budget; the server never trusts a client's claim that its build is legal.
 // Storage sits behind the async GhostStore interface (store.ts): JSON lines or Tigris.
 //
-//   GET  /v1/health                 never touches storage; reports the store kind
+//   GET  /v1/health                 never touches storage and never waits on the deck-check worker; reports the store kind, and (S2) the
+//                                   validator (kind, worker state, queue depth, running, counters) and memory (RSS, heap, heap limits)
 //   POST /v1/ghosts                 body: canonical GhostSnapshot JSON, signed by the device key
 //                                   (x-bb-key, x-bb-sig; src/net/identity.ts) -> 201 { id } (200 if
 //                                   already stored). Refusals, in the order they are checked:
@@ -27,6 +28,10 @@
 //                                       that day's dusk (src/net/records.ts isReachable), named with
 //                                       the day: "record: 0W 1 lives is no record a run carries into
 //                                       dusk 1". Nothing is stored
+//                                   503 { error } + Retry-After  S2: the deck check (validateUpload) runs in a worker thread (validator.ts)
+//                                       with a queue of 16 and a 10 s deadline; an upload that finds the queue full, passes its deadline or
+//                                       loses its worker is refused with one line and a Retry-After (seconds). Nothing is stored. Every other
+//                                       answer, verdict and status is as before
 //   GET  /v1/ghosts/match?rules=&day=&wins=&lives=&player=&seen=id1,id2&runs=n -> 200 { id, snapshot } | 404
 //                                   0.7.0a: never a ghost with a better record than wins/lives (D1,
 //                                   matchmaking.ts eligible); while runs < NEW_PLAYER_RUNS (absent = 0)
@@ -39,6 +44,7 @@
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { join } from "node:path";
+import { getHeapStatistics } from "node:v8";
 import { Rng } from "../src/core/rng";
 import { RULES_VERSION } from "../src/sim/content";
 import { KEY_HEADER, SIG_HEADER, uploadHeaderError, verifyUpload } from "../src/net/identity";
@@ -47,13 +53,14 @@ import { matchPick } from "../src/net/pick"; // RETUNE-1 T5 (REQ-BFG-092): the o
 import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, NameError, SnapshotError, maxDayFor, type GhostSnapshot } from "../src/net/snapshot";
 import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
 import { endlessRecordProblem, isReachable, lossesProblem } from "../src/net/records"; // ENDLESS-1: an endless snapshot's record
-import { validateUpload } from "../src/net/validate";
+import type { Validation } from "../src/net/validate";
 import { endlessFor, livesCapFor } from "../src/net/rulesGate"; // RETUNE-1 (REQ-BFG-096): the match route's lives bound; ENDLESS-1: and endless' rules
 import { ENDLESS_LAST_DAY, ENDLESS_LIVES, ENDLESS_ONLINE_LAST_DAY, ENDLESS_WIN_CAP } from "../src/sim/endless"; // ENDLESS-1: an endless match request's bounds; S1: and the last day an endless snapshot is taken ONLINE
 import { putProfile } from "./profileRoute"; // PROFILE-UP (REQ-BFG-074 clause 4)
 import { profileStoreFor, type ProfileStore } from "./profileStore";
 import { sha256Hex } from "./sigv4";
 import { JsonlStore, StorageError, type GhostStore } from "./store";
+import { OverloadError, createInThreadValidator, type Validator } from "./validator"; // S2: the deck check (validateUpload) behind a Validator
 
 export const DEFAULT_ORIGINS = ["http://127.0.0.1:7778"]; // the local Shore
 
@@ -105,20 +112,32 @@ export interface ServerOptions {
   profileStore?: ProfileStore;
   /** PROFILE-UP: the clock the profile route reads (updatedAt's range, the record's receivedAt). Default Date.now. */
   now?: () => number;
+  /**
+   * S2: who runs the deck check (validateUpload). Default: the in-thread validator, exactly today's behaviour (the check runs inline on the
+   * request thread), which is what in-process tests use. main.ts passes the worker validator (validator.ts createWorkerValidator): one worker
+   * thread, a queue of 16, a 10 s deadline, 503 + Retry-After on overload. The caller owns it and closes it; close() below does not.
+   */
+  validator?: Validator;
 }
 
 export interface GhostServer {
   server: Server;
   store: GhostStore;
+  /** S2: the deck check in use (stats() is what /v1/health reports). */
+  validator: Validator;
   listen(port: number, host?: string): Promise<number>;
   close(): Promise<void>;
 }
 
 class HttpError extends Error {
-  constructor(readonly status: number, message: string, readonly extra: Record<string, unknown> = {}) {
+  /** `retryAfter`: seconds, sent as the Retry-After header (S2's 503s). */
+  constructor(readonly status: number, message: string, readonly extra: Record<string, unknown> = {}, readonly retryAfter?: number) {
     super(message);
   }
 }
+
+const MB = 1048576;
+const mb = (bytes: number): number => Math.round((bytes / MB) * 10) / 10;
 
 function send(res: ServerResponse, status: number, body: unknown): void {
   res.statusCode = status;
@@ -300,6 +319,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   const profiles = opts.profileStore ?? profileStoreFor(store, log); // PROFILE-UP
   const clock = opts.now ?? (() => Date.now()); // PROFILE-UP
   const trustProxy = opts.trustProxy ?? "none";
+  const validator = opts.validator ?? createInThreadValidator(); // S2
   const page = opts.staticDir === undefined ? null : loadPage(opts.staticDir);
   if (page) log(`serving the game page ${page.file} (${page.body.length} bytes) at / and /index.html`);
   const started = Date.now();
@@ -313,9 +333,19 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
       case "/v1/health":
         only("GET");
         // never touches storage: `ghosts` counts what this process holds in memory
+        // S2: and never waits on the deck-check worker: validator.stats() and the memory numbers are read synchronously. The first six
+        // fields are what the answer always held; `validator` and `memory` are new. heapLimitMb is V8's heap_size_limit of THIS thread
+        // (old space plus the young generation); workerHeapLimitMb is the worker's, read inside the worker once it has started
+        const vs = validator.stats();
+        const mem = process.memoryUsage();
         return send(res, 200, {
           ok: true, rules: RULES_VERSION, store: store.kind, ghosts: store.size, uploads,
           uptimeS: Math.round((Date.now() - started) / 1000),
+          validator: {
+            kind: vs.kind, state: vs.state, queueDepth: vs.queued, running: vs.running, queueMax: vs.queueMax, timeoutMs: vs.timeoutMs,
+            checks: vs.checks, queueFull: vs.queueFull, timeouts: vs.timeouts, restarts: vs.restarts, errors: vs.errors, warmMs: vs.warmMs,
+          },
+          memory: { rssMb: mb(mem.rss), heapUsedMb: mb(mem.heapUsed), heapLimitMb: mb(getHeapStatistics().heap_size_limit), workerHeapLimitMb: vs.workerHeapLimitMb },
         });
       case "/v1/ghosts": {
         only("POST");
@@ -373,7 +403,20 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         // NPC-1 (REQ-BFG-077, REQ-BFG-078): and its road log (absent on every switch-off snapshot: the decoder refuses it, 400)
         // FIRSTDAY-1 (REQ-BFG-004, F4): and its first-run flag (absent on every other snapshot: the decoder refuses it
         // while the first-run gate is off, 400), so days 1-2's rune offers are re-derived by F3's rule
-        const v = validateUpload(snap.build, snap.day, snap.rules, { seed: snap.seed, ...(snap.lastChance ? { lastChance: snap.lastChance } : {}), ...(snap.road ? { road: snap.road } : {}), ...(snap.firstRun ? { firstRun: true } : {}) });
+        // S2: the check runs in the deck-check worker (validator.ts); this request awaits its verdict and the others go on being served. The
+        // verdict is validateUpload's own. The queue being full, the 10 s deadline passing or the worker dying is a 503 + Retry-After, nothing
+        // stored. Nothing this request read before the await can change under it (the checks above use only this request's own values, and
+        // store.add below is idempotent: see docs/ASYNC.md, S2), so there is nothing to re-check after it
+        let v: Validation;
+        try {
+          v = await validator.validate({
+            build: snap.build, day: snap.day, rules: snap.rules,
+            opts: { seed: snap.seed, ...(snap.lastChance ? { lastChance: snap.lastChance } : {}), ...(snap.road ? { road: snap.road } : {}), ...(snap.firstRun ? { firstRun: true } : {}) },
+          });
+        } catch (e) {
+          if (e instanceof OverloadError) throw new HttpError(503, e.message, {}, e.retryAfterS);
+          throw e;
+        }
         if (!v.ok) throw new HttpError(422, "deck failed validation", { errors: v.errors });
         // 0.8.0 H2 (backlog 325): the (wins, lives) record must be one a run can carry into this day's dusk, as the seed
         // and ghosts:admin revalidate already check (same words as revalidate's). Otherwise an honest deck could carry a
@@ -467,6 +510,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
     const finish = (e?: unknown) => {
       if (e instanceof HttpError) {
         if (e.status === 429) res.setHeader("retry-after", Math.ceil(limiter.windowMs / 1000));
+        else if (e.retryAfter !== undefined) res.setHeader("retry-after", e.retryAfter); // S2: the deck check's 503s
         if (e.status === 413) res.setHeader("connection", "close");
         send(res, e.status, { error: e.message, ...e.extra });
       } else if (e instanceof SnapshotError) {
@@ -500,6 +544,7 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   return {
     server,
     store,
+    validator,
     listen: (port, host = "127.0.0.1") => new Promise<number>((resolve, reject) => {
       server.once("error", reject);
       server.listen(port, host, () => {

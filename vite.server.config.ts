@@ -18,6 +18,8 @@ export default defineConfig({
       input: {
         "ghost-server": "server/main.ts", "gen-ghost-pool": "tools/genGhostPool.ts", "ghost-admin": "server/ghostAdminMain.ts",
         "ghost-probe": "server/ghostProbeMain.ts",
+        // S2: the deck-check worker thread (server/validateWorker.ts), started by ghost-server.mjs from beside it: server/dist/validate-worker.mjs
+        "validate-worker": "server/validateWorker.ts",
       },
       output: { format: "es", entryFileNames: "[name].mjs", chunkFileNames: "[name]-[hash].mjs" },
     },

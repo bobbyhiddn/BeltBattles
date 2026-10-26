@@ -17,12 +17,21 @@
 //   region; only newer flyctl versions set it), plus
 //   BB_GHOST_S3_ADDRESSING virtual | path (default virtual) and
 //   BB_GHOST_CACHE_TTL_S   seconds a loaded (rules, day) bucket is served before a re-list (default 60)
+//   S2, the deck-check worker (validator.ts; read by main.ts through readValidatorConfig, only when uploads are open):
+//   BB_GHOST_VALIDATE_QUEUE       places to wait in besides the one check running (default 16)
+//   BB_GHOST_VALIDATE_TIMEOUT_MS  ms from joining the queue to the 503 + Retry-After deadline (default 10000)
+//   BB_GHOST_VALIDATE_HEAP_MB     the worker's resourceLimits.maxOldGenerationSizeMb (default 64). A process-wide
+//                                 NODE_OPTIONS=--max-old-space-size=N overrides it (Node 20 and 22 give every thread the flag's
+//                                 limit); /v1/health reports the limit the worker really has
+//   BB_GHOST_VALIDATE_YOUNG_MB    the worker's resourceLimits.maxYoungGenerationSizeMb (default 8; Node's own is 48). A smaller one trades
+//                                 a few more scavenges (about 15% more CPU for a deck check) for a lower peak RSS during a deep check
 
 import { resolve } from "node:path";
 import { DEFAULT_ORIGINS } from "./app";
 import { S3Client, type Addressing, type S3Options } from "./s3";
 import { JsonlStore, type GhostStore } from "./store";
 import { TigrisStore } from "./tigrisStore";
+import { DEFAULT_QUEUE, DEFAULT_TIMEOUT_MS, DEFAULT_WORKER_HEAP_MB, DEFAULT_WORKER_YOUNG_MB } from "./validator";
 
 export class ConfigError extends Error {
   constructor(message: string) {
@@ -127,6 +136,24 @@ export function readConfig(argv: readonly string[], env: Env): Config {
     trustProxy: oneOf(env, "BB_GHOST_TRUST_PROXY", ["fly", "none"] as const, "none"),
     staticDir: staticDir ? resolve(staticDir) : undefined,
     store,
+  };
+}
+
+/** S2: the deck-check worker's settings (BB_GHOST_VALIDATE_*), with the defaults BRIEF-S2 sets: queue 16, deadline 10 s. */
+export interface ValidatorConfig {
+  queue: number;
+  timeoutMs: number;
+  workerHeapMb: number;
+  /** The worker's young generation cap (resourceLimits.maxYoungGenerationSizeMb). */
+  workerYoungMb: number;
+}
+
+export function readValidatorConfig(env: Env): ValidatorConfig {
+  return {
+    queue: int(env.BB_GHOST_VALIDATE_QUEUE || String(DEFAULT_QUEUE), "BB_GHOST_VALIDATE_QUEUE", 1, 1000),
+    timeoutMs: int(env.BB_GHOST_VALIDATE_TIMEOUT_MS || String(DEFAULT_TIMEOUT_MS), "BB_GHOST_VALIDATE_TIMEOUT_MS", 100, 600_000),
+    workerHeapMb: int(env.BB_GHOST_VALIDATE_HEAP_MB || String(DEFAULT_WORKER_HEAP_MB), "BB_GHOST_VALIDATE_HEAP_MB", 32, 8192),
+    workerYoungMb: int(env.BB_GHOST_VALIDATE_YOUNG_MB || String(DEFAULT_WORKER_YOUNG_MB), "BB_GHOST_VALIDATE_YOUNG_MB", 3, 1024),
   };
 }
 

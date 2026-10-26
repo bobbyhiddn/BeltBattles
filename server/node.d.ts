@@ -66,6 +66,16 @@ declare module "node:path" {
   export function dirname(path: string): string;
 }
 
+// S2 (server/main.ts: where the deck-check worker's script sits, beside the bundle)
+declare module "node:url" {
+  export function fileURLToPath(url: string | URL): string;
+}
+
+// S2 (server/validateWorker.ts, server/validator.ts, server/app.ts /v1/health): the heap limit V8 gives this thread
+declare module "node:v8" {
+  export function getHeapStatistics(): { heap_size_limit: number; used_heap_size: number; total_heap_size: number };
+}
+
 declare const process: {
   argv: string[];
   env: Record<string, string | undefined>;
@@ -74,4 +84,5 @@ declare const process: {
   exitCode: number | undefined;
   exit(code?: number): never;
   on(event: "SIGINT" | "SIGTERM", cb: () => void): void;
+  memoryUsage(): { rss: number; heapTotal: number; heapUsed: number; external: number; arrayBuffers: number }; // S2: /v1/health's memory
 };

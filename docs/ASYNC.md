@@ -350,6 +350,8 @@ runs unchanged in the browser and in Node, through WebCrypto only (`globalThis.c
 6. The rules version: anything but this build's `RULES_VERSION` exactly gets 422 (`rules bb-0.8.0 not accepted: this
    server validates bb-0.8.3`).
 7. The deck, in the player mode (`validateUpload`): 422 `deck failed validation`, with its errors.
+   S2: this check runs in a worker thread, not on the request thread (the section "S2: the deck check in a worker thread" below);
+   the queue being full, the 10 s deadline passing or the worker dying is a 503 with `Retry-After` here instead, nothing stored.
 8. The record (0.8.0 H2, backlog 325): a (wins, lives) no run can carry into that day's dusk (`src/net/records.ts
    isReachable`, the check the seed and `ghosts:admin revalidate` apply) gets 422, named with the day in revalidate's
    words, for example `{"error":"record: 0W 1 lives is no record a run carries into dusk 1"}`. Before H2 an honest,
@@ -565,6 +567,36 @@ with 0.7.0's 3 ghosts per hero and day (two sample ghosts with drawn records and
 
   More machines don't help with this: each one loads buckets independently and only adds LIST
   traffic.
+
+## S2: the deck check in a worker thread
+
+`validateUpload` (2-3.5 s of CPU for a cold day-25 deck) used to run on the one request thread, so one deep upload held `GET /v1/health`,
+the match route, profiles and the page for its whole length, and a burst of them queued without limit. Now (`server/validator.ts`,
+`server/validateWorker.ts`, `server/main.ts`):
+
+- **One worker thread** (`node:worker_threads`, `server/dist/validate-worker.mjs` beside `ghost-server.mjs`) runs `validateUpload`. At start it
+  runs `warmRoadCap` (`server/warm.ts`) itself, because the road-cap memo lives in the worker's copy of the modules; then it says ready.
+  The main thread keeps the cheap checks (signature, strict decode, rules, name, the S1 day guard, the record check) and the store.
+- **The queue lives in the main thread:** at most 1 check running and 16 waiting (`BB_GHOST_VALIDATE_QUEUE`). The 18th upload is refused at once:
+  503 `{"error":"deck check queue is full (16 waiting), try again shortly"}` with `Retry-After: 5`. Nothing is stored.
+- **A 10 s deadline** (`BB_GHOST_VALIDATE_TIMEOUT_MS`), counted from joining the queue (an upload that waits for a warming or restarting
+  worker spends it waiting). At the deadline: a job still waiting is dropped; a job still running has its worker terminated, a fresh worker
+  starts, warms, and the queue goes on on it. 503 with `Retry-After: 30`, nothing stored.
+- **A worker that dies** (out of memory, an uncaught error, a crash) is replaced; the job it was running gets 503 with `Retry-After: 10`,
+  the waiting jobs go on to the new worker. Restarts back off: the first in a row is immediate, then 250 ms, 500 ms, 1 s ... up to 30 s, so a
+  worker that dies in its warm-up cannot spin the CPU; a returned verdict ends the streak.
+- **Same verdicts.** The worker runs the same function on the same plain data (structured clone both ways); every upload gets the same status
+  and error text as before and the same uploads are stored. The game's client treats a 503 on upload like any non-201: silent, no retry
+  (`src/net/ghostClient.ts` `submitGhost`, `src/game/online.ts`); a 503 on match falls back to a stand-in foe. Neither reads `Retry-After`.
+- **`GET /v1/health`** keeps `ok, rules, store, ghosts, uploads, uptimeS` and adds `validator` (`kind` worker or in-thread, `state`
+  warming, ready or restarting, `queueDepth`, `running`, `queueMax`, `timeoutMs`, `checks`, `queueFull`, `timeouts`, `restarts`, `errors`,
+  `warmMs`) and `memory` (`rssMb`, `heapUsedMb`, `heapLimitMb`, `workerHeapLimitMb`, the limits being V8's `heap_size_limit` of each thread).
+  It reads these synchronously and never waits on the worker.
+- **Heap limits.** A process-wide `--max-old-space-size` (`NODE_OPTIONS`, fly.toml) overrides a worker's `resourceLimits` in Node 20 and 22:
+  with the flag, the worker has the flag's limit too. Without it the worker gets `BB_GHOST_VALIDATE_HEAP_MB` (64) and
+  `BB_GHOST_VALIDATE_YOUNG_MB` (8).
+- Tests build the app in-process and keep the in-thread validator (the `createGhostServer` default); the worker is tested on a test-only worker
+  script (`tests/s2.*.test.ts`) and on the built bundle. With uploads closed no worker is started.
 
 ## Operations: the ghost admin tool (0.7.0)
 
