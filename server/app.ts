@@ -40,6 +40,11 @@
 //   POST   /v1/link/steam      a verified Steam ticket links a Steam account (501 while BB_STEAM_WEB_API_KEY is unset)
 //   GET    /v1/profile?at=<ms> the signed profile read: { player, profile }
 //   DELETE /v1/player          the player's online data is deleted, with a tombstone
+//
+// IDENT-2 (REQ-BFG-122 clause 4): run history follows the player (server/historyRoutes.ts: the replies and refusals are documented there):
+//   PUT    /v1/history         one finished run's entry, stored under the signer's canonical player (201 new, 200 the same again, 409 a
+//                              different entry for a known id)
+//   GET    /v1/history?at=<ms>[&id=<id>]   the signed reads: the player's entries newest first, or one entry by id. Work with uploads closed
 
 import { readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
@@ -59,6 +64,8 @@ import { putProfile } from "./profileRoute"; // PROFILE-UP (REQ-BFG-074 clause 4
 import { profileStoreFor, type ProfileStore } from "./profileStore";
 import { Links } from "./links"; // IDENT-1 (REQ-BFG-122)
 import { linkStoreFor, type LinkStore } from "./linkStore";
+import { historyStoreFor, type HistoryStore } from "./historyStore"; // IDENT-2 (REQ-BFG-122 clause 4)
+import { getHistory, putHistory, type HistoryRequest } from "./historyRoutes"; // IDENT-2
 import { FailureLimiter, REDEEM_FAILS, deletePlayer, getProfile, linkCode, linkRedeem, linkSteam, type LinkRequest, type RouteReply } from "./linkRoutes";
 import { TicketCache, type SteamVerifier } from "./steamAuth";
 import { sha256Hex } from "./sigv4";
@@ -118,6 +125,9 @@ export interface ServerOptions {
   /** IDENT-1: where links, link codes, Steam links and tombstones are kept. Default: beside the ghosts, in the same backing store
    *  (linkStore.ts linkStoreFor: <dataDir>/identity, or Tigris objects outside ghosts/ and profiles/). */
   linkStore?: LinkStore;
+  /** IDENT-2: where the run history is kept, one object per finished run under the canonical player. Default: beside the ghosts, in the
+   *  same backing store (historyStore.ts historyStoreFor: <dataDir>/history, or Tigris history/<player>/...). */
+  historyStore?: HistoryStore;
   /** IDENT-1: the Steam ticket verifier (steamAuth.ts). None (the default): POST /v1/link/steam answers 501. */
   steam?: SteamVerifier | null;
   /** IDENT-1: how many wrong link codes one client address may try, and in how long. Default 5 in 10 minutes. */
@@ -323,9 +333,11 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   const uploads = opts.uploads ?? "open";
   const profiles = opts.profileStore ?? profileStoreFor(store, log); // PROFILE-UP
   const clock = opts.now ?? (() => Date.now()); // PROFILE-UP
+  // IDENT-2 (REQ-BFG-122 clause 4): the run history beside the profiles and the links, over the same backing store; a DELETE removes it
+  const history = opts.historyStore ?? historyStoreFor(store, log);
   // IDENT-1 (REQ-BFG-122): the identity layer beside the profiles, over the same backing store
   const links = new Links(opts.linkStore ?? linkStoreFor(store), profiles, {
-    now: clock, log, ...(opts.codeRandom ? { random: opts.codeRandom } : {}), ...(opts.tombstoneTtlMs !== undefined ? { tombstoneTtlMs: opts.tombstoneTtlMs } : {}),
+    now: clock, log, history, ...(opts.codeRandom ? { random: opts.codeRandom } : {}), ...(opts.tombstoneTtlMs !== undefined ? { tombstoneTtlMs: opts.tombstoneTtlMs } : {}),
   });
   const redeemFails = new FailureLimiter(opts.redeemLimit?.windowMs ?? REDEEM_FAILS.windowMs, opts.redeemLimit?.max ?? REDEEM_FAILS.max);
   const steam = opts.steam ?? null;
@@ -343,10 +355,15 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
     };
   }
 
+  /** IDENT-2: the history routes' request: the identity layer's, and the history store. */
+  function historyRequest(req: IncomingMessage): HistoryRequest {
+    return { ...linkRequest(req), history, log };
+  }
+
   /** IDENT-1: a route module's reply -> the response (a refusal is an HttpError, so the request log and the 429 header are as ever). */
   function sendReply(res: ServerResponse, r: RouteReply): void {
-    if (r.status !== 200) throw new HttpError(r.status, (r as { error: string }).error, {}, (r as { retryAfter?: number }).retryAfter);
-    send(res, 200, (r as { body: Record<string, unknown> }).body);
+    if (r.status !== 200 && r.status !== 201) throw new HttpError(r.status, (r as { error: string }).error, {}, (r as { retryAfter?: number }).retryAfter); // IDENT-2: 201 is a new history entry
+    send(res, r.status, (r as { body: Record<string, unknown> }).body);
   }
 
   async function route(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
@@ -480,6 +497,12 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
       case "/v1/player":
         only("DELETE");
         return sendReply(res, await deletePlayer(linkRequest(req)));
+      case "/v1/history":
+        // IDENT-2: PUT stores an entry; GET is the signed read (the signature covers the exact path and query, so a list read is no
+        // entry read). The query holds `at` and an entry id; the request log below prints the path only
+        if (method === "GET") return sendReply(res, await getHistory(historyRequest(req), url.pathname + url.search));
+        only("PUT");
+        return sendReply(res, await putHistory(historyRequest(req)));
       case "/v1/ghosts/match": {
         only("GET");
         const m = parseMatchQuery(url.searchParams);

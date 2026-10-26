@@ -4,7 +4,9 @@
 // (absent: no answer, a timeout or a refused connection). The server's words are in server/linkRoutes.ts; the cards map a status to
 // their own plain line.
 //
-//   requestLinkCode   POST /v1/link/code      SHOW MY CODE: 200 -> { code: "XXXX-XXXX", expiresAt }
+//   requestLinkCode   POST /v1/link/code      SHOW MY CODE: 200 -> { code: "XXXX-XXXX", expiresAt }. IDENT-2: and the device that shows a code
+//                                             counts as linked too (a link record naming its own key), so its run history reaches the device
+//                                             that enters the code (net/historySync.ts)
 //   redeemLinkCode    POST /v1/link/redeem    ENTER A CODE (this device's key is the NEW one): 200 -> the link is written to this device
 //                                             (localStorage beltbattles.link.v1 and the native mirror) and the server's profile is merged
 //                                             into the local one. 403: the code did not work (wrong, expired or used), 409: this device

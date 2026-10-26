@@ -427,7 +427,9 @@ describe("4b. the cost of a full player's DELETE (Tigris, counted at the fake S3
     console.log(`VIDENT2 a full player's DELETE (64 keys, 64 Steam accounts), requests at the Tigris fake: ${JSON.stringify(ops)} = ${mine.length}`);
     expect(await under(rig, "links/steam/")).toEqual([]);
     expect(await under(rig, "links/keys/")).toEqual([]);
-    expect(mine.length, "FIX2-REPORT says 329 (it was 201)").toBeGreaterThanOrEqual(320);
-    expect(mine.length).toBeLessThanOrEqual(340);
+    // IDENT-2: the DELETE also removes history/<id>/ for the player and each of its 64 keys: one LIST for each of the 65 ids, and a DELETE
+    // for each entry (none here). So FIX2's 329 plus 65 LISTs; the bounds moved with it (they were 320 to 340)
+    expect(mine.length, "FIX2-REPORT says 329 (it was 201); IDENT-2 adds the 65 LISTs of history/<id>/").toBeGreaterThanOrEqual(385);
+    expect(mine.length).toBeLessThanOrEqual(405);
   });
 });

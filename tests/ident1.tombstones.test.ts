@@ -533,9 +533,12 @@ describe.each(KINDS)("what a full read is for, on %s", (kind) => {
     await rig.restart();
     const s = spy(rig);
     s.absent = new Set([`tombstones/${b}.json`]); // the listing shows it, the read finds nothing
+    // IDENT-2 fix A: a listed key that stays absent FAILS the first load (it is read again 3 times first); three failed first loads in a row, and the 4th goes on without it
+    for (let n = 0; n < 3; n++) await rig.app.links.settleReload();
+    expect(rig.app.links.goneCount, "three failed first loads applied nothing").toBe(0);
     await rig.app.links.settleReload();
-    expect([s.reads.length, rig.app.links.goneCount, rig.app.links.isGone(b)], "the first load read three, and two ids are in the set").toEqual([3, 2, false]);
-    expect(lines(rig.log, "1 listed tombstone(s) not found"), "said once, with a count and no id").toBe(1);
+    expect([s.reads.length, rig.app.links.goneCount, rig.app.links.isGone(b)], "four first loads read three and re-read the absent one 3 times each (24), and two ids are in the set").toEqual([24, 2, false]);
+    expect(lines(rig.log, "1 listed tombstone(s) not found"), "said by each failed load and by the one that went on, with a count and no id").toBe(4);
     expect(lines(rig.log, UNREADABLE), "and it is not 'unreadable'").toBe(0);
     s.absent.clear();
     s.reads.length = 0;

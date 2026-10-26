@@ -76,8 +76,8 @@ function errorCode(text: string): string | null {
 /** The key as a log line or an error message names it. PROFILE-UP: a profile object is profiles/<playerId>.json, and no log
  *  line carries a player id, so its name is shown as profiles/*; every other key (ghosts/...) is shown as it is. IDENT-1: the
  *  identity layer's objects carry a player id, a key id, a Steam id or a link code's hash in their names (server/linkStore.ts), so
- *  they are masked the same way: links/*, players/*, linkcodes/*, tombstones/*. */
-const PRIVATE_PREFIXES = ["profiles/", "links/", "players/", "linkcodes/", "tombstones/"] as const;
+ *  they are masked the same way: links/*, players/*, linkcodes/*, tombstones/*. IDENT-2: and history/<player>/<time>-<entry id>.json. */
+const PRIVATE_PREFIXES = ["profiles/", "links/", "players/", "linkcodes/", "tombstones/", "history/"] as const;
 
 function shownKey(key: string): string {
   const p = PRIVATE_PREFIXES.find((x) => key.startsWith(x));

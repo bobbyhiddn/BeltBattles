@@ -709,8 +709,17 @@ ghosts themselves in every rules version (a dry run by default). The device drop
 progress stays.
 
 **The tombstone set** (IDENT-1 FIX2). The ids of every tombstone sit in an in-memory set on each machine. The first request, or the
-start, reads every tombstone, 8 reads at a time; until that has succeeded the routes answer 503, so a deleted player's ghost is never
-served from an incomplete set. A refresh every 60 s lists `tombstones/` and reads only the keys it does not hold yet, so a refresh
+start, reads every tombstone, 8 reads at a time, and no route serves a ghost or takes an upload until that has succeeded, so a deleted
+player's ghost is never served from an incomplete set. A slow first load is waited for in full: every request that needs the set waits
+for it, however long it takes (unbounded by design), and then goes on. A first load that fails (the store is down, a read fails) answers
+503 to every request that waited for it, applies nothing, and the next request starts a fresh load (IDENT-2, re-check finding K). A
+tombstone the store lists but returns nothing for (a listing that runs ahead of its objects) is read again inside the first load, 3
+times, 100 ms apart; still not there, the load fails like any other (503, nothing applied, one log line with a count and no id) and
+the next request tries again. A key that was listed but absent through 3 failed first loads in a row no longer fails the load: the
+fourth goes on without it, with a loud log line (a count, no id), and every refresh reads it again. So the first load never holds a
+503 for good. The 503 this can cause ends after at most 3 failed loads of about 0.4 s each (3 pauses of 100 ms, and the store's own
+time at an assumed 20 ms a request): about 1.6 s when requests keep coming, and about 17 s for a client that waits the 5 s of
+`retry-after` between its tries. A refresh is not touched by any of this (below). A refresh every 60 s lists `tombstones/` and reads only the keys it does not hold yet, so a refresh
 with nothing new is the list alone. Every 6 hours a refresh reads all of them again: a DELETE that finds a tombstone already there
 rewrites it with more ids (a key linked to the player after the first DELETE), and a machine that holds that tombstone sees the new ids
 only at the next full read. A request waits at most 250 ms for a refresh and goes on with the set it holds, so a slow or stuck store
@@ -723,6 +732,65 @@ for each account), and removes only a link that names the player or one of its k
 left as it is and logged (with no id), and the next link of that account overwrites it. `linkSteam` writes the player's record first
 and the link second, as a join does, so a store failure between the two leaves a listed account with no link (the retry writes it),
 and the record can list an account whose link is another player's, which stays.
+
+## Run history follows the player (IDENT-2, REQ-BFG-122 clause 4)
+
+Not a rules change: no `RULES_VERSION`, sim, deck-validation or ghost-format line moves, and no field is added to the profile wire. A
+feeder that rides the IDENT-1 release (it replaces `ident1-done`). Display data only: no entry or record is read by matchmaking or ranking.
+
+**The device.** `beltbattles.history.v1` (`src/game/history.ts`) is written by EVERY device, online or not, linked or not: the runs
+played before a link must follow the player after it. It is the one new storage key a never-linked device gets, and that device still
+sends no request. `{"v":1,"entries":[{"entry":{...},"sentTo":"<player>"?,"down":true?}],"syncedAt":<ms>?}`: the newest 50 finished runs,
+newest first. Each entry id is written ONCE (the dusk's fold and the summary's both reach a run's end, so do a reload and CONTINUE; a
+second write of an id changes nothing). It is written beside `profileChanged("end")` in `src/game/styleFolds.ts`: at a run's last win or
+last heart, at the summary, and at ABANDON (outcome `abandoned`). A run that took CONTINUE ENDLESS keeps its entry (written at its
+WIN_GOAL-th win, never changed) and gets a second one, id `<runId>_endless`, when the endless ends (ENDLESS OVER or ABANDON in endless);
+it holds only the endless dusks, wins and score. `_` is in no runId (`newRunId` writes base 36 and `-`). An entry is at most 16,000 bytes of
+canonical JSON; above that the battle records go, the oldest dusk's first (the summary and the dusk rows never). Locally the records of
+the whole key stay under 256 KB (the newest entries keep theirs). A newer version's store is left alone; a full localStorage or a broken
+value never breaks the save, the fold or the summary (one console warning a page load). `sentTo` marks an entry as finished with for that
+player (sent, found stored, or refused for good), `down` one that came from the player's history: a device sends an entry to a player at
+most once and never sends one it downloaded.
+
+**The routes** (`server/historyRoutes.ts`; checks in IDENT-1's order: 403 uploads closed (the PUT only), 401, 413, 400, 422 `at`, 503,
+410, then the entry's caps, 422):
+`PUT /v1/history` `{"at":<ms>,"entry":{...}}`, signed in `bb-history-1\n` over the exact body (at most 16,384 bytes), stores the entry under
+the signer's CANONICAL player (a linked key's history is its player's; a lone key's is its own): 201 new, 200 the same entry again (the
+same canonical bytes: nothing is written), 409 a different entry for a known id (nothing is written; the first write wins).
+`GET /v1/history?at=<ms>` -> `{entries:[{id,finishedAt}]}` newest first, from ONE store LIST; `GET /v1/history?at=<ms>&id=<id>` ->
+`{entry}` or 404; both signed in `bb-history-get-1\n` over the exact path and query (`/v1/history?at=...`), so a list read can never pass for
+an entry read, and both work with uploads closed. The entry id of a read is in the query; the request log prints the path only. The
+caps (422, naming the field): wins, days, dusks and lives ceilings of 99, kind and outcome from closed sets, ids of 1 to 64 `[A-Za-z0-9_-]`,
+dusk days rising within `days`, finishedAt between 2026-01-01 and the server's clock plus 10 minutes, and no more than 16,000 bytes. A
+battle record under the server's own rules version must pass `checkRecord` (shape only: no fight runs on the server); one under another
+rules version (a phone app one release behind) gets the rules-free shape check (a short `rules`, an integer `seed`, two build objects)
+and is kept as it is.
+
+**The store.** `server/historyStore.ts`, one interface and three implementations (file, Tigris, memory), in the ghosts' own backing
+store: `<dataDir>/history/<P>/<name>` or the object `history/<P>/<name>`, `<name>` = `<9999999999999 - finishedAt, 13 digits>-<id>.json`.
+The time is in the NAME so that one LIST returns a player's entries newest first with their finishedAt, and no entry is read to order
+them. Its list filters by its own name pattern. The object is the entry's canonical text and nothing else. A player keeps 200 entries:
+at the cap the PUT of a newer entry writes it and then deletes the OLDEST by finishedAt; an entry older than all 200 is refused (422)
+and nothing is dropped. **Requests:** a PUT is one LIST and, for a new entry, one PUT (one DELETE more at the cap); a repeat or a conflict
+is one LIST and one GET; besides the identity lookups (a cached key link: one HEAD when cold). A list read is one LIST; an entry read is
+one LIST and one GET. `history/` is masked in the S3 client's log text (`history/*`) and gets no expiry or lifecycle rule: it lives and
+dies with the player.
+
+**The sync** (`src/net/historySync.ts`, `historyClient.ts`). Only a LINKED device takes part: a `beltbattles.link.v1` record for its own
+key, written by ENTER A CODE, and now also by SHOW MY CODE (the first device is the player's first key; its record names its own key as
+the player). A device that was never linked makes no request. Upload: its entries not yet sent to its player, newest first, at most 10 a
+trigger. Download: the list, then the entries it lacks that it would keep, newest first, at most 10 a sync; merged by id (a union; an
+entry the device has stays as it is), the newest 50 kept, and no entry it has not sent yet is dropped for a downloaded one. Triggers:
+after a link and after SHOW MY CODE (upload and download), at startup once a page load at most hourly by history's own `syncedAt`
+(upload and download), and at a run's end (the new entry only, when the page's session has an identity; else the next trigger). Every
+send is fire and forget. A 404 or 405 (a server without these routes) stops the history requests to that server for the page load and
+keeps the entries; a 401, a 403 (uploads closed), a 429, a 5xx or no answer ends the trigger and keeps them; a wrong clock (422 about
+`at`) is no refusal of the entry; a 410 does what a 410 to a ghost upload does (`forgetDeletedPlayer`).
+
+**Deletion.** `DELETE /v1/player` also removes `history/<id>/` for the player and for every key id it tombstones, at most 8 store requests
+in flight: one LIST for each id (65 for a full player), then one DELETE for each entry. The device keeps its local history and sends
+nothing until a new link. `ghost-admin purge-tombstoned` removes `history/<id>/` for every tombstoned id too (its dry run lists them), which
+closes the window of a second machine that had not yet seen a tombstone, or of a DELETE made on a build without these routes.
 
 ## 0.8.0: rules bb-0.8.0 and the four-hero seed pool
 

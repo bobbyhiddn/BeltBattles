@@ -98,7 +98,10 @@ export class FileLinkStore implements LinkStore {
   async list(prefix: string): Promise<string[]> {
     const dir = join(this.dir, ...checkPrefix(prefix).split("/").filter(Boolean));
     try {
-      return readdirSync(dir).filter((n) => n.endsWith(".json")).map((n) => `${prefix}${n}`);
+      // IDENT-2, finding B: only names this store's own key check accepts, as TigrisLinkStore.list has it. A stray file (a name with a
+      // space, a dot, a long or empty id, a .tmp) is not a record: listed, `get` would throw a plain Error for it and every identity-aware
+      // request would answer 500 (internal error) instead of 503.
+      return readdirSync(dir).map((n) => `${prefix}${n}`).filter((k) => KEY_PATTERN.test(k));
     } catch (e) {
       if (codeOf(e) === "ENOENT" || codeOf(e) === "ENOTDIR") return [];
       throw new StorageError(`identity list failed${errCode(e)}`);

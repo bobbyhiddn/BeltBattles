@@ -305,9 +305,10 @@ describe.each(KINDS)("A. the first load is not bounded and fails closed for ever
   });
 });
 
-// ---- NOTES found while reading the first load (not blockers; pinned as they are today, so that the day they are changed these tests say so)
-describe.each(KINDS)("A2. NOTES on the first load, on %s", (kind) => {
-  it("NOTE: a tombstone the store LISTS but returns nothing for, at the FIRST load, does not fail the load: the load completes with a set that lacks its ids, so for up to one refresh (60 s) the deleted key's upload is taken and its ghost is served; the next refresh reads the key again", async () => {
+// ---- A2 and A3 were NOTES found while reading the first load, pinned as they were. IDENT-2 fixed both (finding A: server/links.ts reload; finding B:
+// server/linkStore.ts FileLinkStore.list), so each is rewritten to the fixed outcome (the old names are in tests/ident2.fixes*.test.ts's headers).
+describe.each(KINDS)("A2. the first load and a tombstone the store LISTS but returns nothing for, on %s (IDENT-2 fix A: was a NOTE)", (kind) => {
+  it("FIXED: it is read again 3 times (100 ms apart); still absent, the FIRST load fails (503, nothing applied, a log line with a count and no id) and the next request starts a fresh load, so the deleted key's upload is never taken and its ghost never served", async () => {
     const rig = await open(kind);
     const [X, Z] = [await freshIdentity(), await freshIdentity()];
     const gX = uploadFor(X, X.playerId, { runId: "x-1" });
@@ -317,31 +318,36 @@ describe.each(KINDS)("A2. NOTES on the first load, on %s", (kind) => {
     const s = spy(rig);
     s.absent = new Set([`tombstones/${X.playerId}.json`]); // the listing shows it, the read finds nothing (a LIST that runs ahead of the read)
     const up = await postGhost(rig, X, uploadFor(X, X.playerId, { runId: "x-2" }));
-    expect(up.status, "the first load completed (no 503), without X's ids").toBe(201);
-    expect((await drawn(rig, Z.playerId, 20)).ids, "and X's ghost is served").toContain(ghostId(gX));
-    expect(lines(rig.log, "1 listed tombstone(s) not found"), "the log says so once, with a count and no id").toBe(1);
-    s.absent.clear();
-    rig.clock.now += TTL + 1;
-    await rig.app.links.settleReload();
-    expect((await postGhost(rig, X, uploadFor(X, X.playerId, { runId: "x-3" }))).status, "the next refresh reads it").toBe(410);
+    expect(up.status, "the first load FAILED (503); it did not go on without X's ids (it was 201)").toBe(503);
+    expect(s.reads.length, "the read and its 3 re-reads").toBe(4);
+    expect((await drawn(rig, Z.playerId, 1)).statuses, "a match is refused too, so X's ghost is not served (it was served)").toEqual([503]);
+    expect(lines(rig.log, "1 listed tombstone(s) not found"), "one log line for each failed load, with a count and no id").toBe(2);
+    expect(rig.log.join("\n"), "and no id in it").not.toContain(X.playerId);
+    s.absent.clear(); // the key is there now
+    expect((await postGhost(rig, X, uploadFor(X, X.playerId, { runId: "x-3" }))).status, "the next request starts a fresh load, which reads it").toBe(410);
     expect((await drawn(rig, Z.playerId, 20)).ids).not.toContain(ghostId(gX));
+    expect(s.reads.length, "4 + 4 reads of the two failed loads, then 1").toBe(9);
     s.restore();
   });
 });
 
-describe("A3. NOTE: the file store lists names that its own key check refuses", () => {
-  it("JSON lines: a stray identity/tombstones/<name with a space>.json makes the first load fail with a plain Error, so every identity-aware request is a 500 (internal error), not a 503; the Tigris store ignores such a name", async () => {
+describe("A3. the file store lists only the names its own key check accepts (IDENT-2 fix B: was a NOTE)", () => {
+  it("FIXED, JSON lines: a stray identity/tombstones/<name with a space>.json is not listed, so the first load succeeds (201, as on Tigris; it was a 500 internal error), and a real tombstone beside it still applies", async () => {
     const jsonl = await open("jsonl");
-    const dev = await freshIdentity();
+    const [dev, gone] = [await freshIdentity(), await freshIdentity()];
+    expect((await deleteMe(jsonl, gone)).status, "a real tombstone, written by the server").toBe(200);
     mkdirSync(join(jsonl.dir, "identity", "tombstones"), { recursive: true });
     writeFileSync(join(jsonl.dir, "identity", "tombstones", "not a key.json"), "{}");
     await jsonl.restart();
     const r = await postGhost(jsonl, dev, uploadFor(dev, dev.playerId, { runId: "a" }));
-    expect([r.status, r.json?.error], "an upload; the same for the match and every route that waits for the first load").toEqual([500, "internal error"]);
+    expect([r.status, r.json?.error], "an upload; the same for the match and every route that waits for the first load").toEqual([201, undefined]);
+    expect((await postGhost(jsonl, gone, uploadFor(gone, gone.playerId, { runId: "b" }))).status, "the real tombstone beside the stray applies").toBe(410);
     const tigris = await open("tigris");
+    expect((await deleteMe(tigris, gone)).status).toBe(200);
     theFake().putObject(tigris.bucket, "tombstones/not a key.json", "{}");
     await tigris.restart();
-    expect((await postGhost(tigris, dev, uploadFor(dev, dev.playerId, { runId: "a" }))).status, "(Tigris: the listing filters by the key pattern)").toBe(201);
+    expect((await postGhost(tigris, dev, uploadFor(dev, dev.playerId, { runId: "a" }))).status, "(Tigris: the listing filters by the key pattern, as it did)").toBe(201);
+    expect((await postGhost(tigris, gone, uploadFor(gone, gone.playerId, { runId: "b" }))).status).toBe(410);
   });
 });
 
@@ -576,15 +582,15 @@ describe("D. no rejection goes unhandled, and the log lines carry no id", () => 
     await rig.restart();
     const s = spy(rig);
     s.absent = new Set([`tombstones/${ids[1]}.json`]);
-    await rig.app.links.settleReload(); // first load: one unreadable, one absent
+    for (let n = 0; n < 4; n++) await rig.app.links.settleReload(); // first load: one unreadable, one absent (IDENT-2 fix A: three failed first loads, then the 4th goes on without the absent one)
     s.absent.clear();
     rig.clock.now += TTL + 1;
     s.failList = true;
     await rig.app.links.settleReload(); // a failed refresh
     s.restore();
     const text = rig.log.join("\n");
-    expect(lines(rig.log, UNREADABLE)).toBe(1);
-    expect(lines(rig.log, "1 listed tombstone(s) not found")).toBe(1);
+    expect(lines(rig.log, UNREADABLE), "logged by the load that succeeded").toBe(1);
+    expect(lines(rig.log, "1 listed tombstone(s) not found"), "the three failed loads and the one that went on, each with a count").toBe(4);
     expect(lines(rig.log, REFRESH_FAILED)).toBe(1);
     for (const id of ids) expect(text, "no tombstone id in the log").not.toContain(id);
     expect(text).not.toContain("tombstones/");

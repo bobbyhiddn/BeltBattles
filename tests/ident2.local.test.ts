@@ -11,8 +11,13 @@ import { newRunId, type Run } from "../src/game/run";
 import { setSession } from "../src/game/session";
 import { historyIdle, resetHistorySync } from "../src/net/historySync";
 import {
-  HISTORY_END_SUFFIX, HISTORY_ENTRY_MAX_BYTES, HISTORY_LOCAL_MAX, byteLength, decodeEntry, encodeEntry, fitEntry,
+  HISTORY_AHEAD_MS, HISTORY_BODY_MAX_BYTES, HISTORY_END_SUFFIX, HISTORY_ENTRY_MAX_BYTES, HISTORY_LOCAL_MAX, HISTORY_PLAYER_MAX, byteLength, decodeEntry, encodeEntry, fitEntry,
 } from "../src/net/historyWire";
+import {
+  DELETE_PREFIX, HISTORY_GET_PREFIX, HISTORY_PREFIX, LINK_CODE_PREFIX, LINK_REDEEM_PREFIX, LINK_STEAM_PREFIX, PROFILE_GET_PREFIX, PROFILE_PREFIX, UPLOAD_PREFIX,
+} from "../src/net/identity";
+import { AT_WINDOW_MS } from "../server/links";
+import { readFileSync } from "node:fs";
 import { HEROES, RULES_VERSION, type HeroId } from "../src/sim/content";
 import { standInPool } from "../src/sim/standInPool";
 import { battleRecordFor } from "../src/net/replay";
@@ -338,6 +343,37 @@ describe("a newer version's store is left alone; a broken value or a full storag
     expect(() => foldDuskResult(run, lastRow(run))).not.toThrow();
     expect(() => foldRunEnd(run)).not.toThrow();
     expect(readHistory(null).state.entries).toEqual([]);
+  });
+});
+
+describe("the wire module and the signing domains", () => {
+  it("the two new domains are additive: their bytes are fixed, and no domain's bytes begin another's", () => {
+    expect(HISTORY_PREFIX).toBe("bb-history-1\n");
+    expect(HISTORY_GET_PREFIX).toBe("bb-history-get-1\n");
+    const all = [UPLOAD_PREFIX, PROFILE_PREFIX, LINK_CODE_PREFIX, LINK_REDEEM_PREFIX, LINK_STEAM_PREFIX, PROFILE_GET_PREFIX, DELETE_PREFIX, HISTORY_PREFIX, HISTORY_GET_PREFIX];
+    expect(new Set(all).size).toBe(9);
+    for (const a of all) {
+      expect(a.endsWith("\n") && a.indexOf("\n") === a.length - 1).toBe(true);
+      for (const b of all) if (a !== b) expect(b.startsWith(a)).toBe(false);
+    }
+    // the seven IDENT-1 domains are byte for byte what they were
+    expect(all.slice(0, 7)).toEqual(["bb-ghost-upload-1\n", "bb-profile-1\n", "bb-link-code-1\n", "bb-link-redeem-1\n", "bb-link-steam-1\n", "bb-profile-get-1\n", "bb-delete-1\n"]);
+  });
+
+  it("src/net/historyWire.ts is pure: it imports types only, so the device, the client and the server share it without sharing a runtime", () => {
+    const src = readFileSync("src/net/historyWire.ts", "utf8");
+    const imports = src.split("\n").filter((l) => /^import\b/.test(l));
+    expect(imports.length).toBeGreaterThan(0);
+    for (const l of imports) expect(l).toMatch(/^import type /);
+  });
+
+  it("the finishedAt bound is the signed requests' replay bound (server/links.ts AT_WINDOW_MS)", () => {
+    expect(HISTORY_AHEAD_MS).toBe(AT_WINDOW_MS);
+    expect(HISTORY_LOCAL_MAX).toBe(50);
+    expect(HISTORY_PLAYER_MAX).toBe(200);
+    expect(HISTORY_ENTRY_MAX_BYTES).toBe(16_000);
+    expect(HISTORY_BODY_MAX_BYTES).toBe(16_384);
+    expect(HISTORY_RECORD_BUDGET).toBe(256 * 1024);
   });
 });
 
