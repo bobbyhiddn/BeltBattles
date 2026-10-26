@@ -2,6 +2,7 @@
 // and the options card (Reduced Motion, sound) used by the pause menus.
 
 import { settings, setReducedMotion } from "../core/settings";
+import { fullscreenRow, toggleFullscreen } from "../core/fullscreen"; // C1 (BRIEF-C1 item 4): the title's FULLSCREEN row
 import type { Game } from "../game/game";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
@@ -67,11 +68,14 @@ export interface OptionsExtras {
 export const NOTE_ROW = 7;
 
 /** The options card's geometry (the one place it is computed; optionsCard draws from it and the tests read it). Without `extras`
- *  it is the card as it was before IDENT-1: rows of `bh` + 3, three fixed rows after the actions. */
-export function optionsGeometry(W: number, H: number, k: number, nActions: number, extras?: OptionsExtras): { bw: number; bh: number; step: number; card: Rect; noteLines: string[] } {
+ *  it is the card as it was before IDENT-1: rows of `bh` + 3, three fixed rows after the actions. M1 (the merge of C1 into
+ *  IDENT-1): `fullscreen` true adds C1's FULLSCREEN: ON / OFF row after SOUND, one more row. optionsCard passes it only when it
+ *  draws that row (core/fullscreen.ts fullscreenRow(), read live); false, the default, is the card without it. */
+export function optionsGeometry(W: number, H: number, k: number, nActions: number, extras?: OptionsExtras, fullscreen = false): { bw: number; bh: number; step: number; card: Rect; noteLines: string[] } {
   const u = (n: number) => Math.ceil(n * k - 1e-9);
   const bw = Math.min(W - 24, u(150)), bh = u(19), step = bh + 3;
-  const rows = 3 + nActions + (extras?.rows.length ?? 0); // PACKS M2 (REQ-BFG-063): + the NAME entry; IDENT-1: + the extra rows
+  // PACKS M2 (REQ-BFG-063): + the NAME entry; C1 (BRIEF-C1 item 4): + the FULLSCREEN row; IDENT-1: + the extra rows
+  const rows = 3 + nActions + (fullscreen ? 1 : 0) + (extras?.rows.length ?? 0);
   const noteLines = extras?.note ? wrap(extras.note, bw, "3") : [];
   const h = 18 + rows * step + 4 + noteLines.length * NOTE_ROW;
   const w = bw + 20;
@@ -81,10 +85,15 @@ export function optionsGeometry(W: number, H: number, k: number, nActions: numbe
 /** Options card with Reduced Motion and sound toggles plus caller-supplied actions. intro (REQ-BFG-038): `k` (the title's
  *  buttons' size factor; 1, the default, everywhere else) makes the buttons k times as big, so on the title of a portrait
  *  phone, a scale below the menu scale, they keep the CSS size they had; at k = 1 the card is exactly as before. IDENT-1:
- *  `extras`, rows after NAME and a note under them (only the title passes them). */
-export function optionsCard(game: Game, g: G, title: string, actions: { id: string; label: string; primary?: boolean; danger?: boolean; onTap: () => void }[], onClose: () => void, k = 1, extras?: OptionsExtras): Rect {
+ *  `extras`, rows after NAME and a note under them (only the title passes them).
+ *  C1 (BRIEF-C1 item 4): `opts.fullscreen` (the title's OPTIONS card only) adds a FULLSCREEN: ON / OFF row after SOUND, in the
+ *  same style, and only where the browser can do fullscreen (core/fullscreen.ts); without it, or where it can't, the card
+ *  is exactly as before (the PAUSED and build MENU cards never pass it: no new button anywhere else).
+ *  M1 (the merge of C1 into IDENT-1): the title passes both, `extras` then `opts`; the pause menus pass neither. */
+export function optionsCard(game: Game, g: G, title: string, actions: { id: string; label: string; primary?: boolean; danger?: boolean; onTap: () => void }[], onClose: () => void, k = 1, extras?: OptionsExtras, opts: { fullscreen?: boolean } = {}): Rect {
   const { W, H, ui } = game;
-  const { bw, bh, step, card: geo, noteLines } = optionsGeometry(W, H, k, actions.length, extras);
+  const fs = opts.fullscreen ? fullscreenRow() : null; // C1: read live: the label follows the browser's own fullscreenchange (Esc too)
+  const { bw, bh, step, card: geo, noteLines } = optionsGeometry(W, H, k, actions.length, extras, fs !== null);
   const { x, y, w, h } = geo;
   g.globalAlpha = 0.6;
   rect(g, 0, 0, W, H, C.ink);
@@ -109,6 +118,10 @@ export function optionsCard(game: Game, g: G, title: string, actions: { id: stri
     font: "3", active: m === 0, onTap: () => game.cycleSound(),
   });
   by += step;
+  if (fs) {
+    button(ui, g, "opt-fs", { x: bx, y: by, w: bw, h: bh }, fs.label, { font: "3", active: fs.active, onTap: () => toggleFullscreen() });
+    by += step;
+  }
   // PACKS M2 (REQ-BFG-063): the player name, changed on the name screen (CANCEL keeps it; later uploads carry the new one)
   button(ui, g, "opt-name", { x: bx, y: by, w: bw, h: bh }, nameEntryLabel(currentName()), {
     font: "3", onTap: () => game.openName({ required: false }),

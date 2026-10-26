@@ -41,6 +41,7 @@ import { ArenaMotion } from "../game/arenaMotion";
 import { minGap } from "../game/battleLayout";
 import { settings } from "../core/settings";
 import { currentName } from "../game/ghostSnapshot"; // PACKS M2 (REQ-BFG-063): the name screen comes first
+import { OFFLINE_LINE, offlineMode } from "../game/session"; // C1 (BRIEF-C1 item 1): the title's offline line
 import { HEART_COST_FROM, HEART_COSTS, HEARTS_START, heartsRules } from "../sim/hearts"; // RETUNE-1 run 2: the rules card's hearts
 import { onlineSession } from "../game/online"; // IDENT-1 (REQ-BFG-122): the page's online session (its identity and server)
 import { startupProfileSync } from "../net/profileSync"; // IDENT-1: a linked device reads the player's profile once per page load
@@ -315,6 +316,10 @@ export class TitleScreen implements Screen {
     if (this.newStyle) newDot(g, b.customize);
     game.soundButton(g, L.sound);
     drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });
+    // C1 (BRIEF-C1 item 1): one small line at the bottom left while the device has no network and the game would have asked the
+    // ghost server (read live every frame, so the online and offline events need no state here): the foes are stand-ins. Drawn
+    // on the version line's row, clear of the panel (which ends 8 px or more above it) and of the version line (a test pins it)
+    if (offlineMode()) drawText(g, OFFLINE_LINE, 4, H - 8, C.slate4, { font: "3", outline: C.ink });
     // BUMP-1E P6 E.2: the saved run was set aside (it names something this build does not know): one plain line, just above the panel (the
     // portrait panel sits at the bottom edge, so there is no room under it), on a dark strip like the logo band's
     const aside = saveProblem();
@@ -327,7 +332,9 @@ export class TitleScreen implements Screen {
     }
     if (this.help) this.drawHelp(g);
     // IDENT-1 (REQ-BFG-122): + LINK A DEVICE and DELETE MY ONLINE DATA below NAME (off, with one line why, while there is no online session)
-    if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; }, this.k, optionsExtras(game, () => this.k));
+    // C1 (BRIEF-C1 item 4): the title's OPTIONS card alone carries the FULLSCREEN choice (where the browser can do it)
+    // M1 (the merge of C1 into IDENT-1): the title passes both, IDENT-1's extras then C1's option
+    if (this.menu) optionsCard(game, g, "OPTIONS", [{ id: "optdone", label: "DONE", primary: true, onTap: () => { this.menu = false; } }], () => { this.menu = false; }, this.k, optionsExtras(game, () => this.k), { fullscreen: true });
   }
 
   private drawHelp(g: G): void {

@@ -20,7 +20,7 @@ import { raceReadout } from "../game/raceReadout"; // 0.8.0 H1 M3: the card's FO
 import { loadPool } from "../game/ghosts";
 import { saveRunGhost } from "../game/ghostGuard"; // RETUNE-1 run 2 (REQ-BFG-096): the upload guard (saveGhost behind it)
 import { drawStakesLine, duskStakes } from "../ui/stakes"; // RETUNE-1 run 2: the fight intro's hearts at stake
-import { FINDING_GHOST, foeNote, online, onlineMode } from "../game/session"; // 0.7.0a: online play (none: offline, as 0.6.2)
+import { foeNote, online, onlineMode, searchNote } from "../game/session"; // 0.7.0a: online play (none: offline, as 0.6.2); C1: searchNote, FINDING A GHOST... or at once OFFLINE STAND-IN
 import { battleRecordFor } from "../net/replay";
 import type { BattleRecord } from "../sim/battle";
 import { finishWarlord, pickPending, takePart, todaysWarlord, warlordSeed } from "../game/road";
@@ -849,6 +849,6 @@ export class DuskWaitScreen implements Screen {
     g.fillStyle = C.ink;
     g.fillRect(0, 0, W, H);
     const run = this.game.run!;
-    banner(g, W, Math.round(H / 2) - 16, fightHead(false, run.day, longRun(run)), C.yellow, FINDING_GHOST, 1); // RUN-1: DUSK · DAY 12
+    banner(g, W, Math.round(H / 2) - 16, fightHead(false, run.day, longRun(run)), C.yellow, searchNote(), 1); // RUN-1: DUSK · DAY 12; C1: offline, OFFLINE STAND-IN at once
   }
 }

@@ -6,6 +6,10 @@
 //      "same-origin" = the page's own origin). Without one, no session exists and nothing here runs.
 //  D4  Never block on the network: the ghost fetch has FETCH_TIMEOUT_MS (4 s), then 0.6.2's own stand-in; the
 //      upload is fire and forget.
+//  C1  (store hardening, BRIEF-C1 item 1) The device says it has no network (navigator.onLine is false, deps.offline): the
+//      ghost request is skipped at once and tonight's stand-in is stored (the card says OFFLINE STAND-IN, session.ts
+//      searchNote); the dusk's deck upload and the profile upload are skipped quietly (no request, no line, no counter).
+//      onLine true with a dead network is the case the 4 s deadline above still covers.
 //  D2  The match request carries `runs`, this device's finished runs (RUNS_KEY, written only online).
 // With a URL, one Online session per page load:
 //  1. identity: loadIdentity(indexedDbKeyStore()) once. Null (no WebCrypto, or a plain-http origin other than
@@ -26,6 +30,7 @@
 //     run's end comes first, which carries the pick). Every failure is silent (no dialog, no console line, no retry); a server
 //     that has no such route answers 404 and nothing changes. Upload only: the answer is not merged back. No new storage key.
 
+import { isOffline } from "../core/connectivity"; // C1 (BRIEF-C1 item 1): navigator.onLine false: no request, no upload
 import { RULES_VERSION } from "../sim/content";
 import { ENDLESS_ONLINE_LAST_DAY, inEndless } from "../sim/endless"; // ENDLESS-1 (REQ-BFG-059): an endless dusk's match request
 import { fetchGhost, submitGhost, type FetchedGhost, type GhostRequest, type SubmitResult } from "../net/ghostClient";
@@ -117,6 +122,9 @@ export interface OnlineDeps {
   save: (run: Run) => void;
   /** PROFILE-UP: the profile upload (default: net/profileClient.ts putProfile). Absent (a test's own deps): no profile upload. */
   putProfile?: typeof putProfile;
+  /** C1 (BRIEF-C1 item 1): is the device offline (navigator.onLine false)? Read where a request would start. Absent (a test's
+   *  own deps): never offline, so a session without it behaves exactly as it did before C1. */
+  offline?: () => boolean;
 }
 
 function browserStore(): Store | null {
@@ -129,7 +137,7 @@ function browserStore(): Store | null {
 
 export function defaultDeps(): OnlineDeps {
   return {
-    fetchGhost, submitGhost, putProfile,
+    fetchGhost, submitGhost, putProfile, offline: () => isOffline(),
     identity: () => loadIdentity(indexedDbKeyStore()),
     store: browserStore(), now: () => Date.now(), save: (run) => saveRun(run),
   };
@@ -224,6 +232,14 @@ export class Online implements Session {
       return;
     }
     if (this.inflight === key) return;
+    // C1 (BRIEF-C1 item 1): the device has no network: ask nobody, tonight's stand-in is stored at once (as a fallback answer
+    // stores it: storeOnlineFoe(run, null), source "offline"), so the card says OFFLINE STAND-IN with nothing to wait for.
+    // A stored foe stays: coming back online later today changes nothing for tonight (a reload fights the same foe).
+    if (this.deps.offline?.()) {
+      storeOnlineFoe(run, null);
+      this.deps.save(run);
+      return;
+    }
     this.inflight = key;
     this.fetches++;
     const req = this.request(run);
@@ -247,6 +263,9 @@ export class Online implements Session {
   submitDusk(run: Run): void {
     if (!this.identity || run.uploaded === run.day) return;
     if (offlineEndless(run)) return; // ENDLESS-1: past ENDLESS_ONLINE_LAST_DAY an endless dusk uploads nothing (the deck check is too slow there)
+    // C1: no network: nothing to send to, so no request and no deck check (validateUpload costs a phone seconds); quietly: no
+    // line, no counter, `uploaded` untouched (a later try this dusk, once online, may still go up)
+    if (this.deps.offline?.()) return;
     run.uploaded = run.day;
     const snap = ghostOf(run, this.deps.now(), this.identity.playerId);
     if (!ghostAllowed(run, snap.rules)) { // RETUNE-1 run 2 (REQ-BFG-096): no hearts mark under hearts rules (ghostGuard.ts)
@@ -297,6 +316,7 @@ export class Online implements Session {
   private sendProfile(): void {
     const id = this.identity, put = this.deps.putProfile;
     if (!id || !put) return;
+    if (this.deps.offline?.()) return; // C1: no network: skipped quietly, as a failed upload is (no retry either way)
     try {
       const profile = loadProfile(this.deps.store);
       if (profile.v > PROFILE_V) return; // a newer build's profile: this build reads part of it and writes none of it (profile.ts), so it sends none either

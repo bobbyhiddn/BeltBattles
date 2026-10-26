@@ -2,8 +2,11 @@
 // pixel-iris wipe, input routing (UI regions registered last frame first, then the active
 // screen), toasts, and frame timing for the tooling hooks.
 
-import { Audio, type Sfx } from "../audio/audio";
+import { Audio, bindPageAudio, type Sfx } from "../audio/audio"; // C1 (BRIEF-C1 item 3): audio pauses while the page is hidden
+import { watchConnectivity } from "../core/connectivity"; // C1 (item 1): the online and offline events
+import { watchFullscreen } from "../core/fullscreen"; // C1 (item 4): the fullscreenchange event
 import { bindInput, type InputSink, type PointerKind } from "../core/io";
+import { readInsets, safeBox } from "../core/safeArea"; // C1 (item 2): the safe-area insets the stage's CSS carries
 import { applyGameView, viewWithSub, type GameView } from "./viewGrid"; // FIELD-1 (REQ-BFG-075): the battle's finer canvas grid
 import { Retained } from "./retain"; // PERF-1 (REQ-BFG-080): the build screen draws only what changed
 import { C } from "../render/palette";
@@ -101,7 +104,17 @@ export class Game implements InputSink {
     applyGameView(canvas, this.view);
     bindInput(canvas, () => this.view, this);
     window.addEventListener("resize", () => this.resize());
+    // C1 (item 2): a turned phone changes the safe-area insets; most browsers fire `resize` too, and resize() is idempotent
+    window.addEventListener("orientationchange", () => this.resize());
     document.addEventListener("visibilitychange", () => { this.last = performance.now(); this.retained.invalidate(); });
+    // C1 (item 3): the audio context is suspended while the page is hidden and resumed when it shows again (audio.ts
+    // bindPageAudio; pauseAudio and resumeAudio, exported for the phone wrapper's appStateChange)
+    bindPageAudio(this.audio);
+    // C1 (item 1): the offline line and the NEXT BATTLE card read navigator.onLine live; a change draws the next frame whole
+    watchConnectivity(window, () => this.retained.invalidate());
+    // C1 (item 4): entering or leaving fullscreen (the OPTIONS row, Esc, a browser button) re-frames at once: the view follows
+    // the window, and the OPTIONS row's label reads document.fullscreenElement live
+    watchFullscreen(() => this.resize());
     // PERF-1 review (REQ-BFG-080): the canvas can lose its pixels outside the game (a GPU reset or a lost context; a page
     // brought back from the background or the back-forward cache). A retained frame draws only what changed, so the frame
     // after any of these is drawn whole (Retained.invalidate), as every frame was before PERF-1.
@@ -120,7 +133,10 @@ export class Game implements InputSink {
 
   private computeView(): GameView {
     const s = this.screen;
-    return viewWithSub(window.innerWidth, window.innerHeight, window.devicePixelRatio || 1, s.pickScale ? s.pickScale.bind(s) : undefined, s.pickSub ? s.pickSub.bind(s) : undefined);
+    // C1 (BRIEF-C1 item 2): the window less the safe-area insets the stage's CSS carries (index.html #stage, core/safeArea.ts);
+    // with every inset 0 it is the window itself, so the view is exactly what it was before
+    const box = safeBox(window.innerWidth, window.innerHeight, readInsets(this.canvas.parentElement));
+    return viewWithSub(box.w, box.h, window.devicePixelRatio || 1, s.pickScale ? s.pickScale.bind(s) : undefined, s.pickSub ? s.pickSub.bind(s) : undefined);
   }
 
   resize(): void {

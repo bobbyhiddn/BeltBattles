@@ -26,6 +26,14 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        /* C1: safe-area insets (notch, cutout, home bar) as padding, so the canvas sits inside them; 0 where there are none.
+           game.ts reads this padding back (src/core/safeArea.ts). The --safe-area-inset-* variables are Capacitor's, for an
+           Android WebView older than 140 that has no env(). */
+        box-sizing: border-box;
+        padding-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+        padding-right: max(env(safe-area-inset-right, 0px), var(--safe-area-inset-right, 0px));
+        padding-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+        padding-left: max(env(safe-area-inset-left, 0px), var(--safe-area-inset-left, 0px));
       }
       canvas#game {
         display: block;
