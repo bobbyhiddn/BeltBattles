@@ -86,3 +86,35 @@ declare const process: {
   on(event: "SIGINT" | "SIGTERM", cb: () => void): void;
   memoryUsage(): { rss: number; heapTotal: number; heapUsed: number; external: number; arrayBuffers: number }; // S2: /v1/health's memory
 };
+
+// S4 (server/ops.ts, server/opsS3.ts, server/alerts.ts and tests/s4.*): the promise-based fs the backup tool uses, and the machine's memory. Appended only.
+declare module "node:fs/promises" {
+  export interface Stats {
+    size: number;
+    mode: number;
+    isFile(): boolean;
+    isDirectory(): boolean;
+    isSymbolicLink(): boolean;
+  }
+  export interface Dirent {
+    name: string;
+    isFile(): boolean;
+    isDirectory(): boolean;
+    isSymbolicLink(): boolean;
+  }
+  export function mkdir(path: string, opts?: { recursive?: boolean; mode?: number }): Promise<string | undefined>;
+  export function readFile(path: string): Promise<Uint8Array<ArrayBuffer>>;
+  export function readFile(path: string, encoding: "utf8"): Promise<string>;
+  export function writeFile(path: string, data: string | Uint8Array, opts?: { mode?: number; flag?: string }): Promise<void>;
+  export function rename(from: string, to: string): Promise<void>;
+  export function readdir(path: string, opts: { withFileTypes: true }): Promise<Dirent[]>;
+  export function readdir(path: string): Promise<string[]>;
+  export function lstat(path: string): Promise<Stats>;
+  export function stat(path: string): Promise<Stats>;
+  export function rm(path: string, opts?: { recursive?: boolean; force?: boolean }): Promise<void>;
+  export function mkdtemp(prefix: string): Promise<string>;
+}
+
+declare module "node:os" {
+  export function totalmem(): number; // alerts.ts: the machine's memory (a Fly VM reports its own size); tools/node-smoke.d.ts has tmpdir
+}

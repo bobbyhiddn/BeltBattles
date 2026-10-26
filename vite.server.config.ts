@@ -20,6 +20,8 @@ export default defineConfig({
         "ghost-probe": "server/ghostProbeMain.ts",
         // S2: the deck-check worker thread (server/validateWorker.ts), started by ghost-server.mjs from beside it: server/dist/validate-worker.mjs
         "validate-worker": "server/validateWorker.ts",
+        // S4: ghost-ops, the backup tool (server/ops.ts): server/dist/ghost-ops.mjs, in the image beside ghost-admin.mjs
+        "ghost-ops": "server/opsMain.ts",
       },
       output: { format: "es", entryFileNames: "[name].mjs", chunkFileNames: "[name]-[hash].mjs" },
     },
