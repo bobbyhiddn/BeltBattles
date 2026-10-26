@@ -162,6 +162,20 @@ describe("F4: tombstones", () => {
   });
 });
 
+describe.each(KINDS)("F5: the stray tombstone of a repeat DELETE, on %s", (kind) => {
+  it("a device whose link is gone (its player was deleted) that DELETEs again writes a tombstone for its own id: one extra file, nothing else", async () => {
+    const rig = await open(kind);
+    const D = await freshIdentity();
+    expect((await redeemCode(rig, D, codeOf(await requestCode(rig, A)))).status).toBe(200);
+    expect((await deleteMe(rig, A)).status).toBe(200);
+    expect(await under(rig, "tombstones/")).toEqual([`tombstones/${A.playerId}.json`]);
+    expect((await deleteMe(rig, D)).status, "D's link is gone, so it resolves to itself").toBe(200);
+    expect(await under(rig, "tombstones/"), "one stray tombstone, for D's own id").toEqual([`tombstones/${A.playerId}.json`, `tombstones/${D.playerId}.json`].sort());
+    expect(JSON.parse((await identityRecords(rig))[`tombstones/${D.playerId}.json`]).ids).toEqual([D.playerId]);
+    expect(Object.keys(await identityRecords(rig)).filter((k) => !k.startsWith("tombstones/")), "and no other record").toEqual([]);
+  });
+});
+
 describe("F5: other spellings of a code", () => {
   it("a typed ß is read as SS and the ligatures ﬀ ﬅ ﬆ as FF ST ST; every other special case stays invalid; no spelling reaches a code the plain letters could not", async () => {
     expect(normalizeCode("ABCD-EFß")).toBe("ABCDEFSS");
