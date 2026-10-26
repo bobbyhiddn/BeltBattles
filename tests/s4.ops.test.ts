@@ -499,6 +499,17 @@ describe("S4 ghost-ops: restore", () => {
     expect(again.text).toContain("verifying:"); // the bucket did not start empty: plain verify
   });
 
+  it("says so when the target is the bucket the snapshot came from, and refuses it (it is not empty) without --force", async () => {
+    fill(A);
+    const dir = await takeSnapshot();
+    const r = await ghostOps(["restore", dir, "--apply"], A);
+    expect(r.code).toBe(2);
+    expect(r.text).toContain("NOTE: the target is the bucket this snapshot was taken from (bb-a)");
+    expect(r.text).toContain("REFUSED: the bucket is not empty");
+    expect(fake.count("PUT")).toBe(0);
+    expect((await ghostOps(["restore", dir], B)).text).not.toContain("NOTE: the target is the bucket");
+  });
+
   it("a cut restore is finished by running it again with --force: only the missing and the different objects are written, and nothing is deleted", async () => {
     fill(A);
     const dir = await takeSnapshot();

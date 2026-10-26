@@ -577,6 +577,9 @@ export async function restore(store: OpsStore, dir: string, o: { apply: boolean;
     return 1;
   }
   if (local.extras.length) say(`  note: ${plural(local.extras.length, "file")} under ${OBJECTS_DIR}/ that the manifest does not list will never be written`);
+  if (snap.manifest.bucket === store.bucket && snap.manifest.endpointHost === store.host) {
+    say(`  NOTE: the target is the bucket this snapshot was taken from (${store.bucket}): a restore goes into a NEW bucket (check BUCKET_NAME and the secrets); --force would write the snapshot's older bytes over newer objects`);
+  }
   if (snap.unsafe.length) sayList(say, snap.unsafe.map((u) => `${shown(u.key)}  (${u.reason})`), `REFUSED ${plural(snap.unsafe.length, "unsafe key")} in the manifest: never written (exit 1):`);
   const target = await store.list("");
   const emptyAtStart = target.length === 0;
