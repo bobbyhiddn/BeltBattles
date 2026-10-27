@@ -10,10 +10,11 @@
 //   node tools/dist/textsheet/textSheet.js <out.md>
 import { writeFileSync } from "node:fs";
 import { HEROES, ITEMS, RULES_VERSION, SUSTAIN_IDS, buyableModules, withSustain, type ItemDef } from "../src/sim/content";
-import { fusible, gradeOf, isSignatureFactory, starsOf } from "../src/sim/stars"; // ENCHANT-2 (T4): the rivals' pieces' stars and grades
+import { effectAt, fusible, gradeOf, isSignatureFactory, starsOf } from "../src/sim/stars"; // ENCHANT-2 (T4): the rivals' pieces' stars and grades; ROWS-1: effectAt (a reader's gate at the star)
+import type { TimelineHit } from "../src/sim/deck"; // ROWS-1 (F2): the readers' belt rows
 import { ICON, ICON_BASE, ICON_COLOUR, KEYWORDS, icons, textWidth } from "../src/render/font";
 import { faceLines, hasFace } from "../src/ui/faces";
-import { abilityText, cardText } from "../src/ui/abilityText";
+import { abilityText, cardText, hitText } from "../src/ui/abilityText"; // ROWS-1: hitText
 import { GLOSSARY, GLOSSARY_WRAP_W, RUNE_REMINDER } from "../src/ui/glossary"; // WORDS-1: TAP_NOTES and glossaryText left with the KEYWORDS list (panelWords); ENCHANT-1: GLOSSARY_WRAP_W, the op view's text row
 import { shopChip } from "../src/ui/chips";
 import { levelLines, levelText } from "../src/screens/build/levels";
@@ -84,6 +85,9 @@ function piece(d: ItemDef, out: string[]): void {
       for (const w of panelWords(faceBlocks(d.id, s, o) ?? [], { def: d.id, stars: s, o })) out.push(`  - ⓘ KEYWORDS ${w.word}: \`${plain(w.text)}\``);
       // SCALE-2c (REQ-BFG-089): a scaling piece's count line, its ⓘ NOTES (faces.ts scaleNotes; none with SCALE_RIGS off)
       for (const n of scaleNotes(d.id)) out.push(`  - ⓘ NOTES: \`${plain(n)}\``);
+      // ROWS-1 (REQ-BFG-098; F2): a scaling reader's belt timeline row (abilityText.ts hitText: a rig whose gate has `reads`; the gun part
+      // SPALL CATCHER's reader line is at its shot, no row), on day 1 and day 24, as the timeline draws it (bare words, no icons)
+      if (effectAt(d.id, s).gate?.reads) for (const day of [1, 24]) out.push(`  - belt row, day ${day}: \`${hitText({ uid: 0, def: d.id, stars: s } as TimelineHit, "free", day)}\``);
     } else {
       const at = abilityText(d.id, s, o);
       out.push(`  - kept text: ${at.sentences.map((t) => `\`${t}\``).join(" ")}${at.perk ? ` (perk ★${at.perk.stars} ${at.perk.name})` : ""}`);

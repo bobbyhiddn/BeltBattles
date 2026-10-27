@@ -60,7 +60,7 @@ import { isShapes2Piece, shapes2Rules } from "../sim/deck"; // SHAPES-2 (REQ-BFG
 import { scaleRules } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): VENOM DRIP's plain POISON face (SCALE_RIGS on only)
 import { isConverterItem } from "../sim/split"; // BUMP-1F (RULING-BUMP1F-R11 R11.3): the three gates' desk-card effect line is their star-1 stat row (cardEffect)
 import { POISON_DPS } from "../sim/content"; // SCALE-2b: POISON's hull damage a second (its reminder)
-import type { ReadCount } from "../sim/content"; // SCALE-2c (REQ-BFG-098): the reader faces' words, by count
+import { readerClause } from "./readerClause"; // ROWS-1 (REQ-BFG-098; F2): the reader faces' clause, shared with the belt timeline's row (it holds READ_WORDS, so ReadCount's import is not needed here)
 import { isGatesPiece } from "../sim/deck"; // GATES-1 (REQ-BFG-052; deck.ts re-exports gates.ts): the three gates' faces, while they are in ITEMS (GATES on)
 import { shareWord } from "./abilityText"; // GATES-1: a pellet's share in words, HALF or the whole %
 import { SLOT_EVERY_CELLS, SLOT_FROM_CELLS, footBox, footCount, footSlots, isShaped } from "../sim/foot"; // SHAPES-1: the type line's shape, the size rule
@@ -1568,21 +1568,8 @@ export function shapeWord(def: string): string | null {
 
 // ------------------------------------------- SCALE-2c (REQ-BFG-098, REQ-BFG-089, REQ-BFG-087, REQ-BFG-107): the readers
 
-/** SCALE-2c (BRIEF-SCALE2c section 2's face lines; REPORT-SCALE1 3.1): what a reader line counts, in the face's words, the
- *  words after FOR EACH (IRON WALL's per, its day's PLATE, before its count). New text holds no plain PLATE or SHIELD: the
- *  tokens {*PLATE} (draws SHIELD, the soak layer) and {*SHIELD} (draws WARD) say them (REQ-BFG-107). */
-const READ_WORDS: Readonly<Record<ReadCount, (per: string) => string>> = {
-  foeBurn: () => "{*BURN} ON THE FOE",
-  foePoison: () => "{*POISON} ON THE FOE",
-  beltSlugs: () => "{SLUG} ON ITS BELT",
-  ownPlate: (per) => `${per} {*PLATE} YOU HAVE`,
-  ownShield: () => "{*SHIELD} YOU HAVE",
-  hitsTaken: () => "HIT ON YOU",
-  ownHits: () => "OF ITS HITS",
-  heartsLost: () => "HEART LOST",
-  wins: () => "WIN",
-  waiting: () => "{SLUG} WAITING",
-};
+// ROWS-1 (REQ-BFG-098; F2): the readers' words (READ_WORDS) and the clause itself (readerClause) moved to readerClause.ts, so the
+// belt timeline's row says the same words (abilityText.ts hitRow); this file adds the label and the full stop, as before.
 
 /**
  * SCALE-2c (REQ-BFG-098, REQ-BFG-089): a reader piece's face, from its own `reads` line at its star (a rig's gate.reads at
@@ -1596,18 +1583,9 @@ function readerFace(e: ItemDef): Rules {
   const atShot = e.kind === "mod";
   const r = (atShot ? md(e) : gt(e)).reads!;
   const label = atShot ? shot : hit;
-  let text: string, num: string;
-  if (r.give === "heal") {
-    const n = fmtDmg(sustNow(r.each));
-    text = `{*HEAL} ${n} TIMES THE FOE'S ${READ_WORDS[r.count]("").replace(" ON THE FOE", "")}.`;
-    num = `{*HEAL} ${n} TIMES`;
-  } else {
-    num = r.give === "plate" ? `+${fmtDmg(sustNow(r.each))} {*PLATE}` : `+${fmtDmg(dmgNow(r.each))} {DMG}`;
-    // CINDER MAIL: {*PLATE} draws SHIELD, a letter longer than the design's PLATE, so the brief's "... ON THE FOE." is
-    // 227-233 px against the 225 band at every star; "ON FOE." (203-209 px) is the least cut (REPORT Findings)
-    const what = READ_WORDS[r.count](r.per ? fmtDmg(sustNow(r.per)) : "");
-    text = `${num} FOR EACH ${r.give === "plate" ? what.replace(" ON THE FOE", " ON FOE") : what}.`;
-  }
+  // ROWS-1 (F2): the clause is readerClause.ts's (CINDER MAIL's "ON FOE" and the rest as they were); the face adds its full stop
+  const { clause, num } = readerClause(r);
+  const text = `${clause}.`;
   const kws: KeywordName[] = [];
   for (const m of text.matchAll(/\{\*([A-Z]+)\}/g)) if (!kws.includes(m[1] as KeywordName)) kws.push(m[1] as KeywordName);
   // the ladder's words: "+3/+5/+8 {DMG} EACH", LEECH COIL's "{HEAL} 4/5/6 TIMES" (TIMES says it: no EACH after it)
