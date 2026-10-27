@@ -194,6 +194,16 @@ export function ghostWidth(form: GhostForm): number { // ENCHANT-2W: exported fo
   return (text ? icon.width + 2 + textWidth(text, "3") : icon.width) + 5;
 }
 
+/**
+ * PRESENT-3 R (a) (REQ-BFG-087, REQ-BFG-113; backlog #498 (9); PRESENT-2's read N-01: all six readers read takes and gives right, and all six called the mark's direction unclear, "it may
+ * point left"): the mark between the part a road card takes and the part it gives. It was the 3x5 face's `→` (`...|..#|###|..#|...`, 3 px wide) in grey (slate4 / dim slate2). It is the
+ * 5x7 face's `→` now (font.ts F5: a 5 px shaft with a two-row head, `..#..|...#.|#####|...#.|..#..` in its rows 1-5), in bone (dim slate3) instead of the grey: the same slot (the line's 7 px
+ * for the arrow: 5 px of ink and the 2 px gap to the next chip, as REQ-BFG-087's least gap), the same rows (its ink on the 3x5 text's five: `textTop` is the top of those rows).
+ */
+export function arrow(g: G, x: number, textTop: number, color: string): void {
+  drawText(g, "→", x, textTop - 1, color, { font: "5" });
+}
+
 /** The form the would-be line takes in `w` px for word B: the widest of count, name, bare that fits with the word's chip (never the word's room). */
 export function ghostForm(word: string, w: number, day?: number): GhostForm {
   const room = w - 7 - chipWidth({ k: "ench", word }, false, day, false);
@@ -207,7 +217,7 @@ function drawShrineGhost(g: G, x: number, cy: number, w: number, word: string, d
   g.drawImage(icon, x, cy - Math.floor(icon.height / 2));
   if (text) drawText(g, text, x + icon.width + 2, cy - 2, C.slate3, { font: "3" });
   const cx = x + ghostWidth(form);
-  drawText(g, "→", cx, cy - 2, C.slate2, { font: "3" });
+  arrow(g, cx, cy - 2, C.slate3); // PRESENT-3 R (a): the arrow of every road card (was the 3x5 `→` in slate2)
   chip(g, cx + 7, cy, { k: "ench", word }, false, true, x + w, day);
 }
 
@@ -225,11 +235,16 @@ export function exchange(g: G, x: number, cy: number, w: number, c: Choice, dim:
   const plan = exchangePlan(c, w, day);
   if (!c.cost.length) cx += drawText(g, "FREE", cx, cy - 2, dim ? C.slate3 : C.lime, { font: "3" }) + 4;
   else for (const d of c.cost) cx = chip(g, cx, cy, d, true, dim, right, day, form === "bare" || plan.costBare, form === "count");
-  drawText(g, "→", cx, cy - 2, dim ? C.slate2 : C.slate4, { font: "3" });
+  arrow(g, cx, cy - 2, dim ? C.slate3 : C.bone); // PRESENT-3 R (a): was the 3x5 `→` in slate4 (dim: slate2)
   cx += 7;
   if (!c.gain.length) drawText(g, "NOTHING", cx, cy - 2, C.slate3, { font: "3" });
   else for (const d of c.gain) cx = chip(g, cx, cy, d, false, dim, right, day, plan.ownRow.length > 0);
-  if (plan.ownRow.length) drawText(g, `→ ${plan.ownRow.join(", ")}`, x, cy + OWN_ROW_DY, dim ? C.slate3 : C.lime, { font: "3" });
+  if (plan.ownRow.length) {
+    // PRESENT-3 R (a): the row's own arrow is the same mark (in the row's colour, as it was), the name where `→ ` put it (7 px in: the 3x5 `→` and its space)
+    const rc = dim ? C.slate3 : C.lime;
+    arrow(g, x, cy + OWN_ROW_DY, rc);
+    drawText(g, plan.ownRow.join(", "), x + 7, cy + OWN_ROW_DY, rc, { font: "3" });
+  }
 }
 
 export interface CardView {
