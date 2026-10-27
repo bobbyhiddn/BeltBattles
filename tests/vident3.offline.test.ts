@@ -193,15 +193,19 @@ describe("4h. the import graph: what the offline page bundles, and what reaches 
     for (const m of NEW_AT_IDENT2) expect(fromFolds, m).toContain(m);
     expect(fromFolds).toContain("src/net/linkClient.ts"); // via historySync -> linkClient (forgetDeletedPlayer)
     for (const m of NEW_AT_IDENT2) expect(fromMain, m).toContain(m);
-    // before IDENT-2 the folds reached the network through online() only: session.ts imports no value at all
-    expect(importsOf("src/game/session.ts").filter((i) => !i.typeOnly)).toEqual([]);
+    // before IDENT-2 the folds reached the network through online() only. Since C1 (merged with IDENT-2 at S6's base, cap) session.ts imports
+    // one value: isOffline from ../core/connectivity, which reads navigator.onLine and its online/offline events and reaches no network
+    // primitive and no src/net/ module
+    expect(importsOf("src/game/session.ts").filter((i) => !i.typeOnly)).toEqual([{ spec: "../core/connectivity", typeOnly: false }]);
+    expect(networkPrimitives("src/core/connectivity.ts")).toEqual([]);
+    expect(reach("src/core/connectivity.ts").filter((f) => f.startsWith("src/net/"))).toEqual([]);
     // the page graph is the bundle: vite reported 217 modules transformed at ident2 (213 at ident1-done: the four above are the difference). The
     // static graph from main.ts counts 209 value-import modules (vite also counts modules it loads for their types and its own helpers)
     expect(fromMain.length).toBeGreaterThan(200);
     expect(fromMain.length).toBeLessThan(230);
   });
 
-  it("the modules of the page that can start a request: global fetch( only in the four clients (ghost, profile, link, history), no XMLHttpRequest, sendBeacon, WebSocket, EventSource, Image, Worker or import()", () => {
+  it("the modules of the page that can start a request: global fetch( only in the four clients (ghost, profile, link, history), no XMLHttpRequest, sendBeacon, WebSocket, EventSource, Image or Worker, and one import() (M1's native boot)", () => {
     const table: Record<string, string[]> = {};
     for (const m of reach("src/main.ts")) {
       const p = networkPrimitives(m);
@@ -211,7 +215,10 @@ describe("4h. the import graph: what the offline page bundles, and what reaches 
     const withFetch = Object.keys(table).filter((m) => table[m].includes("fetch()")).sort();
     expect(withFetch).toEqual(["src/net/ghostClient.ts", "src/net/historyClient.ts", "src/net/linkClient.ts", "src/net/profileClient.ts"]);
     const others = Object.entries(table).flatMap(([m, ps]) => ps.filter((p) => p !== "fetch()").map((p) => `${m}: ${p}`));
-    expect(others, "no other way out of the page").toEqual([]);
+    // M1 (merged with IDENT-2 at S6's base, cap) added main.ts's ONE import(), of ./native/boot, the first statement of the inline
+    // `import.meta.env.VITE_NATIVE === "1"` test: inside the phone app it loads the app's own chunk, and the web builds drop it
+    // (tests/m1.native.test.ts and tests/m1.build.test.ts pin both). Nothing else may leave the page.
+    expect(others, "no other way out of the page").toEqual(["src/main.ts: import()"]);
     // ... and in the new client the global fetch is only the DEFAULT of an injected one (deps.fetch ?? ...): a call site with no injected fetch is a bug.
     // (The three older clients are listed, not judged: ghostClient calls fetch(url, { ...init, signal }) from its own helper.)
     for (const m of withFetch) {
