@@ -1,0 +1,437 @@
+# M2 (BRIEF-M2 Goal 2): builds the BeltBattles iPhone app on a GitHub-hosted Mac, on the operator's fastlane pipeline (bobbyhiddn/repo.md's ios.yml and
+# fastlane/Fastfile; the simulator smoke test follows bobbyhiddn/collack's ios-simulator-smoke.yml, which passed on his runner on 2026-09-07).
+#
+# RUNS ONLY when started by hand (Actions > iOS > Run workflow, input `smoke_only`) or when a tag is pushed: ios-v<version> (a release, <version> being
+# package.json's) or ios-smoke-<label> (a dry run: always the Simulator smoke test, no version match, so it never uses up a version tag). Never on a
+# branch push or a pull request: macOS minutes are billed, and his 2025 template spent them on every push to main. Note: a manual run needs this file
+# on the default branch (main), while a pushed tag runs the workflow file of the tagged commit.
+#
+# THREE PATHS, picked by the first job (on a cheap Linux runner) from which signing secrets exist. The six: APPLE_KEY_ID, APPLE_ISSUER_ID,
+# APPLE_KEY_CONTENT, DEVELOPER_PORTAL_TEAM_ID, MATCH_GIT_URL, MATCH_PASSWORD.
+#   (a) NONE of them (or an ios-smoke tag, or smoke_only): the SIMULATOR SMOKE. An unsigned Debug build for the iOS Simulator is installed on an
+#       iPhone simulator, launched, left running, screenshotted, and checked to be still running. It proves the app compiles under Xcode 26 and opens
+#       the game, and it touches no Apple account. Nothing is signed or uploaded.
+#   (b) ALL of them: the signed build (match, read-only) and the upload to TestFlight (fastlane lane closed_beta). The upload does not wait for App
+#       Store Connect's processing (saves 7-10 billed minutes); the build shows up in TestFlight a few minutes later.
+#   (c) SOME but not all: the run stops at once, on the Linux runner, naming each missing secret.
+#
+# VERSION: CFBundleShortVersionString is package.json's version (scripts/ios-version.mjs, the one place); CFBundleVersion is the latest TestFlight
+# build + 1 (the lane asks App Store Connect; 1 for the smoke test). Both reach xcodebuild as build settings (MARKETING_VERSION and
+# CURRENT_PROJECT_VERSION), not through agvtool: the project has no Apple Generic versioning, and a command-line setting needs no edit of the project.
+# No secret is echoed, written into the repo or put on a command line.
+
+name: iOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      smoke_only:
+        description: "Run the unsigned Simulator smoke test even when every signing secret is set (nothing is signed or uploaded)"
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags:
+      - "ios-v*"
+      - "ios-smoke-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ (startsWith(github.ref_name, 'ios-smoke-') || inputs.smoke_only == true) && 'smoke' || 'build' }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Pick the path
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      path: ${{ steps.plan.outputs.path }}
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Work out the version, the tag and which signing secrets exist
+        id: plan
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          SMOKE_ONLY: ${{ inputs.smoke_only }}
+          # A step's `if:` cannot read secrets, so each secret is reduced to "true" or "false" here; its value never enters this job.
+          HAVE_APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID != '' }}
+          HAVE_APPLE_ISSUER_ID: ${{ secrets.APPLE_ISSUER_ID != '' }}
+          HAVE_APPLE_KEY_CONTENT: ${{ secrets.APPLE_KEY_CONTENT != '' }}
+          HAVE_DEVELOPER_PORTAL_TEAM_ID: ${{ secrets.DEVELOPER_PORTAL_TEAM_ID != '' }}
+          HAVE_MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL != '' }}
+          HAVE_MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD != '' }}
+        run: |
+          set -euo pipefail
+          if [ "$REF_TYPE" = "tag" ]; then
+            node scripts/ios-version.mjs --tag "$REF_NAME" > "$RUNNER_TEMP/version.txt"
+          else
+            node scripts/ios-version.mjs > "$RUNNER_TEMP/version.txt"
+          fi
+          cat "$RUNNER_TEMP/version.txt"
+          version="$(sed -n 's/^version=//p' "$RUNNER_TEMP/version.txt")"
+          kind="$(sed -n 's/^kind=//p' "$RUNNER_TEMP/version.txt")"
+          have=0
+          missing=""
+          for name in APPLE_KEY_ID APPLE_ISSUER_ID APPLE_KEY_CONTENT DEVELOPER_PORTAL_TEAM_ID MATCH_GIT_URL MATCH_PASSWORD; do
+            flag="HAVE_$name"
+            if [ "${!flag}" = "true" ]; then
+              have=$((have + 1))
+            else
+              missing="$missing $name"
+            fi
+          done
+          path=signed
+          if [ "$kind" = "smoke" ]; then
+            path=smoke
+            reason="the tag $REF_NAME asks for the smoke test"
+          elif [ "${SMOKE_ONLY:-false}" = "true" ]; then
+            path=smoke
+            reason="smoke_only is set"
+          elif [ "$have" -eq 0 ]; then
+            path=smoke
+            reason="none of the six signing secrets is set"
+          elif [ "$have" -lt 6 ]; then
+            for name in $missing; do
+              echo "::error::The secret $name is not set."
+            done
+            echo "Some of the six signing secrets are set and some are not. Set the missing ones above, or remove all six to get the unsigned Simulator smoke test."
+            exit 1
+          else
+            reason="all six signing secrets are set"
+          fi
+          if [ "$path" = "smoke" ] && [ "$have" -gt 0 ] && [ "$have" -lt 6 ]; then
+            echo "::warning::These signing secrets are not set:$missing. This run does not use them."
+          fi
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          {
+            echo "## BeltBattles iOS: $path path"
+            echo ""
+            echo "Marketing version $version. Path $path, because $reason."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  smoke:
+    name: Simulator smoke test (unsigned)
+    needs: plan
+    if: needs.plan.outputs.path == 'smoke'
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      # macos-26 image 20261013.0424: Xcode 26.6 is the default of seven; naming it keeps the build from moving when the image changes.
+      XCODE_APP: /Applications/Xcode_26.6.app
+      VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Select Xcode 26
+        run: |
+          set -euo pipefail
+          if [ ! -d "$XCODE_APP" ]; then
+            echo "::error::$XCODE_APP is not on this runner image. Installed:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          echo "DEVELOPER_DIR=$XCODE_APP/Contents/Developer" >> "$GITHUB_ENV"
+          DEVELOPER_DIR="$XCODE_APP/Contents/Developer" xcodebuild -version
+          major="$(DEVELOPER_DIR="$XCODE_APP/Contents/Developer" xcodebuild -version | sed -n 's/^Xcode \([0-9]*\).*/\1/p')"
+          if [ "${major:-0}" -lt 26 ]; then
+            echo "::error::Xcode $major is older than 26, which Apple has refused for uploads since 2026-04-28."
+            exit 1
+          fi
+
+      - name: Install the packages
+        run: npm ci
+
+      - name: Build the web app into dist-app
+        run: npm run build:app
+
+      - name: Copy the web app and the two plugins into the iOS project
+        run: npx cap sync ios
+
+      - name: Read the app id from capacitor.config.json
+        run: |
+          set -euo pipefail
+          echo "APP_ID=$(node -p "require('./capacitor.config.json').appId")" >> "$GITHUB_ENV"
+
+      - name: Resolve the Swift packages (Capacitor 8.5.3 from capacitor-swift-pm)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ios-smoke-evidence"
+          xcodebuild -resolvePackageDependencies -project ios/App/App.xcodeproj -scheme App 2>&1 | tee "$RUNNER_TEMP/ios-smoke-evidence/resolve-packages.log"
+
+      - name: Build the app for the iOS Simulator, unsigned
+        run: |
+          set -euo pipefail
+          EVIDENCE="$RUNNER_TEMP/ios-smoke-evidence"
+          xcodebuild -version | tee "$EVIDENCE/xcode-version.txt"
+          xcrun --sdk iphonesimulator --show-sdk-version | tee -a "$EVIDENCE/xcode-version.txt"
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY= \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION=1 \
+            build 2>&1 | tee "$EVIDENCE/xcodebuild.log"
+
+      - name: Check what was built
+        run: |
+          set -euo pipefail
+          EVIDENCE="$RUNNER_TEMP/ios-smoke-evidence"
+          APP_PATH="$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/App.app"
+          INFO="$APP_PATH/Info.plist"
+          check() { if ! "$@"; then echo "::error::check failed: $*"; exit 1; fi; }
+          check test -d "$APP_PATH"
+          check test -f "$INFO"
+          for key in CFBundleIdentifier CFBundleDisplayName CFBundleShortVersionString CFBundleVersion CFBundleExecutable MinimumOSVersion ITSAppUsesNonExemptEncryption CAPACITOR_DEBUG; do
+            printf '%s=%s\n' "$key" "$(/usr/libexec/PlistBuddy -c "Print :$key" "$INFO" 2>&1 | tr '\n' ' ')"
+          done > "$EVIDENCE/info-plist-values.txt"
+          printf 'UIDeviceFamily=%s\n' "$(/usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily' "$INFO" 2>&1 | tr '\n' ' ')" >> "$EVIDENCE/info-plist-values.txt"
+          cat "$EVIDENCE/info-plist-values.txt"
+          check test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO")" = "$APP_ID"
+          check test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO")" = "$VERSION"
+          check test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$INFO")" = "1"
+          check test -f "$APP_PATH/PrivacyInfo.xcprivacy"
+          check test -f "$APP_PATH/public/index.html"
+          check test -f "$APP_PATH/capacitor.config.json"
+          plutil -p "$APP_PATH/PrivacyInfo.xcprivacy" > "$EVIDENCE/privacy-manifest-in-the-app.txt"
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      - name: Install, launch and screenshot the app on an iPhone Simulator
+        run: |
+          set -euo pipefail
+          EVIDENCE="$RUNNER_TEMP/ios-smoke-evidence"
+          xcrun simctl list devices available --json > "$EVIDENCE/simulators.json"
+          SIM_RECORD="$(node -e '
+            const fs = require("fs");
+            const data = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            const candidates = [];
+            for (const [runtime, devices] of Object.entries(data.devices)) {
+              for (const device of devices) {
+                if (device.isAvailable && device.name.startsWith("iPhone")) candidates.push({ runtime, ...device });
+              }
+            }
+            candidates.sort((a, b) => b.runtime.localeCompare(a.runtime, undefined, { numeric: true }) || a.name.localeCompare(b.name) || a.udid.localeCompare(b.udid));
+            if (!candidates.length) process.exit(1);
+            const c = candidates[0];
+            process.stdout.write([c.runtime, c.name, c.udid, c.state].join("\t"));
+          ' "$EVIDENCE/simulators.json")"
+          IFS=$'\t' read -r SIM_RUNTIME SIM_NAME SIM_UDID SIM_STATE <<< "$SIM_RECORD"
+          echo "Simulator: $SIM_NAME ($SIM_RUNTIME, $SIM_UDID, $SIM_STATE)" | tee "$EVIDENCE/simulator.txt"
+          if [ "$SIM_STATE" = "Booted" ]; then
+            xcrun simctl shutdown "$SIM_UDID"
+          fi
+          xcrun simctl erase "$SIM_UDID"
+          xcrun simctl bootstatus "$SIM_UDID" -b
+          xcrun simctl install "$SIM_UDID" "$APP_PATH"
+          test -d "$(xcrun simctl get_app_container "$SIM_UDID" "$APP_ID" app)"
+          if ! LAUNCH="$(xcrun simctl launch --terminate-running-process --stdout="$EVIDENCE/app-stdout.log" --stderr="$EVIDENCE/app-stderr.log" "$SIM_UDID" "$APP_ID" 2>&1)"; then
+            echo "Launch with console capture failed ($LAUNCH); launching without it."
+            LAUNCH="$(xcrun simctl launch --terminate-running-process "$SIM_UDID" "$APP_ID")"
+          fi
+          echo "$LAUNCH" | tee "$EVIDENCE/simctl-launch.txt"
+          LAUNCH_PID="$(echo "$LAUNCH" | awk -F ': ' -v id="$APP_ID" '$1 == id { print $2 }')"
+          case "$LAUNCH_PID" in
+            ''|*[!0-9]*)
+              echo "::error::simctl did not return a process id for $APP_ID: $LAUNCH"
+              exit 1
+              ;;
+          esac
+          sleep 12
+          xcrun simctl io "$SIM_UDID" screenshot "$EVIDENCE/app-launched.png"
+          test -s "$EVIDENCE/app-launched.png"
+          sleep 5
+          xcrun simctl io "$SIM_UDID" screenshot "$EVIDENCE/app-launched-5s-later.png"
+          xcrun simctl spawn "$SIM_UDID" launchctl list > "$EVIDENCE/launchctl-list.txt" 2>&1 || true
+          RUNNING_PID="$(awk -v label="UIKitApplication:$APP_ID" 'index($3, label) == 1 { print $1 }' "$EVIDENCE/launchctl-list.txt" | head -n 1)"
+          echo "launched as pid $LAUNCH_PID; running as pid ${RUNNING_PID:-none} after 17 seconds" | tee "$EVIDENCE/liveness.txt"
+          if [ "$RUNNING_PID" != "$LAUNCH_PID" ]; then
+            echo "::error::$APP_ID was launched as pid $LAUNCH_PID but is not running as that process after 17 seconds."
+            exit 1
+          fi
+          if cmp -s "$EVIDENCE/app-launched.png" "$EVIDENCE/app-launched-5s-later.png"; then
+            echo "The two screenshots are identical (a still screen)." | tee -a "$EVIDENCE/liveness.txt"
+          else
+            echo "The two screenshots differ (the screen is moving)." | tee -a "$EVIDENCE/liveness.txt"
+          fi
+          echo "--- the app's console output (first lines), if Capacitor printed any"
+          head -n 40 "$EVIDENCE/app-stdout.log" "$EVIDENCE/app-stderr.log" 2>/dev/null || true
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID" || true
+          xcrun simctl shutdown "$SIM_UDID" || true
+
+      - name: Keep the simulator's crash reports, if any
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/ios-smoke-evidence/crash-reports"
+          find "$HOME/Library/Logs/DiagnosticReports" -name 'App*.ips' -mmin -90 -exec cp {} "$RUNNER_TEMP/ios-smoke-evidence/crash-reports/" \; 2>/dev/null || true
+
+      - name: Say what was proved in the job summary
+        if: always()
+        run: |
+          EVIDENCE="$RUNNER_TEMP/ios-smoke-evidence"
+          {
+            echo "## BeltBattles iOS Simulator smoke test"
+            echo ""
+            echo "SMOKE ONLY: NOTHING SIGNED OR UPLOADED"
+            echo ""
+            echo "An unsigned Debug build of version $VERSION for the iOS Simulator, installed, launched, left running and screenshotted. Open the artifact and look at app-launched.png."
+            echo ""
+            echo '```'
+            cat "$EVIDENCE/simulator.txt" "$EVIDENCE/liveness.txt" "$EVIDENCE/info-plist-values.txt" 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the evidence as an artifact
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: beltbattles-${{ needs.plan.outputs.version }}-ios-smoke
+          path: ${{ runner.temp }}/ios-smoke-evidence
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Shut the simulators down
+        if: always()
+        run: xcrun simctl shutdown all || true
+
+  testflight:
+    name: Signed build and TestFlight upload
+    needs: plan
+    if: needs.plan.outputs.path == 'signed'
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      XCODE_APP: /Applications/Xcode_26.6.app
+      CUSTOM_VERSION: ${{ needs.plan.outputs.version }}
+      FASTLANE_SKIP_UPDATE_CHECK: "1"
+      FASTLANE_OPT_OUT_USAGE: "1"
+      FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT: "120"
+      FASTLANE_XCODEBUILD_SETTINGS_RETRIES: "6"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Select Xcode 26
+        run: |
+          set -euo pipefail
+          if [ ! -d "$XCODE_APP" ]; then
+            echo "::error::$XCODE_APP is not on this runner image. Installed:"
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          echo "DEVELOPER_DIR=$XCODE_APP/Contents/Developer" >> "$GITHUB_ENV"
+          DEVELOPER_DIR="$XCODE_APP/Contents/Developer" xcodebuild -version
+          major="$(DEVELOPER_DIR="$XCODE_APP/Contents/Developer" xcodebuild -version | sed -n 's/^Xcode \([0-9]*\).*/\1/p')"
+          if [ "${major:-0}" -lt 26 ]; then
+            echo "::error::Xcode $major is older than 26, which Apple has refused for uploads since 2026-04-28."
+            exit 1
+          fi
+
+      - name: Install the packages
+        run: npm ci
+
+      - name: Build the web app into dist-app
+        run: npm run build:app
+
+      - name: Copy the web app and the two plugins into the iOS project
+        run: npx cap sync ios
+
+      - name: Read the app id from capacitor.config.json
+        run: |
+          set -euo pipefail
+          echo "DEVELOPER_APP_IDENTIFIER=$(node -p "require('./capacitor.config.json').appId")" >> "$GITHUB_ENV"
+
+      - name: Set up Ruby for fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: ios/App
+
+      - name: Check that the App Store Connect key is a key (nothing is printed)
+        env:
+          APPLE_KEY_CONTENT: ${{ secrets.APPLE_KEY_CONTENT }}
+        run: |
+          set -euo pipefail
+          umask 077
+          KEY_FILE="$RUNNER_TEMP/AuthKey-check.p8"
+          BODY="$(printf '%s' "$APPLE_KEY_CONTENT" | grep -v -e '-----' | tr -d ' \r\n' || true)"
+          { echo "-----BEGIN PRIVATE KEY-----"; printf '%s' "$BODY" | fold -w 64; echo; echo "-----END PRIVATE KEY-----"; } > "$KEY_FILE"
+          if [ -z "$BODY" ] || ! openssl pkey -in "$KEY_FILE" -noout 2> /dev/null; then
+            rm -f "$KEY_FILE"
+            echo "::error::APPLE_KEY_CONTENT is not a PKCS#8 private key. It must be the .p8 file's body without its BEGIN and END lines."
+            exit 1
+          fi
+          rm -f "$KEY_FILE"
+
+      - name: Build, sign and upload to TestFlight (fastlane closed_beta)
+        working-directory: ios/App
+        env:
+          APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+          APPLE_ISSUER_ID: ${{ secrets.APPLE_ISSUER_ID }}
+          APPLE_KEY_CONTENT: ${{ secrets.APPLE_KEY_CONTENT }}
+          DEVELOPER_PORTAL_TEAM_ID: ${{ secrets.DEVELOPER_PORTAL_TEAM_ID }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: bundle exec fastlane closed_beta
+
+      - name: Say what was uploaded in the job summary
+        run: |
+          {
+            echo "## BeltBattles iOS TestFlight upload"
+            echo ""
+            echo "Version $CUSTOM_VERSION was built, signed with the match App Store profile and uploaded to TestFlight. The upload did not wait for App Store Connect: the build appears in TestFlight after Apple has processed it (a few minutes)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the build logs as an artifact
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: beltbattles-${{ needs.plan.outputs.version }}-ios-testflight-logs
+          path: |
+            /Users/runner/Library/Logs/gym
+            ios/App/fastlane/report.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Delete the temporary keychain and any key file
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/AuthKey-check.p8"
+          security delete-keychain fastlane_tmp_keychain || true

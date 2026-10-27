@@ -1,0 +1,109 @@
+# M2 (BRIEF-M2 Goal 2): the ONE-OFF that makes the signing identity for BeltBattles, adapted from the operator's bobbyhiddn/repo.md ios-match-init.yml.
+#
+# THIS WORKFLOW WRITES. When the operator starts it, it (1) creates or renews the Apple Distribution certificate in his Apple Developer account, (2) creates
+# the App Store provisioning profile "match AppStore <bundle id>" there, and (3) COMMITS the encrypted certificate, private key and profile to his private
+# match repository (the one MATCH_GIT_URL names, bobbyhiddn/fastlane), using MATCH_PASSWORD to encrypt. The release lane (ios.yml) only READS them.
+#
+# RUNS ONLY when started by hand (Actions > iOS match init > Run workflow) or when a tag ios-match-init-<label> is pushed, so it can run before the
+# release lane has merged this branch into main (a pushed tag runs the workflow file of the tagged commit; a manual run needs the file on main).
+#
+# It needs all six signing secrets (APPLE_KEY_ID, APPLE_ISSUER_ID, APPLE_KEY_CONTENT, DEVELOPER_PORTAL_TEAM_ID, MATCH_GIT_URL, MATCH_PASSWORD); the first job stops
+# at once, on the cheap Linux runner, naming each one that is missing. The API key must be allowed to create certificates and profiles (the Admin role is
+# the safe choice). The token inside MATCH_GIT_URL must be allowed to write to the match repo. An expired certificate in that repo (his dates from May 2025)
+# is replaced by match: see the report. No secret is echoed or written into the repo; the temporary keychain is deleted at the end.
+
+name: iOS match init
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "ios-match-init-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-match-init
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check the six secrets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Stop at once if a signing secret is missing
+        env:
+          # Only whether each secret exists is read here, never its value.
+          HAVE_APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID != '' }}
+          HAVE_APPLE_ISSUER_ID: ${{ secrets.APPLE_ISSUER_ID != '' }}
+          HAVE_APPLE_KEY_CONTENT: ${{ secrets.APPLE_KEY_CONTENT != '' }}
+          HAVE_DEVELOPER_PORTAL_TEAM_ID: ${{ secrets.DEVELOPER_PORTAL_TEAM_ID != '' }}
+          HAVE_MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL != '' }}
+          HAVE_MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD != '' }}
+        run: |
+          set -euo pipefail
+          missing=""
+          for name in APPLE_KEY_ID APPLE_ISSUER_ID APPLE_KEY_CONTENT DEVELOPER_PORTAL_TEAM_ID MATCH_GIT_URL MATCH_PASSWORD; do
+            flag="HAVE_$name"
+            if [ "${!flag}" != "true" ]; then
+              missing="$missing $name"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            for name in $missing; do
+              echo "::error::The secret $name is not set."
+            done
+            echo "This workflow needs all six signing secrets. Set the missing ones above."
+            exit 1
+          fi
+
+  match:
+    name: Create or renew the App Store certificate and profile (writes to the match repo)
+    needs: check
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      FASTLANE_SKIP_UPDATE_CHECK: "1"
+      FASTLANE_OPT_OUT_USAGE: "1"
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Read the app id from capacitor.config.json
+        run: |
+          set -euo pipefail
+          echo "DEVELOPER_APP_IDENTIFIER=$(node -p "require('./capacitor.config.json').appId")" >> "$GITHUB_ENV"
+
+      - name: Set up Ruby for fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: ios/App
+
+      - name: Run fastlane match_init (this writes)
+        working-directory: ios/App
+        env:
+          APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+          APPLE_ISSUER_ID: ${{ secrets.APPLE_ISSUER_ID }}
+          APPLE_KEY_CONTENT: ${{ secrets.APPLE_KEY_CONTENT }}
+          DEVELOPER_PORTAL_TEAM_ID: ${{ secrets.DEVELOPER_PORTAL_TEAM_ID }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+        run: bundle exec fastlane match_init
+
+      - name: Say what was written in the job summary
+        run: |
+          {
+            echo "## BeltBattles iOS match init"
+            echo ""
+            echo "match ran in write mode for $DEVELOPER_APP_IDENTIFIER. It may have created a certificate and the profile \"match AppStore $DEVELOPER_APP_IDENTIFIER\" in the Apple Developer account, and committed the encrypted files to the match repository (see that repository's commit list). The release lane only reads them."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Delete the temporary keychain
+        if: always()
+        run: security delete-keychain fastlane_tmp_keychain || true
