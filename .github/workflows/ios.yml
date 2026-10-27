@@ -179,8 +179,18 @@ jobs:
       - name: Resolve the Swift packages (Capacitor 8.5.3 from capacitor-swift-pm)
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/ios-smoke-evidence"
-          xcodebuild -resolvePackageDependencies -project ios/App/App.xcodeproj -scheme App 2>&1 | tee "$RUNNER_TEMP/ios-smoke-evidence/resolve-packages.log"
+          EVIDENCE="$RUNNER_TEMP/ios-smoke-evidence"
+          mkdir -p "$EVIDENCE"
+          xcodebuild -list -project ios/App/App.xcodeproj 2>&1 | tee "$EVIDENCE/xcodebuild-list.txt"
+          schemes="$(awk '/Schemes:/ { f = 1; next } f && NF { print $1 }' "$EVIDENCE/xcodebuild-list.txt")"
+          case " $(echo $schemes) " in
+            *" App "*) ;;
+            *)
+              echo "::error::xcodebuild finds no scheme App in ios/App/App.xcodeproj: the shared scheme xcshareddata/xcschemes/App.xcscheme is missing or not valid. xcodebuild-list.txt in the artifact shows what it found."
+              exit 1
+              ;;
+          esac
+          xcodebuild -resolvePackageDependencies -project ios/App/App.xcodeproj -scheme App -derivedDataPath "$RUNNER_TEMP/DerivedData" 2>&1 | tee "$EVIDENCE/resolve-packages.log"
 
       - name: Build the app for the iOS Simulator, unsigned
         run: |
@@ -271,7 +281,7 @@ jobs:
           sleep 5
           xcrun simctl io "$SIM_UDID" screenshot "$EVIDENCE/app-launched-5s-later.png"
           xcrun simctl spawn "$SIM_UDID" launchctl list > "$EVIDENCE/launchctl-list.txt" 2>&1 || true
-          RUNNING_PID="$(awk -v label="UIKitApplication:$APP_ID" 'index($3, label) == 1 { print $1 }' "$EVIDENCE/launchctl-list.txt" | head -n 1)"
+          RUNNING_PID="$(awk -v label="UIKitApplication:$APP_ID" 'index($3, label) == 1 { print $1; exit }' "$EVIDENCE/launchctl-list.txt")"
           echo "launched as pid $LAUNCH_PID; running as pid ${RUNNING_PID:-none} after 17 seconds" | tee "$EVIDENCE/liveness.txt"
           if [ "$RUNNING_PID" != "$LAUNCH_PID" ]; then
             echo "::error::$APP_ID was launched as pid $LAUNCH_PID but is not running as that process after 17 seconds."

@@ -437,11 +437,12 @@ describe("M2 Goal 1: PrivacyInfo.xcprivacy declares what the app uses and sends,
       expect(m.NSPrivacyTracking, f).toBe(false);
     }
     // Apple's categories (developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacyaccessedapitypes/nsprivacyaccessedapitype, read 2026-10-27)
+    // case-insensitive, so the Objective-C spellings (NSFileModificationDate, NSURLContentModificationDateKey, NSFileSystemFreeSize) are caught as well as Swift's
     const APIS: Record<string, RegExp> = {
-      fileTimestamp: /\.(creationDate|modificationDate)\b|fileModificationDate|contentModificationDateKey|creationDateKey|\b(getattrlist|getattrlistbulk|fgetattrlist|getattrlistat|stat|fstat|fstatat|lstat)\s*\(/,
-      systemBootTime: /\bsystemUptime\b|\bmach_absolute_time\b/,
-      diskSpace: /volumeAvailableCapacity|volumeTotalCapacityKey|\bsystemFreeSize\b|\bsystemSize\b|\b(statfs|statvfs|fstatfs|fstatvfs)\s*\(/,
-      activeKeyboards: /\bactiveInputModes\b/,
+      fileTimestamp: /modificationdate|creationdate|\b(getattrlist|getattrlistbulk|fgetattrlist|getattrlistat|stat|fstat|fstatat|lstat)\s*\(/i,
+      systemBootTime: /\bsystemUptime\b|\bmach_absolute_time\b/i,
+      diskSpace: /volumeavailablecapacity|volumetotalcapacity|systemfreesize|\bsystemsize\b|\b(statfs|statvfs|fstatfs|fstatvfs)\s*\(/i,
+      activeKeyboards: /\bactiveInputModes\b/i,
       userDefaults: /\bUserDefaults\b/,
     };
     const sources = [...walk(`${base}/ios`), ...walk(`${base}/app/ios`), ...walk(`${base}/preferences/ios`), ...walk(APP)].filter((f) => /\.(swift|m|h)$/.test(f) && !/\/Tests\//.test(f));

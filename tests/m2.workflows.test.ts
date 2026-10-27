@@ -370,6 +370,36 @@ describe("M2 Goal 2: ios.yml's smoke job is his collack pattern: an unsigned Deb
     expect(build).not.toMatch(/-workspace|xcworkspace|archive|exportArchive|-allowProvisioningUpdates/);
   });
 
+  it("lists the project's schemes first and stops with a plain error when App is not one; resolves the Swift packages into the DerivedData the build then uses", () => {
+    const step = str(stepNamed(smoke, /Resolve the Swift packages/).run);
+    expect(step).toContain("xcodebuild -list -project ios/App/App.xcodeproj");
+    expect(step).toContain('xcodebuild -resolvePackageDependencies -project ios/App/App.xcodeproj -scheme App -derivedDataPath "$RUNNER_TEMP/DerivedData"');
+    expect(str(stepNamed(smoke, /Build the app for the iOS Simulator/).run)).toContain('-derivedDataPath "$RUNNER_TEMP/DerivedData"');
+    // the scheme check, run for real on what `xcodebuild -list` prints (Xcode's layout) with and without the shared scheme
+    const snippet = /schemes="\$\(awk[\s\S]*?\nesac/.exec(step)?.[0] ?? "";
+    expect(snippet).not.toBe("");
+    const dir = mkdtempSync(join(tmpdir(), "m2list-"));
+    try {
+      const withApp = 'Information about project "App":\n    Targets:\n        App\n\n    Build Configurations:\n        Debug\n        Release\n\n    If no build configuration is specified and -scheme is not passed then "Release" is used.\n\n    Schemes:\n        App\n';
+      const without = withApp.replace("    Schemes:\n        App\n", "    This project contains no schemes.\n");
+      const other = withApp.replace("    Schemes:\n        App\n", "    Schemes:\n        Other\n        App2\n");
+      const go = (list: string): { status: number | null; out: string } => {
+        writeFileSync(join(dir, "xcodebuild-list.txt"), list);
+        const r = spawnSync("bash", ["-c", `set -euo pipefail\n${snippet}\necho scheme-ok`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", EVIDENCE: dir } });
+        return { status: r.status, out: `${r.stdout}${r.stderr}` };
+      };
+      expect(go(withApp)).toEqual({ status: 0, out: "scheme-ok\n" });
+      for (const list of [without, other]) {
+        const r = go(list);
+        expect(r.status).toBe(1);
+        expect(r.out).toContain("::error::xcodebuild finds no scheme App in ios/App/App.xcodeproj");
+        expect(r.out).not.toContain("scheme-ok");
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("checks the built app: bundle id = capacitor.config.json's appId, the version, build 1, the privacy manifest and the web build inside the bundle", () => {
     const chk = str(stepNamed(smoke, /Check what was built/).run);
     for (const s of ["CFBundleIdentifier", "CFBundleShortVersionString", "CFBundleVersion", "ITSAppUsesNonExemptEncryption", "UIDeviceFamily", 'PrivacyInfo.xcprivacy"', 'public/index.html"', 'capacitor.config.json"', '= "$APP_ID"', '= "$VERSION"']) expect(chk, s).toContain(s);
