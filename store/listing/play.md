@@ -56,3 +56,19 @@ First release. Pick from four heroes, buy rigs, factories and turrets from the c
 ## Category (suggestion)
 
 Game, Strategy. Second choice: Simulation. The Console's own list decides which genres and tags it offers.
+
+## Privacy policy URL (App content, Privacy policy; required)
+
+https://beltbattles.fly.dev/privacy
+
+## Support URL (Store settings, Store listing contact details, Website)
+
+https://beltbattles.fly.dev/support
+
+## Contact email (Store settings, Store listing contact details, Email address; required)
+
+[[SUPPORT_EMAIL]]
+
+## Data deletion URL (App content, Data safety: the web link where users can ask for their data to be deleted)
+
+https://beltbattles.fly.dev/privacy#delete

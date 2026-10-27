@@ -68,3 +68,15 @@ App Store Connect takes the What's New field from the second version on; keep th
 ## Categories (suggestion)
 
 Primary: Games, with the subcategories Strategy and Simulation. Secondary: Entertainment (the field is optional).
+
+## Privacy Policy URL (App Information, Privacy Policy URL; required)
+
+https://beltbattles.fly.dev/privacy
+
+## Support URL (version page, Support URL; required, must lead to real contact details)
+
+https://beltbattles.fly.dev/support
+
+## Contact email (on the support page; App Review contact information)
+
+[[SUPPORT_EMAIL]]
