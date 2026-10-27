@@ -48,6 +48,9 @@ function glyphPx(s: string, colour: string): number {
   return c.px.filter((p) => p === colour).length;
 }
 
+/** PRESENT-3 R (a): the ink of the road card's arrow, the 5x7 face's `→` (cards.ts arrow()): 1 + 1 + 5 + 1 + 1 px. */
+const ARROW_INK = 9;
+
 describe("W1: card 2 reads `1x TEMPER` (the game's own count form)", () => {
   const temper: Delta = { k: "item", def: "temper", uid: 1, from: "cargo" };
 
@@ -154,13 +157,13 @@ describe("W2: the blocked card 2 draws the line it would have, dimmed, not `FREE
         expect(bandPx(c, 3, 4, cw, ENCHANT_DEFS[id].color), `${tag}: the word's icon in its colour`).toBeGreaterThanOrEqual(6);
         // the would-be cost and the word's name are dim (slate3), exactly the glyph pixels of both strings (and any slate3 the word's own icon holds)
         const iconSlate = (deltaIcon({ k: "ench", word: id }) as unknown as RasterCanvas).px.filter((p) => p === C.slate3).length;
-        const want = glyphPx(ghostText("count"), C.slate3) + glyphPx(ENCHANT_DEFS[id].name, C.slate3) + iconSlate;
-        expect(bandPx(c, 3, 4, cw, C.slate3), `${tag}: the dim text`).toBe(want);
+        // PRESENT-3 R (a) (re-pinned old -> new): the dim arrow is the 5x7 face's now (9 px of ink: tests/present3.arrow.test.ts pins it) in slate3, so it is counted with the dim text (was the 3x5 arrow in slate2)
+        const want = glyphPx(ghostText("count"), C.slate3) + glyphPx(ENCHANT_DEFS[id].name, C.slate3) + iconSlate + ARROW_INK;
+        expect(bandPx(c, 3, 4, cw, C.slate3), `${tag}: the dim text and the dim arrow`).toBe(want);
         // the cost chip (the crate and its text, from the card's x + 5) holds no live cost colour: it is not the red of a card you could pay
         const costW = crateIcon().width + 2 + textWidth(ghostText("count"), "3");
         for (const live of [C.lime, C.red, C.amber, C.yellow]) expect(bandPx(c, 3 + 5, 4, costW, live), `${tag}: no live colour ${live} in the cost chip`).toBe(0);
-        // the arrow is the dim arrow (slate2), as a blocked card's
-        expect(bandPx(c, 3, 4, cw, C.slate2), `${tag}: the dim arrow`).toBeGreaterThan(0);
+        // the arrow is the dim arrow (PRESENT-3 R (a): slate3, counted above; was slate2)
         // the red reason is on the note line, whole
         let red = 0;
         for (let yy = 4 + ch - 9; yy < 4 + ch - 4; yy++) for (let xx = 3; xx < 3 + cw; xx++) if (c.at(xx, yy) === C.red) red++;
@@ -180,9 +183,9 @@ describe("W2: the blocked card 2 draws the line it would have, dimmed, not `FREE
       drawChoiceCard(G(b), { x: 3, y: 4, w: cw, h: ch }, BLOCKED, 1, view); // what the card drew before (no word given: the screen of ENCHANT-2)
       // before: FREE in slate3 and NOTHING in slate3, 36 + 24 glyph pixels; after: neither string is on the line
       const before = bandPx(b, 3, 4, cw, C.slate3), after = bandPx(a, 3, 4, cw, C.slate3);
-      expect(before, `@${cw} old line`).toBe(glyphPx("FREE", C.slate3) + glyphPx("NOTHING", C.slate3));
+      expect(before, `@${cw} old line`).toBe(glyphPx("FREE", C.slate3) + glyphPx("NOTHING", C.slate3) + ARROW_INK); // PRESENT-3 R (a): + the arrow's 9 px (slate3 now)
       const iconSlate = (deltaIcon({ k: "ench", word: "wide" }) as unknown as RasterCanvas).px.filter((p) => p === C.slate3).length;
-      expect(after, `@${cw} new line`).toBe(glyphPx(ghostText("count"), C.slate3) + glyphPx("WIDE", C.slate3) + iconSlate);
+      expect(after, `@${cw} new line`).toBe(glyphPx(ghostText("count"), C.slate3) + glyphPx("WIDE", C.slate3) + iconSlate + ARROW_INK);
       // the crate (the run bar's cargo mark) is drawn at the line's start: its wood colours are in the band
       const wood = crateIcon();
       let crate = 0;
