@@ -271,7 +271,7 @@ function drawHead(g: G, r: Rect, edge: string, icon: CanvasImageSource | string,
   // ENCHANT-1 (REQ-BFG-085, E7): a part that arrives enchanted prints its word first, in the word's colour (the name keeps its rarity colour)
   const wx = word ? drawText(g, word.name, r.x + 31, r.y + 7, word.color, { outline: C.ink }) + textWidth(" ") + 1 : 0;
   drawText(g, name, r.x + 31 + wx, r.y + 7, nameColour, { outline: C.ink });
-  drawText(g, sub, r.x + 31, r.y + 18, C.slate4, { font: "3", star5: true }); // PRESENT-2 W (a): a PART card's `RARE PART ★2` draws a real star (the 3x5 glyph read as `×`: 4 readers asked "a count or a star level"); the width is the 3-wide star's
+  drawText(g, sub, r.x + 31, r.y + 18, C.slate4, { font: "3" }); // PRESENT-2 W (a): a PART card's `RARE PART ★2` draws a real star (the 3x5 glyph read as `×`: 4 readers asked "a count or a star level"; PRESENT-3 S: the face's own now); the width is the 3-wide star's
 }
 
 /** CARD-4 (P1): the RUNE card's TAP AGAIN target region (the one press that takes its rune). */

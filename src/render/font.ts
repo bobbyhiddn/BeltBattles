@@ -411,9 +411,12 @@ const FACES: Record<FontId, Face> = {
 
 /**
  * SHOPCARD-1f (REQ-BFG-081, F1; READ-13 round P: all 12 picture readers copied the merge button as `MERGE *2: 7G` and said its mark
- * "looks like an asterisk"): the 3x5 face's ★ is `#.#|.#.|###|.#.|#.#`, an X with a bar, 3 wide. A button label draws a real star
- * instead (TextOpts.star5, set by ui.ts button): this 5x5 solid star, the 5x7 face's ★ (above) cut to the 3x5 face's row count. The 3x5
- * glyph stays as it is for every other 3x5 text (the notes' MERGES INTO ★n, LEVELS, the cards, the help card): nothing else changes.
+ * "looks like an asterisk"): the 3x5 face's ★ is `#.#|.#.|###|.#.|#.#`, an X with a bar, 3 wide. A button label drew a real star
+ * instead: this 5x5 solid star, the 5x7 face's ★ (above) cut to the 3x5 face's row count. PRESENT-2 W (a) gave two more lines the same
+ * star; PRESENT-3 S (REQ-BFG-081; the cold read's S-01) made it the face's own: EVERY ★ the 3x5 face draws is this star (the notes'
+ * MERGES INTO ★n, LEVELS, the cards, the help card, a ★ at the start of a line or after a bracket or a slash), so TextOpts.star5 is gone.
+ * The 3-wide glyph stays in the map as the ★'s width (textWidth, wrap and every layout read it): the star takes the glyph's own slot and
+ * the 2 blank columns to its left (see pass()), and the advance is the 3-wide ★'s.
  * The sprite's key is a private-use code point no string holds (never in a glyph map, so faceChars and the icon tests don't see it).
  */
 export const STAR5_ROWS = "..#..|.###.|#####|.###.|.#.#.";
@@ -493,23 +496,20 @@ export interface TextOpts {
   scale?: number; // integer
   /** U1: draw icon glyphs in the text's colour too (default: each icon in its own colour, ICON_COLOUR). */
   mono?: boolean;
-  /**
-   * SHOPCARD-1f (F1): in the 3x5 face, draw a ★ that follows a space as the 5x5 star (STAR5_ROWS) instead of the 3-wide glyph. The star
-   * takes the glyph's own slot and the blank columns of the space before it (2 px to the left), so no width changes: textWidth, the
-   * centring, the hook's log and every button's size are those of the 3-wide ★. A ★ with no space before it stays the 3x5 glyph.
-   */
-  star5?: boolean;
 }
 
 /** One pass of a string. U1: `tint`, each icon glyph in its own colour (ICON_COLOUR) where it has one. */
-function pass(g: G, s: string, font: FontId, color: string, outline: string, ox: number, oy: number, scale: number, tint = false, star5 = false): void {
+function pass(g: G, s: string, font: FontId, color: string, outline: string, ox: number, oy: number, scale: number, tint = false): void {
   const adv = FACES[font].adv;
   const pad = outline ? scale : 0;
   let cx = ox;
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
-    // SHOPCARD-1f (F1): the 5-wide star sits over the space before it (the 3-wide glyph's columns end where it ends)
-    const big = star5 && font === "3" && ch === "★" && s[i - 1] === " ";
+    // SHOPCARD-1f (F1), PRESENT-3 S: in the 3x5 face every ★ is the 5x5 star (STAR5_ROWS). It takes the 3-wide glyph's slot and the 2 columns
+    // to its left (the blank of the space before it; at the start of a line, the margin; after a bracket or a slash, that glyph's spacing
+    // column and its own blank side): no width changes: textWidth, the centring, wrap and every button's size are those of the 3-wide ★,
+    // and the 1 blank column after the slot is the star's gap to the next glyph.
+    const big = font === "3" && ch === "★";
     const gl = glyph(font, big ? STAR5_KEY : ch, tint && ch.charCodeAt(0) >= ICON_BASE ? ICON_COLOUR[ch] ?? color : color, outline);
     if (gl) {
       const left = cx - pad - (big ? 2 * scale : 0);
@@ -530,8 +530,8 @@ export function drawText(g: G, s: string, x: number, y: number, color: string, o
   if (opts.align === "center") ox = Math.round(x - w / 2);
   else if (opts.align === "right") ox = Math.round(x - w);
   const oy = Math.round(y);
-  if (opts.shadow) pass(g, s, font, opts.shadow, "", ox + scale, oy + scale, scale, false, opts.star5);
-  pass(g, s, font, color, opts.outline ?? "", ox, oy, scale, !opts.mono, opts.star5); // U1: icons in their own colours
+  if (opts.shadow) pass(g, s, font, opts.shadow, "", ox + scale, oy + scale, scale, false);
+  pass(g, s, font, color, opts.outline ?? "", ox, oy, scale, !opts.mono); // U1: icons in their own colours
   return w;
 }
 

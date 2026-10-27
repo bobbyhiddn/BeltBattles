@@ -170,7 +170,7 @@ export function drawDropCard(g: G, drop: string | null, legendary: boolean, x: n
   } else {
     drawText(g, t.name, x + 23, y + 3, legendary ? C.amber : C.white, { outline: C.ink });
   }
-  drawText(g, t.sub, x + 23, y + 13, C.lime, { font: "3", star5: true }); // PRESENT-2 W (a): `DROP · TO CARGO · ★1` draws a real star (the 3x5 glyph read as `×`); the width is the 3-wide star's
+  drawText(g, t.sub, x + 23, y + 13, C.lime, { font: "3" }); // PRESENT-2 W (a): `DROP · TO CARGO · ★1` draws a real star (the 3x5 glyph read as `×`; PRESENT-3 S: the face's own now); the width is the 3-wide star's
   if (!wd && textWidth(t.name) > room) rect(g, x + w - 2, y + 1, 1, 20, C.ink);
   // SHOPCARD-1 (G4): a shaped drop's grid on its ink plate at the card's right end, where the name and the sub line leave room
   // (the 22 px card holds the tallest plate, 20)

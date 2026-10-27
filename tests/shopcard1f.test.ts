@@ -1,6 +1,6 @@
 // SHOPCARD-1f (REQ-BFG-081, REQ-BFG-115; BRIEF-SHOPCARD1F section 3; READ-13's fix list): display only. One group per fix, each pinning the words, their rows and widths,
 // the sim lines that make them true, and that they lay out whole:
-//   F1  the merge button's ★ is drawn as a 5x5 star (font.ts TextOpts.star5, set by ui.ts button): the 3x5 face's glyph and every width are unchanged
+//   F1  the merge button's ★ is drawn as a 5x5 star (PRESENT-3 S: every ★ the 3x5 face draws is that star, no option: tests/present3.star.test.ts): the 3x5 face's glyph and every width are unchanged
 //   F2  the factory size note `EVERY 2 CELLS PAST 4 GIVE +1 {BELT}.` (written with the stat row's icon) shows only on a factory whose footprint is past 4 cells
 //   F3  LIMPET WORKS says which hit: `... 3{SEC} AFTER ITS SLUG HITS ANYTHING.`      F4  ASSEMBLY LINE: `WHILE IT FEEDS A GUN: ...` and its strip line `FEEDS A GUN: ALL RIGS START ...`
 //   F5  GRAPNEL GUN: `SHOT: A HIT ON A FOE BELT OR RIG DESTROYS n SLUG(S) NEAR IT.`    F6  QUENCH TANK: `HIT: USES UP EACH BURN ON A SLUG FOR +n DMG.`
@@ -87,7 +87,9 @@ describe("SHOPCARD-1f F1 (READ-13 round P: 12 of 12 picture readers read the but
   const old3 = "#.#|.#.|###|.#.|#.#"; // font.ts:239, the 3x5 face's ★: an X with a bar
   const STAR_INK = STAR5_ROWS.split("|").flatMap((row, y) => [...row].flatMap((ch, x) => (ch === "#" ? [[x, y] as [number, number]] : [])));
 
-  it("the 3x5 face's ★ stays as it is for every other 3x5 text (the notes' MERGES INTO lines, LEVELS, the cards, the help card): same glyph, same width, no new glyph in either face", () => {
+  // PRESENT-3 S (re-pinned old -> new): the three pins below said "the 3x5 glyph stays for every other 3x5 text" and "only a ★ after a space, drawn with star5, is the star";
+  // the cold read's S-01 asked for the star everywhere, so the face draws it for every ★ (no option; tests/present3.star.test.ts pins every context).
+  it("the 3x5 face keeps its ★ glyph as the star's WIDTH (3 wide: every textWidth, wrap and button size reads it) and no new glyph in either face; the 5x7 face's ★ is untouched", () => {
     expect(glyphRows("★", "3")!.join("|")).toBe(old3);
     expect(glyphRows("★", "5")!.join("|")).toBe("..#..|..#..|#####|.###.|.#.#.|#...#|.....");
     expect(STAR5_ROWS).toBe("..#..|.###.|#####|.###.|.#.#.");
@@ -96,44 +98,24 @@ describe("SHOPCARD-1f F1 (READ-13 round P: 12 of 12 picture readers read the but
     expect(textWidth("MERGE ★3: 13G", "3")).toBe(47);
     expect(faceChars("3")).not.toContain(""); // the star's sprite key is in neither glyph map
     expect(faceChars("5")).not.toContain("");
-    // a plain draw (no star5) is the 3x5 glyph: its ink is exactly old3's
-    const a = fresh(60, 9), x0 = 4, y0 = 2, sx = x0 + textWidth("MERGE ", "3") + 1;
-    drawText(gOf(a), "MERGE ★2: 7G", x0, y0, C.ink, { font: "3" });
-    const ink: [number, number][] = [];
-    old3.split("|").forEach((row, y) => [...row].forEach((ch, x) => { if (ch === "#") ink.push([sx + x, y0 + y]); }));
-    for (const [x, y] of ink) expect(a.at(x, y), `3x5 glyph ink at ${x},${y}`).toBe(C.ink);
+    // the 5x7 face draws its own ★ glyph (ink exactly the map's rows)
+    const a = fresh(60, 12), x0 = 4, y0 = 2, sx = x0 + textWidth("MERGE ", "5") + 1;
+    drawText(gOf(a), "MERGE ★2: 7G", x0, y0, C.ink, { font: "5" });
+    glyphRows("★", "5")!.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === "#") expect(a.at(sx + x, y0 + y), `5x7 glyph ink at ${sx + x},${y0 + y}`).toBe(C.ink); }));
   });
 
-  it("star5 draws the 5x5 star over the blank before the ★ (2 px left of its slot) and moves nothing: every other pixel of the label is the plain draw's, the star's ink is STAR5_ROWS", () => {
+  it("the 3x5 face draws the 5x5 star over the blank before the ★ (2 px left of its slot) and moves nothing: every other pixel of the label is the glyphs' own, the star's ink is STAR5_ROWS", () => {
     const x0 = 4, y0 = 2, sx = x0 + textWidth("MERGE ", "3") + 1;
     for (const label of ["MERGE ★2: 7G", "MERGE ★3: 7G", "MERGE ★2: 13G", "MERGE ★3: 1G"]) {
-      const plain = fresh(70, 9), star = fresh(70, 9), want = fresh(70, 9);
-      drawText(gOf(plain), label, x0, y0, C.ink, { font: "3" });
-      const w = drawText(gOf(star), label, x0, y0, C.ink, { font: "3", star5: true });
+      const star = fresh(70, 9), want = fresh(70, 9);
+      const w = drawText(gOf(star), label, x0, y0, C.ink, { font: "3" });
       expect(w, `${label}: drawText returns the layout width`).toBe(textWidth(label, "3"));
-      // expected: the plain picture with the 3-wide glyph's 3x5 cells cleared and the 5x5 star painted in the text colour
-      want.px = [...plain.px];
-      for (let y = 0; y < 5; y++) for (let x = 0; x < 3; x++) want.px[(y0 + y) * 70 + sx + x] = null;
+      // expected: the text before the ★ and the text after its 3-wide slot (each glyph is drawn where its advance puts it), then the 5x5 star painted in the text colour
+      drawText(gOf(want), "MERGE ", x0, y0, C.ink, { font: "3" });
+      drawText(gOf(want), label.slice("MERGE ★".length), x0 + textWidth("MERGE ★", "3") + 1, y0, C.ink, { font: "3" });
       for (const [x, y] of STAR_INK) want.px[(y0 + y) * 70 + (sx - 2 + x)] = C.ink;
       expect(diffPx(star, want), label).toEqual([]);
-      // the star sits on the space's blank columns and the old glyph's: nothing else of the string is touched (columns left of sx - 2 and right of sx + 2)
-      for (const [x, y] of diffPx(star, plain)) expect(x >= sx - 2 && x <= sx + 2 && y >= y0 && y < y0 + 5, `${label}: changed pixel ${x},${y}`).toBe(true);
     }
-  });
-
-  it("only a ★ after a space, in the 3x5 face, drawn with star5, is the star: no space before it, the 5x7 face, and a draw without star5 are the glyphs as before", () => {
-    const same = (s: string, font: "3" | "5", star5: boolean): void => {
-      const a = fresh(90, 12), b = fresh(90, 12);
-      drawText(gOf(a), s, 3, 2, C.ink, { font });
-      drawText(gOf(b), s, 3, 2, C.ink, { font, ...(star5 ? { star5: true } : {}) });
-      expect(diffPx(a, b), `${font} ${star5} ${s}`).toEqual([]);
-    };
-    same("MERGE★2: 7G", "3", true); // no space before it: the 3x5 glyph
-    same("★2", "3", true); // at the start: the 3x5 glyph
-    same("MERGE ★2: 7G", "5", true); // the 5x7 face's ★ is a star already and star5 leaves it
-    same("NEXT ★2: +4 BURN.", "3", false); // a note line without star5 (every text that is not a button's label)
-    same("BUY 7G", "3", true); // no ★ at all
-    same("SALE: BUY 6G", "3", true);
   });
 
   it("button(): the merge label's star lies inside the button at every price 1-13 and at the narrowest button of every view; the button's own rect is the label-width one (nothing moves)", () => {
@@ -159,18 +141,18 @@ describe("SHOPCARD-1f F1 (READ-13 round P: 12 of 12 picture readers read the but
     expect(portraitButtons("WHETSTONE", "COMMON RIG", [offerLabel(ITEMS.whetstone, 3, 2)], band).rects[0].w).toBeGreaterThanOrEqual(textWidth("MERGE ★2: 3G", "3") + 4);
   });
 
-  it("star5 is passed by ui.ts button and by the two small lines that print a star level (PRESENT-2 W (a): LAST CHANCE's PART card, the victory drop card): no other 3x5 text draws the new star (source)", () => {
+  it("no `star5` option is left in src (PRESENT-3 S: every 3x5 ★ is the star, so ui.ts button, LAST CHANCE's PART card and the victory drop card, which set it, pass nothing) (source)", () => {
     const hits: string[] = [];
     const walk = (dir: string): void => {
       for (const f of readdirSync(dir)) {
         const p = `${dir}/${f}`;
         if (statSync(p).isDirectory()) walk(p);
-        else if (p.endsWith(".ts") && /star5/.test(readFileSync(p, "utf8"))) hits.push(p);
+        else if (p.endsWith(".ts") && /star5\s*[:?]/.test(readFileSync(p, "utf8"))) hits.push(p);
       }
     };
     walk("src");
-    expect(hits.sort()).toEqual(["src/render/font.ts", "src/screens/fork/drops.ts", "src/screens/lastChancePicker.ts", "src/ui/ui.ts"]); // PRESENT-2 W (a): was font.ts and ui.ts alone
-    expect(readFileSync("src/ui/ui.ts", "utf8").match(/star5: true/g)!.length).toBe(2); // the label, with and without a sub line
+    expect(hits.sort()).toEqual([]); // PRESENT-3 S: was font.ts, drops.ts, lastChancePicker.ts and ui.ts (PRESENT-2 W (a): font.ts and ui.ts alone before it)
+    expect(readFileSync("src/ui/ui.ts", "utf8").match(/star5/g)).toBeNull();
   });
 
   it("the button on the real panel: the ★2 and ★3 offers of GANTRY PRESS and WHETSTONE read `MERGE ★n: pG` (the string is 1e's: the picture's star is the only change)", () => {
