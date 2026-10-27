@@ -136,6 +136,8 @@ platform :ios do
       type: "appstore",
       app_identifier: bundle_id,
       git_url: ENV["MATCH_GIT_URL"],
+      git_full_name: "github-actions[bot]",
+      git_user_email: "41898282+github-actions[bot]@users.noreply.github.com",
       team_id: team_id,
       api_key: api_key,
       readonly: false,

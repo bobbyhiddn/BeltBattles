@@ -131,7 +131,7 @@ describe("M2 Goal 3: the Fastfile: two lanes, closed_beta (the release) and matc
 
   it("match_init is the only lane that writes: readonly false and generate_apple_certs (an expired certificate is replaced), it says so, and the release lane never calls it", () => {
     const l = lane("match_init");
-    expect(l).toMatch(/sync_code_signing\(\n\s+type: "appstore",\n\s+app_identifier: bundle_id,\n\s+git_url: ENV\["MATCH_GIT_URL"\],\n\s+team_id: team_id,\n\s+api_key: api_key,\n\s+readonly: false,\n\s+generate_apple_certs: true,\n\s+skip_confirmation: true\n\s+\)/);
+    expect(l).toMatch(/sync_code_signing\(\n\s+type: "appstore",\n\s+app_identifier: bundle_id,\n\s+git_url: ENV\["MATCH_GIT_URL"\],\n\s+git_full_name: "github-actions\[bot\]",\n\s+git_user_email: "41898282\+github-actions\[bot\]@users\.noreply\.github\.com",\n\s+team_id: team_id,\n\s+api_key: api_key,\n\s+readonly: false,\n\s+generate_apple_certs: true,\n\s+skip_confirmation: true\n\s+\)/);
     expect(l).not.toMatch(/build_app|upload_to_testflight|update_code_signing_settings|latest_testflight_build_number/);
     expect(lane("closed_beta")).not.toMatch(/match_init|readonly: false|generate_apple_certs/);
     expect(read(FASTFILE)).toMatch(/desc "ONE-OFF, WRITES to the match repository and to the Apple account/);

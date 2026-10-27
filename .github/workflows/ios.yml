@@ -243,7 +243,7 @@ jobs:
             if (!candidates.length) process.exit(1);
             const c = candidates[0];
             process.stdout.write([c.runtime, c.name, c.udid, c.state].join("\t"));
-          ' "$EVIDENCE/simulators.json")"
+          ' "$EVIDENCE/simulators.json")" || { echo "::error::No available iPhone simulator on this image (simulators.json in the artifact lists what there is)."; exit 1; }
           IFS=$'\t' read -r SIM_RUNTIME SIM_NAME SIM_UDID SIM_STATE <<< "$SIM_RECORD"
           echo "Simulator: $SIM_NAME ($SIM_RUNTIME, $SIM_UDID, $SIM_STATE)" | tee "$EVIDENCE/simulator.txt"
           if [ "$SIM_STATE" = "Booted" ]; then

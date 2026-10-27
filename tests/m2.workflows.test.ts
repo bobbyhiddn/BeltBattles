@@ -159,7 +159,8 @@ const runsOf = (job: YMap): string[] => stepsOf(job).map((s) => str(s.run)).filt
 
 const ios = load(".github/workflows/ios.yml");
 const init = load(".github/workflows/ios-match-init.yml");
-const android = load(".github/workflows/android.yml");
+// android.yml is M1's file and not read as YAML here: only its `uses:` lines are compared (the action majors), so an edit there cannot break this reader
+const android = { body: read(".github/workflows/android.yml").split("\n").filter((l) => l.trim() !== "" && !l.trim().startsWith("#")).join("\n") };
 
 describe("M2 Goal 4: the YAML reader reads what the workflows use, and refuses what it does not", () => {
   it("reads maps, lists, scalars, block scalars and dash-line mappings", () => {
@@ -225,7 +226,7 @@ describe("M2 Goal 2: .github/workflows/ios.yml: when it runs, who may run it, an
   });
 
   it("uses only checkout, setup-node and upload-artifact at the majors android.yml uses (one fix covers both), and ruby/setup-ruby@v1; nothing else, nothing unpinned", () => {
-    const uses = (w: Workflow): string[] => [...w.body.matchAll(/^\s+(?:- )?uses: (\S+)$/gm)].map((m) => m[1]);
+    const uses = (w: { body: string }): string[] => [...w.body.matchAll(/^\s+(?:- )?uses: (\S+)$/gm)].map((m) => m[1]);
     const major = (list: string[], action: string): string[] => [...new Set(list.filter((u) => u.startsWith(`${action}@`)))];
     const mine = uses(ios);
     for (const u of mine) expect(u, u).toMatch(/^(actions\/(checkout|setup-node|upload-artifact)|ruby\/setup-ruby)@v\d+$/);
