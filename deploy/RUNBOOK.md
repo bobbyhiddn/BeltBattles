@@ -674,7 +674,7 @@ fly deploy --ha=false --remote-only && fly status -a beltbattles
 
 - Builds on Fly's remote builder from this directory with ./Dockerfile and ./fly.toml; the
   context is only server/dist and deploy/public/index.html (.dockerignore): about 2.9 MB at 0.9.14.1 (the
-  bundle [[STEP7:BUNDLE]] bytes in 9 files, the page 1,160,876 bytes; 0.9.14's: 1,704,956 and 1,150,336; 0.9.13's: 1,491,495 and 1,063,979; 0.8.0's were about 440 kB and 578 kB). Tens of MB would mean node_modules got in
+  bundle 1,706,706 bytes in 9 files, the page 1,160,876 bytes; 0.9.14's: 1,704,956 and 1,150,336; 0.9.13's: 1,491,495 and 1,063,979; 0.8.0's were about 440 kB and 578 kB). Tens of MB would mean node_modules got in
   and .dockerignore was not applied. Stop and report that.
 - The image is node:22-alpine plus those files; no npm install step appears in the build log.
 - The release command (`node /app/dist/ghost-server.mjs seed`) runs first, on a throwaway machine with the
@@ -4298,7 +4298,7 @@ block) hold it; the fresh-process habit is kept anyway, and costs nothing. The d
 
 **ENDLESS online** is as section 32 says (src/sim/endless.ts:27): the client goes online for an endless dusk only up to day 25 (ENDLESS_ONLINE_LAST_DAY, src/sim/endless.ts:156);
 past day 25 the foe is THE GOD, the day's strongest stand-in deck, with no request; **THE GOD gains 1500 hull per endless win, was 250** (src/sim/endless.ts:162). Endless wins earn only a tracked best score
-(BEST n, kept on the player's device and never lowered: src/game/profile.ts); nothing is sent to the server for it.
+(BEST n, kept on the player's device and never lowered: src/game/profile.ts); nothing is sent to the server for it. From 0.9.14.1 on the server also refuses an endless upload past day 25 at once, before the deck check (S1: section 34).
 
 **Rollback to v25** (its own L4 every time, after telling the operator; never part of the launch call). Check that the
 releases-before file lists v25 first; if not, stop and ask the Prime. If a probe's decks are on the store, run the
@@ -4391,14 +4391,15 @@ r09141-base (stage-0914); the four merges above (`r09141-rides` 8c8f5c368409 aga
 src/core or deploy/; **3 of them under the protected paths**: server/app.ts and server/ghostAdmin.ts (S1) and tools/textSheet.ts
 (the text-sheet tool, not shipped); no package file and no src/version.ts before the label); cap's scripts-only commit
 8c8f5c368409 (scripts/touchcheck.mjs: the panel-title check also accepts POLISH-1's `NAME ★`); c13244ee1dad (scripts only:
-rcruns.mjs's version check follows the label); the label and CHANGELOG commit e7b636a44b55; and the release record (deploy/GAME_BUILD.txt
-and this runbook).
+rcruns.mjs's version check follows the label); the label and CHANGELOG commit e7b636a44b55; the release record (deploy/GAME_BUILD.txt
+and this runbook); a tests-only commit f7ec5ff9dcbd (three ride tests follow POLISH-1's star at one star, `NAME ★`: tests/present1.s4b, present2.famhead and rows1.merged;
+cap's RULING-STAGE09141-R1; no file outside tests/); and the closing docs commits (deploy/RUNBOOK.md only).
 - **The page** is BeltBattles-0.9.14.1-e7b636a44b55-online.html, 1,160,876 bytes, sha256 `8be6986bc622bc59…` (GAME_BUILD.txt holds the
   whole hash), built at e7b636a and staged from ../output-stage09141/pages/. It is 10,540 bytes larger than 0.9.14's page (1,150,336;
   sha16 `7775384bd060eb9c`). Shore gets the offline page of the same commit: BeltBattles-0.9.14.1-e7b636a44b55.html, 1,160,865 bytes,
   sha256 `8e709f4702fdebe3…` (= ../output-stage09141/shore/index.html).
 - **The server changes by S1's two files** (server/app.ts, server/ghostAdmin.ts): server/dist built at this commit against 0.9.14's
-  (W/ref/0914-dist, the server/dist staged for 0.9.14's launch; kit09141/srvdiff.sh, O/logs/srvdiff-<commit>.txt): [[STEP7:SRVDIFF]]
+  (W/ref/0914-dist, the server/dist staged for 0.9.14's launch; kit09141/srvdiff.sh, O/logs/srvdiff-<commit>.txt): 9 files, 1,706,706 bytes, against 0.9.14's 9 files, 1,704,956 bytes (+1,750). **Eight of the nine differ by bytes, and only three differ in content**, all three the reach of S1's two files: ghost-admin.mjs (16,935 -> 17,624 bytes: the skip and its one line), the config chunk (67,953 -> 68,164: server/app.ts's guard) and the shared enchantSources chunk (457,747 -> 458,597: the sim code ghostAdmin.ts now imports, ENDLESS_ONLINE_LAST_DAY). The other five (ghost-server.mjs, gen-ghost-pool.mjs, ghost-probe.mjs, the seed chunk and the validate chunk) have the same sizes as 0.9.14's and differ only in minified import names (33, 3,224, 110, 17 and 3,556 bytes), because the shared chunk's exports were renumbered; the chunk names changed with them (config-C4f97P5o, enchantSources-BHFqmHF8, seed-C0PL1shH, validate-BqZkvAGt). Only the identity chunk is identical.
   fly.toml, the Dockerfile, .dockerignore and deploy/stage.mjs have no change since r09141-base. Uploads stay open.
 - **The rules** are bb-0.13.0 and no literal moved: RULES_VERSION (src/sim/content.ts:57), GATES_RULES (src/net/rulesGate.ts:318),
   ENCHANT_RULES (:360), PROBE_RULES (server/ghostProbe.ts:120), SEED_POOL_RULES (server/seedPoolData.ts:8; server/seed.ts:92 refuses
@@ -4412,7 +4413,8 @@ and this runbook).
 - **A saved run, from the code.** The save's key (`beltbattles.run.v7`, src/game/save.ts:39) and RUN_VERSION (8,
   src/game/run.ts:244) are unchanged and nothing under src/game differs from 0.9.14: **a run saved in 0.9.14 continues in
   0.9.14.1, and a run saved in 0.9.14.1 is a 0.9.14 save** (the rollback does not cost a player the run in progress). The rides
-  write nothing to storage.
+  add no line that reads or writes browser storage (no added line of the 32 changed src files names localStorage, sessionStorage, indexedDB, SAVE_KEY, setItem or
+  getItem: O/logs/storagecheck-r09141-rides.txt).
 
 **The release command** (`node /app/dist/ghost-server.mjs seed`) finds the live store holding bb-0.13.0's 192 pool ghosts (days
 1-16, 12 a day; 0.9.14's own launch wrote them) and this commit's bundle carries the same pool (server/seedPoolData.ts is
@@ -4425,13 +4427,12 @@ over it `0 written, 192 unchanged, 0 removed`**, pool.jsonl byte-identical; (c) 
 each, and revalidate's dry run at this commit `plan: delete 0 record(s) of bb-0.13.0; keep 192 seed-pool ghost(s) and 0 upload(s)`.
 On the Tigris path (kit09141/tigris-rollback.sh, the real CLIs against tools/fakeS3.ts; O/logs/tigris-rollback-<commit>.log) the same
 steps are rehearsed with every object byte for byte and no DELETE request. The seed plays no battle. Its cost at the STAGE's
-rehearsal: [[STEP7:SEED]] fly.toml's [[vm]] is 256 MB (262,144 kB) and the release command runs on a throwaway machine of that size (0.9.14's
-own finding F1: 240-260 MB on this 30 GB host for the launch seed that writes 192 ghosts; with nothing to write the seed is much lighter, as the read above shows).
+rehearsal: **13.6 s and a peak RSS of 236,540 kB** for this commit's seed over 0.9.14's pool (seed09141 step b: nice 10, one process, load about 10; the peak is the process's exact high-water mark, K/maxrss.py), against 13.4 s and 256,392 kB for 0.9.14's own launch seed on a fresh store (step a) and 13.5 s and 265,292 kB for the rollback seed (step c); and **16 s and 249,480 kB on one pinned core** (kit09141/seedtime.sh: taskset -c 5, nice 10, a fresh store; O/logs/seedtime-<commit>.log). The seed does the same work whether or not it writes anything (it checks all 192 ghosts first: the strict decoder, the rules, validateUpload in the player mode and the reachable record), so 0.9.14.1's launch seed costs what 0.9.14's launch seed did (0.9.14's STAGE read 12.9 s and 240,488 kB by a polled peak, and 16 s and 260,336 kB on one core). **By these reads the seed is 90-101% of the 256 MB VM (262,144 kB) on this 30 GB host: finding F1, carried from 0.9.14.** The reads were taken on a host whose node heap limits are looser than a 256 MB machine's; 0.9.14's rehearsal showed the same seed completing under small-machine node limits (kit0914/seedmem.sh: 200,956 kB and less, exit 0); none was taken on a real 256 MB machine. 0.9.14's own launch comes first and shows how this seed runs on the VM; a release command killed for memory fails the deploy and replaces nothing (section 4). fly.toml's [[vm]] is 256 MB (262,144 kB) and the release command runs on a throwaway machine of that size.
 
 **The boot.** The server warms roadCap's memo once the port is open and uploads are open (server/main.ts, server/warm.ts; neither
 changed). After the deploy and after a restart, look for the line `road model warmed for days 1-25 under rules bb-0.13.0 in <ms> ms`
 in `fly logs -a beltbattles --no-tail`. Rehearsed on this commit (kit09141/boot09141.sh; taskset -c 5, nice 10;
-O/logs/boot-<commit>.log; server/app.ts changed, so it was read again): [[STEP7:BOOT]] Both are inside fly.toml's 10 s grace period and the 256 MB VM (0.9.14's
+O/logs/boot-<commit>.log; server/app.ts changed, so it was read again): boot 1 answered its **first /v1/health 200 at 562 ms** after the process start (RSS 81,008 kB), printed the **warm-up line at 1,919 ms**, `road model warmed for days 1-25 under rules bb-0.13.0 in 1736 ms`, and held 123,876 kB after it with a peak of 125,656 kB (VmHWM: 48% of the 256 MB VM); boot 2, a restart on the same store, 572 ms, 1,978 ms (`in 1790 ms`), 122,304 kB and a peak of 131,504 kB. Both are inside fly.toml's 10 s grace period and the 256 MB VM (0.9.14's
 rehearsal: first health 523 ms, warm-up line 1,805 ms, 126,596 kB after it, a peak of 134,676 kB).
 
 **The launch call is the Prime's** (CMD-09141, from CMD-0914's text; run once, under its own operator approval, L4, and only after 0.9.14 is live). Fly
@@ -4441,7 +4442,7 @@ release first (keep it as releases-before.txt: the rollback needs it; the rules 
 stage the 0.9.14.1 page, deploy once (`fly deploy --ha=false --remote-only`: the image carries the new server/dist and the new page), and run
 section 5's live checks with this page: health `"rules":"bb-0.13.0"` and `"uploads":"open"`, `content-length: 1160876`,
 `live page = the staged 0.9.14.1 online page (cmp)`, days 1-16 for a new player at 0 wins and 10 hearts (sixteen `-> 200`), day 3 at
-1 win and 9 hearts (a v3 bb-0.13.0 snapshot), days 17, 25 and 26 as the STAGE's seedcheck read them at this tip ([[STEP7:DAYS]]), an
+1 win and 9 hearts (a v3 bb-0.13.0 snapshot), days 17, 25 and 26 as the STAGE's seedcheck read them at this tip (days 17 and 25 `-> 200`, each served a day-16 ghost; day 26 `-> 400`, `day: expected an integer in 1..25`: the same answers as 0.9.14's), an
 unsigned POST `-> 401`, and `list --rules bb-0.13.0`: sixteen day rows of 12, then `all 192 0 0` (or `all 192 N P`, if N uploads by P players came
 in since 0.9.14's launch). In `fly logs -a beltbattles --no-tail`: the `seed:` line above and the warm-up line. The page's own label (V0.9.14.1 on the
 title) tells the two pages apart in a browser.
@@ -4464,14 +4465,14 @@ expected; the server stored 10 deck(s) for this player (expected 10); the player
 id file, two PUTs more and **`23 of 23`**); revalidate's dry run `plan: delete 0 record(s) of bb-0.13.0; keep 192 seed-pool ghost(s) and 10 upload(s)`
 (the probe's 10, plus any real player's upload since the deploy); `remove-player <id> --rules bb-0.13.0 --apply` prints **`APPLIED: deleted 10 of 10
 record(s).`**; then `fly apps restart beltbattles`, health again, and `list --rules bb-0.13.0` reads `all 192 0 0`. Rehearsed locally on the built commit
-(kit09141/probecheck.sh, O/logs/probecheck-<commit>.txt): [[STEP7:PROBECHECK]] **The hand clean-up** is section 30's block run from this clone, with at most 10 decks: its `cd` names
+(kit09141/probecheck.sh, O/logs/probecheck-<commit>.txt): 23 `expect:` lines, all yes, none no: the first probe prints 24 lines and `probe: 21 of 21 checks as expected; the server stored 10 deck(s) for this player (expected 10)`; the dry run reads `delete 0, keep 192 seed ghosts and 10 uploads`; `APPLIED: deleted 10 of 10 record(s).` three times (the probe's own clean-up, the hand clean-up and the `--profile` probe's); `all 192 0 0` after each restart; `--profile` reads `23 of 23` with the two profile rows (`profile-signed` 200, `profile-badsig` 401); the day-3 match after the restart is a v3 seed ghost under bb-0.13.0; a second probe on the same id file is refused, exit 2, and a fresh one reads 21 of 21 again. **The hand clean-up** is section 30's block run from this clone, with at most 10 decks: its `cd` names
 /home/cap/.hermit/primes/.workspaces/cap/beltbattles-r09141/BeltBattles-r09141, both `../output-stage0911/probe-id.txt` become `../output-stage09141/probe-id.txt`,
 and both `--rules bb-0.11.0` become `--rules bb-0.13.0`.
 
 **Revalidate**: after the deploy run `fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs revalidate --rules bb-0.13.0'` (a dry run; add
 `--apply` only if it plans deletes you expect) **over the stored bb-0.13.0 records only, in a fresh process** (each `fly ssh console -C` is one). The dry run prints
 `plan: delete 0 record(s) of bb-0.13.0; keep 192 seed-pool ghost(s) and N upload(s)`, `DRY RUN: nothing was deleted. --apply deletes exactly the 0 record(s) above.`,
-and, only when the store holds a stored endless snapshot past day 25, S1's one line (above). Rehearsed over the scratch store: [[STEP7:REVALIDATE]]
+and, only when the store holds a stored endless snapshot past day 25, S1's one line (above). Rehearsed over the scratch store: this commit's real ghost-admin, over the scratch store after the seed, prints `plan: delete 0 record(s) of bb-0.13.0; keep 192 seed-pool ghost(s) and 0 upload(s)` and `DRY RUN: nothing was deleted.` with no S1 line (a clean store); S1's line itself is pinned by tests/s1.endlesscap.test.ts (revalidate over an honest day 33, a forged day 33 and an honest day 20 prints one skip line for the two deep ones and plans only the forged one).
 
 **ENDLESS online** is as section 33 says (src/sim/endless.ts:27): the client goes online for an endless dusk only up to day 25 (ENDLESS_ONLINE_LAST_DAY,
 src/sim/endless.ts:156); past day 25 the foe is THE GOD with no request, and since S1 the server refuses such an upload at once (422) if a hand-made client sends one.
@@ -4495,9 +4496,9 @@ bb-0.12.0 back on both sides; going back past 0.9.14 is a separate decision).
 tests/tsc-tests-baseline.json is unchanged by the rides (3,382 bytes, sha16 `216977d9b4bd72fe`, 163 type errors); the release lane did not touch it.
 
 **The known limitations** of section 33 stand (the bots' sale hull and redraw word loss, the ladder's days 9 and 10, P5 line 9, saved endless runs meeting step 1500, F6: 0.9.13's CONTINUE
-drops a 0.9.14 save's wares). Display items: [[LATER:DISPLAY]]
+drops a 0.9.14 save's wares). Display items: 33 panels, every one at one star, whose family head shows the 3x3 marks or sits beside the title since POLISH-1 put ` ★` after a one-star part's title (tests/present2.famhead.test.ts P5A_STAR1: phone band 32, laptop column 1; cap's RULING-STAGE09141-R1; POLISH-2's title rule may give the names back); LAST CHANCE's cards (src/screens/lastChancePicker.ts:219-227) and the road-fork drops (src/screens/fork/drops.ts:81-89) still draw the old `i` info button; GRAPNEL GUN's old card line still says RIP on the smallest phone's one-line strip (src/ui/abilityText.ts:1055-1059); the shop-offer panel's title has no star (src/screens/build/inspector.ts:758). [[LATER:DISPLAY2]]
 
-**The checks of this STAGE** (STAGE-09141; O/STAGE-REPORT.md has every command, log and number; this paragraph is brought up to date by the closing docs commits): [[STEP7:CHECKS]]
+**The checks of this STAGE** (STAGE-09141; O/STAGE-REPORT.md has every command, log and number; this paragraph is brought up to date by the closing docs commits): step 0 (scope: the name-status diff equals the setup's difflist, 99 files; 3 protected paths: server/app.ts, server/ghostAdmin.ts and tools/textSheet.ts; no package file, src/version.ts or deploy/ before the label; the six generated files' bytes; closure-gens.txt 0 changed); step 2 at r09141-rides (tsc 0, typecheck:server 0, typecheck:tests PASS at 163, fp and all 41 parBench lines IDENTICAL); the label tests (6 files, 31 tests); the page smoke 4 of 4 on the offline and on the online page at 0 console errors, 0 NOT HONEST and `version 0.9.14.1` on 4 of 4. At the release record's commit the gate (tsc 0, typecheck:server 0, typecheck:tests PASS at 163, the three builds and the knobs build exit 0, the smoke 45 of 45, luckcaps `check: IDENTICAL: regenerated 7401 bytes`); fp and all 41 parBench lines IDENTICAL; runnercopies all SAME; seedcheck 14 of 14 yes; probecheck 23 of 23 yes; the seed rehearsal 6 PASS (0.9.14's seed `192 written, 0 unchanged, 0 removed`, this commit's `0 written, 192 unchanged, 0 removed`, and the rollback seed `0 written, 192 unchanged, 0 removed`); the boot; the Tigris rehearsal's steps a to f PASS; server/dist against 0.9.14's (three files differ in content, S1's reach); the six generated files' bytes SAME; and no file of the stand-in generators' closure (102 files) changed since the base. The text sheets ON and OFF: +93 lines each, 0 overflows. **The suite: at the release record's tree 549 of the 552 files were green (547 passed and 2 skipped whole; 6,611 tests declared, 6,600 passed and 11 skipped), and the three files that POLISH-1's star at one star turned red (tests/present1.s4b, tests/present2.famhead and tests/rows1.merged: pins of the other three rides, 6 failed assertions, no time-out) pass 35 of 35 alone after cap's ruling R1 re-pinned them (the tests-only commit f7ec5ff9dcbd; the page and the server are unchanged by it)**; the canary is green (tests/net-pool 5 of 5). [[LATER:CHECKSREST]]
 
 ## Troubleshooting
 
