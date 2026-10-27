@@ -3,8 +3,11 @@
 // an endless request endless ghosts only and a run request never one; the store keeps an endless record on day 41 (storage choice
 // (A): the same buckets and keys, the day bound for endless records raised to ENDLESS_LAST_DAY) and ghosts:admin's list,
 // remove-player and revalidate find it. The honest runs are played through the game's own code (tests/endless1.honest.ts).
+// S1 (BRIEF-S1): POST /v1/ghosts no longer takes an endless dusk past ENDLESS_ONLINE_LAST_DAY (25): the day-41 upload below is a 422 now,
+// before the deck check (it was a 201 after 26 s of CPU); tests/s1.endlesscap.test.ts holds the rest of S1's cases. The store and
+// ghosts:admin still keep and read an endless record to ENDLESS_LAST_DAY (planted straight into the store, past POST), as built.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ENDLESS, ENDLESS_LAST_DAY, ENDLESS_WIN_CAP, setEndless, withEndless } from "../src/sim/endless";
+import { ENDLESS, ENDLESS_LAST_DAY, ENDLESS_ONLINE_LAST_DAY, ENDLESS_WIN_CAP, setEndless, withEndless } from "../src/sim/endless";
 import { RULES_VERSION } from "../src/sim/content";
 import { LONG_RUN_MAX_DAY } from "../src/sim/longRun";
 import { setPlayerName } from "../src/game/ghostSnapshot";
@@ -69,15 +72,21 @@ describe.each(storeBackends())("ENDLESS-1 3.4: POST /v1/ghosts on the $name stor
     expect([got.snapshot.mode, got.snapshot.endlessWins, got.snapshot.endlessLives, got.snapshot.victoryDay]).toEqual(["endless", s.endlessWins, s.endlessLives, 10]);
   }, 120_000);
 
-  it("an honest endless upload at the deepest end of a perfect endless (day 41): 201, and the bucket of day 41 holds it", async () => {
+  // S1 (BRIEF-S1) changed this expectation: it pinned an honest endless upload at the deepest end of a perfect endless (day 41) as 201, with the
+  // bucket of day 41 holding it. That cost the server 26 s of CPU and 221 MB (LAUNCH-0 run 3, REPORT 1.4 item 6), and the game never sends it
+  // (online.ts: past ENDLESS_ONLINE_LAST_DAY the foe is the GOD stand-in), so POST now answers 422 before the deck check and stores nothing.
+  it("S1: an honest endless upload at the deepest end of a perfect endless (day 41): 422 'day: 41 is past the last online endless day 25', before the deck check; nothing is stored", async () => {
     const s = dusk(41, deep);
     expect(s.day).toBe(41);
     expect(s.day).toBeGreaterThan(LONG_RUN_MAX_DAY);
+    expect(s.day).toBeGreaterThan(ENDLESS_ONLINE_LAST_DAY);
+    const t0 = performance.now();
     const r = await post(s);
-    expect([r.status, r.body], JSON.stringify(r.body)).toEqual([201, { id: ghostId(s) }]);
-    expect((await app.store.bucket(RULES_VERSION, 41)).map((e) => e.id)).toContain(ghostId(s));
-    expect(await app.store.bucket(RULES_VERSION, ENDLESS_LAST_DAY + 1)).toEqual([]); // past the last endless day nothing is stored
-  }, 600_000);
+    expect([r.status, r.body], JSON.stringify(r.body)).toEqual([422, { error: `day: 41 is past the last online endless day ${ENDLESS_ONLINE_LAST_DAY}` }]);
+    expect(performance.now() - t0).toBeLessThan(5000); // (the deck check of day 41 is 26 s of CPU; the spy in tests/s1.endlesscap.test.ts is the exact proof)
+    expect(await app.store.bucket(RULES_VERSION, 41)).toEqual([]); // nothing is stored
+    expect(await app.store.bucket(RULES_VERSION, ENDLESS_LAST_DAY + 1)).toEqual([]); // and nothing past the last endless day
+  }, 120_000);
 
   describe("the forgeries (each an honest dusk with one thing changed)", () => {
     // (the day-14 dusk of `short`: victory day 10, 3 endless wins and 3 hearts going in)
@@ -255,6 +264,14 @@ describe("ENDLESS-1 3.4: an endless record on day 41 in the store, and ghosts:ad
       expect(rv.code).toBe(0);
       expect(rv.planned).toEqual([refForged]);
       expect(rv.out.find((x) => x.startsWith(`  delete ${refForged}  `))).toMatch(/record: 20 endless wins and 3 hearts is no record a run won on day 10 carries into endless dusk 40/);
+      // S1: the deck check is skipped for the two stored endless records past day 25 (the honest day 41 and the forged day 40, which the record
+      // check above still found); the day-14 one had its deck checked. One line says so, with each ref and day
+      const skip = rv.out.filter((x) => x.startsWith("  deck check skipped for "));
+      expect(skip, rv.out.join("\n")).toHaveLength(1);
+      expect(skip[0]).toContain("for 2 stored endless snapshot(s) past day 25");
+      expect(skip[0]).toContain(`${refHonest} (day 41)`);
+      expect(skip[0]).toContain(`${refForged} (day 40)`);
+      expect(skip[0]).not.toContain("(day 14)");
       // remove-player: every upload by that player, the day-41 endless one included; --apply deletes exactly them
       const dry = await admin(h, "remove-player", me.playerId, "--rules", RULES_VERSION);
       expect(dry.planned).toContain(refHonest);
