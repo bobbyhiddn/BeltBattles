@@ -2139,12 +2139,23 @@ function columnSpec(ctx: Ctx, plan: PanelPlan, lines: readonly { line: PLine | "
   if (!plan.column || !L || L.portrait || !L.info || !L.cam || !L.bar) return undefined;
   const cb = carrierBox(false), carrier = screenRect(L, { x: L.cam.x + cb.x0, y: L.cam.y + cb.y0, w: cb.w, h: cb.h });
   const x0 = L.info.x + L.info.w + 2, x1 = carrier.x - 2;
+  // PRESENT-3 D (cap's ruling 6420b5479c7c7b92): the band, between the shop row's foot (+2) and the carrier's drawing (-2), from 2 px right of the column to 4 px left of FIGHT's column (where the foe card
+  // and FIGHT start); the corner, above the column (2 px clear), left of the shop row (3 px clear; the screen's edge 3 px in) and under the rune row (+2: the row's height is what the shop row was
+  // shifted down by, shiftLayout: the first card's y less the bar and the 9 px the layout puts above the cards). The corner is closed on a day the ENCHANTER's wagon is up (L.wagon: its cards use that
+  // margin, enchantStrip.ts inMargin), and a place under 40 px wide or one 3x5 line (10 px) tall is not one. Neither is ever over a hard rect (columnPlace holds every box to them).
+  const first = L.cards?.[0];
+  const shopFoot = first ? Math.max(...[...L.cards, L.reroll, ...(L.packs ?? [])].filter((q): q is Rect => !!q && q.y < L.info.y).map((q) => q.y + q.h)) : 0;
+  const bandRect: Rect | null = first && L.fight ? { x: x0, y: shopFoot + 2, w: L.fight.x - 4 - x0, h: carrier.y - 2 - (shopFoot + 2) } : null;
+  const cornerTop = first ? L.bar.y + L.bar.h + (first.y - (L.bar.h + 9)) + 2 : 0;
+  const cornerRect: Rect | null = first && !L.wagon ? { x: 3, y: cornerTop, w: first.x - 3 - 3, h: L.info.y - 2 - cornerTop } : null;
+  const roomy = (q: Rect | null): Rect | null => (q && q.w >= 40 && q.h >= 10 ? q : null);
   return {
     covers: (b) => rulesCovered(b, lines).length > 0,
     top: L.info.y, areaBottom: L.info.y + L.info.h,
     beside: x1 > x0 ? { x0, x1 } : null,
     floor: (ctx.game?.H ?? Infinity) - 2,
     hard: [carrier, ...(L.cards ?? []), L.reroll, ...(L.packs ?? []), L.bar, L.fight, L.foe, L.cargo, plan.r].filter((q): q is Rect => !!q),
+    band: roomy(bandRect), corner: roomy(cornerRect),
   };
 }
 

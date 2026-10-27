@@ -11,6 +11,7 @@ import { UI, type Rect } from "../src/ui/ui";
 import { TAP_CSS } from "../src/ui/tap";
 import { buildLayout, buildScale, carrierBox, phoneBarLift, phoneScreen, panelArea, screenRect, type BuildLayout, type Sel } from "../src/screens/build/layout";
 import { runeRowFits, runeRowH, shiftLayout } from "../src/ui/runeBar";
+import { wagonPlace } from "../src/screens/build/enchantStrip";
 import type { Run, DuskFoe } from "../src/game/run";
 import { setTipsForTests } from "../src/ui/tips";
 import { buyableModules } from "../src/sim/content";
@@ -18,9 +19,10 @@ import { fusible } from "../src/sim/stars";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { key as KEY, rotField, setTurretList, turretSlots, type Placed } from "../src/sim/deck";
 import { detailsPlan, drawDetails, panelFit, visibleLines } from "../src/screens/build/inspector";
-import { keywordState, keywordsIdle, keywordsPressed } from "../src/screens/build/keywords";
+import { definitionLines as defLines, keywordState, keywordsIdle, keywordsPressed, smallFaceHolds } from "../src/screens/build/keywords";
 import { glossaryEntry } from "../src/ui/glossary";
 import { lineText, lineWidth, type RichLine } from "../src/ui/richText";
+import { glossaryEntry as gEntry } from "../src/ui/glossary";
 import type { Ctx } from "../src/screens/build/actions";
 
 installRaster();
@@ -41,12 +43,15 @@ function framed(w: number, h: number, dpr: number, runes = 1, offers = 5) {
   return { S, W, H, L: lay(unit), tap, phone, portrait, view: { W, H, scale: S, dpr, portrait, sub } };
 }
 
-/** The landscape views the kit has (card4's PHONES and DESK, and the two desk sizes the text sheets name): [label, w, h, dpr, runes held, a finger (else a mouse)]. */
-const VIEWS: [string, number, number, number, number, boolean][] = [
-  ["land-844x390, finger, no rune", 844, 390, 3, 0, true], ["land-844x390, finger, a rune", 844, 390, 3, 1, true],
-  ["land-844x390, mouse, no rune", 844, 390, 3, 0, false], ["land-844x390, mouse, a rune", 844, 390, 3, 1, false],
-  ["desk-1920x1080, mouse", 1920, 1080, 1, 1, false], ["desk-1280x800, mouse", 1280, 800, 1, 1, false], ["laptop-1366x768, mouse", 1366, 768, 1, 1, false],
+/** The landscape views the kit has (card4's PHONES and DESK, and the two desk sizes the text sheets name): [label, w, h, dpr, runes held, a finger (else a mouse), the ENCHANTER's wagon up (PRESENT-3 D: the corner is closed)]. */
+const VIEWS: [string, number, number, number, number, boolean, boolean][] = [
+  ["land-844x390, finger, no rune", 844, 390, 3, 0, true, false], ["land-844x390, finger, a rune", 844, 390, 3, 1, true, false],
+  ["land-844x390, mouse, no rune", 844, 390, 3, 0, false, false], ["land-844x390, mouse, a rune", 844, 390, 3, 1, false, false],
+  ["desk-1920x1080, mouse", 1920, 1080, 1, 1, false, false], ["desk-1280x800, mouse", 1280, 800, 1, 1, false, false], ["laptop-1366x768, mouse", 1366, 768, 1, 1, false, false],
+  ["desk-1920x1080, mouse, wagon up", 1920, 1080, 1, 1, false, true], ["desk-1280x800, mouse, wagon up", 1280, 800, 1, 1, false, true],
 ];
+/** PRESENT-3 D: a layout with the ENCHANTER's wagon up (inspector.ts columnSpec reads only that L.wagon is there: the corner is closed). */
+const withWagon = (f: ReturnType<typeof framed>, up: boolean): ReturnType<typeof framed> => (up ? { ...f, L: { ...f.L, wagon: { rects: [], hits: [], tag: null, shift: 0 } } } : f);
 
 function panelCtx(run: Run, sel: Sel, f: ReturnType<typeof framed>, touch: boolean) {
   const ctx = { game: { ui: new UI(), t: 0, view: f.view, W: f.W, H: f.H }, run, touch, L: f.L } as unknown as Ctx;
@@ -131,87 +136,143 @@ function hardOf(L: BuildLayout): Record<string, Rect> {
   return out;
 }
 const BIG = 3_600_000;
+/** The words of a note as one 5x7 line (no wrap): the small-face pass changes the face, never a word. */
+const definitionLinesOf = (text: string): RichLine[] => defLines(text, 100000);
 /**
- * The pins per view: [boxes, covering a rule row (= the fallbacks), today, under, beside, fallback, beside's width, the tallest beside box].
- * 844x390 with a rune held (the ruling's view: the strip is 78 px, 12 characters a line): 0 fallbacks, finger and mouse. 844x390 with no rune (scale 5: the strip is 55 px, 8 characters a line): 17 notes
- * fall back, all the SWARM FAMILY note ("FACTORIES," is 59 px, the box's text width 49 px: no broken or clipped word) on a turret with a core and a gear (15) and the WEAVER's and FOUNDRY's starting
- * turret (2); the laptop's 1366x768 (56 px): 15 of the same; the desks' 1920x1080 and 1280x800: the strip between the column and the carrier's drawing is 19 and 35 px, under the 40 px a note needs, so
- * every note that covers a row there falls back (275 and 218): all listed in the REPORT's questions with their recommendation (cap's ruling 26addce8293da756 item 7).
+ * The pins per view: [boxes, covering a rule row (= the listed fallbacks), today, under, beside, band, corner, fallback, in the 3x5 face (the small-face pass), the widest side box, the tallest side box].
+ * PRESENT-2 P: 844x390 with a rune held (the strip is 78 px, 12 characters a line): 0 fallbacks, finger and mouse. 844x390 with no rune (scale 5: the strip is 55 px): 17 notes fell back, all the
+ * SWARM FAMILY note ("FACTORIES," is 59 px, the box's text width 49 px) on a turret with a core and a gear (15) and the WEAVER's and FOUNDRY's starting turret (2); the laptop's 1366x768 (56 px): 15 of the
+ * same; the desks' 1920x1080 and 1280x800: the strip between the column and the carrier's drawing is 19 and 35 px, under the 40 px a note needs, so every note that covered a row there fell back (275 and
+ * 218; 170 after PRESENT-3 E folded a turret's EMPTY gear rows).
+ * PRESENT-3 D (cap's ruling 6420b5479c7c7b92): the band (between the shop row's foot and the carrier) and the corner (above the column, left of the shop row, under the rune row; closed with the ENCHANTER's
+ * wagon up) join the ladder after `beside`, then the same ladder once more in the 3x5 face for a note no place took in the 5x7 face (F's SWARM FAMILY notes included: it has no code of its own).
  */
 const PINS: Record<string, number[]> = {
-  "land-844x390, finger, no rune": [3369, 17, 2653, 458, 241, 17, 55, 156], // PRESENT-3 E: was [3345, 17, 2653, 458, 217, ...]: 24 more notes show (the turret panels fold their EMPTY gear rows, so rows that were cut off show), all beside
-  "land-844x390, finger, a rune": [3330, 0, 1969, 162, 1199, 0, 78, 102],
-  "land-844x390, mouse, no rune": [3887, 17, 3055, 542, 273, 17, 55, 156], // PRESENT-3 E: was [3863, 17, 3055, 542, 249, ...]: the same 24
-  "land-844x390, mouse, a rune": [3848, 0, 3055, 467, 326, 0, 78, 102],
-  "desk-1920x1080, mouse": [3887, 275, 3055, 557, 0, 275, 0, 0],
-  "desk-1280x800, mouse": [3887, 170, 3061, 656, 0, 170, 0, 0], // PRESENT-3 E: was [3887, 218, 3061, 608, 0, 218, 0, 0]: 48 more notes fit under the panel (its EMPTY gear rows folded); 1920x1080 does not move
-  "laptop-1366x768, mouse": [3887, 15, 3061, 586, 225, 15, 56, 156],
+  "land-844x390, finger, no rune": [3369, 0, 2653, 458, 258, 0, 0, 0, 17, 55, 156], // PRESENT-3 D: was [3369, 17, 2653, 458, 241, 17, 55, 156] (E): the 17 SWARM FAMILY notes are set beside in 3x5 (F)
+  "land-844x390, finger, a rune": [3330, 0, 1969, 162, 1199, 0, 0, 0, 0, 78, 102],
+  "land-844x390, mouse, no rune": [3887, 0, 3055, 542, 290, 0, 0, 0, 17, 55, 156], // PRESENT-3 D: was [3887, 17, 3055, 542, 273, 17, 55, 156] (E): the same 17
+  "land-844x390, mouse, a rune": [3848, 0, 3055, 467, 326, 0, 0, 0, 0, 78, 102],
+  "desk-1920x1080, mouse": [3887, 0, 3055, 562, 0, 0, 270, 0, 119, 85, 48], // PRESENT-3 D: was [3887, 275, 3055, 557, 0, 275, 0, 0]: 270 go to the corner (156 in 5x7, 114 in 3x5), 5 under the panel in 3x5
+  "desk-1280x800, mouse": [3887, 0, 3061, 656, 0, 170, 0, 0, 0, 345, 21], // PRESENT-3 D: was [3887, 170, 3061, 656, 0, 0, 0, 170] (E; 218 before E): all 170 go to the band (1-2 lines, 5x7)
+  "laptop-1366x768, mouse": [3887, 0, 3061, 586, 225, 15, 0, 0, 0, 385, 156], // PRESENT-3 D: was [3887, 15, 3061, 586, 225, 0, 0, 15, 0, 56, 156]: the 15 SWARM FAMILY notes go to the band (5x7)
+  "desk-1920x1080, mouse, wagon up": [3887, 270, 3055, 562, 0, 0, 0, 270, 5, 0, 0], // PRESENT-3 D: the corner is closed (the wagon uses that margin): 270 stay listed (the 5 under the panel in 3x5 are placed)
+  "desk-1280x800, mouse, wagon up": [3887, 0, 3061, 656, 0, 170, 0, 0, 0, 345, 21], // the band is open with the wagon up (it is in the margin or at the column's top): as without it
 };
 
 describe("PRESENT-2 P: a shown definition on the landscape column covers no rule row (cap's ruling 26addce8293da756)", () => {
-  for (const [name, w, h, dpr, runes, touch] of VIEWS) it(`T on ${name}: every keyword's note, opened by a ${touch ? "tap" : "click"}, covers 0 rule rows: today's place, else under the panel, else beside the column`, () => {
+  for (const [name, w, h, dpr, runes, touch, wagon] of VIEWS) it(`T on ${name}: every keyword's note, opened by a ${touch ? "tap" : "click"}, covers 0 rule rows: today's place, else under the panel, else beside the column, else the band, else the corner, each in 5x7 and then in 3x5`, () => {
     setTipsForTests("done");
-    const f = framed(w, h, dpr, runes), L = f.L, hard = hardOf(L), info = L.info;
-    let panels = 0, boxes = 0, mixed = 0;
-    const place = { today: 0, under: 0, beside: 0, fallback: 0 } as Record<string, number>, bad: string[] = [], crossed: string[] = [], fallbacks: string[] = [];
-    let widest = 0, tallest = 0, sideW = 0;
+    const f = withWagon(framed(w, h, dpr, runes), wagon), L = f.L, hard = hardOf(L), info = L.info;
+    const shopFoot = Math.max(...[...L.cards, L.reroll, ...L.packs].filter((q) => q.y < info.y).map((q) => q.y + q.h)), runeRow = L.cards[0].y - (L.bar.h + 9);
+    let panels = 0, boxes = 0, mixed = 0, small = 0;
+    const place = { today: 0, under: 0, beside: 0, band: 0, corner: 0, fallback: 0 } as Record<string, number>, smallBy: Record<string, number> = {};
+    const bad: string[] = [], crossed: string[] = [], fallbacks: string[] = [];
+    let widest = 0, tallest = 0, noGlyph = 0, again = 0;
+    const tokens = (ls: readonly (readonly { t: string }[])[]): string => ls.map((l) => l.map((s) => s.t).join("")).join(" ").split(/\s+/).filter(Boolean).join(" ");
     for (const p of allPanels()) {
       const pc = panelCtx(p.run, p.sel, f, touch);
       const plain = pc.draw();
       if (!plain.d) continue;
       panels++;
       for (const wd of kwWords(plain.ui)) {
-        const st = keywordState(pc.ctx) as { word: string | null; place: string | null };
+        const st = keywordState(pc.ctx) as { word: string | null };
         st.word = glossaryEntry(wd)?.word ?? wd;
-        const fr = pc.draw(), box = boxOf(fr.ui), pl = (keywordState(pc.ctx) as { place: string | null }).place;
+        const fr = pc.draw(), box = boxOf(fr.ui), ks = keywordState(pc.ctx) as unknown as { place: string | null; face: string | null; note: RichLine[] | null; text: string | null };
+        const pl = ks.place, face = (ks.face ?? "5") as "5" | "3", drawn = ks.note ?? [];
         st.word = null;
         if (!box || !fr.d) continue;
         boxes++;
         const r = fr.d.plan.r;
         place[pl ?? "none"] = (place[pl ?? "none"] ?? 0) + 1;
-        // a box BESIDE the column is out of the panel by x (the rows are all inside the panel): it is held to the hard rects and the panel's rect below; the others to the rule rows
-        const bads = pl === "beside" ? [] : covered(box, rowsOf(fr.d.plan));
+        if (face === "3") { small++; smallBy[pl ?? "none"] = (smallBy[pl ?? "none"] ?? 0) + 1; }
+        // a box beside the column, in the band or in the corner is out of the panel by x or y (the rows are all inside the panel): it is held to the hard rects and the panel's rect below; the others to the rule rows
+        const side = pl === "beside" || pl === "band" || pl === "corner";
+        const bads = side ? [] : covered(box, rowsOf(fr.d.plan));
         if (bads.length) { (pl === "fallback" ? fallbacks : bad).push(`${p.id} | ${wd}: box y ${box.y}-${box.y + box.h} covers ${bads.map((q) => `${q.role}@${q.y}`).join(", ")} (place ${pl})`); mixed++; }
-        if (pl === "beside") {
-          sideW = box.w;
+        if (pl === "fallback" && !smallFaceHolds(drawn.map((l) => l.map((s) => s.t).join("")).join(" "))) noGlyph++;
+        // the box is as tall as its lines in its face, and no word of a line is wider than the box (no broken or clipped word)
+        if (box.h !== drawn.length * (face === "3" ? 7 : 9) + 3 && pl !== "fallback") crossed.push(`${p.id} | ${wd}: the ${pl} note's ${drawn.length} lines in ${face} are not its box's height ${box.h}`);
+        if (pl !== "fallback") { const wide = drawn.filter((l) => lineWidth(l, face) > box.w - 6); if (wide.length) crossed.push(`${p.id} | ${wd}: the ${pl} note has a line wider than its box (${wide.map(lineText).join(" / ")})`); }
+        // the small-face pass changes the face, never a word: the same words in the same order as the 5x7 wrap of the note's text
+        if (face === "3" && ks.text) { again++; if (tokens(drawn) !== tokens(definitionLinesOf(ks.text))) crossed.push(`${p.id} | ${wd}: the 3x5 note's words differ from its text`); }
+        if (side) {
           tallest = Math.max(tallest, box.h);
           widest = Math.max(widest, box.w);
-          // item 3's hard line, and the 2 px gaps: 2 px right of the column's edge, 2 px left of the carrier's drawing, 2 px above the screen's foot, the top at or below the column's top
-          for (const [what, rr] of Object.entries(hard)) if (ov(box, rr)) crossed.push(`${p.id} | ${wd}: the beside box ${JSON.stringify(box)} covers ${what} ${JSON.stringify(rr)}`);
-          if (ov(box, r)) crossed.push(`${p.id} | ${wd}: the beside box covers the panel`);
+          // item 3's hard line, and the 2 px gaps: never over the carrier's drawing, a shop card, REROLL, a pack, the top bar, FIGHT, the foe card, the cargo bar or the panel; whole on the screen
+          for (const [what, rr] of Object.entries(hard)) if (ov(box, rr)) crossed.push(`${p.id} | ${wd}: the ${pl} box ${JSON.stringify(box)} covers ${what} ${JSON.stringify(rr)}`);
+          if (ov(box, r)) crossed.push(`${p.id} | ${wd}: the ${pl} box covers the panel`);
+          if (box.x < 0 || box.y < 0 || box.x + box.w > f.W || box.y + box.h > f.H - 2) crossed.push(`${p.id} | ${wd}: the ${pl} box ${JSON.stringify(box)} is not whole on the screen`);
+        }
+        if (pl === "beside") {
+          // 2 px right of the column's edge, 2 px left of the carrier's drawing, 2 px above the screen's foot, the top at or below the column's top
           if (box.x !== info.x + info.w + 2) crossed.push(`${p.id} | ${wd}: the beside box starts at x ${box.x}, not 2 px right of the column (${info.x + info.w + 2})`);
           if (box.x + box.w > hard.carrier.x - 2) crossed.push(`${p.id} | ${wd}: the beside box ends at ${box.x + box.w}, past 2 px left of the carrier (${hard.carrier.x - 2})`);
           if (box.y + box.h > f.H - 2) crossed.push(`${p.id} | ${wd}: the beside box ends at ${box.y + box.h}, under the screen's foot less 2 (${f.H - 2})`);
           if (box.y < info.y) crossed.push(`${p.id} | ${wd}: the beside box is above the column's top`);
-          // no broken or clipped word: every line of the wrapped note is inside the box's text width (box.w - 6)
-          const drawn = (keywordState(pc.ctx) as { note: RichLine[] | null }).note ?? [], wide = drawn.filter((l) => lineWidth(l, "5") > box.w - 6);
-          if (!drawn.length || drawn.length * 9 + 3 !== box.h) crossed.push(`${p.id} | ${wd}: the beside note's ${drawn.length} lines are not its box's height ${box.h}`);
-          if (wide.length) crossed.push(`${p.id} | ${wd}: the beside note has a line wider than its box (${wide.map(lineText).join(" / ")})`);
+        }
+        if (pl === "band") {
+          // left edge 2 px right of the column, under the shop row's foot (+2), over no carrier, short of FIGHT's column (-4)
+          if (box.x !== info.x + info.w + 2) crossed.push(`${p.id} | ${wd}: the band box starts at x ${box.x}, not 2 px right of the column (${info.x + info.w + 2})`);
+          if (box.y < shopFoot + 2) crossed.push(`${p.id} | ${wd}: the band box starts at y ${box.y}, above the shop row's foot + 2 (${shopFoot + 2})`);
+          if (box.y + box.h > hard.carrier.y - 2) crossed.push(`${p.id} | ${wd}: the band box ends at ${box.y + box.h}, past 2 px above the carrier (${hard.carrier.y - 2})`);
+          if (box.x + box.w > L.fight.x - 4) crossed.push(`${p.id} | ${wd}: the band box ends at x ${box.x + box.w}, past 4 px left of FIGHT's column (${L.fight.x - 4})`);
+        }
+        if (pl === "corner") {
+          // above the column (2 px clear), left of the shop row (3 px clear), under the rune row (+2), never with the wagon up
+          if (wagon) crossed.push(`${p.id} | ${wd}: a corner box with the ENCHANTER's wagon up`);
+          if (box.y < L.bar.h + runeRow + 2) crossed.push(`${p.id} | ${wd}: the corner box starts at y ${box.y}, in the rune row (ends ${L.bar.h + runeRow})`);
+          if (box.y + box.h > info.y - 2) crossed.push(`${p.id} | ${wd}: the corner box ends at ${box.y + box.h}, closer than 2 px to the column (${info.y})`);
+          if (box.x < 3 || box.x + box.w > L.cards[0].x - 3) crossed.push(`${p.id} | ${wd}: the corner box x ${box.x}-${box.x + box.w} is not left of the shop row (${L.cards[0].x}) with 3 px clear`);
         }
         if (pl === "under") {
           for (const [what, rr] of Object.entries(hard)) if (what !== "carrier" && ov(box, rr)) crossed.push(`${p.id} | ${wd}: the under box covers ${what}`);
           if (box.y !== r.y + r.h + 2 || box.x !== r.x + 2 || box.w !== r.w - 4) crossed.push(`${p.id} | ${wd}: the under box ${JSON.stringify(box)} is not the panel's foot + 2 px at the column's width`);
           if (box.y + box.h > info.y + info.h) crossed.push(`${p.id} | ${wd}: the under box ends below the column`);
         }
+        // the place is chosen once for the note's life, from its first frame: another frame of the same note is the same box (every 41st note)
+        if (boxes % 41 === 0) { st.word = glossaryEntry(wd)?.word ?? wd; expect(boxOf(pc.draw().ui), `${p.id} | ${wd}: the same box on another frame`).toEqual(box); st.word = null; }
       }
       keywordsIdle(pc.ctx);
     }
-    const row = [boxes, mixed, place.today, place.under, place.beside, place.fallback, sideW, tallest];
+    const row = [boxes, mixed, place.today, place.under, place.beside, place.band, place.corner, place.fallback, small, widest, tallest]; // PRESENT-3 D: the widest side box (was the last one's width)
     // eslint-disable-next-line no-console
-    console.log(`PRESENT-2 P T ${name}: ${panels} panels, ${boxes} boxes; ${mixed} cover a rule row (${bad.length} of them not listed fallbacks); by place: today ${place.today}, under ${place.under}, beside ${place.beside}, fallback ${place.fallback}; the beside box is ${sideW} px wide (${widest} at most), ${tallest} px at its tallest; ${crossed.length} cross a hard line or a gap`
+    console.log(`PRESENT-2 P / PRESENT-3 D T ${name}: ${panels} panels, ${boxes} boxes; ${mixed} cover a rule row (${bad.length} of them not listed fallbacks); by place: today ${place.today}, under ${place.under}, beside ${place.beside}, band ${place.band}, corner ${place.corner}, fallback ${place.fallback} (${noGlyph} hold a character the 3x5 face lacks); by face: 5x7 ${boxes - small}, 3x5 ${small} (${JSON.stringify(smallBy)}); the side boxes are up to ${widest} px wide, ${tallest} px at their tallest; ${crossed.length} cross a hard line or a gap`
       + `${fallbacks.length ? "\nFALLBACKS:\n" + fallbacks.slice(0, 40).join("\n") : ""}${bad.length ? "\nCOVERING:\n" + bad.slice(0, 20).join("\n") : ""}${crossed.length ? "\nCROSSED:\n" + crossed.slice(0, 20).join("\n") : ""}`);
     expect(boxes).toBeGreaterThan(1500);
     expect(bad, bad.slice(0, 5).join("\n")).toEqual([]);
     expect(crossed, crossed.slice(0, 5).join("\n")).toEqual([]);
     expect(fallbacks.length, `the fallbacks, by name: ${fallbacks.slice(0, 10).join("; ")}`).toBe(place.fallback);
-    if (PINS[name]) expect(row, `${name}: [boxes, covering, today, under, beside, fallback, beside's width, its tallest box]`).toEqual(PINS[name]);
+    expect(again, "every 3x5 note kept its words").toBe(small);
+    if (PINS[name] && PINS[name].length) expect(row, `${name}: [boxes, covering, today, under, beside, band, corner, fallback, in 3x5, side width, tallest side box]`).toEqual(PINS[name]);
   }, BIG);
+
+
+  // PRESENT-3 D (cap's ruling 6420b5479c7c7b92 (1)b): everything that can draw in the band or the corner in some state is out of them, or closes the place. The ENCHANTER's wagon: its cards sit in the margin
+  // left of the shop block (the corner: closed with the wagon up) or at the top of the details column (x 6-134, under the band's left edge); the band is never touched by them. A toast: the build screen puts it at
+  // the hull's foot less 13 (build.ts toastY), centred, never higher than that. The first-run how-to strip and CARD-4's first-sight notes: the landscape column has no strip (inspector.ts detailsPlan: the hint is
+  // the portrait band's), and its first-sight notes are placed by this same ladder (the F tests below). The desk's hover tips are drawn after the note and keep their place and order.
+  for (const [name, w, h, dpr, runes] of VIEWS.filter((v) => !v[6] && (v[0].startsWith("desk") || v[0].startsWith("laptop")))) it(`on ${name}: the wagon's cards and a toast cannot be in the band or the corner`, () => {
+    const f = framed(w, h, dpr, runes), L = f.L, info = L.info, hard = hardOf(L);
+    const shopFoot = Math.max(...[...L.cards, L.reroll, ...L.packs].filter((q) => q.y < info.y).map((q) => q.y + q.h)), runeRow = L.cards[0].y - (L.bar.h + 9);
+    const band: Rect = { x: info.x + info.w + 2, y: shopFoot + 2, w: L.fight.x - 4 - (info.x + info.w + 2), h: hard.carrier.y - 2 - (shopFoot + 2) };
+    const corner: Rect = { x: 3, y: L.bar.h + runeRow + 2, w: L.cards[0].x - 6, h: info.y - 2 - (L.bar.h + runeRow + 2) };
+    for (const n of [1, 2, 3]) {
+      const wag = wagonPlace(L, n, 0);
+      if (!wag) continue;
+      for (const q of [...wag.rects, ...wag.hits]) expect(ov(q, band), `${name}: wagon (${n} cards) card ${JSON.stringify(q)} is out of the band`).toBe(false);
+      if (wag.tag) expect(ov({ x: wag.tag.x, y: wag.tag.y, w: 60, h: 8 }, band), `${name}: wagon tag out of the band`).toBe(false);
+    }
+    const toastTop = L.hull.y + L.hull.h - 13; // BuildScreen.toastY (landscape): a toast is never higher
+    expect(toastTop, `${name}: a toast is under the band`).toBeGreaterThan(band.y + band.h);
+    expect(toastTop, `${name}: a toast is under the corner`).toBeGreaterThan(corner.y + corner.h);
+    expect(band.h, `${name}: the band is a place`).toBeGreaterThanOrEqual(name.startsWith("desk-1920") ? 0 : 21);
+  });
 
   // first sights on the finger's landscape view: every tip done, every note new: the first note opens on the panel's first frame and is placed once, from that frame
   for (const [name, w, h, dpr, runes, touch] of VIEWS.filter((v) => v[5])) it(`F on ${name}: the first sight opens already placed (no row covered), and keeps its place until it closes`, () => {
     const f = framed(w, h, dpr, runes), L = f.L, hard = hardOf(L), info = L.info;
     let panels = 0, notes = 0;
-    const bad: string[] = [], where = { today: 0, under: 0, beside: 0, fallback: 0 } as Record<string, number>;
+    const bad: string[] = [], where = { today: 0, under: 0, beside: 0, band: 0, corner: 0, fallback: 0 } as Record<string, number>;
     for (const p of allPanels()) {
       setTipsForTests("sight");
       const pc = panelCtx(p.run, p.sel, f, touch);
@@ -224,9 +285,10 @@ describe("PRESENT-2 P: a shown definition on the landscape column covers no rule
         notes++;
         const pl = (keywordState(pc.ctx) as { place: string | null }).place ?? "none";
         where[pl] = (where[pl] ?? 0) + 1;
-        if (pl !== "fallback" && pl !== "beside" && covered(box, rowsOf(prev.d!.plan)).length) bad.push(`${p.id}: note ${n + 1} covers a rule row (place ${pl})`);
-        if (pl === "beside" && ov(box, prev.d!.plan.r)) bad.push(`${p.id}: note ${n + 1} beside box covers the panel`);
-        if (pl === "beside") for (const [what, rr] of Object.entries(hard)) if (ov(box, rr)) bad.push(`${p.id}: note ${n + 1} beside box covers ${what}`);
+        const sidePl = pl === "beside" || pl === "band" || pl === "corner";
+        if (pl !== "fallback" && !sidePl && covered(box, rowsOf(prev.d!.plan)).length) bad.push(`${p.id}: note ${n + 1} covers a rule row (place ${pl})`);
+        if (sidePl && ov(box, prev.d!.plan.r)) bad.push(`${p.id}: note ${n + 1} ${pl} box covers the panel`);
+        if (sidePl) for (const [what, rr] of Object.entries(hard)) if (ov(box, rr)) bad.push(`${p.id}: note ${n + 1} ${pl} box covers ${what}`);
         if (pl === "beside" && box.x !== info.x + info.w + 2) bad.push(`${p.id}: note ${n + 1} beside box at x ${box.x}`);
         // the place is chosen once for the note's life: another frame of the same note is the same box
         const again = pc.draw();
@@ -237,7 +299,7 @@ describe("PRESENT-2 P: a shown definition on the landscape column covers no rule
       keywordsIdle(pc.ctx);
     }
     // eslint-disable-next-line no-console
-    console.log(`PRESENT-2 P F ${name}: ${panels} panels, ${notes} first-sight notes; by place: today ${where.today}, under ${where.under}, beside ${where.beside}, fallback ${where.fallback}; ${bad.length} faults${bad.length ? "\n" + bad.slice(0, 20).join("\n") : ""}`);
+    console.log(`PRESENT-2 P F ${name}: ${panels} panels, ${notes} first-sight notes; by place: today ${where.today}, under ${where.under}, beside ${where.beside}, band ${where.band}, corner ${where.corner}, fallback ${where.fallback}; ${bad.length} faults${bad.length ? "\n" + bad.slice(0, 20).join("\n") : ""}`);
     expect(notes).toBeGreaterThan(300);
     expect(bad, bad.slice(0, 5).join("\n")).toEqual([]);
   }, BIG);
