@@ -6,7 +6,7 @@ import { bevel, frame, rect, type G } from "../render/pixel";
 import { drawText, textWidth, wrap, type FontId } from "../render/font";
 import { itemIcon } from "../render/sprites";
 import { drawSparkAt } from "../render/enchantMarks"; // ENCHANT-1 (REQ-BFG-085, E7): a cargo slot's word spark
-import { hasGrid, shapeGrid } from "./shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid in its cargo slot
+import { hasGrid, iconCell, shapeGrid } from "./shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid in its cargo slot
 import { ITEMS } from "../sim/content";
 import type { PointerKind } from "../core/io"; // shoptap (D1)
 import { panelSkin, type PanelId } from "../render/styles"; // CUSTOM-1 (REQ-BFG-072) hook: stats panel styles
@@ -235,7 +235,7 @@ export function itemSlot(g: G, x: number, y: number, def: string | null, selecte
     // the slot's top-left corner over the icon; the 16 px face holds the biggest (SPIKE RAIL's 10x16); the star pips go over it
     // SC-0912 (oracle 0ab73cb56a4abcbf): at the piece's own cell (shapePic.ts gridCell: 4 for PICKAXE, 17 x 11, whose 17th column falls on
     // the slot's right frame column, inside the 18 px box); the anchor is the same for every piece
-    if (hasGrid(def)) g.drawImage(shapeGrid(def), x + 1, y + 1);
+    if (hasGrid(def)) g.drawImage(shapeGrid(def, iconCell(def)), x + 1, y + 1); // PRESENT-1 S1 (d): the slot's 16 px face: iconCell
     starPips(g, x + 1, y + 13, 16, stars);
     if (mark) drawSparkAt(g, x + 14, y + 1, mark); // ENCHANT-1 (REQ-BFG-085, E7): an enchanted piece's word spark at the slot's top-right corner (the cargo tray only; absent: as before)
   }

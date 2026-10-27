@@ -13,7 +13,7 @@ import { frame, rect } from "../render/pixel";
 import { C, RARITY_COLOR } from "../render/palette";
 import { drawText, icons, textWidth } from "../render/font";
 import { itemIcon } from "../render/sprites";
-import { drawShapePlate, hasGrid, shapeGridSize } from "../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its card
+import { drawShapePlate, hasGrid, iconCell, shapeGrid, shapeGridSize } from "../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its card
 import { isPhone, tapPx } from "../ui/tap"; // a finger's target for the ⓘ on a phone
 import { panel, type Rect } from "../ui/ui";
 import { drawInfoMarkIn } from "../ui/infoGlyph"; // POLISH-2 (REQ-BFG-089; Q3): the one ⓘ mark
@@ -57,8 +57,11 @@ export const lcHint = (day: number): string => `DUSK OF DAY ${day} · TAP TO REA
 /** HULL-1d (REQ-BFG-073): `stars`, the card's star (lastChance.ts partStars: ★2 with HULL_SCALE on); 1: as before. */
 export const lcPartSub = (rarity: Rarity, stars = 1): string => `${tierWord(rarity)} PART${stars > 1 ? ` ★${stars}` : ""} · TO CARGO · FREE`;
 export const LC_HULL_SUB = "MAX HULL · KEPT ALL RUN";
-/** The HULL card's name: "+500 ♥" for LAST_CHANCE_HULL (the HULL icon). */
-export const hullName = (n: number): string => icons(`+${n} {HULL}`);
+/** The HULL card's name: "+500 HULL" for LAST_CHANCE_HULL. PRESENT-1 (REQ-BFG-081; REVIEW-SC0912B item 3, families.ts:78-80): HULL in
+ *  words, never the heart (readers take it for the run's hearts, READ-9); was icons(`+${n} {HULL}`), "+500 ♥". */
+export const hullName = (n: number): string => `+${n} HULL`;
+/** PRESENT-1 (REQ-BFG-081): the HULL card's head box: the word, in the 3x5 face (drawHead), where it drew the heart at twice its size. */
+export const LC_HULL_ICON = "HULL";
 /** The summary's STOP cell on the dusk that fired LAST CHANCE (STOP_W holds it: "WARLORD"-wide labels). */
 export const LC_STOP = "+1 LIFE";
 /** RETUNE-1 run 2 (REQ-BFG-096): on a hearts run (hearts.ts heartsRun) LAST CHANCE fires at the first loss that would leave
@@ -68,7 +71,7 @@ export const LC_LINE_HEARTS = `SAVED ON ${LAST_CHANCE_AT} HEART. PICK ONE. FREE.
 export const LC_STOP_HEARTS = "SAVED";
 export const lcLine = (run: { hearts?: boolean }): string => (heartsRun(run) ? LC_LINE_HEARTS : LC_LINE);
 export const lcStop = (run: { hearts?: boolean }): string => (heartsRun(run) ? LC_STOP_HEARTS : LC_STOP);
-/** The summary row's mark: the card taken (the rune's or part's name, or "+500 ♥"); "PICK" while it is pending. */
+/** The summary row's mark: the card taken (the rune's or part's name, or "+500 HULL"); "PICK" while it is pending. */
 export function lastChanceTag(lc: { boon?: Boon; id?: string }): string {
   if (lc.boon === "rune" && lc.id && RUNES[lc.id]) return RUNES[lc.id].name;
   if (lc.boon === "part" && lc.id && ITEMS[lc.id]) return ITEMS[lc.id].name;
@@ -80,10 +83,10 @@ export function lastChanceTag(lc: { boon?: Boon; id?: string }): string {
 export function lcToast(boon: Boon, offer: LastChanceOffer, day?: number): string {
   if (boon === "rune") return `RUNE TAKEN: ${RUNES[offer.rune!.id].name}`;
   if (boon === "part") return `TO CARGO: ${ITEMS[offer.part!].name}${(offer.partStars ?? 1) > 1 ? ` ★${offer.partStars}` : ""}`; // HULL-1d: its star
-  return `MAX HULL ${hullName(hullShown(offer.hull, day))}`;
+  return `MAX HULL +${hullShown(offer.hull, day)}`; // PRESENT-1 (REQ-BFG-081): no heart (was `MAX HULL ${hullName(...)}`, "MAX HULL +500 ♥")
 }
 
-/** HULL-1a (REQ-BFG-079): the HULL card's name on `day` ("+500 ♥"; with HULL_SCALE on, M(d) x 500: "+3000 ♥" on day 10). */
+/** HULL-1a (REQ-BFG-079): the HULL card's name on `day` ("+500 HULL"; with HULL_SCALE on, M(d) x 500: "+3000 HULL" on day 10). */
 export const lcHullName = (offer: LastChanceOffer, day?: number): string => hullName(hullShown(offer.hull, day));
 
 /** HULL-1a: the HULL card's line's two numbers on `day`: the hull now and with the card (each the day's number). */
@@ -176,9 +179,10 @@ export function lcWord(run: Pick<Run, "seed">, o: Pick<LastChanceOffer, "day" | 
   return enchantRules() && o.part ? lastChanceWord(run.seed, o.day, o.part) : null;
 }
 
-/** The HULL card's line and details (CARD-3, D5: one item each). */
-const hullLines = (now: number, n: number, tw: number): Items => [wrapRich(colourize(icons(`YOUR {HULL}: ${now} TO ${now + n}.`), C.bone), tw, "5")];
-const hullInfo = (tw: number): Items => [wrapRich(colourize(icons("MAX {HULL} FOR THE REST OF THE RUN. EVERY FIGHT STARTS FULL."), C.slate4), tw, "3")];
+/** The HULL card's line and details (CARD-3, D5: one item each). PRESENT-1 (REQ-BFG-081): HULL in words, never the heart (was
+ *  `YOUR {HULL}: ...` and `MAX {HULL} FOR ...`). Exported for the tests. */
+export const hullLines = (now: number, n: number, tw: number): Items => [wrapRich(colourize(`YOUR HULL: ${now} TO ${now + n}.`, C.bone), tw, "5")];
+export const hullInfo = (tw: number): Items => [wrapRich(colourize("MAX HULL FOR THE REST OF THE RUN. EVERY FIGHT STARTS FULL.", C.slate4), tw, "3")];
 
 export interface LcLayout {
   top: number;
@@ -242,6 +246,15 @@ export function lcSparkAt(r: Rect): { x: number; y: number } {
   return { x: r.x + 6 + 20 - SPARK_SIZE, y: r.y + 7 };
 }
 
+/** PRESENT-1 (S1 (a), REQ-BFG-113 (1)): where a part card's grid goes, never nowhere: its plate (lcPartPlate) where the words leave room, else
+ *  over the icon box's inner corner (the box is 20 x 20 at +6, +7: every grid of a piece fits it, PICKAXE's 17 x 11 the widest), as the
+ *  drops, the road cards and the scout deck draw a grid over an icon. Null: not a piece bigger than one cell. Pure (tests). */
+export function lcPartGrid(r: Rect, defId: string, name: string, sub: string): { plate: Rect } | { corner: { x: number; y: number } } | null {
+  if (!hasGrid(defId)) return null;
+  const plate = lcPartPlate(r, defId, name, sub);
+  return plate ? { plate } : { corner: { x: r.x + 6, y: r.y + 7 } };
+}
+
 /** A part or hull card's frame and head: the dark panel with `edge` top and bottom, the icon box, the name and sub. */
 function drawHead(g: G, r: Rect, edge: string, icon: CanvasImageSource | string, name: string, nameColour: string, sub: string, open: boolean, word?: { name: string; color: string }): void {
   panel(g, r, "dark");
@@ -250,13 +263,14 @@ function drawHead(g: G, r: Rect, edge: string, icon: CanvasImageSource | string,
   if (open) frame(g, r.x - 1, r.y - 1, r.w + 2, r.h + 2, C.yellow);
   rect(g, r.x + 5, r.y + 6, 22, 22, C.ink);
   rect(g, r.x + 6, r.y + 7, 20, 20, C.slate0);
-  // a sprite (the part's icon), or a font glyph drawn at twice its size (the HULL card's HULL icon)
-  if (typeof icon === "string") drawText(g, icon, r.x + 16, r.y + 11, nameColour, { align: "center", scale: 2, outline: C.ink });
+  // a sprite (the part's icon), or a font glyph drawn at twice its size; PRESENT-1 (REQ-BFG-081): or a word (the HULL card's HULL,
+  // LC_HULL_ICON, where the heart was) in the 3x5 face, centred in the box
+  if (typeof icon === "string") drawText(g, icon, r.x + 16, r.y + (icon.length > 1 ? 15 : 11), nameColour, icon.length > 1 ? { font: "3", align: "center", outline: C.ink } : { align: "center", scale: 2, outline: C.ink });
   else g.drawImage(icon, r.x + 16 - Math.floor((icon as { width: number }).width / 2), r.y + 17 - Math.floor((icon as { height: number }).height / 2));
   // ENCHANT-1 (REQ-BFG-085, E7): a part that arrives enchanted prints its word first, in the word's colour (the name keeps its rarity colour)
   const wx = word ? drawText(g, word.name, r.x + 31, r.y + 7, word.color, { outline: C.ink }) + textWidth(" ") + 1 : 0;
   drawText(g, name, r.x + 31 + wx, r.y + 7, nameColour, { outline: C.ink });
-  drawText(g, sub, r.x + 31, r.y + 18, C.slate4, { font: "3" });
+  drawText(g, sub, r.x + 31, r.y + 18, C.slate4, { font: "3", star5: true }); // PRESENT-2 W (a): a PART card's `RARE PART ★2` draws a real star (the 3x5 glyph read as `×`: 4 readers asked "a count or a star level"); the width is the 3-wide star's
 }
 
 /** CARD-4 (P1): the RUNE card's TAP AGAIN target region (the one press that takes its rune). */
@@ -480,12 +494,13 @@ export class LastChancePicker {
         drawHead(g, r, RARITY_COLOR[def.rarity], itemIcon(def.id), def.name, RARITY_COLOR[def.rarity], lcPartSub(def.rarity, o.partStars ?? 1), open, word ? ENCHANT_DEFS[word.ench] : undefined); // HULL-1d
         // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its ink plate in the head's free room, left of the ⓘ box, 7 px under
         // the card's top (the head is 31 px: the tallest plate, SPIKE RAIL's 18, ends 25 px down); the name and the sub line end well before it
-        const plate = lcPartPlate(r, def.id, word ? `${ENCHANT_DEFS[word.ench].name} ${def.name}` : def.name, lcPartSub(def.rarity, o.partStars ?? 1));
-        if (plate) drawShapePlate(g, def.id, plate.x, plate.y);
+        const where = lcPartGrid(r, def.id, word ? `${ENCHANT_DEFS[word.ench].name} ${def.name}` : def.name, lcPartSub(def.rarity, o.partStars ?? 1));
+        if (where && "plate" in where) drawShapePlate(g, def.id, where.plate.x, where.plate.y);
+        else if (where) g.drawImage(shapeGrid(def.id, iconCell(def.id)), where.corner.x, where.corner.y); // PRESENT-1 S1 (a): a card too narrow for the plate beside the words draws the grid over its icon's corner (was dropped)
         drawBody(g, r, t.lines, t.info, hint, L.gap);
         if (word) { const sp = lcSparkAt(r); drawSparkAt(g, sp.x, sp.y, ENCHANT_DEFS[word.ench].color); } // ENCHANT-1 (E7); POLISH-1 (P2): the word's spark whole inside the card, on its part's plate (lcSparkAt; was on the frame's top-right corner, half outside it)
       } else {
-        drawHead(g, r, C.lime, icons("{HULL}"), lcHullName(o, s.run.day), C.lime, LC_HULL_SUB, open); // HULL-1a: the day's
+        drawHead(g, r, C.lime, LC_HULL_ICON, lcHullName(o, s.run.day), C.lime, LC_HULL_SUB, open); // HULL-1a: the day's; PRESENT-1: the word, not the heart
         drawBody(g, r, t.lines, t.info, hint, L.gap);
       }
       ui.add({ id: `lcpick-${t.boon}`, r, onTap: () => this.tap(s, i, t.boon, o) });

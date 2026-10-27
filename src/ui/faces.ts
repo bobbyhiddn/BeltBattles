@@ -621,7 +621,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // row 85 px of the 225 px band). Forms measured (px, ★1): "... DESTROYS 1 SLUG ON IT." 295, "... KNOCKS 1 SLUG OFF IT." 289, "... DESTROYS 1
     // FOE SLUG." 285, "... DESTROYS THE NEAREST SLUG." 321, "... RIPS 1 SLUG AND DESTROYS IT." 329, "... RIPS 1 SLUG: IT IS DESTROYED." 331, "...
     // RIPS 1 SLUG OFF IT FOR GOOD." 327 (was "... RIPS 1 SLUG.", 239). The ⓘ ladder and the SHOT note keep RIPS (LEVELS RIPS 1/2/3; not in this job)
-    return rules([shot(`A HIT ON A FOE BELT OR RIG DESTROYS ${rip} SLUG${s(n)} NEAR IT.`)], [["rip", `RIPS ${rip}`]]);
+    // PRESENT-1 (REQ-BFG-081; REVIEW-READ14 fix 2, FATE-ASK 3 of 12: three readers listed the ladder's RIPS and read it as destroys): the
+    // ⓘ ladder says DESTROYS, the face's verb (was `RIPS ${rip}`: "RIPS 1/2/3", "NEXT ★2: RIPS 2")
+    return rules([shot(`A HIT ON A FOE BELT OR RIG DESTROYS ${rip} SLUG${s(n)} NEAR IT.`)], [["rip", `DESTROYS ${rip}`]]);
   },
   tesla: (e, x) => {
     const n = c(e, x).arcs!, arcs = fmtCount(n), t = c(e, x).stall!, stun = fmtSec(t);
@@ -1096,7 +1098,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   // "BELT 24 TILES")
   beltcrate: (e) => rules([{ text: `+${fmtCount(e.supply!.belt!)} BELT TILES FOR THE RUN.` }]),
   // HULL-1a (REQ-BFG-079): the day's number with HULL_SCALE on (x.day: the run's day); off, the pack's own
-  plating: (e, x) => rules([{ text: `+${fmtDmg(hullShown(e.supply!.hull!, x.day))} {HULL} FOR THE RUN.` }]),
+  // PRESENT-1 (REQ-BFG-081; REVIEW-SC0912B item 3): HULL in words, never the heart (families.ts:78-80; was "+250 {HULL} FOR THE RUN.")
+  plating: (e, x) => rules([{ text: `+${fmtDmg(hullShown(e.supply!.hull!, x.day))} HULL FOR THE RUN.` }]),
 };
 
 // ------------------------------------------------------------------------------- U2b: the interim lines (F5, F6)
@@ -1637,6 +1640,23 @@ const SCALE_NOTES: Readonly<Record<string, (e: ItemDef) => string>> = {
 export function scaleNotes(def: string, markup = false): string[] {
   if (!scaleRules() || !Object.prototype.hasOwnProperty.call(SCALE_NOTES, def) || !Object.prototype.hasOwnProperty.call(ITEMS, def)) return [];
   const t = SCALE_NOTES[def](ITEMS[def]);
+  return [markup ? t : icons(t)];
+}
+
+/**
+ * PRESENT-1 (REQ-BFG-081; REVIEW-READ14 fix 3, WHICH-HIT 7 of 12: every reader asked what ANYTHING covers): LIMPET WORKS's ⓘ NOTES line, behind
+ * the tap (inspector.ts explainPanel, beside scaleNotes), never on the face. battle.ts roundImpact queues the charge on every landed shot of its
+ * slug whatever it hit (a part, a rig, a belt tile, the hull: a hit the foe's WARD blocks too, the shot's damage only is blocked), and hullEffects
+ * takes the blast off the foe's hull after its SHIELD (`{*PLATE}` reads SHIELD, `{*SHIELD}` reads WARD: font.ts PLAYER_WORD). No digit here.
+ */
+const RULE_NOTES: Readonly<Record<string, (e: ItemDef) => string>> = {
+  limpet: () => "ANYTHING: A PART, A RIG, A BELT TILE OR THE HULL. A HIT THE FOE'S {*SHIELD} BLOCKS STILL COUNTS. THE FOE'S {*PLATE} SOAKS THE BLAST.",
+};
+
+/** PRESENT-1: a piece's rule-edge NOTES sentence in glyphs, as drawn (icons(); [] for every piece but LIMPET WORKS). `markup`: in markup instead (tests, tools). */
+export function ruleNotes(def: string, markup = false): string[] {
+  if (!Object.prototype.hasOwnProperty.call(RULE_NOTES, def) || !Object.prototype.hasOwnProperty.call(ITEMS, def)) return [];
+  const t = RULE_NOTES[def](ITEMS[def]);
   return [markup ? t : icons(t)];
 }
 

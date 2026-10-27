@@ -117,6 +117,28 @@ export function familySpans(text: string, sep: string = C.slate3): Span[] {
   return out;
 }
 
+/**
+ * PRESENT-2 W (b) (REQ-BFG-081; PRESENT-1 Question 5, the lead's YES: all six readers of PRESENT-1's cold read asked what the orange `FORGE` under COMMON RIG is): the words the
+ * panel's family head prints where it has room for its names (inspector.ts planPanel's famHead, drawn by drawFamHead; tapped through keywords.ts familyTargets): the name says
+ * what it is. One family: `FORGE FAMILY` (the name, then ` FAMILY`); more: `FAMILIES: FORGE, TEMPO`. The 3x3 marks, where no names fit, stay as they were. The tap note's key
+ * (`FORGE FAMILY`, keywords.ts) is the same words.
+ */
+export function famHeadParts(tags: readonly ModuleTag[], explained = true): { prefix: string; names: string[]; suffix: string } {
+  const names = tags.map(familyWord);
+  if (!explained) return { prefix: "", names, suffix: "" }; // the plain names, as the head printed them before (cap's ruling 7d5006c5f3ca852f: the second rung of the ladder)
+  return tags.length === 1 ? { prefix: "", names, suffix: " FAMILY" } : { prefix: "FAMILIES: ", names, suffix: "" };
+}
+/** PRESENT-2 W (b): the family head's whole text (famHeadParts): `explained` false, the plain names (`FORGE`, `FORGE, TEMPO`). */
+export function famHeadText(tags: readonly ModuleTag[], explained = true): string {
+  const p = famHeadParts(tags, explained);
+  return `${p.prefix}${p.names.join(", ")}${p.suffix}`;
+}
+/** PRESENT-2 W (b): the family head as spans: each name in its family's colour, the other words and the commas in `sep` (familySpans for the names). */
+export function famHeadSpans(tags: readonly ModuleTag[], sep: string = C.slate3, explained = true): Span[] {
+  const p = famHeadParts(tags, explained);
+  return [...(p.prefix ? [{ t: p.prefix, c: sep }] : []), ...familySpans(p.names.join(", "), sep), ...(p.suffix ? [{ t: p.suffix, c: sep }] : [])];
+}
+
 /** Draw a family's 3x3 mark with its top-left at (x, y); `dim` greys it (a sold card). */
 export function drawFamilyMark(g: G, tag: ModuleTag, x: number, y: number, dim = false): void {
   const col = dim ? C.slate1 : FAMILY[tag].colour;

@@ -29,7 +29,8 @@ import { rect, type G } from "../render/pixel";
 import { drawText, icons, textWidth } from "../render/font";
 import { titleArt } from "../render/sprites";
 import { defaultScale } from "../core/io";
-import { button, panel, para } from "../ui/ui";
+import { button, panel, para, tapRect, type Rect } from "../ui/ui";
+import { isPhone, tapPx } from "../ui/tap"; // TITLE-TAP (PRESENT-1): a finger's target for the small row
 import { optionsCard } from "../ui/hud";
 import { helpCard, titleLayout, titleScale, type TitleLayout } from "./titleLayout";
 import { HeroScreen } from "./hero";
@@ -218,16 +219,22 @@ export class TitleScreen implements Screen {
 
   private place(): void {
     const { W, H, portrait } = this.game;
+    // TITLE-1 (PRESENT-1): the CSS px per logical px too (titleLayout's floor keeps the open water between the drawn carriers at
+    // introcheck's bar of one CSS inch; a stand-in game without a view: unknown, that term is left out)
+    const v = this.game.view;
+    const css = v ? v.scale / (v.dpr || 1) : Infinity;
     // intro: the saved run and the buttons' size factor are in the key too (CONTINUE makes the panel taller)
-    const key = `${W}x${H}${portrait}${!!this.save}${this.k}`;
+    const key = `${W}x${H}${portrait}${!!this.save}${this.k}x${css}`;
     if (key === this.layoutKey) return;
     this.layoutKey = key;
     // open floor between the bows like the real battle (0.5.0): 20% of the firing axis, at least the battle's 17%
     // (titleLayout.ts; before the intro job the portrait floor was whatever the logo and the panel left over)
-    this.L = titleLayout(W, H, portrait, !!this.save, this.k);
+    this.L = titleLayout(W, H, portrait, !!this.save, this.k, css);
     this.arena.setFrames(this.L.frames, portrait ? [[0, 1], [0, -1]] : [[-1, 0], [1, 0]]);
     // MOTION-2: the drifts never close the open floor below the battle's minimum (as in a battle)
-    this.motion.setLanes({ portrait, gap: this.L.gap }, minGap(portrait ? H : W));
+    // TITLE-SURGE (PRESENT-1, REQ-BFG-038; REVIEW-CUSTOM3 ruling 4): and, as battle.ts:439 and replay.ts:171 pass their whole layout, W and the
+    // frames too, so ArenaMotion.setLanes takes the lanes through laneSpec (battleLayout.ts:166): landscape's surge stays inside the boards' margin
+    this.motion.setLanes({ portrait, gap: this.L.gap, W, frames: this.L.frames }, minGap(portrait ? H : W));
   }
 
   /** intro tooling (read only; scripts/introcheck.mjs): the title's frame as drawn, in logical px: its scale and the
@@ -290,12 +297,19 @@ export class TitleScreen implements Screen {
         onTap: () => this.gate(() => this.continueRun()),
       });
     }
+    // TITLE-TAP (PRESENT-1, REQ-BFG-038 backlog #372; REVIEW-CUSTOM2B ruling 2): the small row's three buttons (font "3", 18-31 CSS px
+    // tall on a phone) take a finger's target (ui/tap.ts tapPx, 44 CSS px) through button()'s `hit`, as CUSTOMIZE's BACK does
+    // (customize.ts:190): grown evenly about the drawn button, kept below NEW RUN / CONTINUE's bottom edge (their targets are
+    // their drawn rects) and above the screen's bottom edge, the row's own columns wide. It draws nothing different.
+    const tap = game.view && isPhone(game.view) ? tapPx(game.view) : 0;
+    const above = b.cont ?? b.new;
+    const rowHit = (r: Rect): Rect | undefined => (tap > 0 ? tapRect(r, tap, { x: r.x, y: above.y + above.h, w: r.w, h: H - (above.y + above.h) }) : undefined);
     button(ui, g, "help", b.help, this.help ? "CLOSE" : "HOW TO PLAY", {
-      font: "3", active: this.help, onTap: () => this.gate(() => { this.help = !this.help; }),
+      font: "3", active: this.help, hit: rowHit(b.help), onTap: () => this.gate(() => { this.help = !this.help; }),
     });
-    button(ui, g, "options", b.options, "OPTIONS", { font: "3", onTap: () => this.gate(() => { this.menu = true; }) });
+    button(ui, g, "options", b.options, "OPTIONS", { font: "3", hit: rowHit(b.options), onTap: () => this.gate(() => { this.menu = true; }) });
     // CUSTOM-2a (REQ-BFG-072, Q5): CUSTOMIZE, the third button of the row, with a NEW dot while an unlocked style is unseen
-    button(ui, g, "customize", b.customize, "CUSTOMIZE", { font: "3", onTap: () => this.gate(() => game.go(new CustomizeScreen(game))) });
+    button(ui, g, "customize", b.customize, "CUSTOMIZE", { font: "3", hit: rowHit(b.customize), onTap: () => this.gate(() => game.go(new CustomizeScreen(game))) });
     if (this.newStyle) newDot(g, b.customize);
     game.soundButton(g, L.sound);
     drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });

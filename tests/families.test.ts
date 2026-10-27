@@ -14,7 +14,7 @@ import { key as K, rotField, setTurretList, type Placed } from "../src/sim/deck"
 import { rotFacing, stokeSpots } from "../src/sim/beltside";
 import { fusible } from "../src/sim/stars";
 import { newRun, type Run } from "../src/game/run";
-import { FAMILY, FAMILY_ORDER, drawFamilyMark, drawFamilyMarks, familiesOf, familiesText, familySpans, familyWord } from "../src/ui/families"; // CARD-3: familyWord
+import { FAMILY, FAMILY_ORDER, drawFamilyMark, drawFamilyMarks, famHeadText, familiesOf, familiesText, familySpans, familyWord } from "../src/ui/families"; // CARD-3: familyWord; PRESENT-2 W (b): famHeadText
 import { CARD_MARK_X, CARD_MARK_Y, cardPriceBox, drawCard, drawTooltip, type CardState } from "../src/screens/build/shop";
 import { CARD_H, CARD_W, WIDE_CARD_H, WIDE_CARD_MAX_W, buildLayout, type Sel } from "../src/screens/build/layout";
 import {
@@ -262,7 +262,7 @@ function famBox(plan: PanelPlan): Box | null {
   const fh = plan.famHead, r = plan.r;
   if (!fh) return null;
   if (fh.names) {
-    const w = textWidth(fh.tags.map(familyWord).join(", "), "3"); // CARD-3: the player's tags
+    const w = textWidth(famHeadText(fh.tags, !!fh.explained), "3"); // CARD-3: the player's tags; PRESENT-2 W (b): the explained words where the head says them (fh.explained), else the plain names
     return fh.at === "sub" ? { x: r.x + 23, y: r.y + 19, w, h: 5, what: "names" } : { x: r.x + r.w - 4 - w, y: r.y + (fh.at === "sub2" ? 19 : 5), w, h: 5, what: "names" };
   }
   const w = fh.tags.length * 4 - 1;

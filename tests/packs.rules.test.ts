@@ -1,7 +1,7 @@
 // bb-0.8.6 (job PACKS, REQ-BFG-051 P3 and P8): the rules release and the packs' validation on both stores (JSON lines, and
 // Tigris through tools/fakeS3.ts), uploads open in-process, the store seeded as a deploy seeds it (modelled on
 // tests/belts.rules.test.ts):
-//  - the gate: RULES_VERSION is bb-0.8.7 since RUNES-1 (bb-0.8.6 before; the label is 0.9.13); /v1/health names it;
+//  - the gate: RULES_VERSION is bb-0.8.7 since RUNES-1 (bb-0.8.6 before; the label is 0.9.14.1); /v1/health names it;
 //    an honest deck under bb-0.8.3 (the rules 0.8.5 ships) is refused (422) and nothing is stored under it; every near
 //    miss of bb-0.8.6 (and since RUNES-1 bb-0.8.6 itself) is refused (422 at the exact rules check, 400 where the
 //    decoder's pattern refuses it);
@@ -72,9 +72,9 @@ function packed(hero: HeroId, armors: number, belts = 0): Build {
 }
 
 describe("rules bb-0.8.7: the version", () => {
-  it("RULES_VERSION is bb-0.8.7 (RUNES-1; PACKS's bb-0.8.6 before); the label is 0.9.13 since the Prime staged it (the 0.9.13 label commit; 0.9.12 before)", () => {
+  it("RULES_VERSION is bb-0.8.7 (RUNES-1; PACKS's bb-0.8.6 before); the label is 0.9.14.1 since the Prime staged it (the 0.9.14.1 label commit; 0.9.14 before)", () => {
     expect(RULES_VERSION).toBe("bb-0.13.0") /* BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
-    expect(VERSION).toBe("0.9.13");
+    expect(VERSION).toBe("0.9.14.1");
   });
 });
 
