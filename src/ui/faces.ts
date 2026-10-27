@@ -60,7 +60,7 @@ import { isShapes2Piece, shapes2Rules } from "../sim/deck"; // SHAPES-2 (REQ-BFG
 import { scaleRules } from "../sim/scale"; // SCALE-2b (REQ-BFG-108): VENOM DRIP's plain POISON face (SCALE_RIGS on only)
 import { isConverterItem } from "../sim/split"; // BUMP-1F (RULING-BUMP1F-R11 R11.3): the three gates' desk-card effect line is their star-1 stat row (cardEffect)
 import { POISON_DPS } from "../sim/content"; // SCALE-2b: POISON's hull damage a second (its reminder)
-import type { ReadCount } from "../sim/content"; // SCALE-2c (REQ-BFG-098): the reader faces' words, by count
+import { readerClause } from "./readerClause"; // ROWS-1 (REQ-BFG-098; F2): the reader faces' clause, shared with the belt timeline's row (it holds READ_WORDS, so ReadCount's import is not needed here)
 import { isGatesPiece } from "../sim/deck"; // GATES-1 (REQ-BFG-052; deck.ts re-exports gates.ts): the three gates' faces, while they are in ITEMS (GATES on)
 import { shareWord } from "./abilityText"; // GATES-1: a pellet's share in words, HALF or the whole %
 import { SLOT_EVERY_CELLS, SLOT_FROM_CELLS, footBox, footCount, footSlots, isShaped } from "../sim/foot"; // SHAPES-1: the type line's shape, the size rule
@@ -621,7 +621,9 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
     // row 85 px of the 225 px band). Forms measured (px, ★1): "... DESTROYS 1 SLUG ON IT." 295, "... KNOCKS 1 SLUG OFF IT." 289, "... DESTROYS 1
     // FOE SLUG." 285, "... DESTROYS THE NEAREST SLUG." 321, "... RIPS 1 SLUG AND DESTROYS IT." 329, "... RIPS 1 SLUG: IT IS DESTROYED." 331, "...
     // RIPS 1 SLUG OFF IT FOR GOOD." 327 (was "... RIPS 1 SLUG.", 239). The ⓘ ladder and the SHOT note keep RIPS (LEVELS RIPS 1/2/3; not in this job)
-    return rules([shot(`A HIT ON A FOE BELT OR RIG DESTROYS ${rip} SLUG${s(n)} NEAR IT.`)], [["rip", `RIPS ${rip}`]]);
+    // PRESENT-1 (REQ-BFG-081; REVIEW-READ14 fix 2, FATE-ASK 3 of 12: three readers listed the ladder's RIPS and read it as destroys): the
+    // ⓘ ladder says DESTROYS, the face's verb (was `RIPS ${rip}`: "RIPS 1/2/3", "NEXT ★2: RIPS 2")
+    return rules([shot(`A HIT ON A FOE BELT OR RIG DESTROYS ${rip} SLUG${s(n)} NEAR IT.`)], [["rip", `DESTROYS ${rip}`]]);
   },
   tesla: (e, x) => {
     const n = c(e, x).arcs!, arcs = fmtCount(n), t = c(e, x).stall!, stun = fmtSec(t);
@@ -1096,7 +1098,8 @@ const FACES: Record<string, (e: ItemDef, x: X) => Rules> = {
   // "BELT 24 TILES")
   beltcrate: (e) => rules([{ text: `+${fmtCount(e.supply!.belt!)} BELT TILES FOR THE RUN.` }]),
   // HULL-1a (REQ-BFG-079): the day's number with HULL_SCALE on (x.day: the run's day); off, the pack's own
-  plating: (e, x) => rules([{ text: `+${fmtDmg(hullShown(e.supply!.hull!, x.day))} {HULL} FOR THE RUN.` }]),
+  // PRESENT-1 (REQ-BFG-081; REVIEW-SC0912B item 3): HULL in words, never the heart (families.ts:78-80; was "+250 {HULL} FOR THE RUN.")
+  plating: (e, x) => rules([{ text: `+${fmtDmg(hullShown(e.supply!.hull!, x.day))} HULL FOR THE RUN.` }]),
 };
 
 // ------------------------------------------------------------------------------- U2b: the interim lines (F5, F6)
@@ -1568,21 +1571,8 @@ export function shapeWord(def: string): string | null {
 
 // ------------------------------------------- SCALE-2c (REQ-BFG-098, REQ-BFG-089, REQ-BFG-087, REQ-BFG-107): the readers
 
-/** SCALE-2c (BRIEF-SCALE2c section 2's face lines; REPORT-SCALE1 3.1): what a reader line counts, in the face's words, the
- *  words after FOR EACH (IRON WALL's per, its day's PLATE, before its count). New text holds no plain PLATE or SHIELD: the
- *  tokens {*PLATE} (draws SHIELD, the soak layer) and {*SHIELD} (draws WARD) say them (REQ-BFG-107). */
-const READ_WORDS: Readonly<Record<ReadCount, (per: string) => string>> = {
-  foeBurn: () => "{*BURN} ON THE FOE",
-  foePoison: () => "{*POISON} ON THE FOE",
-  beltSlugs: () => "{SLUG} ON ITS BELT",
-  ownPlate: (per) => `${per} {*PLATE} YOU HAVE`,
-  ownShield: () => "{*SHIELD} YOU HAVE",
-  hitsTaken: () => "HIT ON YOU",
-  ownHits: () => "OF ITS HITS",
-  heartsLost: () => "HEART LOST",
-  wins: () => "WIN",
-  waiting: () => "{SLUG} WAITING",
-};
+// ROWS-1 (REQ-BFG-098; F2): the readers' words (READ_WORDS) and the clause itself (readerClause) moved to readerClause.ts, so the
+// belt timeline's row says the same words (abilityText.ts hitRow); this file adds the label and the full stop, as before.
 
 /**
  * SCALE-2c (REQ-BFG-098, REQ-BFG-089): a reader piece's face, from its own `reads` line at its star (a rig's gate.reads at
@@ -1596,18 +1586,9 @@ function readerFace(e: ItemDef): Rules {
   const atShot = e.kind === "mod";
   const r = (atShot ? md(e) : gt(e)).reads!;
   const label = atShot ? shot : hit;
-  let text: string, num: string;
-  if (r.give === "heal") {
-    const n = fmtDmg(sustNow(r.each));
-    text = `{*HEAL} ${n} TIMES THE FOE'S ${READ_WORDS[r.count]("").replace(" ON THE FOE", "")}.`;
-    num = `{*HEAL} ${n} TIMES`;
-  } else {
-    num = r.give === "plate" ? `+${fmtDmg(sustNow(r.each))} {*PLATE}` : `+${fmtDmg(dmgNow(r.each))} {DMG}`;
-    // CINDER MAIL: {*PLATE} draws SHIELD, a letter longer than the design's PLATE, so the brief's "... ON THE FOE." is
-    // 227-233 px against the 225 band at every star; "ON FOE." (203-209 px) is the least cut (REPORT Findings)
-    const what = READ_WORDS[r.count](r.per ? fmtDmg(sustNow(r.per)) : "");
-    text = `${num} FOR EACH ${r.give === "plate" ? what.replace(" ON THE FOE", " ON FOE") : what}.`;
-  }
+  // ROWS-1 (F2): the clause is readerClause.ts's (CINDER MAIL's "ON FOE" and the rest as they were); the face adds its full stop
+  const { clause, num } = readerClause(r);
+  const text = `${clause}.`;
   const kws: KeywordName[] = [];
   for (const m of text.matchAll(/\{\*([A-Z]+)\}/g)) if (!kws.includes(m[1] as KeywordName)) kws.push(m[1] as KeywordName);
   // the ladder's words: "+3/+5/+8 {DMG} EACH", LEECH COIL's "{HEAL} 4/5/6 TIMES" (TIMES says it: no EACH after it)
@@ -1659,6 +1640,23 @@ const SCALE_NOTES: Readonly<Record<string, (e: ItemDef) => string>> = {
 export function scaleNotes(def: string, markup = false): string[] {
   if (!scaleRules() || !Object.prototype.hasOwnProperty.call(SCALE_NOTES, def) || !Object.prototype.hasOwnProperty.call(ITEMS, def)) return [];
   const t = SCALE_NOTES[def](ITEMS[def]);
+  return [markup ? t : icons(t)];
+}
+
+/**
+ * PRESENT-1 (REQ-BFG-081; REVIEW-READ14 fix 3, WHICH-HIT 7 of 12: every reader asked what ANYTHING covers): LIMPET WORKS's ⓘ NOTES line, behind
+ * the tap (inspector.ts explainPanel, beside scaleNotes), never on the face. battle.ts roundImpact queues the charge on every landed shot of its
+ * slug whatever it hit (a part, a rig, a belt tile, the hull: a hit the foe's WARD blocks too, the shot's damage only is blocked), and hullEffects
+ * takes the blast off the foe's hull after its SHIELD (`{*PLATE}` reads SHIELD, `{*SHIELD}` reads WARD: font.ts PLAYER_WORD). No digit here.
+ */
+const RULE_NOTES: Readonly<Record<string, (e: ItemDef) => string>> = {
+  limpet: () => "ANYTHING: A PART, A RIG, A BELT TILE OR THE HULL. A HIT THE FOE'S {*SHIELD} BLOCKS STILL COUNTS. THE FOE'S {*PLATE} SOAKS THE BLAST.",
+};
+
+/** PRESENT-1: a piece's rule-edge NOTES sentence in glyphs, as drawn (icons(); [] for every piece but LIMPET WORKS). `markup`: in markup instead (tests, tools). */
+export function ruleNotes(def: string, markup = false): string[] {
+  if (!Object.prototype.hasOwnProperty.call(RULE_NOTES, def) || !Object.prototype.hasOwnProperty.call(ITEMS, def)) return [];
+  const t = RULE_NOTES[def](ITEMS[def]);
   return [markup ? t : icons(t)];
 }
 

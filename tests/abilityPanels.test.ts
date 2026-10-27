@@ -1013,7 +1013,11 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // panels of the reworked KINDLING (QUENCH TANK's id: "rig quench ★1 2hit spare0/1" and "rig quench ★1 idle spare0/1": its sentence
     // is shorter than the old one) now have room for it; no panel gives the hint way
     // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): the three converters' desk panels join the sweep (PANELS is built at collection with GATES on): 1342 -> 1367 (+25 of the +27 panels keep the hint on the band); not traced panel by panel
-    expect(hints).toBe(1367); // BUMP-1F: was 1342; BUMP-1E: was 1229
+    // POLISH-1 (REQ-BFG-089; P5a), measured: 1337 of 2547 (was 1367), -30, per panel against the same sweep on the tree without the star (the ids: output-polish1/logs/hintdiff-p5a.txt): a placed
+    // rig's title now carries its star at ★1 (a space and a star wider), so on this 161 px band the buttons of 15 placed rigs no longer fit beside it and drop under the sub line (portraitButtons, the 0.6.1r
+    // F7 rule, unchanged); the body loses that row and the optional hint gives way first, as ever (spare0 and spare1 each): WHETSTONE idle; LONG HAUL 2hit, idle; SPLITTER 2hit, 3hit, idle;
+    // TOLLBOOTH 1hit, idle; KINDLING (quench) 2hit, idle; LODESTONE 2hit, idle; SPARK GAP idle; ROT GAUGE 2hit, idle. No panel gains the hint; the kept blocks stay whole (the sweeps above pass)
+    expect(hints).toBe(1337); // POLISH-1: was 1367; BUMP-1F: was 1342; BUMP-1E: was 1229
   });
 });
 

@@ -21,12 +21,16 @@ import { SummaryScreen } from "./summary"; // ENDLESS-1 (3.2): CONTINUE on a won
 import { dayText } from "./runDay";
 import { JOIN_OVER_LIMIT, JOIN_PACE_PCT } from "../sim/deck"; // 0.6.2 TUNE-M: RULE JOIN PACE and RULE JOIN LIMIT in the rules card
 import { freeJoinsRules } from "../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): neither rule in the card with FREE_JOINS on
+import { gatesRules } from "../sim/gates"; // POLISH-1 (P4): the gate sentence follows GATES
+import { enchantRules } from "../sim/enchant"; // POLISH-1 (P4): the ENCHANTER sentence follows ENCHANT
+import { scaleRules } from "../sim/scale"; // POLISH-1 (P4): the keyword line's POISON follows the switch that turns POISON on
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
 import { drawText, icons, textWidth } from "../render/font";
 import { titleArt } from "../render/sprites";
 import { defaultScale } from "../core/io";
-import { button, panel, para } from "../ui/ui";
+import { button, panel, para, tapRect, type Rect } from "../ui/ui";
+import { isPhone, tapPx } from "../ui/tap"; // TITLE-TAP (PRESENT-1): a finger's target for the small row
 import { optionsCard } from "../ui/hud";
 import { helpCard, titleLayout, titleScale, type TitleLayout } from "./titleLayout";
 import { HeroScreen } from "./hero";
@@ -69,9 +73,27 @@ export function helpLine3(free = freeJoinsRules()): string {
  *  drawText tints them). Each clause is the keyword's own reminder cut short (faces.ts REMINDER); WARD's keeps the
  *  reminder's HIT'S DAMAGE, since that hit's BURN, FRAY and STUN still land (battle.ts impact; PREP's draft said BLOCKS
  *  ALL OF ONE HIT). Rules text a player opens on demand, so no card carries a definition (REQ-BFG-089). */
-export const HELP_KEYWORDS = icons(
-  "6  {*BURN}: HULL DAMAGE OVER TIME. {*STUN}: STOPS THE PART IT HITS FOR A WHILE. {*PLATE}: SOAKS HULL DAMAGE. {*SHIELD}: BLOCKS ALL OF ONE HIT'S DAMAGE. {*PAIR}: SLUGS FROM TWO BELTS REACH ONE TURRET AT ONCE. {*FRAY}: LATER HULL HITS DEAL MORE.",
-);
+const HELP_KW_HEAD = "6  {*BURN}: HULL DAMAGE OVER TIME.";
+const HELP_KW_TAIL = "{*STUN}: STOPS THE PART IT HITS FOR A WHILE. {*PLATE}: SOAKS HULL DAMAGE. {*SHIELD}: BLOCKS ALL OF ONE HIT'S DAMAGE. {*PAIR}: SLUGS FROM TWO BELTS REACH ONE TURRET AT ONCE. {*FRAY}: LATER HULL HITS DEAL MORE.";
+export const HELP_KEYWORDS = icons(`${HELP_KW_HEAD} ${HELP_KW_TAIL}`);
+
+/** POLISH-1 (REQ-BFG-085; P4, BUMP-1F's review F3): the keyword line with POISON, in the others' form (its icon, its word, one clause: faces.ts REMINDER.POISON cut short; it adds
+ *  up each second to the end of the fight). POISON is in the game while the scaling switch (sim/scale.ts scaleRules) is on, as glossary.ts and font.ts KEYWORDS have it; off, the
+ *  line is HELP_KEYWORDS, exactly as before. It follows BURN, the other damage that goes on after a hit. */
+export const HELP_POISON = "{*POISON}: HULL DAMAGE EVERY SECOND UNTIL THE FIGHT ENDS.";
+export function helpKeywords(poison = scaleRules()): string {
+  return poison ? icons(`${HELP_KW_HEAD} ${HELP_POISON} ${HELP_KW_TAIL}`) : HELP_KEYWORDS;
+}
+
+/** POLISH-1 (REQ-BFG-052, REQ-BFG-057, REQ-BFG-085; P4): item 4 gains ONE plain sentence on what a gate does and what the ENCHANTER sells, each part following its own switch: the gate
+ *  part with GATES (sim/gates.ts gatesRules: a gate is a belt-fed converter; dropped on a belt it splits the belt, slugs go in and come out changed), the words part with ENCHANT
+ *  (sim/enchant.ts enchantRules: the caravan's ENCHANTER sells a word, one extra effect for one part). Both off: HELP[3] itself. */
+export function helpLine4(gates = gatesRules(), words = enchantRules()): string {
+  const gate = "A GATE SITS ON THE BELT AND CHANGES EACH SLUG THAT RIDES THROUGH IT";
+  const word = "THE ENCHANTER SELLS A WORD THAT GIVES ONE OF YOUR PARTS AN EXTRA EFFECT";
+  const add = gates && words ? `${gate}, AND ${word}.` : gates ? `${gate}.` : words ? `${word}.` : "";
+  return add ? `${HELP[3]} ${add}` : HELP[3];
+}
 
 /** JOINS-1: the rules card the title draws: HELP with line 3 by the switch now (HELP itself with FREE_JOINS off).
  *  RETUNE-1 run 2 (REQ-BFG-096): and line 2 the hearts rule while HEARTS is on (HELP_HEARTS_2, below HELP). HULL-ON (the
@@ -84,7 +106,8 @@ export function helpLines(): string[] {
   // BUMP-1E P6 (RULING-BUMP1E-R3 R3.5; ENDLESS-1 question 2): with endless in the game (endlessFor under this build's rules, as day.ts
   // takes it for a new run) line 2 ends with HELP_ENDLESS, one sentence; it is the only line that moves, so SHOPCARD-1's lines 3-6 keep their numbers and words
   const endless = endlessFor(RULES_VERSION);
-  const lines = HELP.map((ln, i) => (i === 0 && long ? HELP_LONG_1 : i === 1 && heartsRules() ? (long ? (endless ? `${HELP_LONG_2} ${HELP_ENDLESS}` : HELP_LONG_2) : HELP_HEARTS_2) : i === 2 ? helpLine3() : ln));
+  // POLISH-1 (P4): item 4 gains the gate and ENCHANTER sentence (helpLine4) and item 6 POISON (helpKeywords), each by its own switch; with them off both are HELP's
+  const lines = HELP.map((ln, i) => (i === 0 && long ? HELP_LONG_1 : i === 1 && heartsRules() ? (long ? (endless ? `${HELP_LONG_2} ${HELP_ENDLESS}` : HELP_LONG_2) : HELP_HEARTS_2) : i === 2 ? helpLine3() : i === 3 ? helpLine4() : i === 5 ? helpKeywords() : ln));
   return lines.every((ln, i) => ln === HELP[i]) ? HELP : lines;
 }
 
@@ -196,16 +219,22 @@ export class TitleScreen implements Screen {
 
   private place(): void {
     const { W, H, portrait } = this.game;
+    // TITLE-1 (PRESENT-1): the CSS px per logical px too (titleLayout's floor keeps the open water between the drawn carriers at
+    // introcheck's bar of one CSS inch; a stand-in game without a view: unknown, that term is left out)
+    const v = this.game.view;
+    const css = v ? v.scale / (v.dpr || 1) : Infinity;
     // intro: the saved run and the buttons' size factor are in the key too (CONTINUE makes the panel taller)
-    const key = `${W}x${H}${portrait}${!!this.save}${this.k}`;
+    const key = `${W}x${H}${portrait}${!!this.save}${this.k}x${css}`;
     if (key === this.layoutKey) return;
     this.layoutKey = key;
     // open floor between the bows like the real battle (0.5.0): 20% of the firing axis, at least the battle's 17%
     // (titleLayout.ts; before the intro job the portrait floor was whatever the logo and the panel left over)
-    this.L = titleLayout(W, H, portrait, !!this.save, this.k);
+    this.L = titleLayout(W, H, portrait, !!this.save, this.k, css);
     this.arena.setFrames(this.L.frames, portrait ? [[0, 1], [0, -1]] : [[-1, 0], [1, 0]]);
     // MOTION-2: the drifts never close the open floor below the battle's minimum (as in a battle)
-    this.motion.setLanes({ portrait, gap: this.L.gap }, minGap(portrait ? H : W));
+    // TITLE-SURGE (PRESENT-1, REQ-BFG-038; REVIEW-CUSTOM3 ruling 4): and, as battle.ts:439 and replay.ts:171 pass their whole layout, W and the
+    // frames too, so ArenaMotion.setLanes takes the lanes through laneSpec (battleLayout.ts:166): landscape's surge stays inside the boards' margin
+    this.motion.setLanes({ portrait, gap: this.L.gap, W, frames: this.L.frames }, minGap(portrait ? H : W));
   }
 
   /** intro tooling (read only; scripts/introcheck.mjs): the title's frame as drawn, in logical px: its scale and the
@@ -268,12 +297,19 @@ export class TitleScreen implements Screen {
         onTap: () => this.gate(() => this.continueRun()),
       });
     }
+    // TITLE-TAP (PRESENT-1, REQ-BFG-038 backlog #372; REVIEW-CUSTOM2B ruling 2): the small row's three buttons (font "3", 18-31 CSS px
+    // tall on a phone) take a finger's target (ui/tap.ts tapPx, 44 CSS px) through button()'s `hit`, as CUSTOMIZE's BACK does
+    // (customize.ts:190): grown evenly about the drawn button, kept below NEW RUN / CONTINUE's bottom edge (their targets are
+    // their drawn rects) and above the screen's bottom edge, the row's own columns wide. It draws nothing different.
+    const tap = game.view && isPhone(game.view) ? tapPx(game.view) : 0;
+    const above = b.cont ?? b.new;
+    const rowHit = (r: Rect): Rect | undefined => (tap > 0 ? tapRect(r, tap, { x: r.x, y: above.y + above.h, w: r.w, h: H - (above.y + above.h) }) : undefined);
     button(ui, g, "help", b.help, this.help ? "CLOSE" : "HOW TO PLAY", {
-      font: "3", active: this.help, onTap: () => this.gate(() => { this.help = !this.help; }),
+      font: "3", active: this.help, hit: rowHit(b.help), onTap: () => this.gate(() => { this.help = !this.help; }),
     });
-    button(ui, g, "options", b.options, "OPTIONS", { font: "3", onTap: () => this.gate(() => { this.menu = true; }) });
+    button(ui, g, "options", b.options, "OPTIONS", { font: "3", hit: rowHit(b.options), onTap: () => this.gate(() => { this.menu = true; }) });
     // CUSTOM-2a (REQ-BFG-072, Q5): CUSTOMIZE, the third button of the row, with a NEW dot while an unlocked style is unseen
-    button(ui, g, "customize", b.customize, "CUSTOMIZE", { font: "3", onTap: () => this.gate(() => game.go(new CustomizeScreen(game))) });
+    button(ui, g, "customize", b.customize, "CUSTOMIZE", { font: "3", hit: rowHit(b.customize), onTap: () => this.gate(() => game.go(new CustomizeScreen(game))) });
     if (this.newStyle) newDot(g, b.customize);
     game.soundButton(g, L.sound);
     drawText(g, `V${VERSION}`, W - 4, H - 8, C.slate3, { font: "3", align: "right" });

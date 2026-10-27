@@ -221,7 +221,10 @@ const F3: GlyphMap = {
   T: "###|.#.|.#.|.#.|.#.",
   U: "#.#|#.#|#.#|#.#|###",
   V: "#.#|#.#|#.#|#.#|.#.",
-  W: "#.#|#.#|###|###|#.#",
+  // POLISH-1 (REQ-BFG-085; P6, FONT-W): the old W (`#.#|#.#|###|###|#.#`, the M turned over) read as H at phone size: SWIFT as SHIFT, WIDE as HIDE, WHICH and WARLORD too (ENCHANT-2W's read).
+  // Its lower three rows are solid now, a bowl no H has; still 3 columns, so no text width moves. Chosen by a candidates read of words drawn by this file at phone scale (x3): 6 of 6 seats
+  // read all eight words right (the old glyph: 0 of 2, SWIFT as SHIFT); the 5x7 face's W (:119) and M are untouched
+  W: "#.#|#.#|###|###|###",
   X: "#.#|#.#|.#.|#.#|#.#",
   Y: "#.#|#.#|.#.|.#.|.#.",
   Z: "###|..#|.#.|#..|###",

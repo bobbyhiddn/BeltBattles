@@ -115,6 +115,9 @@ export const fmtClock = (t: number): string => {
   const s = clockSec(t);
   return rec("sec", s, String(s));
 };
+/** POLISH-1 (REQ-BFG-085; P3b, ENCHANT-2W's read: `24S` was read as 245): the fight clock with its unit spelled, `24 SEC`, as a belt's ride TIME in the belt panel reads
+ *  (build/inspector.ts). The result cards' top lines (DUSK, ROAD, REPLAY) and FIRST SHOT write it; the number is fmtClock's. */
+export const fmtClockSec = (t: number): string => `${fmtClock(t)} SEC`;
 /** NUM-4: a measured share (the results' GUNS IDLE: idle time over turret time), a reading like a clock, so it is the one
  *  % that rounds (half up, to a whole %); every rule's % is fmtPct's, exact. */
 export const fmtReadPct = (x: number): string => {

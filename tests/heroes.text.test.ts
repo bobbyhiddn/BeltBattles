@@ -90,7 +90,7 @@ describe("CRUCIBLE and WARDWORKS: plain sentences from the real values", () => {
       for (const r of fl.reminders) expect(text, `${def}: no reminder`).not.toContain(r);
       expect(text.join(" ")).toContain(flavour(def)[0]);
       expect(p.labels).toEqual(["UPGRADE 10G"]); // bb-0.8.3 (REQ-BFG-043 D11): its FACTORY upgrade's button (0.8.0: [])
-      expect(p.title).toBe(ITEMS[def].name);
+      expect(p.title).toBe(`${ITEMS[def].name} ★`); // POLISH-1 (P5a): the panel's title shows its star at ★1 too (was the bare name)
     }
   });
 

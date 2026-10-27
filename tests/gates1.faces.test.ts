@@ -160,7 +160,7 @@ describe("GATES-1 G4: NOTES, the type line and the panels", () => {
       const r = run([{ uid: 30, def: "fuser", x: 4, y: 3 }]);
       const p = itemPanel(r, 30)!;
       expect(p).toEqual(gatePanel(r, 30));
-      expect([p.title, p.sub, p.labels]).toEqual(["FUSER", "GATE · BELT 1", ["TO CARGO"]]);
+      expect([p.title, p.sub, p.labels]).toEqual(["FUSER ★", "GATE · BELT 1", ["TO CARGO"]]); // POLISH-1 (P5a): the title shows its star at ★1 too (was "FUSER")
       expect(itemPanel(r, 30, true)!.labels).toEqual(["TO CARGO", `SELL +${sellValue("fuser", 1)}G`]);
       expect(rigPanel(r, 30)).toBeNull();
       const merged = run([{ uid: 30, def: "fuser", x: 4, y: 3, stars: 2 }]);

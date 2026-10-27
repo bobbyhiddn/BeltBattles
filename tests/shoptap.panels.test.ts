@@ -137,7 +137,7 @@ describe("D2 / REQ-BFG-035: SELL on every carrier part's panel (touch); the mous
       run.build.mods = [{ uid: 950, def: "pressure", turret: 0, stars: 2 }, { uid: 951, def: "hopper", turret: 0 }];
       const core = fittedPanel(run, 950)!, gear = fittedPanel(run, 951)!;
       expect([core.title, core.sub, core.labels]).toEqual(["PRESSURE BREECH ★★", "CORE ON TURRET 1", ["TO CARGO", `SELL +${sellValue("pressure", 2)}G`]]);
-      expect([gear.title, gear.sub, gear.labels]).toEqual(["HOPPER", "GEAR ON TURRET 1", ["TO CARGO", `SELL +${sellValue("hopper", 1)}G`]]);
+      expect([gear.title, gear.sub, gear.labels]).toEqual(["HOPPER ★", "GEAR ON TURRET 1", ["TO CARGO", `SELL +${sellValue("hopper", 1)}G`]]);
       // the core's numbers are its turret's (the hero's first gun, as the cargo panel's): the same sentences
       const inCargo = newRun(hero, 5, "fit");
       inCargo.inventory = [{ uid: 950, def: "pressure", stars: 2 }];

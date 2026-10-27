@@ -17,6 +17,7 @@ import { C } from "../src/render/palette";
 import { HEROES, RUN_DAYS } from "../src/sim/content";
 import { HEARTS_START, heartCost, heartsRules, withHearts } from "../src/sim/hearts";
 import { WIN_GOAL, longRunRules, setLongRun, withLongRun } from "../src/sim/longRun";
+import { cardBefore } from "./polish1.help.helpers"; // POLISH-1 (P4): the rules card as it was (the new sentences' switches off)
 import { withEndless } from "../src/sim/endless"; // BUMP-1E P6: ENDLESS ships on and adds one sentence to the card's line 2 (tests/bump1e.endlesshelp.test.ts); the long card without it is read with endless off
 import { finishDay, flawless } from "../src/game/day";
 import { newRun, type Run } from "../src/game/run";
@@ -142,7 +143,7 @@ describe("RUN-1 T4: the title's rules card and continue card", () => {
   it("switch off: the card is the live card, word for word (HELP's line 1, the hearts rule's line 2)", () => {
     expect(longRunRules()).toBe(false);
     expect(heartsRules()).toBe(true);
-    const lines = helpLines();
+    const lines = cardBefore(() => helpLines()); // POLISH-1 (P4): the card as it was, GATES, ENCHANT and POISON's switch off (the ON card: tests/polish1.help.test.ts)
     expect(lines[0]).toBe(LIVE_1);
     expect(lines[1]).toBe(LIVE_2);
     expect(lines).toEqual([HELP[0], HELP_HEARTS_2, helpLine3(), HELP[3], HELP[4], HELP_KEYWORDS]);
@@ -158,7 +159,7 @@ describe("RUN-1 T4: the title's rules card and continue card", () => {
   });
 
   it("LONG_RUN on: line 1 says WIN 10 DUSK FIGHTS, line 2 the hearts rule's words, then how the run ends; the other lines don't move", () => {
-    const lines = withEndless(() => withLongRun(() => helpLines()), false); // BUMP-1E: read with endless off (it ships on and adds HELP_ENDLESS to line 2); was withLongRun(() => helpLines())
+    const lines = withEndless(() => withLongRun(() => cardBefore(() => helpLines())), false); // POLISH-1 (P4): + the card as it was (cardBefore); BUMP-1E: read with endless off (it ships on and adds HELP_ENDLESS to line 2); was withLongRun(() => helpLines())
     expect(lines.length).toBe(6);
     expect(lines[0]).toBe("1  WIN 10 DUSK FIGHTS. EACH DAY IS THE CARAVAN AT DAWN, THE ROAD, THEN A DUSK FIGHT AGAINST A GHOST: ANOTHER CAPTAIN'S SAVED CRUISER.");
     // BUMP-1D: the hearts words are the new costs' ("1 ON DAYS 1-3 AND 2 FROM DAY 4"; was "1 ON DAYS 1-3, 2 ON DAYS 4-6 AND 3 FROM DAY 7")

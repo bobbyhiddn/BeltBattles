@@ -126,15 +126,16 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
     expect(lcHullNow(runOf("furnace", 5), 500, 5)).toEqual([2100, 2600]);
     expect(on(() => lcHullNow(runOf("furnace", 5), 500, 5))).toEqual([5880, 7280]);
     expect(lcToast("hull", offer, 5)).toBe(lcToast("hull", offer));
-    expect(on(() => lcToast("hull", offer, 5))).toMatch(/^MAX HULL \+1400 /);
+    expect(on(() => lcToast("hull", offer, 5))).toBe("MAX HULL +1400"); // PRESENT-1 (REQ-BFG-081): no heart after it (was toMatch(/^MAX HULL \+1400 /), "MAX HULL +1400 ♥")
   }, false));
 
   it("the road event's hull amounts (PLATING, RIDE THROUGH and the hull costs): the card chips and the outcome line", () => withHullScale(() => {
     const d = { k: "hull" as const, n: 250 };
-    expect(deltaText(d, false, 10)).toBe("+250 HULL");
-    expect(on(() => deltaText(d, false, 1))).toBe("+250 HULL");
-    expect(on(() => deltaText(d, false, 10))).toBe("+1500 HULL");
-    expect(on(() => deltaText(d, true, 10))).toBe("-1500 HULL");
+    // POLISH-1 (P3d): the chip says MAX HULL (it is the max hull, as the outcome line says); was "+250 HULL", "+250 HULL", "+1500 HULL", "-1500 HULL"
+    expect(deltaText(d, false, 10)).toBe("+250 MAX HULL");
+    expect(on(() => deltaText(d, false, 1))).toBe("+250 MAX HULL");
+    expect(on(() => deltaText(d, false, 10))).toBe("+1500 MAX HULL");
+    expect(on(() => deltaText(d, true, 10))).toBe("-1500 MAX HULL");
     const c = { cost: [], gain: [d] } as unknown as Choice;
     expect(outcomeText(c, true, 10)[0]).toBe("+250 MAX HULL");
     expect(on(() => outcomeText(c, true, 10)[0])).toBe("+1500 MAX HULL");

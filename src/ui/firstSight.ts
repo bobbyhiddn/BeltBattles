@@ -53,6 +53,10 @@ export function sawWord(word: string): void {
 /** K1: whether the rig sentence's note is done. */
 export const rigSeen = (): boolean => sightDone(RIG_SIGHT);
 
+/** PRESENT-1 (S4 (b)): whether any first-sight note is still to show on this device (the rig sentence's or a keyword's): a
+ *  cheap yes or no, so the build screen plans a panel for a coming note only while there is one. Pure. */
+export const sightsLeft = (): boolean => !rigSeen() || FIRST_SIGHT_WORDS.some((w) => !sightDone(kwSight(w)));
+
 /** K1: the rig sentence has been on screen: its note is done. */
 export function sawRig(): void {
   completeSight(RIG_SIGHT);

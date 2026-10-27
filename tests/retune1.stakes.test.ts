@@ -32,6 +32,7 @@ import { UI } from "../src/ui/ui";
 import { heartIcon } from "../src/render/sprites";
 import { shieldIcon } from "../src/render/eventArt";
 import { makeCanvas, type G } from "../src/render/pixel";
+import { cardBefore } from "./polish1.help.helpers"; // POLISH-1 (P4): the rules card as it was (the new sentences' switches off)
 import { textWidth } from "../src/render/font";
 import type { Game } from "../src/game/game";
 
@@ -91,9 +92,9 @@ describe("RETUNE-1 run 2 stakes: HEARTS off (or a run without the mark), every s
   it("the title's rules card: HELP itself, line 2 word for word", () => {
     // BUMP-1D: HELP itself is the 10-day card (LONG_RUN ships on, and its card says WIN 10 DUSK FIGHTS on line 1), so it is read with the
     // long run off; with the long run on and HEARTS off, line 2 is this same 5-lives line and only line 1 is the long card's
-    expect(withLongRun(() => helpLines(), false)).toBe(HELP);
+    expect(withLongRun(() => cardBefore(() => helpLines()), false)).toBe(HELP); // POLISH-1 (P4): + the card as it was (cardBefore: GATES, ENCHANT and POISON's switch off)
     expect(HELP[1]).toBe("2  YOU HAVE 5 LIVES. A DUSK LOSS COSTS ONE, A DRAW NONE. LOSE ON DAY 1 OR 2 AND DAY 3'S DAWN GIVES ONE LIFE BACK (ONCE A RUN). YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).");
-    const long = helpLines();
+    const long = cardBefore(() => helpLines()); // POLISH-1 (P4): the card as it was (cardBefore)
     expect(long[0]).toBe(HELP_LONG_1);
     expect(long.filter((_, i) => i !== 0)).toEqual(HELP.filter((_, i) => i !== 0));
   });
@@ -167,7 +168,7 @@ describe("RETUNE-1 run 2 stakes: a hearts run's words", () => {
     // BUMP-1D: the 10-day card (the long run off): line 2 is HELP_HEARTS_2, whose cost words are built from the constants with equal
     // neighbouring bands merged (title.ts heartCostWords): "1 ON DAYS 1-3 AND 2 FROM DAY 4" for HEART_COSTS [1, 2, 2] (was "1 ON DAYS 1-3, 2 ON
     // DAYS 4-6 AND 3 FROM DAY 7"); the old costs [1, 2, 3] still read that, as an explicit argument
-    const lines = withLongRun(() => helpLines(), false);
+    const lines = withLongRun(() => cardBefore(() => helpLines()), false); // POLISH-1 (P4): + cardBefore
     expect(lines[1]).toBe(HELP_HEARTS_2);
     expect(HELP_HEARTS_2).toBe("2  YOU HAVE 10 HEARTS. A DUSK LOSS COSTS 1 ON DAYS 1-3 AND 2 FROM DAY 4, A DRAW NONE. YOUR SCORE IS YOUR W-L RECORD (10-0 IS FLAWLESS).");
     expect(heartCostWords()).toBe("1 ON DAYS 1-3 AND 2 FROM DAY 4");
@@ -181,7 +182,7 @@ describe("RETUNE-1 run 2 stakes: a hearts run's words", () => {
     // BUMP-1E: ENDLESS ships on (src/sim/endless.ts) and adds one sentence, HELP_ENDLESS, to the end of line 2 (title.ts helpLines; the only line
     // that moves: tests/bump1e.endlesshelp.test.ts), so the card as these lines pinned it is read with endless off (as tests/run1.screens.test.ts
     // reads it) and the shipped card, endless on, beside it
-    const long = withEndless(() => helpLines(), false); // BUMP-1E: was helpLines()
+    const long = withEndless(() => cardBefore(() => helpLines()), false); // BUMP-1E: was helpLines(); POLISH-1 (P4): + cardBefore
     expect(long[0]).toBe(HELP_LONG_1);
     expect(long[1]).toBe(HELP_LONG_2);
     expect(HELP_LONG_2.startsWith(HELP_HEARTS_2.slice(0, HELP_HEARTS_2.indexOf("A DRAW NONE.") + "A DRAW NONE.".length))).toBe(true);
@@ -189,7 +190,7 @@ describe("RETUNE-1 run 2 stakes: a hearts run's words", () => {
     expect(long.join(" ")).not.toMatch(/\bLIFE\b|\bLIVES\b|REFUND/);
     // BUMP-1E: the shipped card (endless on): line 1 as above, line 2 HELP_LONG_2 and then the endless sentence, no other line differs, still no lives or refund
     expect(ENDLESS).toBe(true);
-    const longOn = helpLines();
+    const longOn = cardBefore(() => helpLines()); // POLISH-1 (P4): + the card as it was (cardBefore)
     expect(longOn[0]).toBe(HELP_LONG_1);
     expect(longOn[1]).toBe(`${HELP_LONG_2} ${HELP_ENDLESS}`); // BUMP-1E: was toBe(HELP_LONG_2)
     expect(longOn.filter((_, i) => i !== 1)).toEqual(long.filter((_, i) => i !== 1));

@@ -87,7 +87,7 @@ describe("numbers.battle (NUM-4): pops, hull, clocks, results, the estimate and 
     expect(fmtClock(60)).toBe("60");
     // FIRST SHOT on the results card is a clock reading too
     const s = { damage: 1200, shots: 30, firstShot: 2.25, idle: 3, turretTime: 30, jams: 1, burnDealt: 170, disrupted: 0 } as never;
-    expect(resultRows({ player: s, enemy: s })[2]).toEqual(["FIRST SHOT", "2S", "2S"]);
+    expect(resultRows({ player: s, enemy: s })[2]).toEqual(["FIRST SHOT", "2 SEC", "2 SEC"]); // POLISH-1 (P3b): was "2S" (`24S` read as 245)
     expect(resultRows({ player: s, enemy: s })[3]).toEqual(["GUNS IDLE", "10%", "10%"]);
   });
 
