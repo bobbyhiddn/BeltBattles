@@ -1,4 +1,5 @@
-// IDENT-1 (REQ-BFG-122): the title's two OPTIONS entries and their cards.
+// IDENT-1 (REQ-BFG-122): the title's two OPTIONS entries and their cards. S6 (REQ-BFG-119): and a third row, PRIVACY, which opens the privacy
+// policy outside the game (net/privacyLink.ts); it has no card and is on whatever the session is.
 //   LINK A DEVICE        a card with two choices. SHOW MY CODE asks the server for a one-time code (net/linkClient.ts requestLinkCode) and
 //                        shows it big as XXXX-XXXX, the minutes left and one line: ENTER IT ON YOUR OTHER DEVICE. ENTER A CODE has a real
 //                        HTML <input> (the name screen's way, src/screens/name.ts) with an OK button of at least 44x44 CSS px; it calls
@@ -15,6 +16,7 @@ import type { Game, Modal } from "../game/game";
 import { onlineSession, type Online } from "../game/online";
 import type { Identity } from "../net/identity";
 import { deleteOnlineData, redeemLinkCode, requestLinkCode } from "../net/linkClient";
+import { PRIVACY_URL, openOutside } from "../net/privacyLink"; // S6 (REQ-BFG-119): the PRIVACY row
 import { drawText, textWidth, wrap, type FontId } from "../render/font";
 import { C } from "../render/palette";
 import { rect, type G } from "../render/pixel";
@@ -27,6 +29,7 @@ import { button, panel, type Rect } from "../ui/ui";
 export const WORDS = {
   linkRow: "LINK A DEVICE",
   deleteRow: "DELETE MY ONLINE DATA",
+  privacyRow: "PRIVACY", // S6: always on, offline too: it opens the privacy policy outside the game (net/privacyLink.ts)
   // why the two entries are off (one line, by state)
   offNone: "ONLINE ONLY. THIS GAME HAS NO SERVER.",
   offFailed: "THIS PAGE CANNOT GO ONLINE.",
@@ -123,14 +126,18 @@ export interface LinkCardDeps {
   availability: () => Availability;
   /** The clock, for the code's time left at the moment it arrives. */
   now: () => number;
+  /** S6: opens an address outside the game, for the PRIVACY row. Default: net/privacyLink.ts openOutside (a new tab on the web, the system
+   *  browser in the apps). Optional, so a test's own full set of deps (ident1.ui.test.ts's fakeDeps) needs no change. */
+  openOutside?: (url: string) => void;
 }
 
 export function realDeps(): LinkCardDeps {
   return { requestLinkCode, redeemLinkCode, deleteOnlineData, availability: () => linkAvailability(), now: () => Date.now() };
 }
 
-/** The two OPTIONS entries below NAME (hud.ts optionsCard's `extras`), off with the one line why while there is no session. `k`: the
- *  title's button size factor, read when a card opens and while it is up. */
+/** The OPTIONS entries below NAME (hud.ts optionsCard's `extras`): LINK A DEVICE and DELETE MY ONLINE DATA, off with the one line why while
+ *  there is no session, and (S6) PRIVACY, always on: also offline, where the browser then shows its own offline page. `k`: the title's button
+ *  size factor, read when a card opens and while it is up. */
 export function optionsExtras(game: Game, k: () => number = () => 1, deps: Partial<LinkCardDeps> = {}): OptionsExtras {
   const d: LinkCardDeps = { ...realDeps(), ...deps };
   const a = d.availability();
@@ -139,6 +146,8 @@ export function optionsExtras(game: Game, k: () => number = () => 1, deps: Parti
     rows: [
       { id: "opt-link", label: WORDS.linkRow, disabled: !a.on, onTap: open("link") },
       { id: "opt-delete", label: WORDS.deleteRow, disabled: !a.on, onTap: open("delete") },
+      // S6 (REQ-BFG-119): the privacy policy, outside the game. Not tied to the session, the build or the demo flag
+      { id: "opt-privacy", label: WORDS.privacyRow, onTap: () => (d.openOutside ?? openOutside)(PRIVACY_URL) },
     ],
     ...(a.on ? {} : { note: a.why }),
   };

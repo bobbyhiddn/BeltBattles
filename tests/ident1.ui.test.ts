@@ -266,7 +266,7 @@ describe("IDENT-1 UI: the words", () => {
   });
 
   it("a sentence ends in a full stop (the labels and titles are short words); the lines are whole sentences", () => {
-    const labels = ["linkRow", "deleteRow", "linkTitle", "showCode", "enterCode", "newCode", "deleteTitle", "close", "back", "done", "cancel", "delete", "tryAgain"] as const;
+    const labels = ["linkRow", "deleteRow", "privacyRow", "linkTitle", "showCode", "enterCode", "newCode", "deleteTitle", "close", "back", "done", "cancel", "delete", "tryAgain"] as const; // S6: + privacyRow, the PRIVACY row's label
     for (const [key, text] of Object.entries(WORDS)) {
       if ((labels as readonly string[]).includes(key)) {
         expect(text.length, key).toBeLessThanOrEqual(21);
@@ -426,10 +426,10 @@ describe("IDENT-1 UI: the OPTIONS card", () => {
     const plain = optionsGeometry(tv.W, tv.H, tv.k, 1);
     const withRows = optionsGeometry(tv.W, tv.H, tv.k, 1, optionsExtras(stub.game, () => tv.k, { availability: () => ON }));
     const step = Math.ceil(19 * tv.k - 1e-9) + 3;
-    expect(withRows.card.h - plain.card.h).toBe(2 * step);
+    expect(withRows.card.h - plain.card.h).toBe(3 * step); // S6: LINK A DEVICE, DELETE MY ONLINE DATA and PRIVACY (was 2 rows)
     expect(withRows.bw).toBe(plain.bw);
     const off = optionsGeometry(tv.W, tv.H, tv.k, 1, optionsExtras(stub.game, () => tv.k, { availability: () => ({ on: false, why: WORDS.offNone }) }));
-    expect(off.card.h - plain.card.h).toBe(2 * step + off.noteLines.length * NOTE_ROW);
+    expect(off.card.h - plain.card.h).toBe(3 * step + off.noteLines.length * NOTE_ROW);
   });
 });
 
