@@ -423,7 +423,8 @@ function fitCheck(vname, V, what, l) {
 const inView = (r, l) => !!r && r.x >= l.vis.x - 0.01 && r.y >= l.vis.y - 0.01 && r.x + r.w <= l.vis.x + l.vis.w + 0.51 && r.y + r.h <= l.vis.y + l.vis.h + 0.51;
 /** shoptap2: the panel a tap opened shows its description: drawn, titled `title`, at least one body line, its kept text
  *  whole, fully inside the visible viewport. */
-const shown = (l, title) => !!l.panel && (title === undefined || l.panel.title === title) && l.panel.lines.length > 0 && l.panel.whole && !!l.box && l.inside;
+// 0.9.14.1 (POLISH-1's P5a): a plain piece's title may carry its star at ★1 (`NAME ★`); POLISH-1's kit line touchcheck-star.diff
+const shown = (l, title) => !!l.panel && (title === undefined || l.panel.title === title || l.panel.title === `${title} ★`) && l.panel.lines.length > 0 && l.panel.whole && !!l.box && l.inside;
 const pdesc = (l) => (!l.panel ? "no panel" : `"${l.panel.title}", ${l.panel.lines.length} body lines${l.panel.whole ? "" : " (its kept text cut)"}, ${l.box
   ? `drawn ${l.box.w.toFixed(0)}x${l.box.h.toFixed(0)} at (${l.box.x.toFixed(0)}, ${l.box.y.toFixed(0)}) ${l.inside ? "inside" : "NOT inside"} the visible ${l.vis.w}x${l.vis.h}`
   : "NOT DRAWN"}`);
