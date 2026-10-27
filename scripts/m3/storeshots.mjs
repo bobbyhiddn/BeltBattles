@@ -93,9 +93,15 @@ const MOMENTS = [
     await page.evaluate(() => { window.bb.game.screen.sel = 1; });
     await frames(page, 20);
   }],
-  ["won", "RUN WON: ten dusk fights won, flawless, with CONTINUE ENDLESS", async (page) => {
-    await page.evaluate(() => window.bb.openEnd({ results: "WWWWWWWWWW", seed: 99 }));
+  ["won", "RUN WON: ten dusk fights won, flawless, every warlord on the road beaten too, with CONTINUE ENDLESS", async (page) => {
+    // cap's fix (store lane, 2026-10-27): with no `roads`, playOut makes each day's road stop an EASY warlord LOST (NPC_DAY on), so
+    // the card showed ten red L rows beside a flawless run. These are won warlords of rising tiers (src/tooling.ts playOut: upper case = won).
+    await page.evaluate(() => window.bb.openEnd({ results: "WWWWWWWWWW", roads: "EEMMMHMHHH", seed: 99 }));
     await frames(page, 150);
+    // The won warlords' prizes merge inside playOut, so their "MERGED: ..." toasts queue onto this card (game.ts run.fuseFx, one at a
+    // time, 1.6 s each); a real run shows them on the days they happen. Wait until the last has gone, so none covers the rows.
+    if ((await until(page, "!g.toasting && !(g.run && g.run.fuseFx && g.run.fuseFx.length)", 3600)) < 0) throw new Error("the merge toasts never cleared");
+    await frames(page, 30);
   }],
 ];
 
