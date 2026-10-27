@@ -1,5 +1,5 @@
-// M1 (BRIEF-M1 Goal 1): the Capacitor project's config files: capacitor.config.json (written by hand, never `cap init`), the five
-// pinned packages, the build:app script and the gitignored build folder. Android only: no @capacitor/ios (job M2).
+// M1 (BRIEF-M1 Goal 1): the Capacitor project's config files: capacitor.config.json (written by hand, never `cap init`), the
+// pinned packages, the build:app script and the gitignored build folder. M1 was Android only; M2 (BRIEF-M2 Goal 1) added @capacitor/ios.
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -43,10 +43,11 @@ const BASE_SCRIPTS: Record<string, string> = {
   luckcaps: "npm run build:luckcaps && node tools/dist/luckcaps/luckCaps.js",
 };
 
-/** The five packages, pinned exactly (npm install --save-exact): Capacitor 8's latest 8.x on 2026-10-26. */
+/** The packages, pinned exactly (npm install --save-exact): Capacitor 8's latest 8.x on 2026-10-26 (@capacitor/ios 8.5.3: 2026-10-27). */
 const PINS: Record<string, string> = {
   "@capacitor/core": "8.5.3",
   "@capacitor/android": "8.5.3",
+  "@capacitor/ios": "8.5.3",
   "@capacitor/app": "8.1.2",
   "@capacitor/preferences": "8.0.1",
 };
@@ -89,15 +90,15 @@ describe("M1 Goal 1: capacitor.config.json", () => {
 });
 
 describe("M1 Goal 1: package.json and the lock", () => {
-  it("pins exactly the five Capacitor packages: four dependencies and the CLI as a devDependency, no ^ or ~", () => {
+  it("pins exactly the six Capacitor packages: five dependencies and the CLI as a devDependency, no ^ or ~", () => {
     expect(pkg.dependencies).toEqual(PINS);
     expect(pkg.devDependencies?.["@capacitor/cli"]).toBe(CLI_PIN);
     for (const v of [...Object.values(pkg.dependencies ?? {}), pkg.devDependencies?.["@capacitor/cli"] ?? ""]) expect(v).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  it("adds nothing else: no @capacitor/ios (M2), splash-screen, assets, http or other plugin, and no other runtime dependency", () => {
+  it("adds nothing else: no splash-screen, assets, http or other plugin, and no other runtime dependency", () => {
     const all = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
-    expect(Object.keys(all).filter((n) => n.startsWith("@capacitor/")).sort()).toEqual(["@capacitor/android", "@capacitor/app", "@capacitor/cli", "@capacitor/core", "@capacitor/preferences"]);
+    expect(Object.keys(all).filter((n) => n.startsWith("@capacitor/")).sort()).toEqual(["@capacitor/android", "@capacitor/app", "@capacitor/cli", "@capacitor/core", "@capacitor/ios", "@capacitor/preferences"]);
     expect(Object.keys(pkg.dependencies ?? {}).sort()).toEqual(Object.keys(PINS).sort());
     expect(Object.keys(pkg.devDependencies ?? {}).sort()).toEqual(["@capacitor/cli", "playwright-core", "typescript", "vite", "vitest"]);
     // the four dev tools keep the ranges they had at the base
@@ -115,7 +116,6 @@ describe("M1 Goal 1: package.json and the lock", () => {
     }
     expect(lock.packages["node_modules/@capacitor/cli"]?.version).toBe(CLI_PIN);
     expect(lock.packages["node_modules/@capacitor/cli"]?.dev).toBe(true);
-    expect(lock.packages["node_modules/@capacitor/ios"]).toBeUndefined();
   });
 
   it("build:app is the one new script, exactly: tsc, then the literal Fly URL and VITE_NATIVE=1, into dist-app (same-origin would mean https://localhost inside the app)", () => {
