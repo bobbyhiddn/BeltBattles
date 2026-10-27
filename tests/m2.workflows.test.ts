@@ -406,20 +406,66 @@ describe("M2 Goal 2: ios.yml's smoke job is his collack pattern: an unsigned Deb
     expect(str(stepNamed(smoke, /Read the app id/).run)).toContain("require('./capacitor.config.json').appId");
   });
 
-  it("installs on an available iPhone simulator, launches it, waits, screenshots twice, checks the app is still running as the process it launched, and saves the console output", () => {
-    const sim = str(stepNamed(smoke, /Install, launch and screenshot/).run);
-    for (const s of ["xcrun simctl list devices available --json", 'device.name.startsWith("iPhone")', 'xcrun simctl bootstatus "$SIM_UDID" -b', 'xcrun simctl install "$SIM_UDID" "$APP_PATH"', "xcrun simctl launch --terminate-running-process", '--stdout="$EVIDENCE/app-stdout.log"', '--stderr="$EVIDENCE/app-stderr.log"', "sleep 12", 'xcrun simctl io "$SIM_UDID" screenshot "$EVIDENCE/app-launched.png"', 'xcrun simctl spawn "$SIM_UDID" launchctl list', '"$RUNNING_PID" != "$LAUNCH_PID"', "exit 1"]) expect(sim, s).toContain(s);
+  it("installs on an available iPhone simulator, launches it, waits, screenshots twice, checks the process it launched is still alive, and saves the console output; a hung boot is cut at 15 minutes", () => {
+    const step = stepNamed(smoke, /Install, launch and screenshot/);
+    expect(step["timeout-minutes"]).toBe(15); // bootstatus has no timeout of its own, and a hung simulator boot would hold the job (and its macOS minutes) to the job limit
+    expect(smoke["timeout-minutes"]).toBe(30);
+    const sim = str(step.run);
+    for (const s of ["xcrun simctl list runtimes", "xcrun simctl list devices available --json", 'device.name.startsWith("iPhone")', 'xcrun simctl bootstatus "$SIM_UDID" -b', 'xcrun simctl install "$SIM_UDID" "$APP_PATH"', "xcrun simctl launch --terminate-running-process", '--stdout="$EVIDENCE/app-stdout.log"', '--stderr="$EVIDENCE/app-stderr.log"', "sleep 12", 'xcrun simctl io "$SIM_UDID" screenshot "$EVIDENCE/app-launched.png"', 'xcrun simctl spawn "$SIM_UDID" launchctl list', 'ps -p "$LAUNCH_PID"', '[ "$ALIVE" != "yes" ]', "exit 1"]) expect(sim, s).toContain(s);
     // no marker is added to the app's own code: the screenshot and the liveness check are the proof
     expect(read("ios/App/App/AppDelegate.swift")).not.toMatch(/SMOKE|NSLog|os_log|print\(/);
     expect(read("ios/App/App/SceneDelegate.swift")).not.toMatch(/SMOKE|NSLog|os_log|print\(/);
+  });
+
+  it("reads the pid out of simctl's `<bundle id>: <pid>` line and out of `launchctl list`, and judges the app alive or gone (the awk and the case run for real on canned output)", () => {
+    const sim = str(stepNamed(smoke, /Install, launch and screenshot/).run);
+    const pidLine = /^LAUNCH_PID="\$\(echo "\$LAUNCH" \| awk[^\n]*\)"$/m.exec(sim)?.[0] ?? "";
+    const caseBlock = /^case "\$LAUNCH_PID" in[\s\S]*?\nesac$/m.exec(sim)?.[0] ?? "";
+    const runLine = /^RUNNING_PID="\$\(awk[^\n]*\)"$/m.exec(sim)?.[0] ?? "";
+    expect(pidLine).not.toBe("");
+    expect(caseBlock).not.toBe("");
+    expect(runLine).not.toBe("");
+    const dir = mkdtempSync(join(tmpdir(), "m2pid-"));
+    const id = cfg.appId;
+    try {
+      const launchctl = `PID\tStatus\tLabel\n-\t0\tcom.apple.SpringBoard\n4242\t0\tUIKitApplication:${id}[0x1a2b][rb-legacy]\n-\t0\tUIKitApplication:com.example.other[0x9][rb-legacy]\n`;
+      writeFileSync(join(dir, "launchctl-list.txt"), launchctl);
+      const script = (launch: string): string => `set -euo pipefail\nAPP_ID='${id}'\nEVIDENCE='${dir}'\nLAUNCH='${launch}'\n${pidLine}\n${caseBlock}\n${runLine}\necho "launch=$LAUNCH_PID running=$RUNNING_PID"`;
+      const go = (launch: string): { status: number | null; out: string } => {
+        const r = spawnSync("bash", ["-c", script(launch)], { encoding: "utf8", env: { PATH: process.env.PATH ?? "" } });
+        return { status: r.status, out: `${r.stdout}${r.stderr}` };
+      };
+      expect(go(`${id}: 4242`)).toEqual({ status: 0, out: "launch=4242 running=4242\n" });
+      const none = go("an error with no pid");
+      expect(none.status).toBe(1);
+      expect(none.out).toContain(`::error::simctl did not return a process id for ${id}`);
+      const odd = go(`${id}: abc`);
+      expect(odd.status).toBe(1);
+      // a launchctl list without the app: no pid (the awk prints nothing and the step goes on to the ps check)
+      writeFileSync(join(dir, "launchctl-list.txt"), "PID\tStatus\tLabel\n-\t0\tcom.apple.SpringBoard\n-\t0\tUIKitApplication:com.bobbyhiddn.beltbattles.other[0x1]\n");
+      expect(go(`${id}: 4242`).out).toBe("launch=4242 running=\n");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+    // the verdict: alive if ps sees the pid or launchctl names it; gone otherwise (the shell fragment, run with ps standing in for a dead and a live pid)
+    const verdict = /^ALIVE=no\nPS_LINE=[^\n]*\nif [^\n]*; then ALIVE=yes; fi$/m.exec(sim)?.[0] ?? "";
+    expect(verdict).not.toBe("");
+    const judge = (pid: number, running: string): string => {
+      const r = spawnSync("bash", ["-c", `set -euo pipefail\nLAUNCH_PID=${pid}\nRUNNING_PID='${running}'\n${verdict}\necho $ALIVE`], { encoding: "utf8", env: { PATH: process.env.PATH ?? "" } });
+      return r.stdout.trim();
+    };
+    expect(judge(process.pid, "")).toBe("yes"); // a live pid, whatever launchctl says
+    expect(judge(999999999, "999999999")).toBe("yes"); // launchctl names it
+    expect(judge(999999999, "")).toBe("no"); // gone
   });
 
   it("uploads the evidence as an artifact even when a step fails: build log, screenshots, console, plist values, simulator, liveness; and the summary says SMOKE ONLY: NOTHING SIGNED OR UPLOADED", () => {
     const up = stepNamed(smoke, /Upload the evidence/);
     expect(up.if).toBe("always()");
     expect(up.uses).toBe("actions/upload-artifact@v6");
-    expect(asMap(up.with, "with")).toMatchObject({ name: "beltbattles-${{ needs.plan.outputs.version }}-ios-smoke", path: "${{ runner.temp }}/ios-smoke-evidence", "if-no-files-found": "error" });
-    for (const f of ["xcodebuild.log", "app-launched.png", "app-stdout.log", "app-stderr.log", "info-plist-values.txt", "simulators.json", "liveness.txt", "xcode-version.txt"]) expect(text, f).toContain(f);
+    // `warn`, not `error`: with `if: always()` a missing evidence folder would add a second red step to a job that already failed; `overwrite`, so a re-run keeps its artifact
+    expect(asMap(up.with, "with")).toMatchObject({ name: "beltbattles-${{ needs.plan.outputs.version }}-ios-smoke", path: "${{ runner.temp }}/ios-smoke-evidence", "if-no-files-found": "warn", overwrite: true });
+    for (const f of ["xcodebuild.log", "xcodebuild-list.txt", "app-launched.png", "app-stdout.log", "app-stderr.log", "info-plist-values.txt", "simulators.json", "runtimes.txt", "liveness.txt", "xcode-version.txt", "UIRequiredDeviceCapabilities"]) expect(text, f).toContain(f);
     const sum = stepNamed(smoke, /job summary/);
     expect(sum.if).toBe("always()");
     expect(str(sum.run)).toContain("SMOKE ONLY: NOTHING SIGNED OR UPLOADED");
@@ -513,6 +559,10 @@ describe("M2 Goal 2: ios.yml's signed job runs fastlane's closed_beta with the s
     }
     const stepsUses = ios.lines.filter((l) => l.includes("steps."));
     expect(stepsUses.map((l) => l.trim())).toEqual(["path: ${{ steps.plan.outputs.path }}", "version: ${{ steps.plan.outputs.version }}"]);
+    // `runner` is a context steps may read in `with:` but a job's `if:` and `env:` may not: its one use is the artifact path of a step
+    expect(ios.lines.filter((l) => l.includes("runner.")).map((l) => l.trim())).toEqual(["path: ${{ runner.temp }}/ios-smoke-evidence"]);
+    // `needs` is read only where jobs may read it: in `if:`, in job and step `env:`, and in `with:`
+    for (const l of ios.lines.filter((x) => x.includes("needs."))) expect(l.trim(), l).toMatch(/^(if: needs\.plan\.outputs\.path == '(smoke|signed)'|(VERSION|CUSTOM_VERSION): \$\{\{ needs\.plan\.outputs\.version \}\}|name: beltbattles-\$\{\{ needs\.plan\.outputs\.version \}\}-ios-(smoke|testflight-logs))$/);
     expect(init.body).not.toContain("steps.");
   });
 });

@@ -10,7 +10,8 @@
 # It needs all six signing secrets (APPLE_KEY_ID, APPLE_ISSUER_ID, APPLE_KEY_CONTENT, DEVELOPER_PORTAL_TEAM_ID, MATCH_GIT_URL, MATCH_PASSWORD); the first job stops
 # at once, on the cheap Linux runner, naming each one that is missing. The API key must be allowed to create certificates and profiles (the Admin role is
 # the safe choice). The token inside MATCH_GIT_URL must be allowed to write to the match repo. An expired certificate in that repo (his dates from May 2025)
-# is replaced by match: see the report. No secret is echoed or written into the repo; the temporary keychain is deleted at the end.
+# is replaced because the lane sets match's renew_expired_certs (off by default); the old one stays at Apple: see the report. No secret is echoed or
+# written into the repo; the temporary keychain is deleted at the end.
 
 name: iOS match init
 

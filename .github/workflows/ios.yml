@@ -129,7 +129,7 @@ jobs:
     needs: plan
     if: needs.plan.outputs.path == 'smoke'
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 30
     env:
       # macos-26 image 20261013.0424: Xcode 26.6 is the default of seven; naming it keeps the build from moving when the image changes.
       XCODE_APP: /Applications/Xcode_26.6.app
@@ -221,7 +221,7 @@ jobs:
           check() { if ! "$@"; then echo "::error::check failed: $*"; exit 1; fi; }
           check test -d "$APP_PATH"
           check test -f "$INFO"
-          for key in CFBundleIdentifier CFBundleDisplayName CFBundleShortVersionString CFBundleVersion CFBundleExecutable MinimumOSVersion ITSAppUsesNonExemptEncryption CAPACITOR_DEBUG; do
+          for key in CFBundleIdentifier CFBundleDisplayName CFBundleShortVersionString CFBundleVersion CFBundleExecutable MinimumOSVersion ITSAppUsesNonExemptEncryption CAPACITOR_DEBUG UIRequiredDeviceCapabilities; do
             printf '%s=%s\n' "$key" "$(/usr/libexec/PlistBuddy -c "Print :$key" "$INFO" 2>&1 | tr '\n' ' ')"
           done > "$EVIDENCE/info-plist-values.txt"
           printf 'UIDeviceFamily=%s\n' "$(/usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily' "$INFO" 2>&1 | tr '\n' ' ')" >> "$EVIDENCE/info-plist-values.txt"
@@ -236,9 +236,11 @@ jobs:
           echo "APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
 
       - name: Install, launch and screenshot the app on an iPhone Simulator
+        timeout-minutes: 15
         run: |
           set -euo pipefail
           EVIDENCE="$RUNNER_TEMP/ios-smoke-evidence"
+          xcrun simctl list runtimes > "$EVIDENCE/runtimes.txt"
           xcrun simctl list devices available --json > "$EVIDENCE/simulators.json"
           SIM_RECORD="$(node -e '
             const fs = require("fs");
@@ -281,10 +283,14 @@ jobs:
           sleep 5
           xcrun simctl io "$SIM_UDID" screenshot "$EVIDENCE/app-launched-5s-later.png"
           xcrun simctl spawn "$SIM_UDID" launchctl list > "$EVIDENCE/launchctl-list.txt" 2>&1 || true
-          RUNNING_PID="$(awk -v label="UIKitApplication:$APP_ID" 'index($3, label) == 1 { print $1; exit }' "$EVIDENCE/launchctl-list.txt")"
-          echo "launched as pid $LAUNCH_PID; running as pid ${RUNNING_PID:-none} after 17 seconds" | tee "$EVIDENCE/liveness.txt"
-          if [ "$RUNNING_PID" != "$LAUNCH_PID" ]; then
-            echo "::error::$APP_ID was launched as pid $LAUNCH_PID but is not running as that process after 17 seconds."
+          RUNNING_PID="$(awk -v label="UIKitApplication:$APP_ID[" 'index($3, label) == 1 { print $1; exit }' "$EVIDENCE/launchctl-list.txt")"
+          # A simulator app is an ordinary process of the runner, so `ps -p` sees the pid simctl printed; launchctl's pid for the same label is the second witness.
+          ALIVE=no
+          PS_LINE="$(ps -p "$LAUNCH_PID" -o pid=,comm= 2> /dev/null || true)"
+          if [ -n "$PS_LINE" ] || [ "$RUNNING_PID" = "$LAUNCH_PID" ]; then ALIVE=yes; fi
+          echo "launched as pid $LAUNCH_PID; alive after 17 seconds: $ALIVE; ps: ${PS_LINE:-none}; launchctl pid: ${RUNNING_PID:-none}" | tee "$EVIDENCE/liveness.txt"
+          if [ "$ALIVE" != "yes" ]; then
+            echo "::error::$APP_ID was launched as pid $LAUNCH_PID but that process is gone after 17 seconds (see crash-reports and the console files in the artifact)."
             exit 1
           fi
           if cmp -s "$EVIDENCE/app-launched.png" "$EVIDENCE/app-launched-5s-later.png"; then
@@ -325,7 +331,8 @@ jobs:
         with:
           name: beltbattles-${{ needs.plan.outputs.version }}-ios-smoke
           path: ${{ runner.temp }}/ios-smoke-evidence
-          if-no-files-found: error
+          if-no-files-found: warn
+          overwrite: true
           retention-days: 14
 
       - name: Shut the simulators down
@@ -438,6 +445,7 @@ jobs:
             /Users/runner/Library/Logs/gym
             ios/App/fastlane/report.xml
           if-no-files-found: ignore
+          overwrite: true
           retention-days: 14
 
       - name: Delete the temporary keychain and any key file

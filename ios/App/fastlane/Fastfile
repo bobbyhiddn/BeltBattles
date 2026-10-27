@@ -130,8 +130,10 @@ platform :ios do
     )
     api_key = lane_context[SharedValues::APP_STORE_CONNECT_API_KEY]
 
-    # Write mode, on purpose (setup_ci would have switched match to read-only). If the certificate in the match repository has expired:
-    # match replaces it with a new one and leaves the old one at Apple (fastlane docs, match: "automatically repairs broken and expired credentials").
+    # Write mode, on purpose (setup_ci would have switched match to read-only). The certificate in the match repository has likely expired:
+    # renewal is opt-in (docs.fastlane.tools/actions/match: `renew_expired_certs`, default false, "Automatically renew expired certificates"; an independent
+    # review found match stops on an expired certificate with "is not valid, please check end date and renew it" unless it is set), so it is set here.
+    # Per the docs match then removes the expired certificate from the match storage and creates a new one, and leaves the old one at Apple.
     sync_code_signing(
       type: "appstore",
       app_identifier: bundle_id,
@@ -141,6 +143,7 @@ platform :ios do
       team_id: team_id,
       api_key: api_key,
       readonly: false,
+      renew_expired_certs: true,
       generate_apple_certs: true,
       skip_confirmation: true
     )
