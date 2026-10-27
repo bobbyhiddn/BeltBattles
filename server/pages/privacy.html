@@ -34,7 +34,7 @@ footer { margin-top: 2.5em; border-top: 1px solid #1f3042; padding-top: 1em; col
 <p>This policy is for the game BeltBattles on iPhone, on Android and on the web at <a href="https://beltbattles.fly.dev/">beltbattles.fly.dev</a>. It says what the game keeps on your device, what it sends to its server, why, who can see it, how long it is kept and how you delete it. The game has no account, no sign-in and no in-app purchase, and it has no advertising and no analytics.</p>
 <h2 id="short">In short</h2>
 <ul>
-<li>Playing offline sends nothing.</li>
+<li>Without a connection the game sends nothing, and plays against stand-in captains.</li>
 <li>Online, the game sends the name you chose and your builds, so that other players can meet them as ghosts, together with a random player ID and your progress. If you link devices it also sends your run history.</li>
 <li>You can delete your online data in the game: OPTIONS, then DELETE MY ONLINE DATA.</li>
 </ul>
@@ -70,27 +70,27 @@ footer { margin-top: 2.5em; border-top: 1px solid #1f3042; padding-top: 1em; col
 <li><strong>Your game:</strong> your run in progress, your profile (counters such as runs and wins, the heroes you won with, the looks you unlocked and chose), your settings (sound, reduced motion, speed), the tips you have seen, your personal best, a list of your latest finished runs (up to 50) and a pool of your own recent builds (up to 300).</li>
 <li><strong>The name you chose:</strong> 2 to 10 letters, digits, spaces or hyphens.</li>
 <li><strong>A random local ID.</strong> It never leaves your device.</li>
-<li><strong>Your signing key.</strong> The first time the game goes online it makes a key pair on your device (ECDSA P-256, with the cryptography built into your browser or phone). The game signs what it sends with the private key. Your <strong>player ID</strong> is a SHA-256 hash of the public key: a code, not your name. On the web the private key is stored so that it cannot be read or exported (in the browser's IndexedDB, database <code>beltbattles-identity</code>). In the iPhone and Android apps a copy of the private key is also kept in the app's private preferences storage (UserDefaults on iPhone, SharedPreferences on Android), so that you stay the same player if the system clears the app's web storage. That storage is private to the app, but it is not the Keychain or the Keystore.</li>
+<li><strong>Your signing key.</strong> The first time the game starts, even with no connection, it makes a key pair on your device (ECDSA P-256, with the cryptography built into your browser or phone). The game signs what it sends with the private key. Your <strong>player ID</strong> is a SHA-256 hash of the public key: a code, not your name. On the web the private key is stored so that it cannot be read or exported (in the browser's IndexedDB, database <code>beltbattles-identity</code>). In the iPhone and Android apps a copy of the private key is also kept in the app's private preferences storage (UserDefaults on iPhone, SharedPreferences on Android), so that you stay the same player if the system clears the app's web storage. That storage is private to the app, but it is not the Keychain or the Keystore.</li>
 <li><strong>Your link record,</strong> if you link devices: which player this device belongs to. The apps copy it to the same preferences storage.</li>
 </ul>
 <p>The game uses the storage of your browser or app, not cookies. It does not ask for your location, contacts, photos, camera, microphone or advertising ID. Deleting the app removes all of this from the device, and on the web clearing the site's data does.</p>
-<p><strong>Offline:</strong> when your device has no connection, the game sends nothing and plays against stand-in captains.</p>
+<p><strong>Offline:</strong> while your device reports that it has no connection, the game does not look for ghosts and does not upload builds or progress, and it plays against stand-in captains. The apps have no setting that turns online play off; to play without sending anything, use your device's airplane mode. (On the web, adding <code>?server=off</code> to the address does the same for that visit.)</p>
 </section>
 
 <section id="sent">
 <h2>3. What the game sends, and when</h2>
-<p>The game sends data only to <code>https://beltbattles.fly.dev</code>, over HTTPS, and nowhere else. (The web page can be pointed at another server only by adding <code>?server=</code> to its address by hand, a developer setting. The apps cannot.) The game makes no other network requests than these:</p>
+<p>The game sends data only to <code>https://beltbattles.fly.dev</code>, over HTTPS, and nowhere else. (The web page can be pointed at another server only by adding <code>?server=</code> to its address by hand, a developer setting. The apps cannot.) The game makes no other network requests than these (a browser or an app may send a short preflight request, <code>OPTIONS</code>, before some of them):</p>
 <ul>
-<li><strong>Finding your opponent,</strong> <code>GET /v1/ghosts/match</code>: each time a day's dusk fight needs a ghost. It sends the rules version, the day, your wins and hearts in this run, your player ID, the IDs of the ghosts you already met in this run, how many runs you have finished on this device, and whether the fight is ENDLESS. It carries no name.</li>
-<li><strong>Your build, as a ghost,</strong> <code>POST /v1/ghosts</code>: once for each dusk, before the fight, when the build passes the game's own check. It sends your build exactly as it fights (the pieces on your cruiser and how the belts connect them), your hero, the day, your wins and hearts going into the fight, the name you chose, your player ID, a random run ID, the time on your device's clock and a few details the server uses to check that the build is legal: the run's random seed, the roads you took, your losses, and your ENDLESS wins and hearts.</li>
-<li><strong>Your profile,</strong> <code>PUT /v1/profile</code>: when a run ends and after you change a look in CUSTOMIZE, one try each. It sends your counters (runs started and finished, flawless runs, dusk wins, best day, warlord wins, matriarch wins, most belts), the heroes you won with and finished with, the looks you unlocked and chose, and the time of the last change. It is at most 2 KB.</li>
-<li><strong>Reading your profile back,</strong> <code>GET /v1/profile</code>: only on a device that has shown or entered a link code, or linked a Steam account. It runs after you link, and when the game starts, at most once an hour. It sends the time on your clock and receives your player ID and your profile.</li>
+<li><strong>Finding your opponent,</strong> <code>GET /v1/ghosts/match</code>: each time a day's dusk fight needs a ghost. It sends the rules version, the day, your wins and hearts in this run, your player ID, the IDs of the ghosts you already met in this run, how many runs you have finished, and whether the fight is ENDLESS. It carries no name and no signature.</li>
+<li><strong>Your build, as a ghost,</strong> <code>POST /v1/ghosts</code>: once for each dusk, before the fight, when the build passes the game's own check. It sends your build exactly as it fights (the pieces on your cruiser and how the belts connect them), your hero, the rules version, the day, your wins and hearts going into the fight, the name you chose, your player ID, a random run ID, the time on your device's clock and a few details the server uses to check that the build is legal: the run's random seed, the roads you took, your losses, your LAST CHANCE choice, whether it is your first run, and your ENDLESS wins, hearts and victory day. The server adds the time it received the ghost.</li>
+<li><strong>Your profile,</strong> <code>PUT /v1/profile</code>: when a run ends and after you change a look in CUSTOMIZE, one try each. It sends your counters (runs ended, runs won or completed, flawless runs, dusk wins, best day, warlord wins, matriarch wins, most belts), the heroes you have won a fight with and the heroes you have finished a run with, the looks you unlocked and chose, and the time of the last change. It is at most 2 KB. Your personal best stays on your device.</li>
+<li><strong>Reading your profile back,</strong> <code>GET /v1/profile</code>: only on a device that has shown or entered a link code, or linked a Steam account. It runs when the game starts, at most once an hour (the answer to ENTER A CODE already carries your profile). It sends the time on your clock and receives your player ID and your profile.</li>
 <li><strong>Linking two devices,</strong> <code>POST /v1/link/code</code> when you tap SHOW MY CODE (it sends the time on your clock and the server makes a one-time code for your player) and <code>POST /v1/link/redeem</code> when you tap ENTER A CODE on the other device (it sends the code you typed and the time). The server then records that the second device belongs to your player.</li>
 <li><strong>Steam,</strong> <code>POST /v1/link/steam</code>: not part of the iPhone, Android or web versions. A Steam version of the game can link your Steam account to your player. Its request carries a one-time ticket from Steam. The server checks the ticket with Steam's web service (run by Valve) and stores your Steam ID next to your player ID. The server accepts this only when its operator has switched Steam linking on.</li>
-<li><strong>Your run history,</strong> <code>PUT /v1/history</code> and <code>GET /v1/history</code>: only on a device that has shown or entered a link code, or linked a Steam account. Showing a code is enough, even if nobody enters it; from then on the device sends each new run until you delete your online data. A run holds the hero, the outcome, the wins, the days, the hearts left, the time the run ended and, for each dusk, its result and (when you played online) the record of the fight, which holds both builds as they fought. It holds no name, no address and no key. The device also reads the list of your player's runs back, so that your linked devices hold the same history. A device that has done neither sends none of this.</li>
+<li><strong>Your run history,</strong> <code>PUT /v1/history</code> and <code>GET /v1/history</code>: only on a device that has shown or entered a link code, or linked a Steam account. Showing a code is enough, even if nobody enters it; from then on the device sends the runs it already holds (up to 50, ten at a time) and each new run, until you delete your online data. A run holds the hero, the rules version, a random run ID, the outcome, the wins, the days, the hearts left, the time the run ended and, for each dusk, its result and (when you played online) the record of the fight, which holds both builds as they fought. It holds no name, no address and no key. The device also reads the list of your player's runs back, so that your linked devices hold the same history. A device that has done neither sends none of this.</li>
 <li><strong>Deleting your data,</strong> <code>DELETE /v1/player</code>: when you confirm DELETE MY ONLINE DATA (section 7). It sends the time on your clock.</li>
 </ul>
-<p>Every request except the opponent search is signed with your key, and carries your public key and the signature as headers. The server uses them to check the request and does not store them. When you open the web version, your browser also asks the server for the game page, and for this policy and the support page.</p>
+<p>Every request except the opponent search is signed with your key, and carries your public key and the signature as headers. The server uses them to check the request and does not store them. When you open the web version, your browser also asks the server for the game page, and for this policy and the support page. The PRIVACY row in OPTIONS opens this policy in your browser in the same way.</p>
 <p>With every request the server sees your IP address, which it needs to answer you. It holds the address in memory to limit how often one address can call, and writes it neither to its storage nor to its log. The request log holds the time, the method, the path, the status and the duration of each request. It holds no IP address, no query, no player ID, no key and no signature.</p>
 </section>
 
@@ -103,13 +103,13 @@ footer { margin-top: 2.5em; border-top: 1px solid #1f3042; padding-top: 1em; col
 <li>To make sure that only you can write under your player ID: the signatures.</li>
 <li>To keep the service working and safe: the server checks every build against the game's rules before it stores it, limits how often one address can call, and keeps the request log.</li>
 </ul>
-<p>If you are in the EU, the UK or a similar place, the legal reasons are these: we need the data to run the online features you use (performance of the service), and we have a legitimate interest in keeping the service safe and working (the checks, the limits and the log). We do not use your data for advertising or profiling, and we do not sell it.</p>
+<p>If you are in the EU, the UK or a similar place, the legal reasons are these: we need the data to run the online features you use (performance of the service), and we have a legitimate interest in keeping the service safe and working (the checks, the limits and the log). We do not use your data for advertising, for tracking you across other apps and sites, or to sell it.</p>
 </section>
 
 <section id="who-sees">
 <h2>5. Who sees it</h2>
 <ul>
-<li><strong>Other players.</strong> Your own builds become ghosts for other players to meet. When the opponent search picks your ghost for another player's dusk fight, their game receives the data of your upload listed in section 3, including your player ID and run ID, but not your key, not your signature and not the run's random seed. The game shows them your name with a short tag made from your player ID (like ANNA#4F), your hero, your wins and hearts and your build. If you change your name in OPTIONS, later uploads carry the new name; ghosts already uploaded keep the name they had.</li>
+<li><strong>Other players, and anyone who asks the server.</strong> Your own builds become ghosts for other players to meet. The opponent search needs no key and no sign-in, so a program other than the game can also ask for ghosts, and it gets what a player's game gets. When the opponent search picks your ghost, the answer holds the data of your upload listed in section 3, including your player ID and run ID, but not your key, not your signature and not the run's random seed. The game shows other players your name with a short tag made from your player ID (like ANNA#4F), your hero, your wins and hearts and your build. If you change your name in OPTIONS, later uploads carry the new name; ghosts already uploaded keep the name they had.</li>
 <li><strong>Our hosting providers</strong> process the data for us. Fly.io runs the server, and Tigris, the object storage that Fly.io offers, holds the stored data. They also keep their own technical records of connections, under their own policies.</li>
 <li><strong>Valve</strong> (Steam) sees the ticket, only in a Steam version that links a Steam account.</li>
 <li><strong>Apple and Google,</strong> and any other store where the game is sold, handle your purchase and download under their own privacy policies. We receive no payment details.</li>
@@ -129,10 +129,10 @@ footer { margin-top: 2.5em; border-top: 1px solid #1f3042; padding-top: 1em; col
 <tr><td>Profile</td><td>Until you delete your online data.</td></tr>
 <tr><td>Links between devices, Steam link</td><td>Until you delete your online data.</td></tr>
 <tr><td>Link code</td><td>A code works for 10 minutes. The server stores only a one-way hash of it, with the player it belongs to and its end time. That record is removed when the code is used, replaced by a newer one, found expired when someone tries it, or when you delete your online data.</td></tr>
-<tr><td>Run history</td><td>Your newest 200 runs, until you delete your online data. When a newer run arrives beyond 200, the oldest is dropped.</td></tr>
+<tr><td>Run history</td><td>Your newest 200 entries (a run, and the ENDLESS part of a run, are one entry each), until you delete your online data. When a newer entry arrives beyond 200, the oldest is dropped.</td></tr>
 <tr><td>Deletion record</td><td>After you delete your online data, the server keeps one small record: your player ID and the IDs of your linked devices (codes made by hashing, not names) and the time of the deletion. It has no end date. It is what keeps your old ghosts from being served again.</td></tr>
 <tr><td>Request log</td><td>The time, method, path, status and duration of each request, written to the server's log on Fly.io. The game sets no period for these lines. Fly.io decides how long its log stream keeps them.</td></tr>
-<tr><td>IP addresses</td><td>Only in the server's memory, for the rate limits (counted over one minute; over ten minutes for wrong link codes). Never in storage or in the log.</td></tr>
+<tr><td>IP addresses</td><td>Only in the server's memory, for the rate limits (they count over one minute, and over ten minutes for wrong link codes), until the server restarts. Never in storage or in the log. Fly.io's and Tigris's own records may include the address a request came from, and the web address of an opponent search contains your player ID.</td></tr>
 </tbody>
 </table>
 <p>On your device, data stays until you delete the app or clear the site's data.</p>
@@ -142,20 +142,24 @@ footer { margin-top: 2.5em; border-top: 1px solid #1f3042; padding-top: 1em; col
 <h2>7. How to delete your online data</h2>
 <ol>
 <li>On the title screen tap <strong>OPTIONS</strong>.</li>
-<li>Tap <strong>DELETE MY ONLINE DATA</strong>. The row is greyed out while the game cannot go online, and a line under it says why.</li>
+<li>Tap <strong>DELETE MY ONLINE DATA</strong>. The row is greyed out while the game has no online session, and a line under it says why.</li>
 <li>The card says <q>THIS DELETES YOUR ONLINE PROFILE, YOUR LINKS AND YOUR GHOSTS.</q> and <q>YOUR PROGRESS ON THIS DEVICE STAYS.</q> Tap <strong>DELETE</strong>. (CANCEL leaves everything as it was.)</li>
 <li>When it has worked, the card says <q>DONE. YOUR NEXT ONLINE GAME STARTS A NEW PLAYER.</q></li>
 </ol>
+<p>Without a connection the card cannot reach the server and says <q>NO ANSWER FROM THE SERVER. TRY AGAIN.</q> If it says <q>YOUR CLOCK IS WRONG. SET IT RIGHT AND TRY AGAIN.</q>, set your device's clock and try again.</p>
 <h3>What it removes at once</h3>
-<p>Your online profile, the links between your devices and any Steam link, a link code you have not used, and your run history. Your ghosts stop being served from that moment, so nobody can meet them.</p>
+<p>Your online profile, the links between your devices and any Steam link, a link code you have not used, and your run history. Your ghosts stop being served from that moment (at most a minute later if the server runs on several machines), so nobody can meet them.</p>
 <h3>What it keeps</h3>
 <p>The deletion record described in section 6. On each of your devices, your local progress, settings, name and list of finished runs stay. The device you deleted from throws away its key and link record, and makes a new player at your next online game.</p>
+<p>Players who already met your ghost keep what their game saved: your build inside their fight records (which are also on our server, in their run history, if they linked devices) and, until their saved run is replaced, your name, player ID and run ID in their saved game. Deleting your data does not reach those copies.</p>
+<h3>If you keep playing online</h3>
+<p>After you restart the game, your next online game sends your name, builds and progress again, under a new player ID. To stop that, play with your device's connection off.</p>
 <h3>Your stored ghosts</h3>
 <p>A clean-up that the developer runs removes the stored copies of the ghosts of every player who deleted their online data. Until it has run, those ghosts are stored but never served.</p>
 <h3>Your other devices</h3>
 <p>If you linked more than one device, the others find out the next time they send a ghost or a run: the server answers that the player was deleted. They then throw away their key and link record and start a new player. Their local progress stays.</p>
 <h3>If you cannot use the game</h3>
-<p>If your device is lost, wiped or sold, you cannot sign the request. Write to <a href="mailto:[[SUPPORT_EMAIL]]">[[SUPPORT_EMAIL]]</a> and tell us the name you used in the game, the hero and roughly when you played. We will look for the ghosts and records that belong to it and delete them. We cannot be sure a request comes from the owner, so we may ask you questions. We answer within one month (section 8).</p>
+<p>If your device is lost, wiped or sold, you cannot sign the request. Write to <a href="mailto:[[SUPPORT_EMAIL]]">[[SUPPORT_EMAIL]]</a> and tell us the name you used in the game, the hero and roughly when you played. We will look for the ghosts and records that belong to it and delete what we can find. We cannot be sure a request comes from the owner, so we may ask you questions. We answer within one month (section 8).</p>
 </section>
 
 <section id="rights">
@@ -177,14 +181,14 @@ footer { margin-top: 2.5em; border-top: 1px solid #1f3042; padding-top: 1em; col
 
 <section id="children">
 <h2>10. Children</h2>
-<p>BeltBattles is for people aged 13 and over and is not aimed at children. It asks for no age and no contact detail. The name you choose can be any 2 to 10 letters, digits, spaces or hyphens, and other players see it, so please do not use your real name. If you think a child under 13 has played online, write to <a href="mailto:[[SUPPORT_EMAIL]]">[[SUPPORT_EMAIL]]</a> and we will delete that player's online data.</p>
+<p>BeltBattles is for people aged 13 and over and is not aimed at children. It asks for no age and no contact detail. The name you choose can be any 2 to 10 letters, digits, spaces or hyphens (the game refuses a short list of offensive words), and other players see it, so please do not use your real name. If you think a child under 13 has played online, write to <a href="mailto:[[SUPPORT_EMAIL]]">[[SUPPORT_EMAIL]]</a> and we will delete that player's online data.</p>
 </section>
 
 <section id="security">
 <h2>11. Security</h2>
 <ul>
 <li>Everything the game sends goes over HTTPS. The game refuses a server address that is not https (except one on your own machine).</li>
-<li>Uploads are signed with a key made on your device. The server stores a ghost, a profile or a history entry only under the player ID of the key that signed it (or of the player that key is linked to), so nobody can write under your player ID without your key.</li>
+<li>Uploads are signed with a key made on your device. The server stores a ghost, a profile or a history entry only under the player ID of the key that signed it (or of the player that key is linked to), so nobody can write under your player ID without your key. A link code that you make lets one device join your player for 10 minutes, so show a code only to a device of your own.</li>
 <li>On the web the private key is stored so that it cannot be exported. In the apps a copy is kept in app-private storage, not in the Keychain or Keystore, so it is not protected by hardware.</li>
 <li>The server checks every build against the game's own rules before it stores it.</li>
 <li>A link code has 8 characters, works once and for 10 minutes, and is stored only as a hash. After 5 wrong tries from one address in 10 minutes, the server refuses more.</li>

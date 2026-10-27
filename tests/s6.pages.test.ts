@@ -16,9 +16,9 @@ import { IDENTITY_DB } from "../src/net/identity";
 import { NAME_MAX, NAME_MIN } from "../src/net/names";
 import { POOL_MAX } from "../src/game/ghosts";
 import { HISTORY_LOCAL_MAX, HISTORY_PLAYER_MAX } from "../src/net/historyWire";
-import { HISTORY_SYNC_INTERVAL_MS } from "../src/net/historySync";
+import { HISTORY_SYNC_INTERVAL_MS, HISTORY_UPLOADS_PER_TRIGGER } from "../src/net/historySync";
 import { SYNC_INTERVAL_MS } from "../src/net/profileSync";
-import { MAX_PROFILE_BYTES } from "../src/net/profileWire";
+import { COUNTER_KEYS, MAX_PROFILE_BYTES } from "../src/net/profileWire";
 import { CODE_LENGTH, CODE_TTL_MS } from "../server/links";
 import { REDEEM_FAILS } from "../server/linkRoutes";
 import { contrast, hexIn, hexToRgb, luminance, parseCss, parseHtml, type Parsed } from "./s6Html";
@@ -242,6 +242,8 @@ describe("S6 Goal 1: the deletion steps and the support answers use the game's o
     expect(del).toContain(`Tap ${WORDS.delete}.`);
     expect(del).toContain(`(${WORDS.cancel} leaves everything as it was.)`);
     expect(del).toContain(WORDS.deleted);
+    expect(del).toContain(WORDS.noAnswer); // what the card says without a connection
+    expect(del).toContain(WORDS.clock); // and with a clock that is wrong (a signed request carries it; the server holds it to 10 minutes)
     // the steps are an ordered list, in the order the game shows them
     const at = [WORDS.deleteRow, WORDS.goes, `Tap ${WORDS.delete}.`, WORDS.deleted].map((s) => del.indexOf(s));
     expect([...at].sort((a, b) => a - b)).toEqual(at);
@@ -251,7 +253,7 @@ describe("S6 Goal 1: the deletion steps and the support answers use the game's o
   });
 
   it("the support page's linking steps and refusals are the link card's words; the offline line is the title's", () => {
-    for (const w of [WORDS.linkRow, WORDS.showCode, WORDS.enterCode, WORDS.linked, WORDS.codeRefused, WORDS.linkedAlready, WORDS.newCode, WORDS.deleteRow]) expect(sup, w).toContain(w);
+    for (const w of [WORDS.linkRow, WORDS.showCode, WORDS.enterCode, WORDS.linked, WORDS.codeRefused, WORDS.linkedAlready, WORDS.newCode, WORDS.deleteRow, WORDS.clock, WORDS.tooMany, WORDS.noAnswer, WORDS.playerDeleted]) expect(sup, w).toContain(w);
     expect(sup).toContain(OFFLINE_LINE);
     expect(sup).toContain("XXXX-XXXX");
     const hrefs = parsed.support.tags.filter((t) => t.name === "a").map((t) => t.attrs.href);
@@ -321,7 +323,7 @@ describe("S6 Goal 1: what the page says is the code's numbers and strings", () =
     expect(text).toContain("A code works for 10 minutes.");
     expect(text).toContain(`A link code has ${CODE_LENGTH} characters, works once and for ${CODE_TTL_MS / 60_000} minutes`);
     expect(text).toContain(`After ${REDEEM_FAILS.max} wrong tries from one address in ${REDEEM_FAILS.windowMs / 60_000} minutes`);
-    expect(text).toContain(`Your newest ${HISTORY_PLAYER_MAX} runs`);
+    expect(text).toContain(`Your newest ${HISTORY_PLAYER_MAX} entries (a run, and the ENDLESS part of a run, are one entry each)`);
     expect(text).toContain(`a list of your latest finished runs (up to ${HISTORY_LOCAL_MAX})`);
     expect(text).toContain(`a pool of your own recent builds (up to ${POOL_MAX})`);
     expect(text).toContain(`It is at most ${MAX_PROFILE_BYTES / 1024} KB.`);
@@ -379,7 +381,7 @@ describe("S6 Goal 1: what the page says is the code's numbers and strings", () =
     expect(text).toContain("Your run history");
     expect(text).toContain("no advertising and no analytics");
     expect(text).toContain("The game has no advertising, analytics or tracking code, and no code from other companies that collects data.");
-    expect(text).toContain("We do not use your data for advertising or profiling, and we do not sell it.");
+    expect(text).toContain("We do not use your data for advertising, for tracking you across other apps and sites, or to sell it.");
   });
 
   it("the Android app allows Auto Backup (the page says a restored phone may come back as the same player), and asks only for the network", () => {
@@ -395,6 +397,113 @@ describe("S6 Goal 1: what the page says is the code's numbers and strings", () =
     expect(kids).toContain("aged 13 and over");
     expect(kids).toContain("asks for no age and no contact detail");
     expect(kids).toContain("please do not use your real name");
+  });
+});
+
+describe("S6 Goal 1: what the independent review found is on the pages, each held to the code", () => {
+  const text = parsed.privacy.text;
+  const sup = parsed.support.text;
+  const app = read("server/app.ts");
+  const matchRoute = app.slice(app.indexOf('case "/v1/ghosts/match": {'), app.indexOf('case "/":'));
+  const optionsRows = [...read("src/screens/linkCards.ts").matchAll(/\{ id: "(opt-[a-z]+)", label: WORDS\./g)].map((m) => m[1]);
+
+  it("the opponent search needs no key and no sign-in, so anyone who asks the server gets the ghosts, with the name and the player ID", () => {
+    expect(text).toContain("Other players, and anyone who asks the server.");
+    expect(text).toContain("The opponent search needs no key and no sign-in, so a program other than the game can also ask for ghosts, and it gets what a player's game gets.");
+    expect(matchRoute.length).toBeGreaterThan(500);
+    expect(matchRoute).not.toMatch(/verifyUpload|KEY_HEADER|SIG_HEADER|uploadHeaderError/);
+    expect(matchRoute).toContain("servedSnapshot(hit.snapshot)"); // the whole snapshot, less the run seed
+    expect(read("src/net/ghostClient.ts")).toMatch(/\{ method: "GET", headers: \{ accept: "application\/json" \} \}/); // the client signs nothing for it either
+    expect(text).toContain("the web address of an opponent search contains your player ID");
+  });
+
+  it("the key is made when the game starts, offline too: startOnline runs at boot with a server URL, and the identity is loaded at once, before any request", () => {
+    expect(text).toContain("The first time the game starts, even with no connection, it makes a key pair on your device");
+    expect(read("src/main.ts")).toContain("if (serverUrl) startOnline(serverUrl);");
+    const online = read("src/game/online.ts");
+    expect(online).toContain("identity: () => loadIdentity(indexedDbKeyStore()),");
+    expect(online).toContain("deps.identity().then((id) => (this.identity = id), () => (this.identity = null));"); // in the constructor
+  });
+
+  it("offline: only the ghost fetch, the deck upload and the profile upload check the device's connection; the apps have no switch; on the web ?server=off plays without a server", () => {
+    expect(text).toContain("while your device reports that it has no connection, the game does not look for ghosts and does not upload builds or progress");
+    expect(text).toContain("The apps have no setting that turns online play off; to play without sending anything, use your device's airplane mode.");
+    expect(text).toContain("adding ?server=off to the address does the same for that visit");
+    const online = read("src/game/online.ts");
+    expect(online.match(/this\.deps\.offline\?\.\(\)/g)).toHaveLength(3); // tick (the fetch), submitDusk (the upload), sendProfile
+    expect(online).toContain('q.trim().toLowerCase() === "off"');
+    // no switch in the OPTIONS card: its buttons are DONE, REDUCED MOTION, SOUND, FULLSCREEN, NAME and the extra rows (tests/m1.options.test.ts pins them)
+    const hudButtons = [...read("src/ui/hud.ts").matchAll(/button\(ui, g, "(opt-[a-z]+)"/g)].map((m) => m[1]);
+    expect(hudButtons).toEqual(["opt-rm", "opt-snd", "opt-fs", "opt-name"]);
+    expect(optionsRows).toEqual(["opt-link", "opt-delete", "opt-privacy"]);
+    expect(parsed.support.text).toContain("While your device reports no connection, the game does not look for ghosts and does not upload builds or progress.");
+  });
+
+  it("the run history's first send is the runs the device already holds, ten at a time, up to the device's 50", () => {
+    expect(HISTORY_UPLOADS_PER_TRIGGER).toBe(10);
+    expect(text).toContain(`the device sends the runs it already holds (up to ${HISTORY_LOCAL_MAX}, ten at a time) and each new run`);
+    expect(read("src/net/historySync.ts")).toContain("its entries not yet sent to its player, newest first, at most HISTORY_UPLOADS_PER_TRIGGER (10) a trigger");
+  });
+
+  it("the profile's counters are the wire's eight, named as the fold counts them: runs ended, runs won or completed; the personal best stays on the device", () => {
+    const list = /counters \(([^)]+)\)/.exec(text)?.[1].split(", ") ?? [];
+    expect(list).toHaveLength(COUNTER_KEYS.length);
+    expect(list).toEqual(["runs ended", "runs won or completed", "flawless runs", "dusk wins", "best day", "warlord wins", "matriarch wins", "most belts"]);
+    expect([...COUNTER_KEYS]).toEqual(["runs", "runsFinished", "flawless", "duskWins", "bestDay", "warlordWins", "matriarchWins", "mostBelts"]);
+    const prof = read("src/game/profile.ts");
+    const end = prof.slice(prof.indexOf("export function foldEnd"), prof.indexOf("/** ENDLESS-1 (REQ-BFG-059, 3.5): the personal best. A run that played endless"));
+    expect(end).toContain("p.counters.runs++;"); // at a run's end, not its start
+    expect(end).toMatch(/if \(r\.over === "complete" \|\| r\.over === "won"\) \{[^}]*runsFinished\+\+/);
+    expect(prof).toContain("/** Heroes with a dusk win; heroes that finished a run. */");
+    expect(text).toContain("the heroes you have won a fight with and the heroes you have finished a run with");
+    expect(text).toContain("Your personal best stays on your device.");
+    expect(prof).toContain("the wire form\n   *  (net/profileWire.ts) has exactly the 8 counters and does not carry it");
+  });
+
+  it("a ghost also carries the rules version, the LAST CHANCE choice, the first-run flag and the victory day; a history entry the rules version and the run ID", () => {
+    const snap = read("src/net/snapshot.ts");
+    for (const f of ["rules: string;", "lastChance?: TakenLastChance;", "firstRun?: true;", "victoryDay?: number;", "endlessWins?: number;", "endlessLives?: number;", "losses?: number;", "road?: RoadEntry[];", "seed?: number;"]) expect(snap, f).toContain(f);
+    expect(text).toContain("your hero, the rules version, the day");
+    expect(text).toContain("your LAST CHANCE choice, whether it is your first run, and your ENDLESS wins, hearts and victory day");
+    const wire = read("src/net/historyWire.ts");
+    expect(wire).toMatch(/\brules\b/);
+    expect(wire).toMatch(/\brunId\b/);
+    expect(text).toContain("A run holds the hero, the rules version, a random run ID, the outcome");
+    expect(read("server/store.ts")).toContain("return JSON.stringify({ id, at, snapshot });"); // the server's own time of receipt, stored with the ghost
+    expect(read("server/profileStore.ts")).toContain("receivedAt: number;"); // and with the profile
+    expect(text).toContain("The server adds the time it received the ghost.");
+  });
+
+  it("deletion does not reach the copies other players hold: their saved run keeps the foe's name, player ID and run ID, and a fight record both builds", () => {
+    expect(text).toContain("Players who already met your ghost keep what their game saved");
+    expect(read("src/game/day.ts")).toContain("record: { wins: g.wins, lives: g.lives, runId: g.runId, playerId: g.playerId, createdAt: g.createdAt, ...named(g)");
+    expect(text).toContain("Deleting your data does not reach those copies.");
+  });
+
+  it("after a deletion the live session keeps its identity until a restart (the delete drops the stored key, not the session's), so the next game is a new player", () => {
+    const link = read("src/net/linkClient.ts");
+    const drop = link.slice(link.indexOf("async function dropLocalIdentity"), link.indexOf("/** DELETE MY ONLINE DATA: the server forgets the player"));
+    expect(drop).not.toMatch(/onlineSession|online\(\)|identity\s*=/);
+    expect(read("src/game/online.ts")).toContain("identity: Identity | null | undefined = undefined;");
+    expect(text).toContain("After you restart the game, your next online game sends your name, builds and progress again, under a new player ID.");
+  });
+
+  it("a link code lets a device join your player; IP addresses stay in memory until the server restarts (pruned only past 10,000); the name list refuses some words", () => {
+    expect(text).toContain("A link code that you make lets one device join your player for 10 minutes, so show a code only to a device of your own.");
+    expect(read("server/links.ts")).toContain("redeem(signer: string, typed: string)");
+    expect(app).toContain("if (this.hits.size > 10_000) {");
+    expect(text).toContain("until the server restarts. Never in storage or in the log.");
+    expect(read("src/net/names.ts")).toContain("export function blockedName");
+    expect(text).toContain("(the game refuses a short list of offensive words)");
+  });
+
+  it("the support page: lost progress is said as it is (history only after a code), the refusal lines are the card's, and an offensive name can be reported", () => {
+    expect(sup).toContain("Your online profile lives on the server under your player ID, and so does your run history once you have shown or entered a link code.");
+    expect(sup).toContain("To report an offensive name, write to us with the name and the tag you saw next to it (like ANNA#4F).");
+    expect(sup).toContain("your device's clock is more than 10 minutes off");
+    expect(read("server/links.ts")).toContain("export const AT_WINDOW_MS = 10 * 60_000;");
+    expect(read("src/screens/battle.ts")).toContain("`VS ${foeTitle(this.foe)}`"); // the foe's NAME#TAG is what the dusk intro shows (day.ts foeTitle)
+    expect(read("src/game/day.ts")).toContain("export function foeTitle");
   });
 });
 
