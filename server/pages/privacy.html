@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#050b12">
+<meta name="description" content="What the game BeltBattles keeps on your device, what it sends to its server, why, who sees it, how long it is kept and how to delete it.">
+<title>BeltBattles Privacy Policy</title>
+<style>
+html { background: #050b12; }
+body { margin: 0 auto; max-width: 40em; padding: 1rem 1rem 3rem; background: #050b12; color: #e6e3d1; font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow-wrap: break-word; }
+h1 { color: #ffd45a; font-size: 1.75rem; line-height: 1.25; margin: 0.6em 0 0.2em; }
+h2 { color: #ffd45a; font-size: 1.3rem; line-height: 1.3; margin: 2em 0 0.4em; padding-top: 0.8em; border-top: 1px solid #1f3042; }
+h3 { color: #c9e4f7; font-size: 1rem; margin: 1.3em 0 0.3em; }
+a { color: #8fd3ff; }
+a:visited { color: #c9b8ff; }
+p, li { margin: 0.5em 0; }
+ul, ol { padding-left: 1.3em; }
+code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 1rem; background: #0d1a27; color: #e6e3d1; padding: 0.05em 0.3em; overflow-wrap: anywhere; }
+q { color: #e6e3d1; }
+.updated, .note { color: #a8b5c2; }
+table { width: 100%; border-collapse: collapse; margin: 0.8em 0; }
+th, td { border: 1px solid #243649; padding: 0.45em 0.55em; text-align: left; vertical-align: top; }
+th { background: #0d1a27; color: #ffd45a; }
+nav ol { columns: 2; column-gap: 1.5em; }
+footer { margin-top: 2.5em; border-top: 1px solid #1f3042; padding-top: 1em; color: #a8b5c2; }
+</style>
+</head>
+<body>
+<header>
+<h1>BeltBattles Privacy Policy</h1>
+<p class="updated">Last updated: <time datetime="2026-10-27">27 October 2026</time></p>
+<p>This policy is for the game BeltBattles on iPhone, on Android and on the web at <a href="https://beltbattles.fly.dev/">beltbattles.fly.dev</a>. It says what the game keeps on your device, what it sends to its server, why, who can see it, how long it is kept and how you delete it. The game has no account, no sign-in and no in-app purchase, and it has no advertising and no analytics.</p>
+<h2 id="short">In short</h2>
+<ul>
+<li>Playing offline sends nothing.</li>
+<li>Online, the game sends the name you chose and your builds, so that other players can meet them as ghosts, together with a random player ID and your progress. If you link devices it also sends your run history.</li>
+<li>You can delete your online data in the game: OPTIONS, then DELETE MY ONLINE DATA.</li>
+</ul>
+<nav aria-label="Sections">
+<ol>
+<li><a href="#who">Who is responsible</a></li>
+<li><a href="#device">On your device</a></li>
+<li><a href="#sent">What is sent</a></li>
+<li><a href="#why">Why</a></li>
+<li><a href="#who-sees">Who sees it</a></li>
+<li><a href="#kept">How long it is kept</a></li>
+<li><a href="#delete">How to delete it</a></li>
+<li><a href="#rights">Your rights</a></li>
+<li><a href="#backups">Backups</a></li>
+<li><a href="#children">Children</a></li>
+<li><a href="#security">Security</a></li>
+<li><a href="#transfers">Where it is processed</a></li>
+<li><a href="#changes">Changes</a></li>
+</ol>
+</nav>
+</header>
+<main>
+
+<section id="who">
+<h2>1. Who is responsible and how to reach us</h2>
+<p>BeltBattles is published by [[DEVELOPER_NAME]]. We decide why and how the data described here is used.</p>
+<p>For any question about your data, write to <a href="mailto:[[SUPPORT_EMAIL]]">[[SUPPORT_EMAIL]]</a>. The <a href="https://beltbattles.fly.dev/support">support page</a> has the same address and short answers to common questions.</p>
+</section>
+
+<section id="device">
+<h2>2. What the game keeps on your device</h2>
+<ul>
+<li><strong>Your game:</strong> your run in progress, your profile (counters such as runs and wins, the heroes you won with, the looks you unlocked and chose), your settings (sound, reduced motion, speed), the tips you have seen, your personal best, a list of your latest finished runs (up to 50) and a pool of your own recent builds (up to 300).</li>
+<li><strong>The name you chose:</strong> 2 to 10 letters, digits, spaces or hyphens.</li>
+<li><strong>A random local ID.</strong> It never leaves your device.</li>
+<li><strong>Your signing key.</strong> The first time the game goes online it makes a key pair on your device (ECDSA P-256, with the cryptography built into your browser or phone). The game signs what it sends with the private key. Your <strong>player ID</strong> is a SHA-256 hash of the public key: a code, not your name. On the web the private key is stored so that it cannot be read or exported (in the browser's IndexedDB, database <code>beltbattles-identity</code>). In the iPhone and Android apps a copy of the private key is also kept in the app's private preferences storage (UserDefaults on iPhone, SharedPreferences on Android), so that you stay the same player if the system clears the app's web storage. That storage is private to the app, but it is not the Keychain or the Keystore.</li>
+<li><strong>Your link record,</strong> if you link devices: which player this device belongs to. The apps copy it to the same preferences storage.</li>
+</ul>
+<p>The game uses the storage of your browser or app, not cookies. It does not ask for your location, contacts, photos, camera, microphone or advertising ID. Deleting the app removes all of this from the device, and on the web clearing the site's data does.</p>
+<p><strong>Offline:</strong> when your device has no connection, the game sends nothing and plays against stand-in captains.</p>
+</section>
+
+<section id="sent">
+<h2>3. What the game sends, and when</h2>
+<p>The game sends data only to <code>https://beltbattles.fly.dev</code>, over HTTPS, and nowhere else. (The web page can be pointed at another server only by adding <code>?server=</code> to its address by hand, a developer setting. The apps cannot.) The game makes no other network requests than these:</p>
+<ul>
+<li><strong>Finding your opponent,</strong> <code>GET /v1/ghosts/match</code>: each time a day's dusk fight needs a ghost. It sends the rules version, the day, your wins and hearts in this run, your player ID, the IDs of the ghosts you already met in this run, how many runs you have finished on this device, and whether the fight is ENDLESS. It carries no name.</li>
+<li><strong>Your build, as a ghost,</strong> <code>POST /v1/ghosts</code>: once for each dusk, before the fight, when the build passes the game's own check. It sends your build exactly as it fights (the pieces on your cruiser and how the belts connect them), your hero, the day, your wins and hearts going into the fight, the name you chose, your player ID, a random run ID, the time on your device's clock and a few details the server uses to check that the build is legal: the run's random seed, the roads you took, your losses, and your ENDLESS wins and hearts.</li>
+<li><strong>Your profile,</strong> <code>PUT /v1/profile</code>: when a run ends and after you change a look in CUSTOMIZE, one try each. It sends your counters (runs started and finished, flawless runs, dusk wins, best day, warlord wins, matriarch wins, most belts), the heroes you won with and finished with, the looks you unlocked and chose, and the time of the last change. It is at most 2 KB.</li>
+<li><strong>Reading your profile back,</strong> <code>GET /v1/profile</code>: only on a device that has shown or entered a link code, or linked a Steam account. It runs after you link, and when the game starts, at most once an hour. It sends the time on your clock and receives your player ID and your profile.</li>
+<li><strong>Linking two devices,</strong> <code>POST /v1/link/code</code> when you tap SHOW MY CODE (it sends the time on your clock and the server makes a one-time code for your player) and <code>POST /v1/link/redeem</code> when you tap ENTER A CODE on the other device (it sends the code you typed and the time). The server then records that the second device belongs to your player.</li>
+<li><strong>Steam,</strong> <code>POST /v1/link/steam</code>: not part of the iPhone, Android or web versions. A Steam version of the game can link your Steam account to your player. Its request carries a one-time ticket from Steam. The server checks the ticket with Steam's web service (run by Valve) and stores your Steam ID next to your player ID. The server accepts this only when its operator has switched Steam linking on.</li>
+<li><strong>Your run history,</strong> <code>PUT /v1/history</code> and <code>GET /v1/history</code>: only on a device that has shown or entered a link code, or linked a Steam account. Showing a code is enough, even if nobody enters it; from then on the device sends each new run until you delete your online data. A run holds the hero, the outcome, the wins, the days, the hearts left, the time the run ended and, for each dusk, its result and (when you played online) the record of the fight, which holds both builds as they fought. It holds no name, no address and no key. The device also reads the list of your player's runs back, so that your linked devices hold the same history. A device that has done neither sends none of this.</li>
+<li><strong>Deleting your data,</strong> <code>DELETE /v1/player</code>: when you confirm DELETE MY ONLINE DATA (section 7). It sends the time on your clock.</li>
+</ul>
+<p>Every request except the opponent search is signed with your key, and carries your public key and the signature as headers. The server uses them to check the request and does not store them. When you open the web version, your browser also asks the server for the game page, and for this policy and the support page.</p>
+<p>With every request the server sees your IP address, which it needs to answer you. It holds the address in memory to limit how often one address can call, and writes it neither to its storage nor to its log. The request log holds the time, the method, the path, the status and the duration of each request. It holds no IP address, no query, no player ID, no key and no signature.</p>
+</section>
+
+<section id="why">
+<h2>4. Why we use it</h2>
+<ul>
+<li>To pick an opponent of about your level: the opponent search uses the day, your wins and hearts and your finished runs.</li>
+<li>To let other players meet your build: that is what a ghost is. Your name goes with it, so they see who built it.</li>
+<li>To keep your progress together when you link devices: the profile, the link records and the run history.</li>
+<li>To make sure that only you can write under your player ID: the signatures.</li>
+<li>To keep the service working and safe: the server checks every build against the game's rules before it stores it, limits how often one address can call, and keeps the request log.</li>
+</ul>
+<p>If you are in the EU, the UK or a similar place, the legal reasons are these: we need the data to run the online features you use (performance of the service), and we have a legitimate interest in keeping the service safe and working (the checks, the limits and the log). We do not use your data for advertising or profiling, and we do not sell it.</p>
+</section>
+
+<section id="who-sees">
+<h2>5. Who sees it</h2>
+<ul>
+<li><strong>Other players.</strong> Your own builds become ghosts for other players to meet. When the opponent search picks your ghost for another player's dusk fight, their game receives the data of your upload listed in section 3, including your player ID and run ID, but not your key, not your signature and not the run's random seed. The game shows them your name with a short tag made from your player ID (like ANNA#4F), your hero, your wins and hearts and your build. If you change your name in OPTIONS, later uploads carry the new name; ghosts already uploaded keep the name they had.</li>
+<li><strong>Our hosting providers</strong> process the data for us. Fly.io runs the server, and Tigris, the object storage that Fly.io offers, holds the stored data. They also keep their own technical records of connections, under their own policies.</li>
+<li><strong>Valve</strong> (Steam) sees the ticket, only in a Steam version that links a Steam account.</li>
+<li><strong>Apple and Google,</strong> and any other store where the game is sold, handle your purchase and download under their own privacy policies. We receive no payment details.</li>
+<li>We do not sell your data and we do not share it for advertising. The game has no advertising, analytics or tracking code, and no code from other companies that collects data.</li>
+</ul>
+</section>
+
+<section id="kept">
+<h2>6. How long it is kept</h2>
+<p>On the server nothing is deleted just because time has passed, with the exceptions in the table. Data stays until you delete your online data.</p>
+<table>
+<thead>
+<tr><th scope="col">Data</th><th scope="col">How long</th></tr>
+</thead>
+<tbody>
+<tr><td>Ghosts (your builds, with your name)</td><td>Until you delete your online data and the stored copies are removed (section 7). They stop being served at once.</td></tr>
+<tr><td>Profile</td><td>Until you delete your online data.</td></tr>
+<tr><td>Links between devices, Steam link</td><td>Until you delete your online data.</td></tr>
+<tr><td>Link code</td><td>A code works for 10 minutes. The server stores only a one-way hash of it, with the player it belongs to and its end time. That record is removed when the code is used, replaced by a newer one, found expired when someone tries it, or when you delete your online data.</td></tr>
+<tr><td>Run history</td><td>Your newest 200 runs, until you delete your online data. When a newer run arrives beyond 200, the oldest is dropped.</td></tr>
+<tr><td>Deletion record</td><td>After you delete your online data, the server keeps one small record: your player ID and the IDs of your linked devices (codes made by hashing, not names) and the time of the deletion. It has no end date. It is what keeps your old ghosts from being served again.</td></tr>
+<tr><td>Request log</td><td>The time, method, path, status and duration of each request, written to the server's log on Fly.io. The game sets no period for these lines. Fly.io decides how long its log stream keeps them.</td></tr>
+<tr><td>IP addresses</td><td>Only in the server's memory, for the rate limits (counted over one minute; over ten minutes for wrong link codes). Never in storage or in the log.</td></tr>
+</tbody>
+</table>
+<p>On your device, data stays until you delete the app or clear the site's data.</p>
+</section>
+
+<section id="delete">
+<h2>7. How to delete your online data</h2>
+<ol>
+<li>On the title screen tap <strong>OPTIONS</strong>.</li>
+<li>Tap <strong>DELETE MY ONLINE DATA</strong>. The row is greyed out while the game cannot go online, and a line under it says why.</li>
+<li>The card says <q>THIS DELETES YOUR ONLINE PROFILE, YOUR LINKS AND YOUR GHOSTS.</q> and <q>YOUR PROGRESS ON THIS DEVICE STAYS.</q> Tap <strong>DELETE</strong>. (CANCEL leaves everything as it was.)</li>
+<li>When it has worked, the card says <q>DONE. YOUR NEXT ONLINE GAME STARTS A NEW PLAYER.</q></li>
+</ol>
+<h3>What it removes at once</h3>
+<p>Your online profile, the links between your devices and any Steam link, a link code you have not used, and your run history. Your ghosts stop being served from that moment, so nobody can meet them.</p>
+<h3>What it keeps</h3>
+<p>The deletion record described in section 6. On each of your devices, your local progress, settings, name and list of finished runs stay. The device you deleted from throws away its key and link record, and makes a new player at your next online game.</p>
+<h3>Your stored ghosts</h3>
+<p>A clean-up that the developer runs removes the stored copies of the ghosts of every player who deleted their online data. Until it has run, those ghosts are stored but never served.</p>
+<h3>Your other devices</h3>
+<p>If you linked more than one device, the others find out the next time they send a ghost or a run: the server answers that the player was deleted. They then throw away their key and link record and start a new player. Their local progress stays.</p>
+<h3>If you cannot use the game</h3>
+<p>If your device is lost, wiped or sold, you cannot sign the request. Write to <a href="mailto:[[SUPPORT_EMAIL]]">[[SUPPORT_EMAIL]]</a> and tell us the name you used in the game, the hero and roughly when you played. We will look for the ghosts and records that belong to it and delete them. We cannot be sure a request comes from the owner, so we may ask you questions. We answer within one month (section 8).</p>
+</section>
+
+<section id="rights">
+<h2>8. Your rights</h2>
+<p>You can ask us for a copy of the data we hold about you (access), for wrong data to be corrected (correction), for your data to be deleted (deletion; you can also do it yourself, section 7), and that we stop or limit using it (objection and restriction). Write to <a href="mailto:[[SUPPORT_EMAIL]]">[[SUPPORT_EMAIL]]</a>. We answer within one month.</p>
+<p>There is no account, so we can find your data only from your player ID or from the name you used. We may ask you questions to be sure we have the right data.</p>
+<p>If you think we use your data wrongly, you can complain to the data protection authority in your country.</p>
+</section>
+
+<section id="backups">
+<h2>9. Backups on your device</h2>
+<ul>
+<li><strong>iPhone:</strong> iOS includes an app's UserDefaults in the backup of your device, so the copy of your key may be in your iCloud or computer backup. A restored iPhone may come back as the same player.</li>
+<li><strong>Android:</strong> the app allows Android's Auto Backup, so the Google backup of your phone may include the app's saved data, with the copy of your key. A restored phone may come back as the same player.</li>
+<li><strong>Web:</strong> the private key cannot be exported from the browser.</li>
+</ul>
+<p>We have not tested what each system restores. A backup made before you deleted your online data can bring back the old key. The server then refuses it (it answers that the player was deleted), and the game makes a new player.</p>
+</section>
+
+<section id="children">
+<h2>10. Children</h2>
+<p>BeltBattles is for people aged 13 and over and is not aimed at children. It asks for no age and no contact detail. The name you choose can be any 2 to 10 letters, digits, spaces or hyphens, and other players see it, so please do not use your real name. If you think a child under 13 has played online, write to <a href="mailto:[[SUPPORT_EMAIL]]">[[SUPPORT_EMAIL]]</a> and we will delete that player's online data.</p>
+</section>
+
+<section id="security">
+<h2>11. Security</h2>
+<ul>
+<li>Everything the game sends goes over HTTPS. The game refuses a server address that is not https (except one on your own machine).</li>
+<li>Uploads are signed with a key made on your device. The server stores a ghost, a profile or a history entry only under the player ID of the key that signed it (or of the player that key is linked to), so nobody can write under your player ID without your key.</li>
+<li>On the web the private key is stored so that it cannot be exported. In the apps a copy is kept in app-private storage, not in the Keychain or Keystore, so it is not protected by hardware.</li>
+<li>The server checks every build against the game's own rules before it stores it.</li>
+<li>A link code has 8 characters, works once and for 10 minutes, and is stored only as a hash. After 5 wrong tries from one address in 10 minutes, the server refuses more.</li>
+<li>The server does not keep IP addresses in its storage or its log.</li>
+</ul>
+<p>No system is perfectly secure, and we cannot promise it.</p>
+</section>
+
+<section id="transfers">
+<h2>12. Where the data is processed</h2>
+<p>The server runs on Fly.io in Ashburn, Virginia, in the United States (Fly.io region <code>iad</code>). The data is stored in Tigris. We did not restrict where Tigris places objects, so by its default (a global bucket) objects are stored close to where they are written and copies can be made in other regions when they are read. If you live outside the United States, your data is therefore sent to the United States and may be copied to other countries. For questions about this, write to <a href="mailto:[[SUPPORT_EMAIL]]">[[SUPPORT_EMAIL]]</a>.</p>
+</section>
+
+<section id="changes">
+<h2>13. Changes to this policy</h2>
+<p>If this policy changes, we change the date at the top of this page. The address stays the same: <code>https://beltbattles.fly.dev/privacy</code>.</p>
+</section>
+
+</main>
+<footer>
+<p><a href="https://beltbattles.fly.dev/support">Support</a> · <a href="https://beltbattles.fly.dev/">Play BeltBattles</a></p>
+</footer>
+</body>
+</html>
