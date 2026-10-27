@@ -36,7 +36,7 @@ import {
 } from "../src/sim/enchant";
 import { makeEnchantState, slugMadeFx } from "../src/sim/enchantFx";
 import {
-  ENCHANT_NOTES, enchantedTitle, nameSpans, panelText, partNotes, pieceLine, slugDmg, wordFace, wordLine, wordOn,
+  ENCHANT_NOTES, RISING_CARD_RESETS, RISING_RESETS, enchantedTitle, nameSpans, panelText, partNotes, pieceLine, slugDmg, wordFace, wordLine, wordOn,
 } from "../src/ui/enchantFaces";
 import { carryStats, enchantNotes, factoryStats, plainRigStats, turretStats, wordRows } from "../src/ui/faces";
 import { statRow } from "../src/ui/icons";
@@ -306,7 +306,8 @@ describe("ENCHANT-1 E7: THE ROWS: the piece's own numbers, then every word's one
         expect(wordLine("braced", kind, stars), `BRACED ${kind} ★${stars}`).toContain(`THE FIRST ${ENCHANT_NUM.bracedStuns * stars} {STUN}STUNS`);
         expect(wordLine("fiery", kind, stars), `FIERY ${kind} ★${stars}`).toContain(`ADDS +${ENCHANT_NUM.burn * stars} {BURN} `); // ENCHANT-2 (T4c): the card says what the panel says
       }
-      expect(wordLine("rising", "rig", 1)).toBe(panelText("EACH SLUG IT HITS: +5 DMG MORE THAN THE LAST.".replace("+5", `+${ENCHANT_NUM.risingStep}`)));
+      // POLISH-1 (P3a): + ` IT STARTS OVER EACH FIGHT.` (was ... THAN THE LAST.)
+      expect(wordLine("rising", "rig", 1)).toBe(panelText("EACH SLUG IT HITS: +5 DMG MORE THAN THE LAST. IT STARTS OVER EACH FIGHT.".replace("+5", `+${ENCHANT_NUM.risingStep}`)));
       for (const id of ["echoing", "massive", "swift", "wide"] as const) for (const kind of KINDS) {
         if (wordLine(id, kind, 1) !== null) expect(wordLine(id, kind, 3), `${id}: no number scales`).toBe(wordLine(id, kind, 1));
       }
@@ -586,11 +587,11 @@ describe("ENCHANT-1 E7: THE NOTES (behind the hover or the tap) and the word car
       const run = runWith([{ uid: 9, def: "whetstone", x: 3, y: 3, ench: "fiery" } as Build["items"][number]], [], [{ slot: 0, def: "scrapcannon", uid: 90, ench: "massive" }]);
       const rig = faceText(run.build, { kind: "item", uid: 9 })!, gun = faceText(run.build, { kind: "turret", index: 0 })!;
       expect(rig.ench).toBe("fiery");
-      expect(rig.title).toBe("FIERY WHETSTONE");
+      expect(rig.title).toBe("FIERY WHETSTONE ★"); // POLISH-1 (P5a): the title shows its star at ★1 too (was "FIERY WHETSTONE")
       expect(texts(rig.notes ?? [])).toEqual(expect.arrayContaining(enchantNotes("fiery"))); // ENCHANT-2 (T4b): a part's NOTES, line 1 by word
       expect(texts(gun.notes ?? [])).toEqual(expect.arrayContaining(enchantNotes("massive")));
       expect(gun.ench).toBe("massive");
-      expect(gun.title).toBe("MASSIVE SCRAP CANNON");
+      expect(gun.title).toBe("MASSIVE SCRAP CANNON ★"); // POLISH-1 (P5a): was "MASSIVE SCRAP CANNON"
       expect(gun.body.some((b) => b.colour === wc("massive"))).toBe(true);
     });
   });
@@ -602,11 +603,13 @@ describe("ENCHANT-1 E7: THE NOTES (behind the hover or the tap) and the word car
       expect(f.color).toBe(ENCHANT_DEFS[id].color);
       expect(f.notes).toEqual(ENCHANT_NOTES);
       expect(f.lines.map((l) => l.kind), `${id}: a row for each kind it goes on, in the order rig, factory, turret, and for no other`).toEqual(goes);
-      for (const l of f.lines) {
+      for (const [i, l] of f.lines.entries()) {
         expect(l.legal, `${id} ${l.kind}`).toBe(true);
         expect(l.label, `${id} ${l.kind}`).toBe(`${goes.length === 1 ? "ONLY " : ""}ON A ${l.kind.toUpperCase()}`);
         expect(l.label, `${id} ${l.kind}: no NOT ON row any more`).not.toMatch(/^NOT ON/);
-        expect(l.text, `${id} ${l.kind}`).toBe(wordLine(id, l.kind, 1));
+        // POLISH-1 (P3a): RISING's reset sentence stands once on its card, on the last row (three rows with it do not keep whole in the phone band)
+        // FIX ROUND (the cold read's PW-01): and on the last row `ALL THREE RESET EACH FIGHT.` (RISING_CARD_RESETS) for the three rows above it, not the part's own sentence
+        expect(l.text, `${id} ${l.kind}`).toBe(id === "rising" ? wordLine(id, l.kind, 1)!.replace(` ${RISING_RESETS}`, i < f.lines.length - 1 ? "" : ` ${f.lines.length === 3 ? RISING_CARD_RESETS : RISING_RESETS}`) : wordLine(id, l.kind, 1));
         expect(l.text).not.toMatch(/[[\]]/);
         expect(l.text).not.toMatch(/(?<!\{)\bDMG\b(?!\})/);
       }
@@ -774,8 +777,14 @@ describe("ENCHANT-1 E7: every enchanted panel fits its box on the phone (402x690
       expect(cut.filter((c) => c.startsWith("phone"))).toEqual([]);
       // 13 = the 7 words a factory takes on DRAG CHAIN FOUNDRY + 6 on FROSTBITE FOUNDRY (WIDE is short enough to fit there); it was 15 before ENCHANT-1b (N1),
       // when MASSIVE was a factory's word too and was cut on both
-      expect(cut.length).toBe(13);
-      for (const c of cut) expect(c, c).toMatch(/^desk 1280x800: \S+ (DRAG CHAIN|FROSTBITE) FOUNDRY ★★★$/);
+      // POLISH-1 (REQ-BFG-089; P5a): 19 = those 13 at ★★★ + 6 at ★1, now that the title carries its star at ★1 too (a space and a star wider): RISING, GROWING, ECHOING and BRACED
+      // on DRAG CHAIN FOUNDRY ★ and GROWING and ECHOING on FROSTBITE FOUNDRY ★ (the same two longest names, on the desk's column only; none on the phone). The title's own rule
+      // (fitHead: the 5x7 face where it fits, else the 3x5 face cut short with a dot) is unchanged; the text sheet lists them.
+      expect(cut.length).toBe(19);
+      for (const c of cut) expect(c, c).toMatch(/^desk 1280x800: \S+ (DRAG CHAIN|FROSTBITE) FOUNDRY (★|★★★)$/);
+      expect(cut.filter((c) => c.endsWith(" ★")).map((c) => c.slice("desk 1280x800: ".length)).sort()).toEqual([
+        "BRACED DRAG CHAIN FOUNDRY ★", "ECHOING DRAG CHAIN FOUNDRY ★", "ECHOING FROSTBITE FOUNDRY ★", "GROWING DRAG CHAIN FOUNDRY ★", "GROWING FROSTBITE FOUNDRY ★", "RISING DRAG CHAIN FOUNDRY ★",
+      ]);
     });
   });
 
@@ -783,6 +792,7 @@ describe("ENCHANT-1 E7: every enchanted panel fits its box on the phone (402x690
     on(() => {
       const op = framed(402, 690, 3, 1), desk = framed(1280, 800, 1, 1);
       let worstOp = 0, worstDesk = 0, n = 0;
+      const over: string[] = []; // POLISH-1 (P5a): the views past 3 pages
       for (const [view, f, touch] of [["op", op, true], ["desk", desk, false]] as const) for (const [kind, how] of SHOWS) for (const id of WORDS(kind)) for (const stars of starsOn(PIECE[kind])) {
         const [, run, sel] = panelOf(kind, how, id, stars);
         const ctx = { game: { ui: new UI(), t: 0, view: f.view, W: f.W, H: f.H }, run, touch, L: f.L } as unknown as Ctx;
@@ -792,12 +802,16 @@ describe("ENCHANT-1 E7: every enchanted panel fits its box on the phone (402x690
         const items = infoItems(infoLevels(run, sel), words, p.r.w - 10, notes);
         const pages = infoView(items, p.r, p.y - 1, p.maxY + 2, infoFree(f.L, p.r, p.column)).pages;
         expect(pages.flat(2).map((it) => it.note).filter(Boolean), `${view} ${id} on ${kind} ${how}`).toEqual(expect.arrayContaining(enchantNotes(id))); // ENCHANT-2 (T4b): the part's NOTES, line 1 by word
+        if (pages.length > 3) over.push(`${view} ${id} on ${kind} ${how} ★${stars}: ${pages.length} pages (${d.t.title})`);
         if (view === "op") worstOp = Math.max(worstOp, pages.length); else worstDesk = Math.max(worstDesk, pages.length);
         n++;
       }
       expect(n).toBeGreaterThan(100);
       console.log(`ENCHANT-1 E7 ⓘ pages of ${n} enchanted panel views: op worst ${worstOp}, desk worst ${worstDesk}`);
-      expect(worstOp, "op view").toBeLessThanOrEqual(3);
+      // POLISH-1 (REQ-BFG-089; P5a): the star at ★1 makes ONE title too wide to sit beside the buttons on the phone band: `MASSIVE SCRAP CANNON ★` (the installed turret, op view),
+      // so portraitButtons drops them under the sub line (the 0.6.1r F7 rule, unchanged) and the ⓘ view loses that row: 4 pages (was 3). Every other view keeps its 3.
+      expect(over, "views past 3 pages").toEqual(["op massive on turret installed ★1: 4 pages (MASSIVE SCRAP CANNON ★)"]);
+      expect(worstOp, "op view").toBeLessThanOrEqual(4);
       expect(worstDesk, "desk").toBeLessThanOrEqual(3);
     });
   });

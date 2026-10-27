@@ -40,7 +40,7 @@ import { COUNTER_H, SPARK_SIZE, carriedMark, counterSize, drawGrowCounter, markC
 import { UI, itemSlot } from "../src/ui/ui";
 import { drawLifted } from "../src/screens/build/cues";
 import { drawCard } from "../src/screens/build/shop";
-import { LastChancePicker, lcWord, partInfo } from "../src/screens/lastChancePicker";
+import { LastChancePicker, lcSparkAt, lcWord, partInfo } from "../src/screens/lastChancePicker";
 import { buildLayout, buildScale, phoneBarLift, phoneScreen } from "../src/screens/build/layout";
 import { runeRowFits, runeRowH, shiftLayout } from "../src/ui/runeBar";
 import { TAP_CSS } from "../src/ui/tap";
@@ -486,7 +486,8 @@ describe("ENCHANT-1 E5c, E7: the LAST CHANCE PART card that arrives enchanted: t
     const card = onF.ui.regions.find((r) => r.id === "lcpick-part")!.r;
     expect(off.ui.regions.find((r) => r.id === "lcpick-part")!.r, "the card's box").toEqual(card);
     expect(onF.ui.regions.map((r) => [r.id, r.r]), "every region").toEqual(off.ui.regions.map((r) => [r.id, r.r]));
-    const col = ENCHANT_DEFS[word].color, sx = card.x + card.w - 5, sy = card.y - 1;
+    // POLISH-1 (P2): the spark is whole INSIDE the card, on its part's plate (lcSparkAt; tests/polish1.lcspark.test.ts); it was (card.x + card.w - 5, card.y - 1), on the frame's corner, half outside it
+    const col = ENCHANT_DEFS[word].color, sx = lcSparkAt(card).x, sy = lcSparkAt(card).y;
     expect(hasColour(onF.c, sx, sy, SPARK_SIZE, SPARK_SIZE, col), "the spark").toBe(true);
     expect(hasColour(off.c, sx, sy, SPARK_SIZE, SPARK_SIZE, col), "none with the switch off").toBe(false);
     const diff = diffPx(onF.c, off.c); // the word before the part's name: the head row's name changed, in the word's colour; under the head only the corner changed

@@ -257,7 +257,8 @@ import { ICON, wrap } from "../src/render/font";
 import { REMINDER } from "../src/ui/faces";
 import { JOIN_OVER_LIMIT, JOIN_PACE_PCT } from "../src/sim/deck";
 import { computeView, defaultScale } from "../src/core/io";
-import { HELP, HELP_ENDLESS, HELP_HEARTS_2, HELP_KEYWORDS, HELP_LONG_1, HELP_LONG_2, helpLine3, helpLines } from "../src/screens/title";
+import { HELP, HELP_ENDLESS, HELP_HEARTS_2, HELP_KEYWORDS, HELP_LONG_1, HELP_LONG_2, helpKeywords, helpLine3, helpLines } from "../src/screens/title";
+import { cardBefore } from "./polish1.help.helpers"; // POLISH-1 (P4): the rules card as it was (the new sentences' switches off)
 import { withEndless } from "../src/sim/endless"; // BUMP-1E P6: ENDLESS ships on: the card before its sentence is read with endless off
 import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: the 10-day card is read with the long run off
 import { helpCard, titleScale } from "../src/screens/titleLayout";
@@ -285,7 +286,9 @@ describe("CARD-5 (H): HOW TO PLAY names the kinds and the keywords (REQ-BFG-111;
     expect(helpLine3(false)).toBe(`${three} (${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`);
     expect(HELP[3]).toBe("4  STAND RIGS BESIDE THE BELT, ARROWS AT IT (TAP TO TURN): BURN, STUN, SPLIT, SPEED UP OR SLOW DOWN. A SHAPE ON A CARD IS THE CELLS THAT PIECE FILLS, WITH A RIG'S ARROWS IN GREEN. MOST RIGS WORK ON EACH SLUG ON A TILE THEIR ARROWS POINT AT. LONGER CINDER ROUTES COOK HOTTER SLUGS."); // SHOPCARD-1 (H): item 3 says how to read a card (TAP A CARD TO READ IT), item 4 what a card's shape is
     expect(HELP_KEYWORDS).toBe(`6  ${ICON.BURN}BURN: HULL DAMAGE OVER TIME. ${ICON.STUN}STUN: STOPS THE PART IT HITS FOR A WHILE. ${ICON.PLATE}SHIELD: SOAKS HULL DAMAGE. ${ICON.SHIELD}WARD: BLOCKS ALL OF ONE HIT'S DAMAGE. ${ICON.PAIR}PAIR: SLUGS FROM TWO BELTS REACH ONE TURRET AT ONCE. ${ICON.FRAY}FRAY: LATER HULL HITS DEAL MORE.`);
-    expect([HELP.length, helpLines().length, helpLines()[5]]).toEqual([6, 6, HELP_KEYWORDS]);
+    // POLISH-1 (P4): the keyword line as HELP_KEYWORDS says it is the card as it was (GATES, ENCHANT and POISON's switch off); shipped (all on) item 6 has POISON (helpKeywords: tests/polish1.help.test.ts)
+    expect([HELP.length, cardBefore(() => helpLines()).length, cardBefore(() => helpLines())[5]]).toEqual([6, 6, HELP_KEYWORDS]); // was helpLines()
+    expect([helpLines().length, helpLines()[5]]).toEqual([6, helpKeywords()]);
     // BUMP-1D: items 1, 2, 5 as before is the 10-day card (LONG_RUN ships on: its card says WIN 10 DUSK FIGHTS and ends item 2 with how the
     // run ends: HELP_LONG_1 and HELP_LONG_2, tests/run1.screens.test.ts), so it is read with the long run off; HELP_HEARTS_2's cost words
     // are built from the constants (title.ts heartCostWords: "1 ON DAYS 1-3 AND 2 FROM DAY 4")

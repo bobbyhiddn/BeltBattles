@@ -164,17 +164,29 @@ export function pieceMarkAt(f: DeckFrame, p: Placed): { spark: Pt; counter: Pt }
   return { spark: { x: top.x + CELL - SPARK_SIZE, y: top.y }, counter: { x: bottom.x + CELL - COUNTER_IN, y: bottom.y + CELL - COUNTER_UP } };
 }
 
-/** The rigs and factories of the view's build with a word: the spark on each, GROWING's counter on those above 0. A piece lifted off the
- *  deck (v.hideItem) draws none, as it draws no sprite. */
-export function drawEnchantMachinery(g: G, v: CruiserView): void {
-  if (!enchantRules()) return;
+/** POLISH-1 (REQ-BFG-085; P1): one word's mark on the board: what it draws and where its spark and its counter go (screen px). */
+interface BoardMark { m: WordMark; spark: Pt; counter: Pt }
+
+/** The marks of the view's rigs and factories with a word. A piece lifted off the deck (v.hideItem) draws none, as it draws no sprite. */
+function machineryMarks(v: CruiserView): BoardMark[] {
+  const out: BoardMark[] = [];
   for (const p of v.build.items) {
     if (p.ench === undefined || p.uid === v.hideItem) continue;
     const m = wordMark(p, p.def);
     if (!m) continue;
     const at = pieceMarkAt(v.frame, p);
-    drawBoardSpark(g, at.spark.x, at.spark.y, m.color);
-    if (m.grow > 0) drawGrowCounter(g, at.counter.x, at.counter.y, m.grow, m.color);
+    out.push({ m, spark: at.spark, counter: at.counter });
+  }
+  return out;
+}
+
+/** The rigs and factories of the view's build with a word: the spark on each, GROWING's counter on those above 0. A piece lifted off the
+ *  deck (v.hideItem) draws none, as it draws no sprite. */
+export function drawEnchantMachinery(g: G, v: CruiserView): void {
+  if (!enchantRules()) return;
+  for (const k of machineryMarks(v)) {
+    drawBoardSpark(g, k.spark.x, k.spark.y, k.m.color);
+    if (k.m.grow > 0) drawGrowCounter(g, k.counter.x, k.counter.y, k.m.grow, k.m.color);
   }
 }
 
@@ -212,9 +224,10 @@ export function turretMarkAt(f: DeckFrame, px: number, py: number, pu: number, n
   return { spark, counter };
 }
 
-/** The installed turrets of the view's build with a word: the spark on each, GROWING's counter on those above 0. */
-export function drawEnchantTurrets(g: G, v: CruiserView): void {
-  if (!enchantRules() || !v.build.turrets?.some((t) => t.ench !== undefined)) return;
+/** The marks of the view's installed turrets with a word (none when no turret holds one). */
+function turretMarks(v: CruiserView): BoardMark[] {
+  const out: BoardMark[] = [];
+  if (!v.build.turrets?.some((t) => t.ench !== undefined)) return out;
   const f = v.frame, h = hero(v.build), slots = turretSlots(v.build);
   for (let i = 0; i < slots.length; i++) {
     const t = slots[i].turret, td = h.turrets[i];
@@ -223,7 +236,29 @@ export function drawEnchantTurrets(g: G, v: CruiserView): void {
     if (!m) continue;
     const px = Math.round(sx(f, (td.col0 + td.width / 2) * CELL, TURRET_LY)), py = Math.round(sy(f, (td.col0 + td.width / 2) * CELL, TURRET_LY));
     const at = turretMarkAt(f, px, py, pipColumn(td.kind, h.faction), m.grow, td.kind);
-    drawBoardSpark(g, at.spark.x, at.spark.y, m.color);
-    if (m.grow > 0) drawGrowCounter(g, at.counter.x, at.counter.y, m.grow, m.color);
+    out.push({ m, spark: at.spark, counter: at.counter });
   }
+  return out;
+}
+
+/** The installed turrets of the view's build with a word: the spark on each, GROWING's counter on those above 0. */
+export function drawEnchantTurrets(g: G, v: CruiserView): void {
+  if (!enchantRules()) return;
+  for (const k of turretMarks(v)) {
+    drawBoardSpark(g, k.spark.x, k.spark.y, k.m.color);
+    if (k.m.grow > 0) drawGrowCounter(g, k.counter.x, k.counter.y, k.m.grow, k.m.color);
+  }
+}
+
+/**
+ * POLISH-1 (REQ-BFG-085; P1, BUMP-1F's review F1): every GROWING counter of the view's build drawn once more, over whatever lay on it. The build
+ * screen draws the selection's frames after the machinery and the turrets (build/build.ts drawSelection), and a frame's 1 px line lay over a
+ * counter's top-left (the selected piece's own frame cuts a rig's counter at cell + 12, a neighbour's or a belt tile's frame cuts the next one):
+ * a selected GROWING rig showed a 3 as a 9. drawSelection calls this last, as it draws the level marks again over the frames (D11), so the box and its
+ * number are whole whether a piece is selected or not and the frame still shows the selection round the piece. The pixels are the ones
+ * drawEnchantMachinery and drawEnchantTurrets drew (the same places from the same two lists): where no frame lay over a box nothing changes.
+ */
+export function drawEnchantCounters(g: G, v: CruiserView): void {
+  if (!enchantRules()) return;
+  for (const k of [...machineryMarks(v), ...turretMarks(v)]) if (k.m.grow > 0) drawGrowCounter(g, k.counter.x, k.counter.y, k.m.grow, k.m.color);
 }

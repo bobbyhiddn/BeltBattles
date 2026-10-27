@@ -491,9 +491,9 @@ describe("0.6.2t: the table and the real values at each star (T1, T3)", () => {
     // TXT-096 (REVIEW-TXT095 Q2): one opening with its face's tiles (was ["THE TURRET IGNORES EVERY STUN.", "SO DO THE LAST 2
     // TILES OF EACH BELT IN."] and ★1's "THE TURRET IGNORES EVERY STUN.")
     expect(at("mantlet", 2).sentences).toEqual([
-      "THE TURRET IGNORES EVERY STUN, AND SO DO THE LAST 2 TILES OF EACH BELT IN.",
+      "THE TURRET IGNORES EVERY STUN, AND SO DO THE LAST 2 TILES OF EACH BELT INTO IT.", // POLISH-1 (P3c): INTO IT (was IN., which read as cut off)
     ]);
-    expect([at("mantlet", 1).sentences[0], cardText("mantlet")]).toEqual(["THE TURRET IGNORES EVERY STUN, AND SO DOES THE LAST TILE OF EACH BELT IN.", "IGNORES EVERY STUN."]);
+    expect([at("mantlet", 1).sentences[0], cardText("mantlet")]).toEqual(["THE TURRET IGNORES EVERY STUN, AND SO DOES THE LAST TILE OF EACH BELT INTO IT.", "IGNORES EVERY STUN."]);
     // NUM-2 (REQ-BFG-047; was EVERY 0.9 SECONDS and 11% FASTER): BOMBARD ★2's speed is 33 (30 / 0.9 = 33.3 rounded), so it
     // fires every 30 / 33 = 0.909 -> 0.91 s, and 33 / 30 = 1.1 is 10% faster than ★1's 30 (was 1 / 0.9 = 1.11, 11%)
     // NUM-4 (REQ-BFG-047): its SPEED as it is, AT RATE 33, and the star's gain as the SPEED difference, 33 - 30 = 3 MORE

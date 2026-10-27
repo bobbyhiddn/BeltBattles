@@ -13,7 +13,7 @@ import { drawText, textWidth } from "../render/font";
 import { drawGridRight } from "../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its pick button
 import { itemIcon } from "../render/sprites";
 import { blockedButton, button, panel, type Rect } from "../ui/ui";
-import { fmtClock } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clock, whole elapsed seconds
+import { fmtClockSec } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clock, whole elapsed seconds; POLISH-1 (P3b): `24 SEC`, not `24S`
 import { fightBlock } from "../game/routeCheck";
 import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, tag } from "../ui/captain";
 import { drawHearts } from "./battleHud";
@@ -30,6 +30,9 @@ import { dropWordOf } from "../sim/npcWords"; // ENCHANT-2 (REQ-BFG-085, T2): th
 
 /** The line over a Hard win's part pick. */
 export const PICK_LINE_TEXT = "PICK 1 PART FROM THEIR DECK:";
+
+/** POLISH-1 (REQ-BFG-085; P3b): the warlord result card's top line, `ROAD · DAY 6 · MEDIUM WARLORD · 24 SEC` (the clock was `24S`, read as 245 by ENCHANT-2W's readers). */
+export const roadLine = (day: number, tier: keyof typeof TIER_LABEL, time: number): string => `ROAD · DAY ${day} · ${TIER_LABEL[tier]} WARLORD · ${fmtClockSec(time)}`;
 
 /**
  * ENCHANT-2W (REQ-BFG-085, REQ-BFG-089; W4, E2-03's doubt): THE VICTORY CARD'S GOLD LINE SAYS WHAT IS INSIDE IT. `WarlordOutcome.gold` is the win's gold PLUS the bounty (road.ts finishWarlord:
@@ -96,7 +99,7 @@ export function drawWarlordResult(g: G, game: Game, w: WarlordFight, pt: number,
   ui.add({ id: "resultbg", r: { x: 0, y: 0, w: W, h: H }, block: true });
   const win = r.outcome === "win", loss = r.outcome === "loss";
   drawText(g, win ? "WIN" : loss ? "LOSS" : "DRAW", W / 2, yy + 6, win ? C.lime : loss ? C.red : C.bone, { align: "center", scale: 2, outline: C.ink });
-  drawText(g, `ROAD · DAY ${w.day} · ${TIER_LABEL[w.tier]} WARLORD · ${fmtClock(r.time)}S`, W / 2, yy + 23, C.slate4, { font: "3", align: "center" }); // NUM-4: a clock
+  drawText(g, roadLine(w.day, w.tier, r.time), W / 2, yy + 23, C.slate4, { font: "3", align: "center" }); // NUM-4: a clock; POLISH-1 (P3b): `24 SEC`
   // the warlord: portrait, name, tier
   drawPortrait(g, w.id, x + 10, yy + 32);
   drawText(g, w.name, x + 40, yy + 34, nameColor(w.id), { outline: C.ink });

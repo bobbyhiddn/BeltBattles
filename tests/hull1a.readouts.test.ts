@@ -131,10 +131,11 @@ describe("HULL-1a: every hull read-out, at day 1 and day 10", () => {
 
   it("the road event's hull amounts (PLATING, RIDE THROUGH and the hull costs): the card chips and the outcome line", () => withHullScale(() => {
     const d = { k: "hull" as const, n: 250 };
-    expect(deltaText(d, false, 10)).toBe("+250 HULL");
-    expect(on(() => deltaText(d, false, 1))).toBe("+250 HULL");
-    expect(on(() => deltaText(d, false, 10))).toBe("+1500 HULL");
-    expect(on(() => deltaText(d, true, 10))).toBe("-1500 HULL");
+    // POLISH-1 (P3d): the chip says MAX HULL (it is the max hull, as the outcome line says); was "+250 HULL", "+250 HULL", "+1500 HULL", "-1500 HULL"
+    expect(deltaText(d, false, 10)).toBe("+250 MAX HULL");
+    expect(on(() => deltaText(d, false, 1))).toBe("+250 MAX HULL");
+    expect(on(() => deltaText(d, false, 10))).toBe("+1500 MAX HULL");
+    expect(on(() => deltaText(d, true, 10))).toBe("-1500 MAX HULL");
     const c = { cost: [], gain: [d] } as unknown as Choice;
     expect(outcomeText(c, true, 10)[0]).toBe("+250 MAX HULL");
     expect(on(() => outcomeText(c, true, 10)[0])).toBe("+1500 MAX HULL");

@@ -49,9 +49,9 @@ describe("ENCHANT-2 T6 fix round: wordLine / pieceLine take the panel's day for 
   it("the two examples of the ruling: GROWING at one star on day 6 says +10, RISING at one star on day 8 says +2", () => {
     on(() => {
       expect(wordLine("growing", "rig", 1, 6)).toBe("AFTER EACH DUSK FIGHT: ITS HIT +10 {DMG}, FOR THE RUN.");
-      expect(wordLine("rising", "turret", 1, 8)).toBe("EACH SHOT: +2 {DMG} MORE THAN THE LAST.");
+      expect(wordLine("rising", "turret", 1, 8)).toBe("EACH SHOT: +2 {DMG} MORE THAN THE LAST. IT STARTS OVER EACH FIGHT.");
       expect(pieceLine("growing", "rig", 1, 6)).toBe("AFTER EACH DUSK FIGHT: ITS HIT +10 {DMG}, FOR THE RUN.");
-      expect(pieceLine("rising", "turret", 1, 8)).toBe("EACH SHOT: +2 {DMG} MORE THAN THE LAST.");
+      expect(pieceLine("rising", "turret", 1, 8)).toBe("EACH SHOT: +2 {DMG} MORE THAN THE LAST. IT STARTS OVER EACH FIGHT.");
     });
   });
 
@@ -135,9 +135,9 @@ describe("ENCHANT-2 T6 fix round: E2-05's face, a GROWING WHETSTONE that has gro
       const g = turretPanel(runWith(6, [], [], [{ slot: 0, def: "scrapcannon", uid: 90, ench: "growing", grow: 3 }]), 0)!;
       expect(bodyTexts(g)).toContain(icons("AFTER EACH DUSK FIGHT: ITS SHOTS +10 {DMG}, FOR THE RUN."));
       const r = turretPanel(runWith(8, [], [], [{ slot: 0, def: "scrapcannon", uid: 90, ench: "rising" }]), 0)!;
-      expect(bodyTexts(r)).toContain(icons("EACH SHOT: +2 {DMG} MORE THAN THE LAST."));
+      expect(bodyTexts(r)).toContain(icons("EACH SHOT: +2 {DMG} MORE THAN THE LAST. IT STARTS OVER EACH FIGHT."));
       const r1 = turretPanel(runWith(1, [], [], [{ slot: 0, def: "scrapcannon", uid: 90, ench: "rising" }]), 0)!;
-      expect(bodyTexts(r1), "day 1 is day 1's number").toContain(icons("EACH SHOT: +1 {DMG} MORE THAN THE LAST."));
+      expect(bodyTexts(r1), "day 1 is day 1's number").toContain(icons("EACH SHOT: +1 {DMG} MORE THAN THE LAST. IT STARTS OVER EACH FIGHT."));
     });
   });
 });
@@ -173,9 +173,9 @@ describe("ENCHANT-2 T6 fix round: a RIVAL's part reads the fight's day too (E2-0
       const at = turretSlots(b).findIndex((s) => s.turret?.def === "scrapcannon" && s.turret.ench === "rising");
       expect(at, "SPARKFANG's day-8 deck holds a RISING SCRAP CANNON").toBeGreaterThanOrEqual(0);
       const t = faceText(b, { kind: "turret", index: at }, null, 8)!;
-      expect(bodyTexts(t)).toContain(icons("EACH SHOT: +2 {DMG} MORE THAN THE LAST."));
+      expect(bodyTexts(t)).toContain(icons("EACH SHOT: +2 {DMG} MORE THAN THE LAST. IT STARTS OVER EACH FIGHT."));
       const t1 = faceText(b, { kind: "turret", index: at }, null)!; // no day: day 1's, as before
-      expect(bodyTexts(t1)).toContain(icons("EACH SHOT: +1 {DMG} MORE THAN THE LAST."));
+      expect(bodyTexts(t1)).toContain(icons("EACH SHOT: +1 {DMG} MORE THAN THE LAST. IT STARTS OVER EACH FIGHT."));
     });
   });
 

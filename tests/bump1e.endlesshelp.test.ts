@@ -10,6 +10,7 @@ import { ENDLESS, ENDLESS_LIVES, endlessRules, withEndless } from "../src/sim/en
 import { withLongRun } from "../src/sim/longRun";
 import { endlessFor } from "../src/net/rulesGate";
 import { HELP, HELP_ENDLESS, HELP_LONG_2, helpLine3, helpLines } from "../src/screens/title";
+import { cardBefore } from "./polish1.help.helpers"; // POLISH-1 (P4): the rules card as it was (the new sentences' switches off)
 
 /** The title's view as the game computes it (TitleScreen.pickScale; card5.test.ts's titleView). */
 function titleView(cssW: number, cssH: number, dpr: number): { W: number; H: number; k: number } {
@@ -55,7 +56,7 @@ describe("BUMP-1E P6 R3.5: the HOW TO PLAY card's endless sentence", () => {
   });
 
   it("SHOPCARD-1's lines are untouched: 3 is the join line (helpLine3), 4 and 5 and 6 are HELP's, with their numbers", () => {
-    const lines = helpLines();
+    const lines = cardBefore(() => helpLines()); // POLISH-1 (P4): the card as it was (GATES, ENCHANT and POISON's switch off); the ON card: tests/polish1.help.test.ts
     expect(lines[2]).toBe(helpLine3());
     expect(lines.slice(3)).toEqual([HELP[3], HELP[4], HELP[5]]);
     expect(lines[2].startsWith("3  ")).toBe(true);

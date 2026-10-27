@@ -35,6 +35,7 @@ import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";
 import { withHearts } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS): the rules card's line 2 as before
 import { withLongRun } from "../src/sim/longRun"; // BUMP-1D (LONG_RUN ships on): the rules card's lines 1 and 2 as before
+import { cardBefore } from "./polish1.help.helpers"; // POLISH-1 (P4): the rules card as it was (the new sentences' switches off)
 
 // HULL-ON (the flip, FREE_JOINS): the switch ships on, so every test ends with the shipped value (HULL-ON's flip), and a
 // test whose first half reads the off world sets the switch off itself (was setFreeJoins(false), "as committed (off)")
@@ -297,7 +298,7 @@ describe("JOINS-1 (5): the words follow the switch", () => {
     // with line 3 as the switch-off card says it (was helpLines() toEqual HELP and HELP[2], with FREE_JOINS off)
     // BUMP-1D (LONG_RUN ships on): and LONG_RUN, whose card says WIN 10 DUSK FIGHTS on line 1 (title.ts helpLines), is read off
     // too (withLongRun false): HELP's lines 1 and 2 are the 10-day run's, the card "as before"
-    const before = withLongRun(() => withHearts(() => withFreeJoins(() => helpLines(), false), false), false);
+    const before = withLongRun(() => withHearts(() => withFreeJoins(() => cardBefore(() => helpLines()), false), false), false); // POLISH-1 (P4): + the card as it was (cardBefore)
     expect(before).toEqual(HELP.map((ln, i) => (i === 2 ? helpLine3(false) : ln))); // off: the card exactly as before
     expect(before[2]).toContain(`(${JOIN_OVER_LIMIT}). A JOINED FACTORY RUNS AT ${JOIN_PACE_PCT}% PACE.`);
     setFreeJoins(true);
@@ -307,7 +308,7 @@ describe("JOINS-1 (5): the words follow the switch", () => {
     expect(helpLines()[2]).toBe(helpLine3());
     expect(HELP[2]).toBe(helpLine3()); // HULL-ON (the flip, FREE_JOINS): the card at load is the shipped one
     expect(helpLines().join(" ")).not.toMatch(/JOINS PER DECK|PACE/);
-    expect(withLongRun(() => withHearts(() => helpLines(), false), false).filter((_, i) => i !== 2)).toEqual(before.filter((_, i) => i !== 2)); // HULL-ON (HEARTS): its line 2 read off; BUMP-1D: and line 1 (LONG_RUN off)
+    expect(withLongRun(() => withHearts(() => cardBefore(() => helpLines()), false), false).filter((_, i) => i !== 2)).toEqual(before.filter((_, i) => i !== 2)); // POLISH-1 (P4): + cardBefore // HULL-ON (HEARTS): its line 2 read off; BUMP-1D: and line 1 (LONG_RUN off)
     // the editor's toast where the join is made (tests/joins.ui.test.ts's drag)
     const rn = run();
     rn.build.routes = [rn.build.routes[0]];

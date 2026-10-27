@@ -44,7 +44,7 @@ import { GAP as ITEM_GAP, GAP_MIN as ITEM_GAP_MIN } from "../ui/spacing"; // CAR
 import { ENCHANT_DEFS, enchantKindOf, enchantRules, type EnchantId } from "../sim/enchant";
 import { lastChanceWord } from "../sim/enchantSources";
 import { wordLine } from "../ui/enchantFaces";
-import { drawBoardSpark } from "../render/enchantMarks";
+import { SPARK_SIZE, drawSparkAt } from "../render/enchantMarks"; // POLISH-1 (REQ-BFG-085; P2): the spark inside the card (was drawBoardSpark on the frame's corner)
 
 export const LC_TITLE = "LAST CHANCE";
 /** The line under the title: the life came back, and the pick. */
@@ -229,6 +229,18 @@ export function lcPartPlate(r: Rect, defId: string, name: string, sub: string): 
   if (!hasGrid(defId)) return null;
   const sz = shapeGridSize(defId), w = sz.w + 2, x = r.x + r.w - 3 - INFO - 4 - w;
   return x < r.x + 31 + Math.max(textWidth(name), textWidth(sub, "3")) + 3 ? null : { x, y: r.y + 7, w, h: sz.h + 2 };
+}
+
+/**
+ * POLISH-1 (REQ-BFG-085; P2, BUMP-1F's review F2): where the word's spark sits on a PART card `r`: its top-left. It was (r.x + r.w - 5, r.y - 1), on the card
+ * frame's top-right corner, where it straddled the border and read as a stray dot. Now it is whole inside the card, on the top-right corner of the part's
+ * picture plate (drawHead's plate: the ink box at (r.x + 5, r.y + 6), 22 x 22, its slate floor 20 x 20 from (r.x + 6, r.y + 7)), flush with the floor's corner as
+ * the cargo slot's spark is flush with the slot's (ui.ts itemSlot): the mark of the piece, in the place the board and the cargo show a word's spark. The piece's
+ * picture is 12 x 12 centred on the floor (cols 4-15, rows 4-15 of it), so the 3 x 3 spark clears it; the head's words start 31 px in, the ⓘ box is 3 px from the
+ * right edge, and the rarity bars and the frame are outside the floor. Pure (tests).
+ */
+export function lcSparkAt(r: Rect): { x: number; y: number } {
+  return { x: r.x + 6 + 20 - SPARK_SIZE, y: r.y + 7 };
 }
 
 /** A part or hull card's frame and head: the dark panel with `edge` top and bottom, the icon box, the name and sub. */
@@ -472,7 +484,7 @@ export class LastChancePicker {
         const plate = lcPartPlate(r, def.id, word ? `${ENCHANT_DEFS[word.ench].name} ${def.name}` : def.name, lcPartSub(def.rarity, o.partStars ?? 1));
         if (plate) drawShapePlate(g, def.id, plate.x, plate.y);
         drawBody(g, r, t.lines, t.info, hint, L.gap);
-        if (word) drawBoardSpark(g, r.x + r.w - 5, r.y - 1, ENCHANT_DEFS[word.ench].color); // ENCHANT-1 (E7): the word's spark on the card's top-right corner (on its ink plate: the open card's frame is yellow)
+        if (word) { const sp = lcSparkAt(r); drawSparkAt(g, sp.x, sp.y, ENCHANT_DEFS[word.ench].color); } // ENCHANT-1 (E7); POLISH-1 (P2): the word's spark whole inside the card, on its part's plate (lcSparkAt; was on the frame's top-right corner, half outside it)
       } else {
         drawHead(g, r, C.lime, icons("{HULL}"), lcHullName(o, s.run.day), C.lime, LC_HULL_SUB, open); // HULL-1a: the day's
         drawBody(g, r, t.lines, t.info, hint, L.gap);

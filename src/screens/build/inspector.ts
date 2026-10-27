@@ -148,6 +148,8 @@ function panelIcon(def: string): HTMLCanvasElement {
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
+/** POLISH-1 (REQ-BFG-089; P5a, cap's answer 2 on ENCHANT-2W's read, REVIEW-ENCHANT2W.md:76): a panel's TITLE shows its star at ★1 too, `NAME ★` (the rows' names keep `starred`). */
+const titled = (name: string, stars: number): string => `${name} ${starText(stars)}`;
 
 /** ENCHANT-1 (REQ-BFG-085, E7): a panel's title and its word: `{ title }` for a plain piece (no `ench` key), `{ title: "FIERY WHETSTONE ★★",
  *  ench }` for one holding a word: the word first (the title's colour is the piece's rarity; the word's is drawn by fitTitle). */
@@ -539,7 +541,7 @@ export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null 
     : [...new Set([`RIG ${hl.compact}`, `RIG ${hl.short}`])].map((sub) => ({ sub }));
   const forms = (body: Block[], tight: boolean): Variant[] => [...heads.map((h) => ({ body, ...h, tight })), { body: [...leadTight, ...body], tight }];
   return {
-    ...enchTitle(w, starred(d.name, stars)), color: RARITY_COLOR[d.rarity], // ENCHANT-1: the word first in the title
+    ...enchTitle(w, titled(d.name, stars)), color: RARITY_COLOR[d.rarity], // ENCHANT-1: the word first in the title
     sub: idle ? "RIG · IDLE" : `RIG · ${on}/${arrows} ARROWS ON BELTS`,
     subShort: idle ? undefined : `RIG · ${on}/${arrows} HIT`,
     subColor: idle ? C.amber : undefined,
@@ -584,7 +586,7 @@ function stokerPanel(run: Run, uid: number, factories: number[], arrows: number,
   ];
   const tight: Block[] = [{ role: "hits", text: compact, keep: true }];
   return {
-    ...enchTitle(w, starred(d.name, stars)), color: RARITY_COLOR[d.rarity], // ENCHANT-1: the word first in the title
+    ...enchTitle(w, titled(d.name, stars)), color: RARITY_COLOR[d.rarity], // ENCHANT-1: the word first in the title
     sub: `RIG · ${factories.length}/${arrows} ARROWS ON FACTORIES`, subShort: `RIG · ${factories.length}/${arrows} ON`,
     body: [...lead, ...rest],
     variants: [
@@ -764,7 +766,7 @@ export function cargoPanel(run: Run, uid: number, touch = false): PanelText | nu
     // WORDS-1 (REQ-BFG-081): a core's or gear's kind in plain words (shop.ts KIND_SUB; was TURRET CORE, TURRET GEAR)
     // (a core's or gear's own words alone: "... · IN CARGO" is 132-138 px of 3x5, past the 113 px a 320x568 phone's sub
     // line holds, where fitHead would cut it; its SELL button says it is cargo)
-    ...enchTitle(w, starred(d.name, stars)), color: RARITY_COLOR[d.rarity], sub: KIND_SUB[d.kind] ?? `${describe(d)} · IN CARGO`, // ENCHANT-1: the word first in the title
+    ...enchTitle(w, titled(d.name, stars)), color: RARITY_COLOR[d.rarity], sub: KIND_SUB[d.kind] ?? `${describe(d)} · IN CARGO`, // ENCHANT-1: the word first in the title
     subShort: `${KIND_SUB[d.kind] ?? KIND_WORD[d.kind] ?? "PART"}${KIND_SUB[d.kind] ? "" : " · IN CARGO"}`, // T6: the rarity gives way first (the title shows it in colour)
     body,
     variants: tightForms(body),
@@ -803,7 +805,7 @@ export function itemPanel(run: Run, uid: number, touch = false): PanelText | nul
   ];
   const up = sig ? upgradeLabel(level) : null;
   return {
-    ...enchTitle(w, starred(d.name, stars)), color: RARITY_COLOR[d.rarity], // ENCHANT-1: the word first in the title
+    ...enchTitle(w, titled(d.name, stars)), color: RARITY_COLOR[d.rarity], // ENCHANT-1: the word first in the title
     sub: `FACTORY · BELTS ${routesOf(run.build, p.uid).length}/${(outputsAt(d.id, grade) || 1) + wideSlots(p)}`, // ENCHANT-1 (REQ-BFG-085): + WIDE's slot
     body,
     variants: tightForms(body),
@@ -832,7 +834,7 @@ export function gatePanel(run: Run, uid: number, touch = false): PanelText | nul
     hintBlock(GATE_MOVE),
   ];
   return {
-    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
+    title: titled(d.name, stars), color: RARITY_COLOR[d.rarity],
     sub: at ? `GATE · BELT ${at[0] + 1}` : "GATE · NO BELT", subShort: "GATE",
     subColor: at ? undefined : C.amber,
     body,
@@ -875,7 +877,7 @@ export function fittedPanel(run: Run, uid: number): PanelText | null {
     hintBlock("TAP THE TURRET AGAIN FOR ITS NEXT PART."),
   ];
   return {
-    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
+    title: titled(d.name, stars), color: RARITY_COLOR[d.rarity],
     sub: `${core ? "CORE" : "GEAR"} ON TURRET ${m.turret + 1}`,
     body,
     variants: tightForms(body),
