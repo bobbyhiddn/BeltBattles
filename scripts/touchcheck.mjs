@@ -2058,7 +2058,11 @@ async function scoutView(browsers, origin, vname) {
     if (under) await press(page, cdp, centre(s.face.close));
     await press(page, cdp, p);
     s = await scoutState(page);
-    const ok = !!s.face && s.face.side === side && s.face.sel.kind === p.kind && s.face.title.startsWith(p.name) && s.face.lines.length > 0 && (p.kind !== "turret" || /^THIS FIGHT: /.test(s.face.line ?? ""));
+    // STAGE-0914 (ruling 8 and 24, scripts only): a rival's part can carry a WORD (ENCHANT-2, src/sim/npcWords.ts: one from day 5, the RISING LOOM of NETTLE, LACEWING, EMBERLYN, ...), and a part's
+    // face prints the word FIRST in its title (src/ui/enchantFaces.ts enchantedTitle: `${WORD} ${title}`, inspector.ts:1173): the face of the enemy's LOOM reads "RISING LOOM", which no longer
+    // starts with "LOOM". The title is read without a leading word (the eight words of src/sim/enchant.ts ENCHANT_IDS, in their printed names).
+    const bare = (t) => String(t ?? "").replace(/^(?:FIERY|RISING|GROWING|ECHOING|MASSIVE|SWIFT|WIDE|BRACED) /, "");
+    const ok = !!s.face && s.face.side === side && s.face.sel.kind === p.kind && bare(s.face.title).startsWith(p.name) && s.face.lines.length > 0 && (p.kind !== "turret" || /^THIS FIGHT: /.test(s.face.line ?? ""));
     check(ok && inViewport(s.face.r, vp) && big(s.face.close) && !overlaps(s.face.r, { x: p.x - 1, y: p.y - 1, w: 2, h: 2 }),
       `${V}: in VIEW BATTLEFIELD a ${touch ? "tap" : "click"} on ${side === 0 ? "your" : "the enemy's"} ${p.name} (${p.kind}) opens its face (${s.face?.title ?? "none"}, side ${s.face?.side}, ${s.face?.lines.length ?? 0} lines${p.kind === "turret" ? `, "${s.face?.line ?? "no fight line"}"` : ""})${under ? " (after CLOSE: the last face lay over it)" : ""}, on the screen, the part in sight; its CLOSE ${box(s.face?.close)}`);
   }

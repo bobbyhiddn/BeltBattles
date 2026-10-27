@@ -12,7 +12,7 @@ stand-in and seed pools were rebuilt for the new rules and again cover days 1 to
 - **Two late captains changed.** RATCHET's TEMPER holds BRACED from day 12 (it held FIERY), and GRIMHOLD's second ANVIL
   comes on day 6 (it came on day 4).
 
-## Next release (battle rules bb-0.13.0; the release lane writes the label): gates and enchantments
+## 0.9.14: gates and enchantments
 
 New battle rules: bb-0.13.0. Ghosts and uploads from bb-0.12.0 and older no longer meet this release's players. The
 stand-in and seed pools were rebuilt for the new rules and again cover days 1 to 16 (192 ghosts in the seed pool), and the
@@ -69,6 +69,10 @@ AI decks now buy gates and enchantments.
 - **Softer field:** two of the three seed ghosts each hero has on a day are picked to beat the AI's decks of the day 15% of
   the time (was 25%).
 - **ENDLESS:** THE GOD gains 1500 hull per endless win (was 250).
+
+The battle rules are now bb-0.13.0, so players of 0.9.14 meet only 0.9.14's ghosts; a run saved on 0.9.13 carries on under
+the new rules, keeps the one foe it had already drawn for its day, and can find the gates and the ENCHANTER in its later
+shops.
 
 ## 0.9.13: rigs that count, POISON and ENDLESS
 
