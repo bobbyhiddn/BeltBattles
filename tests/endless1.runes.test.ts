@@ -3,7 +3,8 @@
 //  - the rune bar's full list ("+k"), 19 px a rune, is paged when it does not fit under the bar (runeListLayout; "<" and ">" and
 //    "PAGE 2/5", the arrows, PageUp / PageDown and the wheel turn it): as even as can be, never nearly empty;
 //  - the picker's tray of held runes goes COMPACT (small chips, the label on its own row) when its full chips would run off the screen.
-// Both are only for a run that carries the endless mark: every other run's list and tray are exactly as they were.
+// The tray is only for a run that carries the endless mark: every other run's tray is exactly as it was. (ROWS-1 run 3, W1: the LIST is
+// paged on any run when it does not fit, drawOver hands every run the room under the bar: tests/rows1.runlist.test.ts.)
 import { describe, expect, it } from "vitest";
 import { computeView } from "../src/core/io";
 import { RUNES } from "../src/sim/runes";
@@ -25,7 +26,7 @@ describe("ENDLESS-1 3.5: the YOUR RUNES list (the rune bar's)", () => {
         if (runeListH(n) <= avail) expect(L, `${n} runes in ${avail}`).toEqual({ h: runeListH(n), per: n, pages: 1, foot: 0 });
       }
     }
-    expect(runeListLayout(50, Infinity)).toEqual({ h: runeListH(50), per: 50, pages: 1, foot: 0 }); // a run without the mark is handed no limit
+    expect(runeListLayout(50, Infinity)).toEqual({ h: runeListH(50), per: 50, pages: 1, foot: 0 }); // no limit: the whole list (ROWS-1 W1: no run is handed none any more)
     expect(runeListLayout(0, 10)).toEqual({ h: runeListH(0), per: 1, pages: 1, foot: 0 });
   });
 
