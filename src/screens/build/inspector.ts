@@ -2121,6 +2121,15 @@ function noteHang(ctx: Ctx, plan: PanelPlan, lines: readonly { line: PLine | "ru
 }
 
 /**
+ * PRESENT-3 H (REQ-BFG-081): the deck's cells on screen for a finger's panel on a portrait layout, which keywords.ts deckClear keeps a shown note off (the first-run state's notes under the
+ * how-to strip ended 1-10 px into its top rows); null for every other panel (the desk's and the landscape column's notes are placed as before; a mouse's too, as the hang is).
+ */
+function deckOf(ctx: Ctx): Rect | null {
+  const L = ctx.L;
+  return touchTap(ctx) && L?.portrait && L.frame ? screenRect(L, { x: L.frame.dx, y: L.frame.dy, w: DECK, h: DECK }) : null;
+}
+
+/**
  * PRESENT-2 P (cap's ruling 26addce8293da756): for a panel in the landscape COLUMN, what keywords.ts columnPlace needs to keep a shown definition off the rule rows: a box's covering a rule row, the
  * column's top and the y its area ends, the free strip beside the column (2 px right of its edge to 2 px left of the carrier's DRAWING: layout.ts carrierBox, the widest the ship is ever drawn),
  * the screen's foot less 2 px, and what a note never covers. undefined for every other panel (the portrait band, the desk's hover tips): their notes are placed as before.
@@ -2150,7 +2159,7 @@ function noteClear(ctx: Ctx, d: NonNullable<ReturnType<typeof detailsPlan>>, r: 
   const plan = d.plan, lines = visibleLines(plan);
   const buttons = plan.column ? columnButtons(d.t.labels.length, plan.r, tap) : (plan.rects ?? []).map((b) => tapRect(b, tap, plan.r));
   const strip = d.hint ? hintStrip(d.hint, plan.r, ctx.game?.H).r : null;
-  const a = definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip, hang: noteHang(ctx, plan, lines) }, lines, buttons, tap,
+  const a = definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip, hang: noteHang(ctx, plan, lines), deck: deckOf(ctx) }, lines, buttons, tap,
     ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
   return r.h >= a.hold && (!a.box || (a.fits && rulesCovered(a.box, lines).length === 0));
 }
@@ -2261,8 +2270,9 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   // PRESENT-2 L (cap's ruling 0d0ef2465804aafb): at the growth limit a note that hangs under the last rule row can land where the strip is:
   // the strip is not drawn while it shows, from the note's first frame (its place is worked out here, before the layer runs, as panelFit does);
   // it is back in the frame the note closes. Its tip stays new: only the action completes it (tips.ts)
-  const hang = noteHang(ctx, plan, shown);
-  const yields = !!strip && !!hang && !!definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip: strip.r, hang }, shown, hits, tap,
+  // PRESENT-3 H: the same for a first-run note that was moved up off the deck's top rows and lands on the strip (deckClear): the strip yields, from the note's first frame
+  const hang = noteHang(ctx, plan, shown), deck = deckOf(ctx);
+  const yields = !!strip && !!(hang || deck) && !!definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip: strip.r, hang, deck }, shown, hits, tap,
     ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan").place?.yieldsStrip;
   if (strip && !yields) drawHintStrip(g, strip);
   // U2c (REQ-BFG-045, REQ-BFG-046): tap to explain (keywords.ts): the words' underlines and targets, the `?` button, the
@@ -2271,7 +2281,7 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   // EXPLAIN-1 (REQ-BFG-089, E3): the screen's size, so the icon's hover tooltip stays on it
   // CARD-2 (REQ-BFG-004, K1): the build screen asks for the first-sight notes in its caravan only (never in a refit, the
   // build screen between a fight's rounds; a fight's own faces never come here)
-  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, { ...d, strip: strip?.r ?? null, hang, column: columnSpec(ctx, plan, shown) }, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
+  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, { ...d, strip: strip?.r ?? null, hang, deck, column: columnSpec(ctx, plan, shown) }, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
     ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
 }
 

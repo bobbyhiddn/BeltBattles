@@ -74,9 +74,11 @@ const OVER: Record<string, [number, number]> = {
   "new op-402x690, no rune": [0, 0], "new op-402x690, a rune": [0, 0], "new phone-390x844": [0, 0], "new phone-390x660": [0, 0], "new iphone15pm-430x739": [0, 0],
 };
 /** PRESENT-2 L: the first-sight notes whose place overlaps the how-to strip (only where every tip is new: "new"): the strip is not drawn while the note shows, per view (F).
- *  PRESENT-3 E (re-pinned old -> new): was 24, 24, 0, 10, 0 (the notes that hung under the last rule row of a panel at the limit); none hangs now, so none yields the strip. */
+ *  PRESENT-3 E (re-pinned old -> new): was 24, 24, 0, 10, 0 (the notes that hung under the last rule row of a panel at the limit); none hangs now, so none yields the strip.
+ *  PRESENT-3 H (re-pinned old -> new): the first-run notes that ended 1-10 px into the deck's top rows (tests/present3.firstrun.test.ts) move up to end at its top; where that lands on the strip
+ *  (230 on 402x690 with a rune, 27 on 390x660) the strip is not drawn while the note shows: 0, 230, 0, 27, 0. */
 const YIELDS: Record<string, number> = {
-  "new op-402x690, no rune": 0, "new op-402x690, a rune": 0, "new phone-390x844": 0, "new phone-390x660": 0, "new iphone15pm-430x739": 0,
+  "new op-402x690, no rune": 0, "new op-402x690, a rune": 230, "new phone-390x844": 0, "new phone-390x660": 27, "new iphone15pm-430x739": 0, // PRESENT-3 H: was all 0 after E (24, 24, 0, 10, 0 before it)
 };
 /** PRESENT-2 F (REQ-BFG-081; PRESENT-1 Question 4 (d) (ii)): a panel grown up from the band for a note keeps the band's 3x5 face where the band shows its whole text in it (inspector.ts
  *  detailsPlanOf's `small`). T, per view: [the notes whose grown panel still changed the body's face (panels that grow for their own text), the growth's total px over every box].

@@ -579,7 +579,9 @@ describe("CARD-4 (k, d, s): first-sight notes beside the strip; no box over a he
         const boxes = ui.regions.filter((q) => q.id === "kwdef" || q.id === "kwsight");
         expect(boxes.length, `${def} ${sel}: one box`).toBe(1);
         const strip = hintStrip(d.hint!, d.plan.r, f.H).r;
-        expect(overlaps(boxes[0].r, strip), `${def} ${sel}: the box off the strip`).toBe(false);
+        // PRESENT-3 H (re-pinned old -> new): a first-run note that was under the strip over the deck's top rows (surge's EVERY on 402x690 with a rune: 2 px) is moved up off the deck and can land on the strip: then the
+        // strip is not drawn while the note shows (as at the growth limit, PRESENT-2 L); where the box is off the strip (brake's SPEED) both show as before. Was: the box off the strip, always.
+        expect(pc.stripDrawn(strip), `${def} ${sel}: the strip is drawn exactly where the box is off it`).toBe(!overlaps(boxes[0].r, strip));
         for (const hq of panelHead(d.plan)) expect(overlaps(boxes[0].r, hq), `${def} ${sel}: the box off the header`).toBe(false);
         keywordsIdle(pc.ctx);
         expect(tipDone("place")).toBe(false);

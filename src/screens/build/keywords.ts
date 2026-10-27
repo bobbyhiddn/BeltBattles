@@ -585,6 +585,21 @@ export function hangPlace(placed: { box: Rect; fits: boolean }, own: readonly { 
 }
 
 /**
+ * PRESENT-3 H (REQ-BFG-081; PRESENT-1's old item list, PRESENT-2 run 1's Question 5): in the first-run state a phone's panel has its how-to strip just under it, and a note that
+ * goes to defBoxPlace's last candidate (just under the strip) ended 1-10 px into the deck's top rows (402x690 with a rune: 411 tapped notes and 230 first sights; 390x660: 612 and
+ * 622; the other three views none). `deck` is the deck's cells on screen (a touch panel on a portrait layout: inspector.ts deckOf). A box that overlaps it moves UP until it ends at the
+ * deck's top, no higher than the panel's foot (so it covers no panel row, header or word of its own); where it then overlaps the how-to strip the strip is not drawn while the note shows
+ * (`yieldsStrip`: from the note's first frame, back in the frame the note closes, never moved: cap's ruling 0d0ef2465804aafb item 2). A box clear of the deck is returned as it is. If it
+ * cannot clear the deck above the panel's foot it stays (`blocked`: the tests list it). Pure (drawKeywordLayer, definitionAhead).
+ */
+export function deckClear(placed: NotePlace, deck: Rect | null | undefined, panel: Rect, strip: Rect | null): NotePlace {
+  if (!deck || !overlaps(placed.box, deck)) return placed;
+  const b: Rect = { ...placed.box, y: Math.floor(deck.y) - placed.box.h }; // whole px: the deck's top is fractional under the carrier's zoom (231.8), a box is drawn on whole ones
+  if (b.y < panel.y + panel.h || b.y < 0) return { ...placed, blocked: true };
+  return { ...placed, box: b, yieldsStrip: placed.yieldsStrip || (!!strip && overlaps(b, strip)) };
+}
+
+/**
  * PRESENT-2 P (REQ-BFG-081; PRESENT-1's ruling af2c96863a44ab41 item 4, and cap's ruling 26addce8293da756): on the landscape COLUMN (a panel sized to its content, buttons under its text) a shown
  * definition at the foot of the text covered a rule row on 965 of 2,484 boxes on 844x390 @3. Where the column fits the panel there, `col` (built by inspector.ts) carries what the ladder needs, and
  * the note takes the first place that works, in turn: (today) where defBoxPlace put it, if that covers no rule row; (under) under the panel's foot, under its buttons, at the column's full
@@ -644,7 +659,7 @@ export function panelHead(plan: Pick<PanelPlan, "r" | "y" | "rects" | "column">,
  * - the chain (CARD-5) goes on: the note that opened by itself has closed and no box shows: the next one the layer opens now.
  * Pure (panelFit, the tests).
  */
-export function definitionAhead(owner: object, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; strip?: Rect | null; hang?: NoteHang },
+export function definitionAhead(owner: object, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; strip?: Rect | null; hang?: NoteHang; deck?: Rect | null },
   lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, screen: { W: number; H: number } | undefined,
   sight: boolean): { box: Rect | null; fits: boolean; hold: number; place?: NotePlace } {
   const none = { box: null, fits: true, hold: 0 };
@@ -677,8 +692,8 @@ export function definitionAhead(owner: object, run: Run, d: { show: Sel; t: Pane
   if (!shown) return { box: null, fits: true, hold };
   const defLines = definitionLines(shown.text, r.w - 10);
   const ownT = targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === word), head = panelHead(plan, buttons);
-  const placed = hangPlace(defBoxPlace(definitionBox(r, plan.maxY + 2, defLines.length), ownT, head, d.strip ?? null, screen?.H),
-    ownT, head, d.strip ?? null, screen?.H ?? Infinity, d.hang); // PRESENT-2 L: at the growth limit, under the last rule row
+  const placed = deckClear(hangPlace(defBoxPlace(definitionBox(r, plan.maxY + 2, defLines.length), ownT, head, d.strip ?? null, screen?.H),
+    ownT, head, d.strip ?? null, screen?.H ?? Infinity, d.hang), d.deck, r, d.strip ?? null); // PRESENT-2 L: at the growth limit, under the last rule row; PRESENT-3 H: never over the deck
   return { box: placed.box, fits: placed.fits, hold, place: placed };
 }
 
@@ -865,7 +880,7 @@ function underline(g: G, t: KwTarget): void {
  * definition or the KEYWORDS view; on the desk, the hover tooltip and the `help` cursor. `owner`: the screen (its state);
  * `ui`: the frame's regions; `buttons`: the drawn buttons' hit rects; `tap`: a finger's target height (0: a mouse).
  */
-export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null; strip?: Rect | null; hang?: NoteHang; column?: ColumnSpec },
+export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null; strip?: Rect | null; hang?: NoteHang; column?: ColumnSpec; deck?: Rect | null },
   lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, canvas?: HTMLCanvasElement | null,
   free: Rect | null = null, screen?: { W: number; H: number }, sight = false): void {
   // CARD-2 (REQ-BFG-004, K1): `sight`, the screen asks for the first-sight notes (inspector.ts drawDetails: the build
@@ -943,8 +958,8 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   // explains there (a short phone panel's last rows: TEMPER's BURN box over [BURN]+1). CARD-4 (REQ-BFG-087, D): then just
   // under the word's line, or above it only where that misses the header, never over the header or the hint strip
   const ownT = shown ? targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === s.word) : [], head = shown ? panelHead(plan, buttons) : [];
-  const foot = shown ? hangPlace(defBoxPlace(definitionBox(r, bottom, defLines.length), ownT, head, d.strip ?? null, screen?.H),
-    ownT, head, d.strip ?? null, screen?.H ?? Infinity, d.hang) : null; // PRESENT-2 L: at the growth limit, under the last rule row
+  const foot = shown ? deckClear(hangPlace(defBoxPlace(definitionBox(r, bottom, defLines.length), ownT, head, d.strip ?? null, screen?.H),
+    ownT, head, d.strip ?? null, screen?.H ?? Infinity, d.hang), d.deck, r, d.strip ?? null) : null; // PRESENT-2 L: at the growth limit, under the last rule row; PRESENT-3 H: never over the deck
   // PRESENT-2 P (cap's ruling 26addce8293da756): on the landscape column, where that place covers a rule row: under the panel, else beside the column (columnPlace)
   const cn = shown && foot && d.column ? columnPlace(shown.text, foot, defLines, ownT, head, r, d.column) : null;
   const box = cn ? cn.box : foot ? foot.box : null, shownLines = cn ? cn.lines : defLines;
