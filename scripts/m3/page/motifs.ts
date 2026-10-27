@@ -122,6 +122,9 @@ MOTIFS.turret = {
   },
 };
 
+/** The title screen's logo art for `text` (title.ts draws titleArt("BELTBATTLES", drawText, textWidth)). */
+export const logoArt = (text: string): Cv => title(text);
+
 /** A sheet of the game's own pieces (to choose the marks from), at the game's own pixel size (Node scales it). */
 export function partsSheet(): Cv {
   const [c, g] = makeCanvas(420, 300);

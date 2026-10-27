@@ -4,7 +4,8 @@
 //   m3.parts()          a sheet of the game's own pieces the marks are made of (for choosing)
 // The page draws; Node scales (whole numbers, nearest neighbour), composes and encodes the PNGs (scripts/m3/img.mjs).
 
-import { MOTIFS, N, partsSheet } from "./motifs";
+import { MOTIFS, N, partsSheet, logoArt } from "./motifs";
+import { battleFrame, type FrameSpec } from "./frame";
 
 type Cv = HTMLCanvasElement;
 const b64 = (d: Uint8ClampedArray): string => {
@@ -23,4 +24,11 @@ const grab = (c: Cv) => ({ w: c.width, h: c.height, rgba: b64(c.getContext("2d")
     return { N, field: m.field, ...grab(m.subject()) };
   },
   parts: () => grab(partsSheet()),
+  /** the title's logo for `text`, as the title screen draws it (sprites.ts titleArt over the 5x7 face; 3 pixels a pixel, outlined) */
+  logo: (text: string) => grab(logoArt(text)),
+  /** a battle frame (frame.ts): the game's own battle code, drawn at W x H logical pixels */
+  battle: (spec: FrameSpec) => {
+    const r = battleFrame(spec);
+    return { ...grab(r.canvas), info: r.info };
+  },
 };
