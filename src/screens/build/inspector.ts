@@ -93,6 +93,7 @@ import type { UpgradeTrack } from "../../sim/content"; // bb-0.8.3 (D11)
 import { UPGRADE_MAX } from "../../sim/content"; // NUM-4: the starting turret's next TURRET SPEED level
 import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): the hero card's and the foe's hull on the day's hull
 import { dmgShown } from "../../sim/hullScale"; // HULL-1d (REQ-BFG-079): the belt readout's DMG x D(d) on the run's day
+import { beltWordFx, leftOutCandidates } from "./beltWords"; // POLISH-2 (REQ-BFG-085 Q1, REQ-BFG-098 Q2): the words' fixed amounts in the readout, and the one line of what it leaves out
 import { mergePreview } from "../../game/fuse";
 import { flavourText } from "./flavour"; // 0.6.2p (item 1): the desc at the module's stars; 0.6.2t: whole sentences
 import {
@@ -224,6 +225,15 @@ export interface Block {
   /** ENCHANT-1 (REQ-BFG-085, E7): a stat row's numbers (0-based, in reading order) that an enchantment added or changed, drawn in the
    *  word's `colour` instead of white (FIERY's `{BURN}+1`, MASSIVE's RATE and DMG, WIDE's slots, GROWING's grown DMG). */
   hue?: { colour: string; nums: number[] };
+  /** POLISH-2 (REQ-BFG-098; Q2): the block is drawn in the small (3x5) face whatever its role's (a visible, kept line that takes no divider: the belt readout's
+   *  NOT COUNTED line is role "note" and small). */
+  small?: boolean;
+  /** POLISH-2 (Q2): ONE line, in candidates from the fullest (`text` holds it) to the shortest: layBlock draws the first that fits the panel's text width in the face used
+   *  (the last whatever its width), so the line is one line on every view (beltWords.ts leftOutCandidates). */
+  fit?: readonly string[];
+  /** POLISH-2 (Q2): kept like a `keep` block (the timeline rows give way for it) where the panel can draw it whole beside its kept text; where it cannot, planPanel plans the
+   *  panel without it, exactly as it was (a `keep` block that does not fit is a phone cut; this one never costs the kept text its room). */
+  hold?: boolean;
 }
 
 /** Each role's base colour and whether it always takes the small (3x5) face: the flavour dimmer than the ability text,
@@ -917,24 +927,30 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   const w = walkRoute(b, index, undefined, { gates: true }); // GATES-1b (REQ-BFG-052 B3): DMG, BURN, TIME and COPIES through a gate on the belt
   const belt = beltKind(w);
   const est = w.estimate;
+  // POLISH-2 (REQ-BFG-085 Q1, REQ-BFG-098 Q2): the walk carries no enchantment, so the readout adds the words' fixed amounts per hit (beltWords.ts: FIERY's BURN, GROWING's DMG,
+  // the sim's own functions' amounts, in the walk's order) and keeps a list of what its numbers leave out (a reader's amount, RISING's climb ...), for the one line under it.
+  // A belt with no word and no reader: { burn: 0, dmg: 0, left: [] }, so every number and block is what it was
+  const fx = beltWordFx(b, index, w, info.turret);
+  const burn = est.burn + fx.burn;
   // 0b.4: the walk counts SURGE VALVE's pulse damage on a SLAG belt, where the sim never pays it
   // NUM-4 (REQ-BFG-047; N1 2.5): the walk's own estimate through fmtDmg, as it is (was toFixed(1) over a max(1, ...) floor)
   // HULL-1d (REQ-BFG-079; BRIEF-HULL1D 2 (h)1): the shown number lands x D(d) on the run's day (dmgShown; the walk stays
-  // day 1's: deck.ts walkRoute); BURN (a stack count) and TIME (seconds) don't scale. The switch off: as before
-  const big = fmtDmg(dmgShown(est.dmg - slagPulseExtra(w.timeline, belt), run.day));
+  // day 1's: deck.ts walkRoute); BURN (a stack count) and TIME (seconds) don't scale. The switch off: as before.
+  // POLISH-2: the words' DMG joins the walk's before the day's multiplier, as the sim's hit takes D(d) on the whole
+  const big = fmtDmg(dmgShown(est.dmg + fx.dmg - slagPulseExtra(w.timeline, belt), run.day));
   // 0.8.0 B1 M2 (G1's F1, ref/BRIEF-v080-B1.md 3.4): a PLATE BREAKER pays its big number only on a blow that finds a whole
   // plating on the hull, and its floor on every other (in real fights about half the blows: N1's m4/breaker.md 39-51%;
   // B1's m2/platemean: a plated hull holds no plating at 53-63% of its shots). On a deck that plates its hull the walk
   // counts the big number, so DMG shows both: the floor's total, then the big number's ("DMG 9.1-12.1")
   const breakers = w.timeline.some((row) => row.hits.some((h) => h.breaker));
   const low = breakers && platedDeck(b) ? walkRoute(b, index, undefined, { unplated: true, gates: true }) : null; // GATES-1b B3: gates too
-  const floorDmg = low ? fmtDmg(dmgShown(low.estimate.dmg - slagPulseExtra(low.timeline, belt), run.day)) : big; // HULL-1d: x D(d)
+  const floorDmg = low ? fmtDmg(dmgShown(low.estimate.dmg + fx.dmg - slagPulseExtra(low.timeline, belt), run.day)) : big; // HULL-1d: x D(d); POLISH-2: the words' DMG too
   const dmg = floorDmg !== big ? `${floorDmg}-${big}` : big;
   const hitCount = w.timeline.reduce((n, row) => n + row.hits.length, 0);
   const spd = belt === "locked" ? "100% (LOCKED)" : belt === "slag" ? `${fmtReadPct(w.speedEnd)} (SLAG)` : fmtReadPct(w.speedEnd); // NUM-4: the walk's end speed, a product of speed states (a reading)
   const time = `${fmtClock(est.time)} SEC`; // NUM-4: the ride's whole elapsed seconds, as a clock reads (was toFixed(1))
   const cells: [string, string][][] = [
-    [["DMG", dmg], ["BURN", String(est.burn)]],
+    [["DMG", dmg], ["BURN", String(burn)]],
     [["SPD", spd], ["TIME", time]],
     ...(est.shock || est.copies > 1 ? [[["SHOCK", est.shock ? "YES" : "NO"], ["COPIES", fmtCount(est.copies)]] as [string, string][]] : []),
   ];
@@ -951,6 +967,7 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   for (const j of joins) if (j.row >= w.timeline.length) rows.push(joinRow(j));
   const feeds = info.connected ? `FEEDS TURRET ${info.turret + 1}` : "NOT CONNECTED";
   const sync = syncLine(b, index); // 0.8.0 H1 M3: FOUNDRY's SYNC line; null for every belt no CRUCIBLE feeds
+  const cut = leftOutCandidates(fx.left); // POLISH-2 (Q2): the one line's candidates ([] when nothing is left out)
   return {
     // 0.6.2j: a joining belt's sub names the belt it joins (0.6.2rel: two short sentences, no "·"); 0.6.2rel2: a main
     // belt's one sentence ends with its full stop too
@@ -961,8 +978,8 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
     // 0.6.2t2 (F2): the header strip labels its time as the readout's grid does (TIME), never a bare number
     headerOnly: info.connected ? {
       texts: [
-        `DMG ${dmg}, BURN ${est.burn}${est.shock ? ", SHOCK" : ""}, SPD ${fmtReadPct(w.speedEnd)}, TIME ${time}`,
-        `DMG ${dmg}, TIME ${time}, BURN ${est.burn}`,
+        `DMG ${dmg}, BURN ${burn}${est.shock ? ", SHOCK" : ""}, SPD ${fmtReadPct(w.speedEnd)}, TIME ${time}`,
+        `DMG ${dmg}, TIME ${time}, BURN ${burn}`,
         `DMG ${dmg}, TIME ${time}`,
       ],
       colour: C.yellow,
@@ -978,7 +995,11 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
       { role: "hits", text: hitCount ? `${info.tiles} TILES, ${hitCount} HIT${hitCount === 1 ? "" : "S"}:` : `${info.tiles} TILES. NO RIG WORKS THIS BELT.`, keep: true },
     ],
     rows,
-    foot: cells.map((c, i): Block => ({ role: "grid", text: "", cells: c, keep: true, ...(i ? { tie: true } : {}) })),
+    foot: [
+      ...cells.map((c, i): Block => ({ role: "grid", text: "", cells: c, keep: true, ...(i ? { tie: true } : {}) })),
+      // POLISH-2 (REQ-BFG-098; Q2): one line under the readout when a part on the belt is one its numbers leave out (a reader, RISING ...): kept with the readout, small, one line on every view
+      ...(cut.length ? [{ role: "note", text: cut[0], fit: cut, small: true, hold: true, tie: true } as Block] : []),
+    ],
     more: (n) => moreFor(rows.slice(rows.length - n)),
   };
 }
@@ -1225,9 +1246,13 @@ interface Cols {
 /** Lay one block into wrapped lines at `width` in the panel's main face (the flavour and hint take the small face);
  *  `tight`: 3x5 lines at LH_TIGHT. */
 function layBlock(b: Block, width: number, main: FontId, cols: Cols, tight = false): PLine[] {
-  const font: FontId = ROLE[b.role].small ? "3" : main;
+  const font: FontId = ROLE[b.role].small || b.small ? "3" : main; // POLISH-2 (Q2): Block.small
   const pitch = font === "3" && tight ? LH_TIGHT : LH[font];
   const base = b.colour ?? ROLE[b.role].colour;
+  if (b.fit?.length) { // POLISH-2 (Q2): one line: the fullest candidate that fits `width` in this face, else the shortest
+    const text = b.fit.find((t) => textWidth(t, font) <= width) ?? b.fit[b.fit.length - 1];
+    return [{ spans: colourize(text, base), font, block: b, pitch }];
+  }
   if (b.role === "grid" && b.cells) {
     const gp = cols.grid, gap = labelGap(font);
     if (gp.two) {
@@ -1370,7 +1395,7 @@ function choose(all: readonly Laid[], avail: number, width: number, main: FontId
     const at = lastTrim ? seq.indexOf(lastTrim) + 1 : grid >= 0 ? grid : seq.length;
     return [...seq.slice(0, at), note, ...seq.slice(at)];
   };
-  let set = new Set(all.filter((l) => l.b.keep));
+  let set = new Set(all.filter((l) => l.b.keep || l.b.hold)); // POLISH-2 (Q2): a `hold` block is kept here; planPanel takes it out again where it cannot be drawn whole
   let note: Laid | null = null;
   if (heightOf(seqOf(set, null)) > avail) return { chosen: seqOf(set, null), fits: false };
   const trims = all.filter((l) => l.b.trim);
@@ -1689,8 +1714,31 @@ function breakSub(s: string, max: number): string[] {
   return cut > 0 ? [s.slice(0, cut + 2), s.slice(cut + 3)] : [s.slice(0, stop + 1), s.slice(stop + 2)];
 }
 
-/** planPanel's plan; `small` (CARD-3, B's lever 3): the body in the 3x5 face only (planBody's `small`). */
+/** POLISH-2 (Q2): a panel's text without its `hold` blocks (the body and every variant; a variant that shared the body's blocks shares the new body, as withoutHint keeps them). */
+function withoutHold(t: PanelText): PanelText {
+  const cut = new Map<readonly Block[], Block[]>();
+  const f = (bs: readonly Block[]): Block[] => {
+    let out = cut.get(bs);
+    if (!out) cut.set(bs, (out = bs.filter((b) => !b.hold)));
+    return out;
+  };
+  return { ...t, body: f(t.body), ...(t.variants ? { variants: t.variants.map((v) => ({ ...v, body: f(v.body) })) } : {}) };
+}
+
+/** planPanel's plan; `small` (CARD-3, B's lever 3): the body in the 3x5 face only (planBody's `small`).
+ *  POLISH-2 (REQ-BFG-098; Q2): a `hold` block (the belt readout's NOT COUNTED line) is kept with the readout where the panel can draw it whole beside its kept text; where it cannot (a
+ *  cramped desk column, a header-only strip), the panel is planned without it and is exactly what it was: the line never costs the kept text its room. (The rule is here, in the one place
+ *  every plan goes through, and not in planPanel, so planPanel's own lines are the base's.) */
 function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean }, small: boolean): PanelPlan {
+  const p = planOnce(sp, area, families, o, small);
+  if (!sp.body.some((b) => b.hold)) return p;
+  const drawn = new Set(visibleLines(p).map((v) => v.line));
+  const whole = !p.headerOnly && p.body.fits && p.body.shown.every((l) => !(l.b.keep || l.b.hold) || l.lines.every((ln) => drawn.has(ln)));
+  return whole ? p : planOnce(withoutHold(sp), area, families, o, small);
+}
+
+/** planIn's plan of `sp` as it stands. */
+function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean }, small: boolean): PanelPlan {
   const column = !o.band && area.h >= 70; // landscape column: size to content, the buttons under the text
   const labels = sp.labels;
   const pitch = columnButtonH(o.tap) + 3; // a row of buttons and the gap above it (0.6.1r: 16 + 3)
