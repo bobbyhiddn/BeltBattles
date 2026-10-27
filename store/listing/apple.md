@@ -24,7 +24,7 @@ How a run works
 
 • Pick a hero. Four are open from the start: FURNACE, WEAVER, FOUNDRY and BASTION. Each brings its own hull, starting turrets and signature factory.
 • Dawn: the caravan. Buy rigs, factories and turrets, drop them on your deck and drag belts between them. Factories make slugs, belts carry them to your turrets, rigs beside a belt change them on the way, and turrets fire them. Buy a copy of a piece you own to merge them into a higher star level, up to three stars.
-• The road. Each day you choose one stop: a road event, or a fight with a warlord at Easy, Medium or Hard.
+• The road. Each day you pick a warlord to fight, at Easy, Medium or Hard. Then comes the day's road event, and a last refit of your deck before dusk.
 • Dusk: the ghost. You fight another player's saved cruiser from the same day of their own run. When none fits, a rival captain stands in, so the game also plays fully offline.
 • Win or lose. A run is won at 10 wins. There is no day limit: the days go on while you still have hearts. You start with 10 hearts, and a run is lost when your last heart is gone.
 • ENDLESS. After a won run you can keep going. Your build carries on with 3 fresh hearts, your score is your endless wins, and your personal best is kept on your device.
