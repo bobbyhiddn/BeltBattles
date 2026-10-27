@@ -81,21 +81,71 @@ const BASE: Record<string, string> = {
   desk: "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSBBSBBSBBSBBSBBSBBSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSBBSBBSBBSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSBBSBBSBBSxxSxxSxxSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSTSSSxSSSxSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSSSSSSSSSSSSSBBSSBBSSBBSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
   laptop: "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSBBSBBSBBSBBSBBSBBSSSSSSSSSSSSSSSSSSSSSSSSSSSSBBSBBSBBSBBSBBSBBSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSBBSBBSBBSxxSxxSxxSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSBBSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSTSSSxSSSxSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSBBSSSSSSSSSSSSSSBBSSBBSSBBSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
 };
+/** STAGE-09141 (POLISH-1 P5a's ★1 star meets PRESENT-2's pin; cap, RULING-STAGE09141-R1): the 33 panel-views whose head POLISH-1's P5a (` ★` after a one-star part's panel title, inspector.ts titled) moved against BASE (the placement before PRESENT-2, without P5a: kept as it is
+ *  above). Key `"<band> <CASES index>"`, value the new code (`x` marks, `S` / `B` / `T` the place of the names); each entry's trail is its case id and BASE code. Phone 32 (16 go to `x`, 16 change place),
+ *  laptop 1 (to `x`: rig STOKER), desk 0; every one a ★1 panel whose title ends in " ★". Measured at T by a throwaway probe (kit09141/famprobe09141.mjs, never committed). The names yield to the star by
+ *  PRESENT-2's own ladder (the marks rung is for a line too short for the words; the marks stay tappable and open the family's note). POLISH-2's title rule may give the names back: the table then shrinks. */
+const P5A_STAR1: Record<string, string> = {
+  "phone 47": "x", // placed assembly ★1 (BASE T)
+  "phone 81": "x", // cargo frostbite ★1 spare0 (BASE T)
+  "phone 82": "x", // cargo frostbite ★1 spare1 (BASE T)
+  "phone 83": "x", // placed frostbite ★1 (BASE T)
+  "phone 131": "T", // rig whetstone ★1 1hit (BASE S)
+  "phone 132": "T", // rig whetstone ★1 idle (BASE S)
+  "phone 167": "T", // rig longhaul ★1 1hit (BASE S)
+  "phone 168": "T", // rig longhaul ★1 idle (BASE S)
+  "phone 191": "T", // rig splitter ★1 1hit (BASE S)
+  "phone 192": "T", // rig splitter ★1 idle (BASE S)
+  "phone 215": "T", // rig tollbooth ★1 1hit (BASE S)
+  "phone 216": "T", // rig tollbooth ★1 idle (BASE S)
+  "phone 299": "x", // rig keg ★1 1hit (BASE T)
+  "phone 300": "x", // rig keg ★1 idle (BASE T)
+  "phone 323": "T", // rig quench ★1 1hit (BASE S)
+  "phone 324": "T", // rig quench ★1 idle (BASE S)
+  "phone 347": "T", // rig lodestone ★1 1hit (BASE S)
+  "phone 348": "T", // rig lodestone ★1 idle (BASE S)
+  "phone 435": "x", // cargo pressure ★1 spare0 (BASE S)
+  "phone 436": "x", // cargo pressure ★1 spare1 (BASE S)
+  "phone 483": "x", // cargo capacitor ★1 spare0 (BASE S)
+  "phone 484": "x", // cargo capacitor ★1 spare1 (BASE S)
+  "phone 489": "x", // cargo compound ★1 spare0 (BASE S)
+  "phone 490": "x", // cargo compound ★1 spare1 (BASE S)
+  "phone 495": "x", // cargo lance ★1 spare0 (BASE S)
+  "phone 496": "x", // cargo lance ★1 spare1 (BASE S)
+  "phone 510": "x", // cargo rampart ★1 spare0 (BASE S)
+  "phone 511": "x", // cargo rampart ★1 spare1 (BASE S)
+  "phone 809": "T", // rig sparkgap ★1 1hit (BASE S)
+  "phone 810": "T", // rig sparkgap ★1 idle (BASE S)
+  "phone 989": "T", // rig rotgauge ★1 1hit (BASE S)
+  "phone 990": "T", // rig rotgauge ★1 idle (BASE S)
+  "laptop 692": "x", // rig stoker ★1 stoke (BASE T)
+};
 const BANDS = [["phone", PHONE], ["desk", DESK], ["laptop", LAPTOP]] as const;
-/** The pins per view: [heads that print the explained words, heads that keep the plain names, heads that keep the marks] (names at base: phone 1,171, desk column 1,295, laptop column 1,295). */
-const RUNGS: Record<string, [number, number, number]> = { phone: [939, 232, 132], desk: [1163, 132, 8], laptop: [1157, 138, 8] };
+/** The pins per view: [heads that print the explained words, heads that keep the plain names, heads that keep the marks] (names at base: phone 1,171, desk column 1,295, laptop column 1,295).
+ *  STAGE-09141 (POLISH-1 P5a's ★1 star meets PRESENT-2's pin; cap, RULING-STAGE09141-R1): the phone was [939, 232, 132] (names 1,171) and is [909, 246, 148] (names 1,155: marks 132 -> 148); the laptop was [1157, 138, 8] (names 1,295) and is [1157, 137, 9] (names 1,294: marks 8 -> 9); the desk is unchanged. */
+const RUNGS: Record<string, [number, number, number]> = { phone: [909, 246, 148], desk: [1163, 132, 8], laptop: [1157, 137, 9] };
 
 describe("PRESENT-2 W (b): the family head says what it is, by a ladder: explained words, else the plain names, else the marks", () => {
   it("the base's placement is read from the same corpus: 1,303 panels, and every panel has a code", () => {
     expect(CASES.length).toBe(1303);
     for (const [band] of BANDS) expect(BASE[band].length, band).toBe(CASES.length);
+    // STAGE-09141 (POLISH-1 P5a's ★1 star meets PRESENT-2's pin; cap, RULING-STAGE09141-R1): the table is exactly the panels the star moved: phone 32, laptop 1, desk 0; each is a ★1 panel whose title ends in " ★", and its code differs from BASE's
+    const moved: Record<string, number> = { phone: 0, desk: 0, laptop: 0 };
+    for (const key of Object.keys(P5A_STAR1)) {
+      const [band, idx] = key.split(" "), c = CASES[Number(idx)];
+      moved[band]++;
+      expect(c.id, key).toMatch(/★1/);
+      expect(c.t.title.endsWith(" ★"), `${key} ${c.id}: its title ends in the star`).toBe(true);
+      expect(P5A_STAR1[key], key).not.toBe(BASE[band][Number(idx)]);
+    }
+    expect(moved).toEqual({ phone: 32, desk: 0, laptop: 1 });
   });
 
   it("PER PANEL and per view: every head that printed names at base prints names still (the explained words or the plain), in the same place; marks and none stay as they were", () => {
     for (const [band, area] of BANDS) {
       const tally = [0, 0, 0];
       CASES.forEach((c, i) => {
-        const fam = selFamilies(c.run, c.sel), fh = planPanel(c.t, area, fam).famHead, code = BASE[band][i], what = `${band} ${c.id} (base ${code})`;
+        const fam = selFamilies(c.run, c.sel), fh = planPanel(c.t, area, fam).famHead, code = P5A_STAR1[`${band} ${i}`] ?? BASE[band][i] /* STAGE-09141: the 33 panels POLISH-1's P5a moved (RULING-STAGE09141-R1) */, what = `${band} ${c.id} (base ${code})`;
         if (code === "-") return void expect(fh, what).toBeNull();
         expect(fh, what).not.toBeNull();
         expect(fh!.tags, what).toEqual(fam);

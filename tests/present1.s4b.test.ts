@@ -79,7 +79,11 @@ const YIELDS: Record<string, number> = {
  *  detailsPlanOf's `small`). T, per view: [the notes whose grown panel still changed the body's face (panels that grow for their own text), the growth's total px over every box].
  *  Before F (PRESENT-1's tip 4656d58630ee and PRESENT-2 at f48f9b7e: the same counts): faces 21, 533, 137, 55, 24 and the totals in GROWTH_BEFORE. */
 const FACES: Record<string, [number, number]> = {
-  "op-402x690, no rune": [0, 8328], "op-402x690, a rune": [4, 57050], "phone-390x844": [0, 5172], "phone-390x660": [2, 34904], "iphone15pm-430x739": [0, 9620],
+  "op-402x690, no rune": [0, 8400], // STAGE-09141 (POLISH-1 P5a's ★1 star meets PRESENT-1's pin; cap, RULING-STAGE09141-R1): was [0, 8328]
+  "op-402x690, a rune": [4, 57056], // STAGE-09141 (POLISH-1 P5a's ★1 star meets PRESENT-1's pin; cap, RULING-STAGE09141-R1): was [4, 57050]
+  "phone-390x844": [0, 5172],
+  "phone-390x660": [2, 35120], // STAGE-09141 (POLISH-1 P5a's ★1 star meets PRESENT-1's pin; cap, RULING-STAGE09141-R1): was [2, 34904]
+  "iphone15pm-430x739": [0, 9656], // STAGE-09141 (POLISH-1 P5a's ★1 star meets PRESENT-1's pin; cap, RULING-STAGE09141-R1): was [0, 9620]
 };
 /** The same totals before F (the growth px histograms of the base's T run, summed: kit/growsum.py): the growth falls on every view. */
 const GROWTH_BEFORE: Record<string, number> = { "op-402x690, no rune": 8784, "op-402x690, a rune": 61280, "phone-390x844": 8688, "phone-390x660": 35840, "iphone15pm-430x739": 10226 };
