@@ -31,6 +31,8 @@
 //                                   ("bb-profile-1\n" + the body bytes), merged into the signer's record -> 200 { the
 //                                   merged profile }. 403 / 401 / 413 / 400 / 422 as documented in profileRoute.ts
 //   GET|HEAD / and /index.html      the game page, when staticDir (BB_GHOST_STATIC) is set
+//   GET|HEAD /privacy, /privacy.html, /support, /support.html   S6: the privacy policy and the support page (pages.ts), served from the bundle
+//                                   whether or not there is a game page; 404 (plain text) while a page still holds a [[placeholder]]
 //
 // IDENT-1 (REQ-BFG-122): one player on every device. A key uploads under its own playerId (every 0.9.13 client) or under the
 // player it is linked to (server/links.ts); a deleted player's ids answer 410 and none of its ghosts is served. The routes below
@@ -68,6 +70,7 @@ import { historyStoreFor, type HistoryStore } from "./historyStore"; // IDENT-2 
 import { getHistory, putHistory, type HistoryRequest } from "./historyRoutes"; // IDENT-2
 import { FailureLimiter, REDEEM_FAILS, deletePlayer, getProfile, linkCode, linkRedeem, linkSteam, type LinkRequest, type RouteReply } from "./linkRoutes";
 import { TicketCache, type SteamVerifier } from "./steamAuth";
+import { WITHHELD_TEXT, infoPages } from "./pages"; // S6 (REQ-BFG-119): the privacy policy and the support page
 import { sha256Hex } from "./sigv4";
 import { JsonlStore, StorageError, type GhostStore } from "./store";
 
@@ -345,6 +348,8 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
   const trustProxy = opts.trustProxy ?? "none";
   const page = opts.staticDir === undefined ? null : loadPage(opts.staticDir);
   if (page) log(`serving the game page ${page.file} (${page.body.length} bytes) at / and /index.html`);
+  const info = infoPages(); // S6: the pages inside the bundle, with or without a game page; one that still holds a [[placeholder]] is withheld
+  for (const line of info.logLines()) log(line);
   const started = Date.now();
 
   /** IDENT-1: a route module's request (linkRoutes.ts) over this request. */
@@ -546,6 +551,22 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         if (!page) throw new HttpError(404, "not found");
         if (method !== "GET" && method !== "HEAD") throw new HttpError(405, "use GET or HEAD");
         return sendPage(req, res, page, method === "HEAD");
+      case "/privacy":
+      case "/privacy.html":
+      case "/support":
+      case "/support.html": {
+        // S6: the page text is in the bundle (pages.ts), so this needs no staticDir. A page that still holds a [[placeholder]] is 404, plain text
+        const p = info.forPath(url.pathname)!;
+        if (p.placeholders.length > 0) {
+          res.statusCode = 404;
+          res.setHeader("content-type", "text/plain; charset=utf-8");
+          res.setHeader("cache-control", "no-store");
+          res.setHeader("x-content-type-options", "nosniff");
+          return void res.end(WITHHELD_TEXT);
+        }
+        if (method !== "GET" && method !== "HEAD") throw new HttpError(405, "use GET or HEAD");
+        return sendPage(req, res, p, method === "HEAD");
+      }
       default:
         throw new HttpError(404, "not found");
     }
