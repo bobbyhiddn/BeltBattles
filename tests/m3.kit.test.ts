@@ -185,6 +185,16 @@ describe("M3 Goal 3: scripts/m3 add no package, make no request but to the serve
     for (const f of ["storeshots.mjs", "kit.mjs", "feature.mjs"]) expect(read(`scripts/m3/${f}`), f).not.toMatch(/VITE_GHOST_SERVER|VITE_NATIVE|VITE_DEMO|dist-app/);
   });
 
+  it("kit.mjs empties only a folder that is missing, empty or already a kit, and checks that before it builds or deletes anything", () => {
+    const kit = read("scripts/m3/kit.mjs");
+    expect(kit).toContain("is not empty and is not a kit folder (no index.html and shots.json): refusing to empty it");
+    expect(kit.indexOf("await clearKit(OUT);"), "the guard runs first").toBeGreaterThan(-1);
+    expect(kit.indexOf("await clearKit(OUT);")).toBeLessThan(kit.indexOf("viteBuild(DIST"));
+    // the only recursive delete of the output folder goes through the guard; the other one is the fixed scratch build in WS/tmp
+    const deletes = [...kit.matchAll(/\brm\(([^,]+),/g)].map((m) => m[1].trim());
+    expect(deletes.sort()).toEqual(["DIST", "dir"]);
+  });
+
   it("builds only into WS/tmp (outside the repo), and the Android script writes only res/ and store/", () => {
     expect(read("scripts/m3/lib.mjs")).toContain('export const TMP = join(WS, "tmp");');
     expect(read("scripts/m3/vite.m3.config.mjs")).toContain('"tmp", "m3-page"');
