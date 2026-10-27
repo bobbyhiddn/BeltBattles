@@ -6,7 +6,7 @@
 //  (b) its absence: a plain belt, WHETSTONE only, FIERY / GROWING / WIDE / BRACED (counted or without an effect on a slug), a word on a rig that has no hit on this belt, the switch off;
 //  (c) its words: the candidates from the fullest to the shortest (names, then `+n MORE`, then a count);
 //  (d) its fit: ONE line on every view the belt-panel tests cover (the desk column, the two phones, the narrow desk, the landscape phone), never wider than its room, and it never costs the
-//      panel's kept text its room (planPanel's `hold` rule: where it cannot be drawn whole the panel is what it was without it).
+//      panel's kept text its room (planIn's `hold` rule, reached through planPanel: where it cannot be drawn whole the panel is what it was without it).
 import { afterEach, describe, expect, it } from "vitest";
 import { computeView } from "../src/core/io";
 import { ITEMS } from "../src/sim/content";

@@ -231,7 +231,7 @@ export interface Block {
   /** POLISH-2 (Q2): ONE line, in candidates from the fullest (`text` holds it) to the shortest: layBlock draws the first that fits the panel's text width in the face used
    *  (the last whatever its width), so the line is one line on every view (beltWords.ts leftOutCandidates). */
   fit?: readonly string[];
-  /** POLISH-2 (Q2): kept like a `keep` block (the timeline rows give way for it) where the panel can draw it whole beside its kept text; where it cannot, planPanel plans the
+  /** POLISH-2 (Q2): kept like a `keep` block (the timeline rows give way for it) where the panel can draw it whole beside its kept text; where it cannot, planIn plans the
    *  panel without it, exactly as it was (a `keep` block that does not fit is a phone cut; this one never costs the kept text its room). */
   hold?: boolean;
 }
@@ -1395,7 +1395,7 @@ function choose(all: readonly Laid[], avail: number, width: number, main: FontId
     const at = lastTrim ? seq.indexOf(lastTrim) + 1 : grid >= 0 ? grid : seq.length;
     return [...seq.slice(0, at), note, ...seq.slice(at)];
   };
-  let set = new Set(all.filter((l) => l.b.keep || l.b.hold)); // POLISH-2 (Q2): a `hold` block is kept here; planPanel takes it out again where it cannot be drawn whole
+  let set = new Set(all.filter((l) => l.b.keep || l.b.hold)); // POLISH-2 (Q2): a `hold` block is kept here; planIn takes it out again where it cannot be drawn whole
   let note: Laid | null = null;
   if (heightOf(seqOf(set, null)) > avail) return { chosen: seqOf(set, null), fits: false };
   const trims = all.filter((l) => l.b.trim);
