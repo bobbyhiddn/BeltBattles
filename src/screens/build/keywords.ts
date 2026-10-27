@@ -31,11 +31,11 @@ import { resolveCore } from "../../sim/cores";
 import { gradeOf, starsOf } from "../../sim/stars";
 import { C } from "../../render/palette";
 import { rect, frame, type G } from "../../render/pixel";
-import { ICON, KEYWORDS, PLAYER_WORD, drawText, faceChars, icons, textWidth, type FontId } from "../../render/font";
+import { ICON, KEYWORDS, PLAYER_WORD, drawText, icons, textWidth, type FontId } from "../../render/font";
 import { colourize, drawRich, lineText, lineWidth, wrapRich, type RichLine } from "../../ui/richText";
 import { glossaryEntry, glossaryHits, glossaryText, keywordRow, tapNote } from "../../ui/glossary";
 import { STAT_ICONS, statIconNote } from "../../ui/glossary"; // WORDS-1 (REQ-BFG-081): the stat icons' notes
-import { ICON_COLOUR } from "../../render/font"; // WORDS-1: a stat icon's underline in its colour ({RATE} yellow)
+import { ICON_COLOUR, faceChars } from "../../render/font"; // WORDS-1: a stat icon's underline in its colour ({RATE} yellow); PRESENT-3 D: faceChars, for smallFaceHolds
 import { FAMILY, famHeadParts, famHeadText, familyNote, familyWord } from "../../ui/families"; // WORDS-1: the family tags' taps (familyTargets); PRESENT-2 W (b): the head's words
 import type { ModuleTag } from "../../sim/content"; // WORDS-1
 import { tapRect, inside, type Rect, type UI } from "../../ui/ui";
