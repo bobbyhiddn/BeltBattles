@@ -93,8 +93,10 @@ describe("M1: npm run build:app holds the boot", () => {
     // the entry reaches the boot only through a dynamic import, and holds none of Capacitor's code
     expect(entry[0].code).toMatch(/import\(`\.\/boot-[\w-]+\.js`\)|import\("\.\/boot-[\w-]+\.js"\)/);
     for (const w of ["registerPlugin", "isNativePlatform", "CapacitorStorage", "minimizeApp"]) expect(entry[0].code.includes(w), `entry: ${w}`).toBe(false);
-    // the literal Fly URL, once, in the entry: the app's server (same-origin would be https://localhost inside the app)
-    expect(count(all, "https://beltbattles.fly.dev")).toBe(1);
+    // the literal Fly URL in the entry: the app's server (same-origin would be https://localhost inside the app), and (S6, REQ-BFG-119) the
+    // address of the privacy policy the PRIVACY row opens (src/net/privacyLink.ts SITE; the other two addresses there are not used by the client
+    // and are not in the bundle). Two, no more: the pages themselves are in the server bundle only (tests/s6.server.test.ts)
+    expect(count(all, "https://beltbattles.fly.dev")).toBe(2);
     expect(entry[0].code).toContain("https://beltbattles.fly.dev");
   }, 60_000);
 });
