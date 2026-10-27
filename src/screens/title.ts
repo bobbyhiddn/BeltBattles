@@ -45,6 +45,7 @@ import { OFFLINE_LINE, offlineMode } from "../game/session"; // C1 (BRIEF-C1 ite
 import { HEART_COST_FROM, HEART_COSTS, HEARTS_START, heartsRules } from "../sim/hearts"; // RETUNE-1 run 2: the rules card's hearts
 import { onlineSession } from "../game/online"; // IDENT-1 (REQ-BFG-122): the page's online session (its identity and server)
 import { startupProfileSync } from "../net/profileSync"; // IDENT-1: a linked device reads the player's profile once per page load
+import { startupHistorySync } from "../net/historySync"; // IDENT-2: and syncs the player's run history (at most hourly, its own time)
 import { optionsExtras } from "./linkCards"; // IDENT-1: LINK A DEVICE and DELETE MY ONLINE DATA, below NAME
 
 /** IDENT-1 (REQ-BFG-122): the title reads the player's profile from the server once per page load (net/profileSync.ts), as soon as the
@@ -257,6 +258,7 @@ export class TitleScreen implements Screen {
     startupSync.done = true;
     try {
       startupProfileSync(s.url, s.identity).catch(() => undefined); // fire and forget
+      startupHistorySync(s.url, s.identity).catch(() => undefined); // IDENT-2: the same, for the run history (a device never linked does nothing)
     } catch {
       /* never disturbs the title */
     }

@@ -6,6 +6,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createServer, type Server } from "node:http";
 import { PROFILE_KEY, emptyProfile, evaluateUnlocks, foldDusk, foldEnd, loadProfile, saveProfile, type Profile, type RunFacts } from "../src/game/profile";
+import { HISTORY_KEY } from "../src/game/history"; // IDENT-2: the one new key a device writes
 import { PROFILE_DEBOUNCE_MS, UPLOAD_TIMEOUT_MS, startOnline, stopOnline, type Online, type OnlineDeps } from "../src/game/online";
 import { online, setSession, type Session } from "../src/game/session";
 import { foldDuskResult, foldRunEnd, foldWarlordResult } from "../src/game/styleFolds";
@@ -422,7 +423,9 @@ describe("only in the online state; never at boot", () => {
     await vi.advanceTimersByTimeAsync(PROFILE_DEBOUNCE_MS * 5);
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(idb).toBe(0);
-    expect(store.keys()).toEqual([PROFILE_KEY]); // no new storage key: the four pinned offline-key lists stand
+    // IDENT-2: the one new key is the run history (beltbattles.history.v1, written by every device, online or not, at a run's end); the
+    // four pinned offline-key lists stand (they end before a run's end)
+    expect(store.keys()).toEqual([HISTORY_KEY, PROFILE_KEY]);
   });
 });
 
@@ -452,7 +455,7 @@ describe("failures are silent; one try per trigger; no new storage key", () => {
     }
     expect(s.lastProfileUpload).toEqual({ ok: false, status: 503, error: "ghost storage unavailable, try again shortly" });
     for (const q of quiet) expect(q).not.toHaveBeenCalled();
-    expect(store.keys()).toEqual([PROFILE_KEY]); // the session wrote nothing: no run count, no marker, no queue
+    expect(store.keys()).toEqual([HISTORY_KEY, PROFILE_KEY]); // the session wrote nothing: no run count, no marker, no queue (IDENT-2: the run history is the fold's, not the session's)
   });
 
   it("the profile read for the upload is the stored one: the same bytes the next page load would send", async () => {

@@ -7,6 +7,7 @@ import type { DayResult, Run } from "./run";
 import { flawless } from "./day";
 import { commitFold, foldDusk, foldEnd, foldEndless, foldWarlord, type RunFacts } from "./profile";
 import { online } from "./session"; // PROFILE-UP (REQ-BFG-074 clause 4): the page's session (session.ts imports types only), or null offline: then nothing here runs
+import { historyRunEnded } from "../net/historySync"; // IDENT-2 (REQ-BFG-122 clause 4): the run's entry is written to the device's history (online or not), and sent when linked
 
 /** The facts a fold reads from a run. ENDLESS-1 (REQ-BFG-059, 3.5): a run that took CONTINUE ENDLESS also carries its endless wins. */
 export function runFacts(run: Run): RunFacts {
@@ -24,7 +25,10 @@ export function runFacts(run: Run): RunFacts {
 export function foldDuskResult(run: Run, res: Pick<DayResult, "day" | "outcome">): string[] {
   const r = runFacts(run);
   const fresh = commitFold((p) => [...foldDusk(p, r, res.day, res.outcome), ...(run.over && !run.endlessRun ? foldEnd(p, r) : []), ...foldEndless(p, r)]);
-  if (run.over) online()?.profileChanged?.("end", run.runId); // PROFILE-UP: the run's end is committed; online, it uploads
+  if (run.over) {
+    online()?.profileChanged?.("end", run.runId); // PROFILE-UP: the run's end is committed; online, it uploads
+    historyRunEnded(run); // IDENT-2: the run's entry (its ENDLESS entry when this dusk ended the endless), written once; sent when linked
+  }
   return fresh;
 }
 
@@ -41,5 +45,6 @@ export function foldRunEnd(run: Run): string[] {
   // personal best (ABANDON in endless, the ENDLESS OVER summary); every other run folds its end as before
   const fresh = commitFold((p) => [...(run.endlessRun ? [] : foldEnd(p, r)), ...foldEndless(p, r)]);
   online()?.profileChanged?.("end", run.runId); // PROFILE-UP: the run's end (also ABANDON) is committed; one upload per run id
+  historyRunEnded(run); // IDENT-2: the summary and ABANDON ("abandoned" while run.over is null) write the entry too; an id already written changes nothing
   return fresh;
 }

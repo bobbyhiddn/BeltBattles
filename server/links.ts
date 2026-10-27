@@ -21,7 +21,9 @@
 //    timer (other machines), and updated at once on a delete. A refresh LISTs tombstones/ and reads only the keys it does not hold yet
 //    (every TOMBSTONE_FULL_READ_MS it reads them all again, which is how a tombstone rewritten in place reaches every machine), at most
 //    TOMBSTONE_READS_IN_FLIGHT reads at a time; a request waits at most TOMBSTONE_WAIT_MS for a refresh and goes on with the set it
-//    holds. Only the first load is waited for in full (IDENT-1 FIX2, F4).
+//    holds. Only the first load is waited for in full (IDENT-1 FIX2, F4). The first load also reads a key the store listed but returned
+//    nothing for again, TOMBSTONE_REREADS times, and fails (503, nothing applied) if it stays absent; a key absent through
+//    TOMBSTONE_ABSENT_LOADS failed first loads in a row is gone on without, so that 503 is bounded (IDENT-2, finding A).
 // Lookups are cached in memory (a key's player, a player's record). A positive entry lives 10 minutes, a "nothing there" entry 30
 // seconds, so an upload costs at most one extra store read when the cache is cold, and a link another machine made shows within
 // half a minute. The caches are this process's only state: the store is the truth.
@@ -30,6 +32,7 @@ import { ID_PATTERN } from "../src/net/snapshot";
 import { mergeWire, type WireProfile } from "../src/net/profileWire";
 import type { ProfileStore } from "./profileStore";
 import type { LinkStore } from "./linkStore";
+import type { HistoryName, HistoryStore } from "./historyStore"; // IDENT-2 (REQ-BFG-122 clause 4)
 import { sha256Hex } from "./sigv4";
 import { StorageError } from "./store";
 
@@ -64,6 +67,21 @@ export const TOMBSTONE_WAIT_MS = 250;
 export const TOMBSTONE_FULL_READ_MS = 6 * 60 * 60_000;
 /** The most tombstone reads in flight at once: the first load, a refresh and a full read alike. */
 export const TOMBSTONE_READS_IN_FLIGHT = 8;
+/**
+ * IDENT-2 (REQ-BFG-122; IDENT-1 re-check finding A). In the FIRST load, a tombstone the store lists but returns nothing for (a LIST that
+ * ran ahead of the read, or an object removed between the two) is read again this many times, TOMBSTONE_REREAD_PAUSE_MS apart (real
+ * time), before the load gives up on it. Still absent after the last re-read, the load FAILS: 503, nothing applied, one log line (a count,
+ * no id), and the next request starts a fresh load. 3 x 100 ms is long enough for a listing that is a few tens of milliseconds ahead of
+ * its objects and costs a load 0.3 s, far less than the 5 s a client waits before it asks again (retry-after).
+ */
+export const TOMBSTONE_REREADS = 3;
+export const TOMBSTONE_REREAD_PAUSE_MS = 100;
+/**
+ * A key that stayed listed but absent through this many failed first loads in a row no longer fails the load: the next first load goes
+ * on without it (one loud log line, a count and no id) and every refresh reads it again, as it always has. So the first load never holds
+ * a 503 for good: at most this many failed loads (3 x 0.3 s of re-reads, plus the store's own time) come before the one that succeeds.
+ */
+export const TOMBSTONE_ABSENT_LOADS = 3;
 const CACHE_MAX = 100_000;
 
 export interface KeyLink {
@@ -195,6 +213,8 @@ export interface LinksOptions {
   /** Bytes for new link codes (tests pass fixed ones). */
   random?: (n: number) => Uint8Array;
   tombstoneTtlMs?: number;
+  /** IDENT-2: the run history store; a DELETE removes history/<id>/ for every id it tombstones. None: a Links without history (a test's). */
+  history?: HistoryStore;
 }
 
 /** The outcome of an operation: the HTTP status it maps to, and its data or its one plain reason. */
@@ -210,6 +230,7 @@ export class Links {
   private readonly log: (line: string) => void;
   private readonly random: (n: number) => Uint8Array;
   private readonly tombstoneTtlMs: number;
+  private readonly history: HistoryStore | null;
   private chain: Promise<unknown> = Promise.resolve();
   private readonly gone = new Set<string>();
   /** The tombstones/ keys a finished reload has listed and read (an unreadable one included): their ids are in `gone`. */
@@ -217,6 +238,9 @@ export class Links {
   private goneLoadedAt = -1; // the clock reading at which the last good reload began; -1: never loaded
   private goneFullAt = -1; // the clock reading at which the last full read began; -1: none yet
   private goneLoading: Promise<void> | null = null;
+  /** First loads only (IDENT-2, finding A): for each key a failed first load found listed but absent after its re-reads, in how many failed first
+   *  loads IN A ROW (a key found, or no longer listed, is forgotten). Emptied by the first load that succeeds. */
+  private firstAbsent = new Map<string, number>();
   private readonly keyCache = new Map<string, { v: KeyLink | null; until: number }>();
   private readonly playerCache = new Map<string, { v: PlayerRecord | null; until: number }>();
 
@@ -225,6 +249,7 @@ export class Links {
     this.log = opts.log ?? (() => {});
     this.random = opts.random ?? ((n) => globalThis.crypto.getRandomValues(new Uint8Array(n)));
     this.tombstoneTtlMs = opts.tombstoneTtlMs ?? TOMBSTONE_TTL_MS;
+    this.history = opts.history ?? null;
   }
 
   /** One change at a time in this process, in the order asked (the single-use guarantee for a code). */
@@ -271,6 +296,7 @@ export class Links {
 
   private async reload(): Promise<void> {
     const began = this.now();
+    const first = this.goneLoadedAt < 0;
     const full = this.goneFullAt < 0 || began - this.goneFullAt >= TOMBSTONE_FULL_READ_MS;
     const listed = await this.store.list("tombstones/");
     const toRead = full ? listed : listed.filter((k) => !this.goneHeld.has(k));
@@ -284,6 +310,30 @@ export class Links {
       else if (text === null) absent.add(k);
       else unreadable++;
     });
+    // IDENT-2, finding A. The FIRST load must not go on without a tombstone the store listed: until it succeeds no set is held, so a key it
+    // lacked would upload (201) and its ghost be served for up to a refresh. So it reads such a key again (rereadAbsent); one that is still
+    // absent fails the load (503, nothing applied: this throws before anything below), and the next request starts a fresh load. Only a key
+    // that stayed absent through TOMBSTONE_ABSENT_LOADS failed first loads in a row is gone on without, so the first load never holds 503
+    // for good. A refresh (a set is held) is not touched: an absent key is not held there and is read again at the next refresh.
+    let wentOn = 0;
+    if (first && absent.size) {
+      unreadable += await this.rereadAbsent(absent, found);
+      if (absent.size) {
+        const next = new Map<string, number>();
+        let pending = 0; // keys still within their failed loads
+        for (const k of absent) {
+          const failed = this.firstAbsent.get(k) ?? 0;
+          next.set(k, failed + 1);
+          if (failed < TOMBSTONE_ABSENT_LOADS) pending++;
+        }
+        this.firstAbsent = next; // in a row: a key that was found this time, or is not listed any more, is forgotten
+        if (pending > 0) {
+          this.log(`identity store: the first tombstone load failed: ${absent.size} listed tombstone(s) not found after ${TOMBSTONE_REREADS} re-reads; the next request tries again`);
+          throw new StorageError("identity: a listed tombstone could not be read yet");
+        }
+        wentOn = absent.size;
+      }
+    }
     // Every read ended well: only now does the reload change anything. A tombstone whose text cannot be read is held all the same (it adds
     // no id), so it is logged once and not read again until the next full read. A key counts as held only once its ids are in the set, so
     // one the store returned nothing for is not held: the next refresh reads it again.
@@ -291,19 +341,43 @@ export class Links {
     this.goneHeld = new Set(absent.size ? listed.filter((k) => !absent.has(k)) : listed);
     if (full) this.goneFullAt = began;
     this.goneLoadedAt = began;
+    if (first) this.firstAbsent = new Map();
     for (let i = 0; i < unreadable; i++) this.log("identity store: skipping an unreadable tombstone");
-    if (absent.size) this.log(`identity store: ${absent.size} listed tombstone(s) not found, to be read again at the next refresh`);
+    if (wentOn) this.log(`identity store: the first tombstone load went on WITHOUT ${wentOn} listed tombstone(s) not found, absent through ${TOMBSTONE_ABSENT_LOADS} failed loads in a row; the ids they hold are not in the set, and every refresh reads them again`);
+    else if (absent.size) this.log(`identity store: ${absent.size} listed tombstone(s) not found, to be read again at the next refresh`);
+  }
+
+  /**
+   * IDENT-2, finding A (the first load only): read the keys in `absent` again, up to TOMBSTONE_REREADS times, TOMBSTONE_REREAD_PAUSE_MS
+   * (real time) before each round, at most TOMBSTONE_READS_IN_FLIGHT at a time. A key that is there now leaves `absent` and its ids join
+   * `found`. Returns how many of them turned out unreadable (text that is no tombstone). A read that fails (StorageError) fails the load.
+   */
+  private async rereadAbsent(absent: Set<string>, found: Set<string>): Promise<number> {
+    let unreadable = 0;
+    for (let round = 0; round < TOMBSTONE_REREADS && absent.size > 0; round++) {
+      await new Promise<void>((resolve) => setTimeout(resolve, TOMBSTONE_REREAD_PAUSE_MS));
+      await eachInFlight([...absent], TOMBSTONE_READS_IN_FLIGHT, async (k) => {
+        const text = await this.store.get(k);
+        if (text === null) return;
+        absent.delete(k);
+        const t = decodeTombstone(text);
+        if (t) for (const id of t.ids) found.add(id);
+        else unreadable++;
+      });
+    }
+    return unreadable;
   }
 
   /**
    * Before a route serves a ghost or takes an upload: the tombstone set has been loaded, and is not older than the refresh time.
    * The first load must succeed (StorageError otherwise: the route answers 503, so a deleted player's ghost is never served from
-   * an incomplete set), and every request waits for it. Once a set is held, a request waits at most TOMBSTONE_WAIT_MS for a reload and
+   * an incomplete set), and every request waits for it, however long it takes (unbounded by design; then it goes on). A first load that
+   * finds a listed tombstone absent re-reads it and, if it stays absent, fails like any other (finding A: see reload). Once a set is held, a request waits at most TOMBSTONE_WAIT_MS for a reload and
    * then goes on with the set it holds (IDENT-1 FIX2, F4): a refresh that is slow or stuck holds nobody up for longer. A refresh that
    * fails keeps the set and tries again in 5 s (loadTombstones).
    */
   async ensureFresh(): Promise<void> {
-    if (this.goneLoadedAt >= 0 && this.now() - this.goneLoadedAt < this.tombstoneTtlMs) return;
+    if (!this.due()) return;
     const reloading = this.loadTombstones();
     if (this.goneLoadedAt < 0) {
       await reloading;
@@ -322,8 +396,16 @@ export class Links {
    * never rejects. A test that needs a reload's result before its next request awaits this instead of racing the TOMBSTONE_WAIT_MS bound.
    */
   async settleReload(): Promise<void> {
-    const due = !(this.goneLoadedAt >= 0 && this.now() - this.goneLoadedAt < this.tombstoneTtlMs);
-    await (due ? this.loadTombstones() : this.goneLoading)?.catch(() => {});
+    await (this.due() ? this.loadTombstones() : this.goneLoading)?.catch(() => {});
+  }
+
+  /**
+   * Is a reload of the tombstone set due? Yes when none has succeeded yet, or the last good one began a refresh time (or more) ago. ONE
+   * predicate for ensureFresh and settleReload (IDENT-2, finding D): a test that waits with settleReload then exercises the very decision
+   * a route's ensureFresh makes, and a change to one cannot leave the other behind.
+   */
+  private due(): boolean {
+    return !(this.goneLoadedAt >= 0 && this.now() - this.goneLoadedAt < this.tombstoneTtlMs);
   }
 
   // ------------------------------------------------------------------------------------------------------ lookups
@@ -585,6 +667,21 @@ export class Links {
   }
 
   /**
+   * IDENT-2: remove history/<id>/ for each id, with at most TOMBSTONE_READS_IN_FLIGHT (8) store requests in flight at any moment: one LIST
+   * for each id, then one DELETE for each entry listed. A player with no history costs one LIST for each id it tombstones (a full player,
+   * 65 ids: 65); each entry costs one DELETE more. A failure stops new requests and is thrown (503); the repeat DELETE finishes the rest.
+   */
+  private async dropHistory(ids: readonly string[]): Promise<void> {
+    const history = this.history;
+    if (!history) return;
+    const held: [string, HistoryName][] = [];
+    await eachInFlight(ids, TOMBSTONE_READS_IN_FLIGHT, async (id) => {
+      for (const n of await history.list(id)) held.push([id, n]);
+    });
+    await eachInFlight(held, TOMBSTONE_READS_IN_FLIGHT, ([id, n]) => history.delete(id, n));
+  }
+
+  /**
    * Delete the player the signing key belongs to: its profile, every link to it (keys and Steam), its live code; and write the
    * tombstone naming the player and every key id linked to it. The tombstone goes first, so a crash half way leaves a deleted
    * player whose cleanup the next call finishes (a delete of a deleted player is a success). The ghosts stay in the store until
@@ -614,6 +711,9 @@ export class Links {
         await this.store.delete(playerOf(player));
         this.playerCache.delete(player);
       });
+      // IDENT-2: the run history of the player and of every key id the tombstone names (an entry is stored under the signer's canonical
+      // player, but a key's own id held entries from before it linked, or from a client that stored them there)
+      removals.push(() => this.dropHistory(ids));
       // the asking key's own link goes last: until it does, a retry by this key still finds its player, and with it what is left
       if (signer !== player) removals.push(dropLink(signer));
       for (const rm of removals) await rm();

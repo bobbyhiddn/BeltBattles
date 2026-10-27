@@ -18,6 +18,8 @@
 //                                                          for good. Run it on a schedule (deploy/RUNBOOK.md). It reads every upload's
 //                                                          body once, in every rules version, to learn whose it is (remove-player does
 //                                                          the same for one version), so it is a job for a quiet hour, not a request.
+//                                                          IDENT-2 (REQ-BFG-122 clause 4): and the run history under history/<id>/ of every
+//                                                          tombstoned id (one LIST for each id, then the objects; the dry run lists them).
 //
 // Safety:
 //  - a dry run unless --apply: it prints exactly what --apply would delete, and deletes nothing;
@@ -40,6 +42,7 @@ import { validateUpload } from "../src/net/validate";
 import { ConfigError, readStoreConfig, type StoreConfig } from "./config";
 import { decodeTombstone } from "./links";
 import { FileLinkStore, IDENTITY_DIR, TigrisLinkStore, type LinkStore } from "./linkStore";
+import { FileHistoryStore, HISTORY_DIR, TigrisHistoryStore, nameOf, type HistoryName, type HistoryStore } from "./historyStore"; // IDENT-2 (REQ-BFG-122 clause 4)
 import { S3Client } from "./s3";
 import { POOL_FILE, STORE_FILE, type StoreKind } from "./store";
 import { parseKey } from "./tigrisStore";
@@ -86,6 +89,28 @@ export interface AdminStore {
   /** IDENT-1: the ids named by the tombstones (server/links.ts): every deleted player and every key that was linked to one. `skipped`:
    *  tombstone records that could not be read. Optional so a test double need not have it. */
   tombstoned?(): Promise<{ ids: Set<string>; skipped: number }>;
+  /** IDENT-2: the run history objects (history/<id>/...) of these ids, and `removeHistory` deletes exactly those. purge-tombstoned removes
+   *  them with the ghosts (a history object is stored under the canonical player, and a DELETE made on a build without history routes, or
+   *  one that stopped half way, leaves it behind). Optional so a test double need not have them. */
+  history?(ids: ReadonlySet<string>): Promise<HistoryHeld[]>;
+  removeHistory?(held: readonly HistoryHeld[]): Promise<number>;
+}
+
+/** One history object as the tool sees it: whose prefix it is under and its entry. */
+export interface HistoryHeld {
+  id: string;
+  name: HistoryName;
+}
+
+/** The history objects `store` holds under history/<id>/ for each id, ids in sorted order (so a dry run prints the same plan twice). One LIST
+ *  for each id, `limit` at a time (a batch job at 100,000 tombstones is 100,000 LISTs: one after another it would take an hour). */
+async function heldIn(store: HistoryStore, ids: ReadonlySet<string>, limit = 1): Promise<HistoryHeld[]> {
+  const sorted = [...ids].sort();
+  const names: HistoryName[][] = sorted.map(() => []);
+  await eachLimit(sorted.map((_, k) => k), limit, async (k) => {
+    names[k] = await store.list(sorted[k]);
+  });
+  return sorted.flatMap((id, k) => names[k].map((name) => ({ id, name })));
 }
 
 /** The ids every readable tombstone in `links` names, and how many records were not tombstones. */
@@ -186,6 +211,17 @@ export class JsonlAdmin implements AdminStore {
     return readTombstones(new FileLinkStore(join(this.dataDir, IDENTITY_DIR)));
   }
 
+  /** IDENT-2: the run history the server wrote beside the ghosts: <dataDir>/history/<id>/<time>-<entry>.json. */
+  async history(ids: ReadonlySet<string>): Promise<HistoryHeld[]> {
+    return heldIn(new FileHistoryStore(join(this.dataDir, HISTORY_DIR)), ids);
+  }
+
+  async removeHistory(held: readonly HistoryHeld[]): Promise<number> {
+    const store = new FileHistoryStore(join(this.dataDir, HISTORY_DIR));
+    for (const h of held) await store.delete(h.id, h.name);
+    return held.length;
+  }
+
   /**
    * Drop the planned lines from one file: a copy without them is written, then renamed over the file (readers see the old
    * file or the new one). A line is dropped only where the plan read it, with the same bytes, so nothing written since is
@@ -270,6 +306,17 @@ export class TigrisAdmin implements AdminStore {
   /** The tombstones the server wrote into the bucket: tombstones/<player>.json. */
   tombstoned(): Promise<{ ids: Set<string>; skipped: number }> {
     return readTombstones(new TigrisLinkStore(this.s3));
+  }
+
+  /** IDENT-2: the run history in the bucket: history/<id>/<time>-<entry>.json (one LIST for each id). */
+  history(ids: ReadonlySet<string>): Promise<HistoryHeld[]> {
+    return heldIn(new TigrisHistoryStore(this.s3), ids, this.concurrency);
+  }
+
+  async removeHistory(held: readonly HistoryHeld[]): Promise<number> {
+    const store = new TigrisHistoryStore(this.s3);
+    await eachLimit(held, this.concurrency, (h) => store.delete(h.id, h.name));
+    return held.length;
   }
 }
 
@@ -504,8 +551,15 @@ async function purgeTombstoned(args: AdminArgs, store: AdminStore, out: (line: s
   }
   out(`plan: delete ${total} record(s) in ${versions.length} rules version(s)`);
   if (others) out(`  ${others} other record(s) here, never touched`);
+  // IDENT-2 (REQ-BFG-122 clause 4): the run history under history/<id>/ of the same ids goes too (the dry run counts it, line by line)
+  const held = ids.size && store.history ? await store.history(ids) : [];
+  if (ids.size && store.history) {
+    out(`history: delete ${held.length} object(s) under history/<id>/ of ${new Set(held.map((h) => h.id)).size} of the ${ids.size} tombstoned id(s)`);
+    for (const h of held) out(`  delete history/${h.id}/${nameOf(h.name)}`);
+  }
   if (!args.apply) {
     out(`DRY RUN: nothing was deleted. --apply deletes exactly the ${total} record(s) above.`);
+    if (ids.size && store.history) out(`  and the ${held.length} history object(s) listed above.`);
     return 0;
   }
   // one removal for every version's records: a JSON-lines ref is a line number in a file the versions share, so deleting one version's
@@ -519,7 +573,10 @@ async function purgeTombstoned(args: AdminArgs, store: AdminStore, out: (line: s
       : "  Restart the ghost server: it holds the deleted ghosts in memory until it reloads its files.");
   }
   if (n < total) out(`  ${total - n} planned record(s) had already changed or gone: run again to see the store as it is now.`);
-  return n === total ? 0 : 1;
+  // IDENT-2: the history objects the dry run listed (a history object that is gone already is not an error: a delete of a missing one is fine)
+  const hn = held.length && store.removeHistory ? await store.removeHistory(held) : 0;
+  if (ids.size && store.history) out(`APPLIED: deleted ${hn} of ${held.length} history object(s).`);
+  return n === total && hn === held.length ? 0 : 1;
 }
 
 /**

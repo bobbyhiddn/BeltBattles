@@ -9,6 +9,7 @@ import {
   runUnlockNames, saveProfile, seedProfile, unseen, wear, type RunFacts,
 } from "../src/game/profile";
 import { foldDuskResult, foldRunEnd, foldWarlordResult, runFacts } from "../src/game/styleFolds";
+import { HISTORY_KEY } from "../src/game/history"; // IDENT-2: ABANDON writes the run's entry to the run history
 import { GHOST_KEY } from "../src/game/ghosts";
 import { RUNS_KEY } from "../src/game/online";
 import { RUN_VERSION, SAVE_KEY, newRun } from "../src/game/run";
@@ -232,7 +233,8 @@ describe("CUSTOM-2a profile store (beltbattles.profile.v1)", () => {
     foldRunEnd(run);
     expect(loadProfile(st).counters.runs).toBe(1);
     expect(loadProfile(st).counters.runsFinished).toBe(0);
-    expect(st.keys()).toEqual([PROFILE_KEY]); // the folds write the profile only (the run save is the screens')
+    // the folds write the profile and, IDENT-2, the run history (ABANDON writes the run's entry); the run save is the screens'
+    expect(st.keys()).toEqual([HISTORY_KEY, PROFILE_KEY]);
   });
 
   it("display only: profile.ts imports nothing from the sim but types, and no Math.random or sim RNG", () => {

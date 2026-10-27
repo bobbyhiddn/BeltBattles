@@ -39,7 +39,7 @@ import { AT_WINDOW_MS, type Links } from "./links";
 import type { ProfileStore } from "./profileStore";
 import type { SteamVerifier, TicketCache } from "./steamAuth";
 
-export type RouteReply = { status: 200; body: Record<string, unknown> } | { status: number; error: string; retryAfter?: number };
+export type RouteReply = { status: 200 | 201; body: Record<string, unknown> } | { status: number; error: string; retryAfter?: number };
 
 /** How many wrong codes one client address may try, and in how long a time. */
 export const REDEEM_FAILS = { windowMs: 10 * 60_000, max: 5 };
@@ -110,12 +110,12 @@ export interface LinkRequest {
   tickets: TicketCache;
 }
 
-type Fail = { status: number; error: string; retryAfter?: number };
+export type Fail = { status: number; error: string; retryAfter?: number };
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
 
-/** Gate, headers, body, signature in `domain`, UTF-8: the signer's own key id and the body text. */
-async function opened(r: LinkRequest, domain: SignDomain, max: number, gated: boolean): Promise<Fail | { signer: string; text: string }> {
+/** Gate, headers, body, signature in `domain`, UTF-8: the signer's own key id and the body text. (IDENT-2: exported for historyRoutes.ts.) */
+export async function opened(r: LinkRequest, domain: SignDomain, max: number, gated: boolean): Promise<Fail | { signer: string; text: string }> {
   if (gated && r.uploads === "closed") return { status: 403, error: "uploads are not open yet" };
   const unsigned = uploadHeaderError(r.key, r.sig);
   if (unsigned) return { status: 401, error: unsigned };
@@ -129,8 +129,8 @@ async function opened(r: LinkRequest, domain: SignDomain, max: number, gated: bo
   }
 }
 
-/** The body as exactly `fields`, in that order, in the canonical compact form: a field map, or the reason it is not. */
-function fieldsOf(text: string, fields: readonly string[]): Record<string, unknown> | string {
+/** The body as exactly `fields`, in that order, in the canonical compact form: a field map, or the reason it is not. (IDENT-2: exported.) */
+export function fieldsOf(text: string, fields: readonly string[]): Record<string, unknown> | string {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -144,8 +144,8 @@ function fieldsOf(text: string, fields: readonly string[]): Record<string, unkno
   return raw;
 }
 
-/** `at` must be the client's clock reading, within the replay bound of the server's. */
-function atProblem(at: unknown, now: number): string | null {
+/** `at` must be the client's clock reading, within the replay bound of the server's. (IDENT-2: exported.) */
+export function atProblem(at: unknown, now: number): string | null {
   if (typeof at !== "number" || !Number.isSafeInteger(at) || at < 0) return "at: expected the client's time in milliseconds";
   if (Math.abs(at - now) > AT_WINDOW_MS) return "at: more than 10 minutes from the server's clock";
   return null;
