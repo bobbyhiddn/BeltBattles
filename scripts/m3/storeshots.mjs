@@ -4,7 +4,7 @@
 // taps where the game's own flow is short (the first-run name screen and hero select, then GO), and battles step the game's own
 // fixed clock (window.bb.game.step(1 / 60)), so the frames are reproducible. The page's requestAnimationFrame is off and Math.random is
 // a fixed-seed generator: the game moves only when this script steps it.
-//   node scripts/m3/storeshots.mjs --dist <plain build dir> --out <dir> --orient portrait|landscape [--stores apple,play] [--only a,b]
+//   node scripts/m3/storeshots.mjs --dist <plain build dir> --out <dir> --orient portrait|landscape [--stores apple,apple-6.3,play] [--only a,b]
 //   node scripts/m3/storeshots.mjs --dist <dir> --out <dir> --probe        every moment in all four shapes (to choose the orientation)
 // Writes <out>/<store>/<NN>-<moment>.png (RGB, no alpha: Apple's and Google Play's rule) and <out>/shots.json (name, size, bytes, note, and
 // the requests the page tried that were aborted). Apple 6.9-inch: 1320 x 2868 (440 x 956 at 3) or 2868 x 1320. Google Play: 1080 x 1920
@@ -20,6 +20,10 @@ const NAME = "ASHWICK"; // the player's captain: made up, 2-10 of A-Z 0-9 space 
 const VIEWS = {
   "apple-portrait": { store: "apple", viewport: { width: 440, height: 956 }, px: [1320, 2868] },
   "apple-landscape": { store: "apple", viewport: { width: 956, height: 440 }, px: [2868, 1320] },
+  // Apple's screenshot page (read 2026-10-27) lists the 6.3-inch class (iPhone with Dynamic Island, medium display) as the REQUIRED iPhone size,
+  // and says larger sets are scaled down when the UI is the same: if App Store Connect asks for it, this set is ready (an extra, in its own folder)
+  "apple63-portrait": { store: "apple-6.3", viewport: { width: 402, height: 874 }, px: [1206, 2622] },
+  "apple63-landscape": { store: "apple-6.3", viewport: { width: 874, height: 402 }, px: [2622, 1206] },
   "play-portrait": { store: "play", viewport: { width: 360, height: 640 }, px: [1080, 1920] },
   "play-landscape": { store: "play", viewport: { width: 640, height: 360 }, px: [1920, 1080] },
 };
