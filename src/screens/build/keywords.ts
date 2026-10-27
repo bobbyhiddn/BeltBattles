@@ -31,6 +31,7 @@ import { resolveCore } from "../../sim/cores";
 import { gradeOf, starsOf } from "../../sim/stars";
 import { C } from "../../render/palette";
 import { rect, frame, type G } from "../../render/pixel";
+import { drawInfoMark } from "../../ui/infoGlyph"; // POLISH-2 (REQ-BFG-089; Q3): the one ⓘ mark, shared by every info button
 import { ICON, KEYWORDS, PLAYER_WORD, drawText, icons, textWidth, type FontId } from "../../render/font";
 import { colourize, drawRich, lineText, lineWidth, wrapRich, type RichLine } from "../../ui/richText";
 import { glossaryEntry, glossaryHits, glossaryText, keywordRow, tapNote } from "../../ui/glossary";
@@ -703,11 +704,11 @@ export function infoView(items: readonly InfoItem[], r: Rect, top: number, botto
  *  POLISH-1 (REQ-BFG-089; P5b, cap's answer 2 on ENCHANT-2W's read): it was a bare "i" with a serif and a foot in 3x5, and desk readers took it for the star level (a 1). THREE
  *  candidates were drawn on a real ★1 panel (the game's own drawDetails) and read blind by fresh seats on both views (O/REPORT.md, P5b): A, a ring round an i (what this was in
  *  48e219d0), was read as a letter badge ("A", "R") by 6 of 8 seats; C, a filled badge with the i cut out, as a padlock or an 8 by 8 of 8; B, this `?`, as a help button that explains the
- *  part by 7 of 8 (and every seat read the star level right). (x, y) is still the old glyph's top-left (box + 1, + 1). */
-const INFO_GLYPH = [".###.", "#...#", "....#", "...#.", "..#..", ".....", "..#.."];
+ *  part by 7 of 8 (and every seat read the star level right). (x, y) is still the old glyph's top-left (box + 1, + 1).
+ *  POLISH-2 (REQ-BFG-089; Q3): the mark itself lives in ui/infoGlyph.ts (INFO_GLYPH, drawInfoMark) and is the one mark of every info button (LAST CHANCE's cards, the road's
+ *  drop list and the event cards draw it too, each in its own box); this keeps the panel's call and its (x, y). */
 export function drawInfoGlyph(g: G, x: number, y: number, colour: string): void {
-  const bx = x - 1, by = y - 1; // the ink box's top-left: the `?` uses all of it
-  INFO_GLYPH.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] === "#") rect(g, bx + i, by + j, 1, 1, colour); });
+  drawInfoMark(g, x - 1, y - 1, colour); // the ink box's top-left: the `?` uses all of it
 }
 
 /** Draw the 1 art px dotted underline under a word's glyphs (every other pixel), in its colour. */
