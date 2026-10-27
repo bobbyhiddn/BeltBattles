@@ -374,19 +374,44 @@ never fought. `submitGhost` refuses such a ghost as it is, because its playerId 
 
 ## Privacy
 
+The statement for players is the privacy policy that the game server itself serves, at
+https://beltbattles.fly.dev/privacy (`server/pages/privacy.html`; the support page is `/support`). S6 (REQ-BFG-119)
+wrote it from this code, and `tests/s6.pages.test.ts` holds its numbers, strings, requests and data kinds to the
+code. The server answers 404 for a page that still holds a `[[placeholder]]` (`server/pages.ts`), and
+`node scripts/s6/contact.mjs` fills the two placeholders. This section gives the same facts for developers.
+
 `playerId` is the base64url SHA-256 hash of the device's public key (0.7.0; 0.6.0's anonymous
-random id stays on the device, see the migration rule above), and `runId` is an anonymous random id
-made on the device. The id pattern cannot hold an e-mail address, and neither id is linked to an
-account. The device key is made in the browser and never leaves it: the private key is
-non-extractable, kept in IndexedDB (database `beltbattles-identity`), and signs uploads only.
-Clearing the site's data deletes it; the next upload then comes from a new key and so a new
-playerId. An upload carries the public key and a signature. The server checks them and stores
-neither: the stored ghost is the snapshot alone. Snapshots hold no names, no accounts and no IP
-addresses. The server's stdout request log holds the time, method, path, status and duration of
-each request, and nothing else: no client IP, no query string (the query holds the player id),
-and no key, signature or player id. The rate limit keys on the client IP (on Fly, the player's
-Fly-Client-IP) and keeps it in memory only, so no player address is written to the store or reaches
-Fly's log stream.
+random id stays on the device and is never uploaded, see the migration rule above), and `runId` is an
+anonymous random id made on the device. The id pattern cannot hold an e-mail address, and neither id is
+linked to an account. The device key is made on the device and signs uploads. **On the web** the private
+key is non-extractable, kept in IndexedDB (database `beltbattles-identity`), and never leaves the browser;
+clearing the site's data deletes it, and the next upload then comes from a new key and so a new playerId.
+**In the phone apps** (IDENT-1) a new key is made extractable once and its private JWK is copied to
+Capacitor Preferences (UserDefaults on iOS, SharedPreferences on Android: private to the app, not the
+Keychain or the Keystore; the link record is copied too), so a WebView that is purged keeps the same
+player. Device backups may carry that copy: iOS backs up UserDefaults, and the Android app allows Auto
+Backup (`android:allowBackup="true"`). A restored key that belongs to a deleted player is refused with 410
+and dropped.
+
+An upload carries the public key and a signature. The server checks them and stores neither. **A ghost
+carries a name:** since PACKS M2 (REQ-BFG-063, rules bb-0.8.6) a snapshot holds `name`, the player's chosen
+name (2 to 10 of A-Z, 0-9, space, hyphen), and the server refuses an upload without one under
+`RULES_VERSION`. Other players see it as NAME#TAG (the tag is two hex digits made from the playerId), and
+their games receive the whole stored snapshot except the run seed (`servedSnapshot`), so they also
+receive its playerId and runId. (This section used to say that snapshots hold no names; that was true
+before bb-0.8.6.) A snapshot holds no account and no IP address.
+
+What else the server keeps, all under the pseudonymous player id: the profile (counters, hero lists,
+unlocks and chosen styles, at most 2 KB), a link record for each linked device key and the player's list of
+keys, a Steam ID if a Steam account was linked (a Steam build only; 501 while `BB_STEAM_WEB_API_KEY` is
+unset), a link code as a one-way hash (the code works for 10 minutes; its record stays until the code is
+used, replaced, found expired when tried, or the player is deleted), the run history (below) and, after
+a deletion, a tombstone (the ids of the deleted player and its keys, and the time). The server's stdout
+request log holds the time, method, path, status and duration of each request, and nothing else: no
+client IP, no query string (the query holds the player id), and no key, signature or player id. The rate
+limit keys on the client IP (on Fly, the player's Fly-Client-IP) and keeps it in memory only, so no player
+address is written to the store or reaches the log (Fly's proxy and Tigris keep their own operational
+records, outside this code).
 
 IDENT-2 (run history, REQ-BFG-122 clause 4): a device that has shown or entered a link code (or linked its Steam account) also sends its
 finished runs, signed, under its player's id (`history/<player>/...`). Showing a code is enough, even if no one ever enters it: the device
@@ -396,6 +421,22 @@ holds no name, no address, no key and no other player's id (a record may hold th
 entered a code sends none of it, and keeps its list on the device. `DELETE /v1/player` removes it with the rest, and
 `ghost-admin purge-tombstoned` removes what a second machine wrote after the tombstone. The request log still prints the path only: an
 entry id travels in the query of a read or in the signed body, never in a path.
+
+**Retention and deletion.** Nothing on the server expires because time has passed: ghosts, profiles, links,
+tombstones and the log have no expiry in the code. The bounds are a link code (10 minutes), a player's
+history (the newest 200 entries) and the device's own lists (50 runs, 300 ghosts). The privacy policy says so
+and names no period. OPTIONS, DELETE MY ONLINE DATA (`src/screens/linkCards.ts`) calls `DELETE /v1/player`:
+the profile, every key and Steam link, the live code and the run history go at once, the tombstone is
+written, and no ghost of those ids is served from that moment; `ghost-admin purge-tombstoned --apply`
+removes the stored ghosts (run it by hand: nothing schedules it, and again after any rollback or restore).
+The device drops its key, mirror and link record and keeps its local progress; the other linked devices do
+the same on their first 410. A player who has lost every device cannot sign the request: the policy sends
+them to the support address, which is a manual process and not code.
+
+**Where it runs.** Fly.io, region `iad` (Ashburn, Virginia, US), with the objects in Tigris; the bucket was
+made without a location choice, and Tigris' default is a global bucket that places objects near the
+writer and copies them where they are read (https://www.tigrisdata.com/docs/buckets/locations, read
+2026-10-27).
 
 ## Hosting options (operator decides)
 

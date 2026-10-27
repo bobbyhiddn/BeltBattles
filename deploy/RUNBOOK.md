@@ -727,6 +727,8 @@ Expect, in order:
 Optional, separately: the rate limit, `curl -sS -o /dev/null -w '%{http_code}\n' 'https://beltbattles.fly.dev/v1/health?burst=[1-130]' | sort | uniq -c`:
 about `120 200` and the rest `429` (120/min per client IP, keyed on Fly-Client-IP). Wait 60 s before
 re-running any check from this machine.
+S6 (REQ-BFG-119), the privacy page: `curl -sS -o /dev/null -w '%{http_code}\n' https://beltbattles.fly.dev/privacy` prints `404` while the page still holds its placeholders (`node scripts/s6/contact.mjs --check` lists them) and `200` after `node scripts/s6/contact.mjs --email <address> --name <text>`, a commit and a deploy.
+S6, the support page: `curl -sS -o /dev/null -w '%{http_code}\n' https://beltbattles.fly.dev/support` prints `404` until then and `200` after.
 
 **Older pages.** A browser that still holds an older page (no-cache: a reload gets the live page) asks for its own rules'
 ghosts. It gets that rules' seed ghosts if the bucket still holds them, otherwise a 404, and then it fights its own
