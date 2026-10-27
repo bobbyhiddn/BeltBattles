@@ -1,7 +1,7 @@
 // 0.6.2s (REQ-BFG-031 S10): what the build screen's details panel says about TURRETS. A turret card (a shop offer
 // or a cargo copy) shows its class, rarity and stars (title and sub line), its fire rate, loads, gear slots, intake
 // and one-line reason; an EMPTY TURRET SLOT says what it takes; an installed turret's panel (inspector.ts) adds its
-// CORE SOCKET and every GEAR SLOT, filled or empty, the belts a swap left without an intake, TO CARGO and SELL.
+// CORE SOCKET and every GEAR SLOT, filled or empty (PRESENT-3 E: a run of two or more empty ones is one row), the belts a swap left without an intake, TO CARGO and SELL.
 // Player text follows REQ-BFG-032: plain sentences, numbers with units, no dot chains, wrapped by the panel.
 // 0.6.2rel (REQ-BFG-032 x REQ-BFG-031): the text comes from the glossary (src/ui/abilityText.ts: the turret block, each
 // gear piece's clause) or is a whole sentence in its units, and every panel is inspector.ts PanelText (blocks wrapped by
@@ -176,13 +176,17 @@ export interface SocketRow {
   text: string;
   def?: string;
   stars?: number;
+  /** PRESENT-3 E: the number of EMPTY gear slots this one row stands for (a run of two or more: `GEAR 2-6`, EMPTY); absent on every other row. */
+  folded?: number;
 }
 
 /**
  * S4/S10: the CORE SOCKET and every GEAR SLOT of the turret in slot t, filled or empty, in hardpoint order, one row each
  * (a turret with one gear slot labels it GEAR). `gearText(def, stars)`, when given, is a gear piece's clause from the
  * glossary (abilityText.ts gist), after its name. `compact` (a short band): one GEAR row lists every slot, "EXT. CHAMBER
- * ★★, HOPPER AND 1 EMPTY SLOT".
+ * ★★, HOPPER AND 1 EMPTY SLOT". PRESENT-3 E (REQ-BFG-081; backlog #498 (3); cap's call): a run of two or more EMPTY gear slots is ONE
+ * row, `GEAR 2-6` EMPTY (five EMPTY rows of 12 px took a tall turret panel to the growth limit); a single empty slot keeps its row, a
+ * filled gear keeps its rows exactly, and the CORE row is never folded.
  */
 export function socketLines(b: Build, t: number, coreName: string, gearText?: (def: string, stars: number) => string, compact = false): SocketRow[] {
   const s = turretSlots(b)[t];
@@ -205,7 +209,12 @@ export function socketLines(b: Build, t: number, coreName: string, gearText?: (d
   for (let i = 0; i < s.gearSlots; i++) {
     const m = gear[i], label = s.gearSlots > 1 ? `GEAR ${i + 1}` : "GEAR";
     if (!m) {
-      out.push({ label, text: "EMPTY" });
+      let last = i; // PRESENT-3 E: the run of empty slots from here (gear fills from slot 1, so it is the turret's last run)
+      while (last + 1 < s.gearSlots && !gear[last + 1]) last++;
+      if (last > i) {
+        out.push({ label: `GEAR ${i + 1}-${last + 1}`, text: "EMPTY", folded: last - i + 1 });
+        i = last;
+      } else out.push({ label, text: "EMPTY" });
       continue;
     }
     const name = starred(ITEMS[m.def].name, starsOf(m)), fx = gearText?.(m.def, starsOf(m));

@@ -139,12 +139,12 @@ const BIG = 3_600_000;
  * every note that covers a row there falls back (275 and 218): all listed in the REPORT's questions with their recommendation (cap's ruling 26addce8293da756 item 7).
  */
 const PINS: Record<string, number[]> = {
-  "land-844x390, finger, no rune": [3345, 17, 2653, 458, 217, 17, 55, 156],
+  "land-844x390, finger, no rune": [3369, 17, 2653, 458, 241, 17, 55, 156], // PRESENT-3 E: was [3345, 17, 2653, 458, 217, ...]: 24 more notes show (the turret panels fold their EMPTY gear rows, so rows that were cut off show), all beside
   "land-844x390, finger, a rune": [3330, 0, 1969, 162, 1199, 0, 78, 102],
-  "land-844x390, mouse, no rune": [3863, 17, 3055, 542, 249, 17, 55, 156],
+  "land-844x390, mouse, no rune": [3887, 17, 3055, 542, 273, 17, 55, 156], // PRESENT-3 E: was [3863, 17, 3055, 542, 249, ...]: the same 24
   "land-844x390, mouse, a rune": [3848, 0, 3055, 467, 326, 0, 78, 102],
   "desk-1920x1080, mouse": [3887, 275, 3055, 557, 0, 275, 0, 0],
-  "desk-1280x800, mouse": [3887, 218, 3061, 608, 0, 218, 0, 0],
+  "desk-1280x800, mouse": [3887, 170, 3061, 656, 0, 170, 0, 0], // PRESENT-3 E: was [3887, 218, 3061, 608, 0, 218, 0, 0]: 48 more notes fit under the panel (its EMPTY gear rows folded); 1920x1080 does not move
   "laptop-1366x768, mouse": [3887, 15, 3061, 586, 225, 15, 56, 156],
 };
 

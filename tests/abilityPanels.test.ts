@@ -910,7 +910,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // with its hint and each showing it; "turret pressure ★2" and "turret pressure ★3" leave the missing list (PRESSURE BREECH's MAX 5 is
     // gone, so its turret panel is a line shorter and the optional hint fits beside the kept blocks); no other panel moves
     // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): the three converters' desk panels (each shows its hint) join: 2492 -> 2519 with a hint, the 60 missing as before
-    expect([withHint, missing.length]).toEqual([2519, 60]); // BUMP-1F: was [2492, 60]; BUMP-1E: was [2309, 62]
+    // PRESENT-3 E (REQ-BFG-081; re-pinned old -> new): 41 missing (was 60): a turret panel folds its EMPTY gear rows (a run of two or more is one row), so 19 more installed turrets'
+    // kept blocks leave room for the optional hint on the desk column; the 2,519 with a hint are the same panels (all still show it)
+    expect([withHint, missing.length]).toEqual([2519, 41]); // PRESENT-3 E: was [2519, 60]; BUMP-1F: was [2492, 60]; BUMP-1E: was [2309, 62]
     expect(missing.every((id) => /^(rig|cargo (surge|mantlet) ★2|turret|installed)/.test(id)), missing.join(", ")).toBe(true);
   });
 
@@ -1303,7 +1305,8 @@ describe("0.6.2rel2: the rehearsal's nits 1, 2 and 5, and HOPPER on a COMPOUND B
     const tp = turretPanel(turretRun("siegegun", 1, []), 0)!;
     expect(tp.variants!.flatMap((v) => v.body).find((b) => b.label === "GEAR" && /EMPTY SLOT/.test(b.text))?.text).toBe("3 EMPTY SLOTS");
     const phone = planPanel(tp, PHONE).body.shown.map((l) => l.b);
-    expect(phone.filter((b) => /^GEAR/.test(b.label ?? "")).map((b) => b.text)).toEqual(["EMPTY", "EMPTY", "EMPTY"]);
+    // PRESENT-3 E (re-pinned old -> new): the three EMPTY gear rows are one (`GEAR 1-3`, EMPTY; was three rows of EMPTY)
+    expect(phone.filter((b) => /^GEAR/.test(b.label ?? "")).map((b) => [b.label, b.text])).toEqual([["GEAR 1-3", "EMPTY"]]);
   });
 
   it("nit 5: every belt's sub is whole sentences: a main belt's ends with a full stop, as a joining belt's does", () => {

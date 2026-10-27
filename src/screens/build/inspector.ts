@@ -1094,7 +1094,8 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   const warn = (short: boolean) => deadEndLines(b, index, short).map((text): Block => ({ role: "warn", text, keep: true }));
   // the CORE and GEAR socket rows name the parts; they align apart from the stat rows (0.6.2t2 F2: LOAD TIME's wider
   // label moves only those)
-  const rowOf = (s: SocketRow): Block => ({ role: "row", label: s.label, text: s.text, keep: true, group: "part" });
+  // PRESENT-3 E: a folded run of EMPTY gear slots (`GEAR 2-6`) is its own alignment group, so its longer label never narrows the CORE and GEAR rows' text column
+  const rowOf = (s: SocketRow): Block => ({ role: "row", label: s.label, text: s.text, keep: true, group: s.folded ? "gear-run" : "part" });
   const noJam = tu.noJam || (tc.bought && tc.spec.noJam);
   // U2c step 4 (REQ-BFG-046, REQ-BFG-047): the turret's STAT ROW, as its face reads it (faces.ts turretStats: how often it
   // fires, the loads its chamber holds, its gear slots), at its effective values: the interval makeTurret builds (every
