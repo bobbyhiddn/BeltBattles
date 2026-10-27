@@ -180,16 +180,18 @@ export function beltWordFx(b: Build, index: number, walk: RouteWalk, turret: num
 /** The lead of the line. */
 export const LEFT_LEAD = "NOT COUNTED:";
 
-/** A reason as the line words it for `n` things (a verb that agrees). */
+/** A reason as the line words it for `n` things (a verb that agrees). POLISH-2 R1 (PQ-05's one words-only fix round: 4 of 6 readers were FULL, the two misses doubted that the bracket after the last name, `RISING (CHANGE IN THE FIGHT)`,
+ *  holds for every name before it): with two or more names the reason says it is for each of them (`BOTH CHANGE ...`, `ALL CHANGE ...`). One name reads as before. */
 export function whyText(why: LeftWhy, n: number): string {
-  if (why === "fight") return n === 1 ? "CHANGES IN THE FIGHT" : "CHANGE IN THE FIGHT";
-  if (why === "scale") return n === 1 ? "SCALES THE DMG" : "SCALE THE DMG";
+  const each = n === 2 ? "BOTH" : "ALL";
+  if (why === "fight") return n === 1 ? "CHANGES IN THE FIGHT" : `${each} CHANGE IN THE FIGHT`;
+  if (why === "scale") return n === 1 ? "SCALES THE DMG" : `${each} SCALE THE DMG`;
   return n === 1 ? "A GATE CHANGES IT" : "A GATE CHANGES THEM";
 }
 
 /**
  * The one line under the readout, as candidates from the fullest to the shortest, for the layout (Block.fit) to pick the first that fits the panel's text width in ONE line:
- *   NOT COUNTED: IRON WALL, RISING (CHANGE IN THE FIGHT).    the names, each group of one reason with its reason said once
+ *   NOT COUNTED: IRON WALL, RISING (BOTH CHANGE IN THE FIGHT).   the names, each group of one reason with its reason said once (for each name: whyText)
  *   NOT COUNTED: IRON WALL, RISING.                          the names
  *   NOT COUNTED: IRON WALL +1 MORE.                          the first, and how many more
  *   NOT COUNTED: 2 THINGS.                                   a count (the narrowest column)

@@ -1,7 +1,7 @@
 // POLISH-2 (REQ-BFG-098; BRIEF-POLISH2 Q2, POLISH-1's follow-up F-b): THE READOUT SAYS WHAT IT LEAVES OUT.
 // A reader's amount (IRON WALL and the nine other rigs of ROWS-1) is fight state, so the walk leaves it out; the words whose amount changes in the fight (RISING's climb, ECHOING's count)
 // and the two that scale the DMG (SWIFT, MASSIVE) are not counted either (beltWords.ts WORD_TABLE). When a belt carries such a part, ONE short line under the readout names them:
-// `NOT COUNTED: IRON WALL, RISING (CHANGE IN THE FIGHT).` No line on a belt with nothing left out. Pinned here:
+// `NOT COUNTED: IRON WALL, RISING (BOTH CHANGE IN THE FIGHT).` No line on a belt with nothing left out. Pinned here:
 //  (a) the line's presence: each of the ten readers, each fight-state word on a rig, a factory and a turret, SWIFT and MASSIVE, a gate on the belt (the words it hides), mixed belts;
 //  (b) its absence: a plain belt, WHETSTONE only, FIERY / GROWING / WIDE / BRACED (counted or without an effect on a slug), a word on a rig that has no hit on this belt, the switch off;
 //  (c) its words: the candidates from the fullest to the shortest (names, then `+n MORE`, then a count);
@@ -89,7 +89,8 @@ describe("POLISH-2 Q2: the line is there when the numbers leave something out", 
     const run = runOf(b), w = walkRoute(b, 0, undefined, { gates: true });
     const fx = beltWordFx(b, 0, w, 0);
     expect(fx.left.map((l) => l.name)).toEqual(["ECHOING", "IRON WALL", "CROWD PRESS", "RISING", "MASSIVE"]);
-    expect(textOf(run)).toBe("NOT COUNTED: ECHOING, IRON WALL, CROWD PRESS, RISING (CHANGE IN THE FIGHT); MASSIVE (SCALES THE DMG).");
+    // POLISH-2 R1 (PQ-05's one words-only fix round; was `RISING (CHANGE IN THE FIGHT)`): with several names the reason says it is for each of them
+    expect(textOf(run)).toBe("NOT COUNTED: ECHOING, IRON WALL, CROWD PRESS, RISING (ALL CHANGE IN THE FIGHT); MASSIVE (SCALES THE DMG).");
     // a thing is named once however often it is on the belt (two IRON WALLs are one name)
     const two = bench([["shieldwall", 4, 4, 1], ["shieldwall", 4, 2, 1]]);
     benchRigsCheck(two, [["shieldwall", 4, 4, 1], ["shieldwall", 4, 2, 1]]);
@@ -138,11 +139,13 @@ describe("POLISH-2 Q2: the line's words, fullest first", () => {
     expect(leftOutCandidates([])).toEqual([]);
     expect(leftOutCandidates(L(["IRON WALL", "fight"]))).toEqual(["NOT COUNTED: IRON WALL (CHANGES IN THE FIGHT).", "NOT COUNTED: IRON WALL.", "NOT COUNTED: 1 THING."]);
     expect(leftOutCandidates(L(["IRON WALL", "fight"], ["RISING", "fight"], ["MASSIVE", "scale"]))).toEqual([
-      "NOT COUNTED: IRON WALL, RISING (CHANGE IN THE FIGHT); MASSIVE (SCALES THE DMG).",
+      "NOT COUNTED: IRON WALL, RISING (BOTH CHANGE IN THE FIGHT); MASSIVE (SCALES THE DMG).", // POLISH-2 R1: was `(CHANGE IN THE FIGHT)`
       "NOT COUNTED: IRON WALL, RISING, MASSIVE.",
       "NOT COUNTED: IRON WALL +2 MORE.",
       "NOT COUNTED: 3 THINGS.",
     ]);
+    expect([whyText("fight", 1), whyText("fight", 2), whyText("fight", 4)]).toEqual(["CHANGES IN THE FIGHT", "BOTH CHANGE IN THE FIGHT", "ALL CHANGE IN THE FIGHT"]); // POLISH-2 R1
+    expect([whyText("scale", 1), whyText("scale", 2), whyText("scale", 3)]).toEqual(["SCALES THE DMG", "BOTH SCALE THE DMG", "ALL SCALE THE DMG"]);
     expect(whyText("gate", 1)).toBe("A GATE CHANGES IT");
     expect(whyText("gate", 2)).toBe("A GATE CHANGES THEM");
   });
