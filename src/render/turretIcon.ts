@@ -25,8 +25,17 @@ export function drawTurretIcon(g: G, id: string): boolean {
     rect(g, x + 1, 7 - len, w, 1, C.white);
   };
   if (cls === "heavy") {
-    barrel(2, 1, 6);
-    barrel(7, 1, 6);
+    // PRESENT-3 C (REQ-BFG-113 (1); backlog #498 (5)): the heavy guns' (the SCRAP CANNON's) two barrels were 1 px of steel2 between ink lines, a dim grey picture no reader of PRESENT-2's K-02 could
+    // name (0 of 6, bare or under a grid). Now two FAT barrels: 3 px of steel3 with a white edge and muzzle and a dark bore, on the same mount, in the same 12x12 and palette.
+    const fat = (x: number): void => {
+      rect(g, x, 0, 5, 8, C.ink);
+      rect(g, x + 1, 1, 3, 6, C.steel3);
+      rect(g, x + 1, 1, 1, 6, C.white);
+      rect(g, x + 1, 1, 3, 1, C.white);
+      rect(g, x + 2, 1, 1, 1, C.ink);
+    };
+    fat(0);
+    fat(7);
   } else if (cls === "medium") barrel(4, 2, 6);
   else if (cls === "adaptable") {
     barrel(4, 2, 5);
