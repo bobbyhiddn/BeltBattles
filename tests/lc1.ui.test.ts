@@ -24,14 +24,16 @@ describe("LC-1: the LAST CHANCE screen", () => {
     }
   });
 
-  it("its words: capitals, no retired word (TEXT-STYLE 13.6), the HULL card names its amount with the HULL icon", () => {
+  // PRESENT-1 (REQ-BFG-081; REVIEW-SC0912B item 3): the HULL card names its amount in words, never the heart (was "with the HULL icon")
+  it("its words: capitals, no retired word (TEXT-STYLE 13.6), the HULL card names its amount in words (HULL, no heart)", () => {
     const words = [LC_TITLE, LC_LINE, LC_TAKE, LC_HULL_SUB, LC_STOP, lcHint(6), hullName(LAST_CHANCE_HULL), lcPartSub("epic")];
     for (const w of words) {
       expect(w).toBe(w.toUpperCase());
       expect(w).not.toMatch(/HARASSMENT|ONLINE|POISON|LOAD TIME/);
     }
     expect([LC_TITLE, LC_LINE, lcHint(6), lcPartSub("epic")]).toEqual(["LAST CHANCE", "+1 LIFE. PICK ONE. FREE.", "DUSK OF DAY 6 · TAP TO READ", "EPIC PART · TO CARGO · FREE"]);
-    expect(hullName(LAST_CHANCE_HULL)).toMatch(new RegExp(`^\\+${LAST_CHANCE_HULL} .$`)); // "+500" and the HULL glyph
+    // PRESENT-1: "+500" and the word HULL (was `^\\+500 .$`, "+500" and the HULL glyph, the heart)
+    expect(hullName(LAST_CHANCE_HULL)).toBe(`+${LAST_CHANCE_HULL} HULL`);
     expect(hullName(LAST_CHANCE_HULL).startsWith("+500 ")).toBe(true); // Z-PREP: the card's words follow LAST_CHANCE_HULL
   });
 
@@ -51,7 +53,7 @@ describe("LC-1: the LAST CHANCE screen", () => {
     // (HULL-1d, lastChance.ts lastChancePartStars) and the toast names its star; off, LC-1's toast
     expect(lcToast("part", o)).toBe(`TO CARGO: ${ITEMS[o.part!].name} ★2`);
     expect(lcToast("part", withHullScale(() => lastChanceOffer(5, 6, "weaver", []), false))).toBe(`TO CARGO: ${ITEMS[o.part!].name}`);
-    expect(lcToast("hull", o)).toBe(`MAX HULL ${hullName(LAST_CHANCE_HULL)}`);
+    expect(lcToast("hull", o)).toBe(`MAX HULL +${LAST_CHANCE_HULL}`); // PRESENT-1: no heart (was `MAX HULL ${hullName(LAST_CHANCE_HULL)}`, "MAX HULL +500 ♥")
     expect(lastChanceCardLine({ lastChance: { lives: 1 } })).toBe("LAST CHANCE: +1 LIFE");
     expect(lastChanceCardLine({})).toBeNull();
   });

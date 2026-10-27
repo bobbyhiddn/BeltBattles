@@ -23,7 +23,7 @@ import { heartsRun, livesCap } from "../../sim/hearts"; // RETUNE-1 run 2: the h
 import { HEROES, ITEMS, SIGNATURE_CORES, START_LIVES, classFactor, rigShape, type HeroId } from "../../sim/content";
 import type { ModuleTag } from "../../sim/content"; // 0.8.0 I1 M4: the families in the header
 import type { ItemDef } from "../../sim/content"; // SHOPCARD-1e (E3, E4): offerLabel
-import { drawFamilyMark, familiesOf, familySpans, familyWord } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
+import { drawFamilyMark, familiesOf, famHeadSpans, famHeadText } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2); PRESENT-2 W (b): the head's words
 import { makeTurret } from "../../sim/battle"; // 0.6.1p: the turret's window as the battle sees it
 import {
   arrowsOf, beltUsed, canSellTurret, connectedRouteCount, defOf, gearFor, gearOn, hitsOfRig, installedTurrets, itemByUid, routeInfo,
@@ -39,6 +39,7 @@ import { freeJoinsRules } from "../../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): 
 import { drawKeywordLayer, keywordCursorOff } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
 import { infoFree } from "./keywords"; // U2f (REQ-BFG-070): the room the ⓘ view grows into
 import { keywordsIdle } from "./keywords"; // CARD-2 (REQ-BFG-004, K1): a closed panel's next draw is a new open
+import { definitionAhead, type ColumnSpec, type NoteHang } from "./keywords"; // PRESENT-1 (S4 (b)): the note a finger's panel is about to show, for panelFit; PRESENT-2 L: NoteHang; P: ColumnSpec
 import { nextBlocks } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS and the next-star line
 
 /**
@@ -101,6 +102,8 @@ import {
 } from "../../ui/abilityText";
 import { colourize, drawRich, lineText, lineWidth, PERK_COLOUR, wrapRich, type Span } from "../../ui/richText";
 import type { Sel } from "./layout";
+import { carrierBox, screenRect } from "./layout"; // PRESENT-2 L: the deck's screen rect, a hard line for a hanging note; P: the carrier's drawn box
+import { DECK } from "../../render/frame";
 import { describe, KIND_SUB, panelKind } from "./shop"; // WORDS-1: KIND_SUB, panelKind (a core's and gear's kind in plain words)
 import {
   deadEndLines, freeNote, SLOT_HINT, slotActions, slotColor, slotIcon, slotLabels, slotNotes, slotSub, slotTitle, socketLines, turretHint,
@@ -133,6 +136,7 @@ import { shapeLines } from "../../ui/faces"; // PLAIN-1F (M4): a placed long rig
 import { plainNotes } from "../../ui/faces"; // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead (was isPlainRig's rig sentence)
 import { cardEffect } from "../../ui/faces"; // BUMP-1D P6: the offer panel's header-only one-line effect: cardText, else a plain rig's stat row (the twelve have no ability text)
 import { scaleNotes } from "../../ui/faces"; // SCALE-2c (REQ-BFG-089): the 12 readers' NOTES line, SCALE_RIGS on only
+import { ruleNotes } from "../../ui/faces"; // PRESENT-1 (REQ-BFG-081; REVIEW-READ14 fix 3): LIMPET WORKS's ANYTHING line
 import { shapePic } from "../../ui/shapePic"; // SHAPES-1 (REQ-BFG-086.1): the panel face's shape picture
 import { enchantNotes, wordTurretRow } from "../../ui/faces"; // ENCHANT-1 (REQ-BFG-085, E7): an enchanted piece's NOTES, an installed turret's row with its word
 import { enchantedTitle, nameSpans, wordColour, wordOn, type WordOn } from "../../ui/enchantFaces"; // ENCHANT-1 (E7): the word first in the title, the piece's word as the faces read it
@@ -347,7 +351,7 @@ export function explainPanel(t: PanelText, def?: string): PanelText {
   // SCALE-2c (REQ-BFG-089; BRIEF-SCALE2c section 3): a scaling piece's count line (faces.ts scaleNotes, REPORT-SCALE1 3.2's
   // hover line) joins them, behind the hover or tap; [] for every other piece and with SCALE_RIGS off
   // BUMP-1F (PACKET-BUMP-0130 section 4): shapeNotes, gateNotes, scaleNotes, in that order
-  const shaped: Block[] = def ? [...shapeNotes(def), ...gateNotes(def), ...scaleNotes(def)].map((text) => ({ role: "ability", text, note: "rig" } as Block)) : []; // GATES-1: and a gate's rule, its wait and the FUSER's order
+  const shaped: Block[] = def ? [...shapeNotes(def), ...gateNotes(def), ...scaleNotes(def), ...ruleNotes(def)].map((text) => ({ role: "ability", text, note: "rig" } as Block)) : []; // GATES-1: and a gate's rule, its wait and the FUSER's order; PRESENT-1: LIMPET WORKS's ANYTHING line (ruleNotes)
   // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead is faces.ts plainNotes: the rig sentence (as before for every
   // plain rig with PLAIN_RIGS off), SCALE GUARD's carry line after it, BALLAST's own line in its place
   // ENCHANT-1 (REQ-BFG-085, E7): an enchanted piece's NOTES (faces.ts enchantNotes: what an enchantment is, that a new one replaces it), "kind"
@@ -690,6 +694,17 @@ export function offerMergeNote(run: Run, def: string): string | null {
   return b?.kind === "merge" ? mergeLine(run, def) : b ? OWNED_NOTE : null;
 }
 
+/** PRESENT-1 (REQ-BFG-081, REQ-BFG-115; the cold read's PR-06, 4 of 6: two readers took the card's merge mark for its star and left its sale
+ *  mark at "can't tell"; the one fix round, words only): a shop offer on sale says so in words in its panel and its hover tooltip, with the
+ *  list price it fell from: `ON SALE: WAS 3G.` (the price now is the card's and the button's). The buy button can say it only when
+ *  nothing else claims it (offerLabel: `SALE: BUY 2G`; a merge wins the label, and no label says both within 60 px), and the desk's tooltip
+ *  has no button, so a sale that merges, and every sale on a desk, was said by the marks alone. The sale is the game's own test (run.ts
+ *  priceOf, chrome.ts drawShop's `sale`, offerLabel): an unsold offer under its list price. null: not on sale, or sold. Pure (offerPanel, the tooltip, tests). */
+export function offerSaleNote(o: { def: string; price: number; sold?: boolean }): string | null {
+  const list = ITEMS[o.def].price;
+  return !o.sold && o.price < list ? `ON SALE: WAS ${list}G.` : null;
+}
+
 /**
  * SHOPCARD-1e (REQ-BFG-081, REQ-BFG-115; READ-12 round S, E3 and E4): a shop offer's buy button, in words.
  * - E3, a sale: the panel read `BUY 6G` (GANTRY PRESS, list 7) or `BUY 2G` (WHETSTONE, list 3), and all six round S readers read a
@@ -727,7 +742,9 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
   const one = cardEffect(d.id, opts); // BUMP-1D P6: was cardText(d.id, opts); cardEffect is cardText byte for byte wherever cardText has a line, and a plain rig's stat row where it has none (the twelve of PLAIN_RIGS and SHAPES2, on since bb-0.11.0: the 360x640 strip drew no effect for them)
   // U2e step 4 (REQ-BFG-070): no MERGES INTO line on the face: the card's MERGE ★2 badge and BUY+MERGE say it merges, and
   // the ⓘ view's NEXT★ line what the merge gives (mergeBlock and mergeLine stay for tools; no panel draws them)
+  const sale = offerSaleNote(o); // PRESENT-1 (PR-06): a sale, in words (lime, the sale mark's colour), the first line of the body
   const body: Block[] = [
+    ...(sale ? [{ role: "note", text: sale, colour: C.lime, keep: true } as Block] : []),
     ...abilityBlocks(d.id, 1, opts),
     ...flavourBlocks(d.id, 1, opts.k ?? 1),
     hintBlock(d.kind === "supply" ? "USED THE MOMENT YOU BUY IT." : placeHint(d.kind, true, d.id, touch)),
@@ -1581,7 +1598,7 @@ export interface PanelPlan {
   /** 0.8.0 I1 M4: the module's families in the header: named under the sub line ("sub"), or right-aligned on the row of
    *  the sub line's second line ("sub2") or of the title ("title"), named or (where the names don't fit) as their marks;
    *  null when none is given or the header has no room. */
-  famHead: { at: "sub" | "sub2" | "title"; tags: ModuleTag[]; names: boolean } | null;
+  famHead: { at: "sub" | "sub2" | "title"; tags: ModuleTag[]; names: boolean; explained?: boolean } | null;
   /** SPACE-1 (REQ-BFG-087): the gaps between the body's separate items, laid after the body's plan (which is exactly as
    *  without them) from the room it leaves: `before[i]`, the gap slots before body line i (gapSlots); `slots`, their sum;
    *  `px`, each slot's gap (all alike: `G` where the room holds it, less where it doesn't, 0 with no room or a cut);
@@ -1670,9 +1687,12 @@ const columnRows = (n: number, tap = 0): number => Math.ceil(n / (tap > 0 ? 2 : 
  *  (it would grow over the shop rows, D4) stays in the band in the band's face, 3x5, where that shows its full text
  *  (fullText) with its gaps at least 3x5's GAP_MIN; else the plan is as before. A grown panel still reads in 5x7. The
  *  face is chosen with the gaps on, whatever `o.gaps` asks, so the content is the same with the gaps off and on (SPACE-1's
- *  content first: the gaps never change what a plan shows). */
+ *  content first: the gaps never change what a plan shows).
+ *  PRESENT-2 F (REQ-BFG-081; PRESENT-1 Question 4 (d) (ii)): `o.small`, the band's face carried to a panel grown up from the band for a note
+ *  (detailsPlanOf): the body in the 3x5 face only, as the band itself planned it. */
 export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [],
-  o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean } = {}): PanelPlan {
+  o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean; small?: boolean } = {}): PanelPlan {
+  if (o.small) return planIn(sp, area, families, o, true);
   const p = planIn(sp, area, families, o, false);
   if (!o.inBand || p.column || p.headerOnly || p.body.font !== "5") return p;
   const on = { ...o, gaps: true }, big = o.gaps === false ? planIn(sp, area, families, on, false) : p;
@@ -1732,7 +1752,8 @@ function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { 
   // y+20..y+22; the body starts at y+24)
   const tags = [...families];
   const strip = !column && area.y + 25 + shift + 5 > area.y + area.h - 4 && !!sp.headerOnly;
-  const namesW = textWidth(tags.map(familyWord).join(", "), "3"), marksW = tags.length * 4 - 1; // CARD-3: the player's tags
+  const namesW = textWidth(famHeadText(tags, false), "3"), marksW = tags.length * 4 - 1; // CARD-3: the player's tags (the plain names: where the head sits is decided by them, as before PRESENT-2)
+  const explainedW = textWidth(famHeadText(tags), "3"); // PRESENT-2 W (b): the head says what the names are (`FORGE FAMILY`, `FAMILIES: FORGE, TEMPO`) where that fits the same place
   const titleFree = column || !labels.length || !!port?.shift;
   const beside = (text: string, font: FontId, free: boolean, gap = 6) => (w: number) => free && 23 + textWidth(text, font) + gap + w <= area.w - 4;
   const bySub2 = beside(subs[1] ?? "", "3", column && subs.length === 2), byTitle = beside(sp.title, "5", titleFree);
@@ -1741,7 +1762,7 @@ function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { 
   // buttons under the sub line) had no place at all
   const byTitleTight = beside(sp.title, "5", titleFree, 2);
   const underSub = subs.length === 1 && !shift;
-  const famHead: PanelPlan["famHead"] = !tags.length || strip || area.h < 28 ? null
+  const famHead0: PanelPlan["famHead"] = !tags.length || strip || area.h < 28 ? null
     : underSub && !body.tight && namesW <= area.w - 27 ? { at: "sub", tags, names: true }
     : bySub2(namesW) ? { at: "sub2", tags, names: true }
     : byTitle(namesW) ? { at: "title", tags, names: true }
@@ -1749,6 +1770,11 @@ function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { 
     : bySub2(marksW) ? { at: "sub2", tags, names: false }
     : byTitle(marksW) || byTitleTight(marksW) ? { at: "title", tags, names: false }
     : null;
+  // PRESENT-2 W (b) (cap's ruling 7d5006c5f3ca852f): one ladder a head, per view: the explained words (`FORGE FAMILY`, `FAMILIES: FORGE, TEMPO`) where they fit the place the plain names
+  // took (the head keeps today's place, colour and face), else the plain names as before, else the marks as before: no head loses the names it shows
+  const famHead: PanelPlan["famHead"] = famHead0 && famHead0.names
+    && (famHead0.at === "sub" ? explainedW <= area.w - 27 : famHead0.at === "sub2" ? bySub2(explainedW) : byTitle(explainedW))
+    ? { ...famHead0, explained: true } : famHead0;
   // SPACE-1 (REQ-BFG-087, D2, D3): the body above is planned exactly as without gaps; its separate items then take a gap
   // each (gapSlots) from the room left: up to G (the body face's GAP), all alike, less where the room is short. The
   // column, sized to its text, is sized with its gaps at G within its area (`o.gaps` false: none, the plan as before)
@@ -1995,14 +2021,23 @@ function detailsPlanOf(ctx: Ctx, show: Sel, sp: Spec, t: PanelText, area: Rect, 
   const fams = selFamilies(ctx.run, show), tap = touchTap(ctx), band = !!ctx.L?.portrait, gaps = o.gaps !== false;
   // CARD-3 (REQ-BFG-080, B's lever 3): a finger's panel on a phone's band itself (panelArea's L.info, by its rect: the
   // tests and BuildScreen pass the same rect) may stay in the band in 3x5 (planPanel's `inBand`)
-  const I = ctx.L?.info, inBand = !!ctx.L?.phone && tap > 0 && !!I && area.x === I.x && area.y === I.y && area.w === I.w && area.h === I.h;
-  const plan = planPanel(planned(t), area, fams, { tap, band, gaps, inBand });
+  const I = ctx.L?.info, onPhone = !!ctx.L?.phone && tap > 0 && !!I, inBand = onPhone && area.x === I.x && area.y === I.y && area.w === I.w && area.h === I.h;
+  // PRESENT-2 F (REQ-BFG-081; PRESENT-1 Question 4 (d) (ii)): a panel grown UP from the band (the same x, width and foot, taller: layout.ts panelRect "up") for a
+  // definition keeps the face the band gave it where the band shows the panel's whole text in the 3x5 face (the fit it had before any note): only the note grows it, not
+  // a switch to the 5x7 face (539 of 2,429 grown notes on 402x690 with a rune took the body from 3x5 to 5x7 and 30-42 px of growth for it). Any other panel: as before
+  const grownUp = onPhone && !inBand && area.x === I!.x && area.w === I!.w && area.y + area.h === I!.y + I!.h && area.h > I!.h;
+  let small = false;
+  if (grownUp) {
+    const bp = planPanel(planned(t), I!, fams, { tap, band, gaps: true, inBand: true }); // with the gaps ON whatever `gaps` asks: SPACE-1's content first (the gaps never change what a plan shows)
+    small = bp.body.font === "3" && fullText(bp) && gapsAtLeast(bp, bp.gaps.min);
+  }
+  const plan = planPanel(planned(t), area, fams, { tap, band, gaps, inBand, small });
   // shoptap (D2): on the phone band a touch panel's optional button (TO CARGO) gives way where keeping it would cut the
   // panel's kept text (the extra button pushes the row under the sub line); its kept text always shows whole
   if (tap && !plan.column && !keptWhole(plan) && sp.actions.some((a) => a.optional)) {
     const lean: Spec = { ...sp, actions: sp.actions.filter((a) => !a.optional) };
     const lt: PanelText = { ...sp.text, labels: lean.actions.map((a) => a.label) };
-    const lp = planPanel(planned(lt), area, fams, { tap, band, gaps, inBand });
+    const lp = planPanel(planned(lt), area, fams, { tap, band, gaps, inBand, small });
     if (keptWhole(lp)) return { show, sp: lean, t: lt, plan: lp };
   }
   return { show, sp, t, plan };
@@ -2034,14 +2069,89 @@ function drawHintStrip(g: G, s: ReturnType<typeof hintStrip>): void {
  * description (fullText, zoom's D3) with its gaps at least GAP_MIN in the band (`at` "band": else it grows over the shop
  * rows), and at GAP while it grows (`at` "grown": it stops at the first height that shows them, or at panelArea's limit).
  * Elsewhere its kept text (keptWhole), as before: its gaps take the room it gets.
+ * PRESENT-1 (REQ-BFG-081; S4 (b), cap's ruling af2c96863a44ab41): on touch, a panel that is about to show a definition (a tap's
+ * or a first sight's: keywords.ts definitionAhead) also counts the note: it fits only where the note's box sits clear of
+ * every rule row of the panel (rulesCovered), and, while the first-sight chain is under way, is no shorter than the chain
+ * has made it (`hold`). With no note to show, the fit is exactly what it was.
  */
 export function panelFit(ctx: Ctx, sel: Sel, phone: boolean): (r: Rect, at?: "band" | "grown") => boolean | null {
   return (r, at = "band") => {
     const d = detailsPlan(ctx, sel, null, r);
     if (!d) return null;
-    if (!phone) return keptWhole(d.plan);
-    return fullText(d.plan) && gapsAtLeast(d.plan, at === "band" ? d.plan.gaps.min : d.plan.gaps.G);
+    const whole = phone ? fullText(d.plan) && gapsAtLeast(d.plan, at === "band" ? d.plan.gaps.min : d.plan.gaps.G) : keptWhole(d.plan);
+    return whole && noteClear(ctx, d, r);
   };
+}
+
+/** PRESENT-1 (S4 (b)): the roles whose rows are a panel's rules: a shown definition may cover a panel's flavour, hint,
+ *  reminder or caveat row (the ruling), never one of these. */
+const RULE_ROLES: ReadonlySet<Role> = new Set<Role>(["ability", "hits", "warn", "next", "merges", "merge", "row", "grid", "note"]);
+
+/**
+ * PRESENT-1 (REQ-BFG-081; S4 (b)): the rule rows of a panel's drawn `lines` (visibleLines) that box `box` covers, each with
+ * `clear` px (default 1) to spare between the row's glyphs and the box's edge: [] where the note sits clear of the rules.
+ * Pure (panelFit, the tests).
+ */
+export function rulesCovered(box: Rect, lines: readonly { line: PLine | "rule"; y: number }[], clear = 1): PLine[] {
+  const out: PLine[] = [];
+  for (const v of lines) {
+    if (v.line === "rule" || !RULE_ROLES.has(v.line.block.role)) continue;
+    const bottom = v.y + (v.line.font === "5" ? 7 : 5);
+    if (v.y - clear < box.y + box.h && box.y < bottom + clear) out.push(v.line);
+  }
+  return out;
+}
+
+/**
+ * PRESENT-2 L (REQ-BFG-081; cap's call on PRESENT-1's Question 4 (d) (i) and cap's ruling 0d0ef2465804aafb): for a finger's panel that
+ * already fills the growth limit (its top at the top bar: layout.ts panelArea's `most`), where the note cannot be made clear by growing the
+ * panel, what keywords.ts hangPlace needs to put the note just under the lowest rule row: that row's end, a box's covering a rule row, the
+ * carrier's pad (a note over it is counted) and what a note NEVER covers (the deck's cells, FIGHT, the cargo bar, the top bar). undefined for
+ * every other panel (the desk, the landscape column, a panel still below its limit): their notes are placed exactly as before.
+ */
+function noteHang(ctx: Ctx, plan: PanelPlan, lines: readonly { line: PLine | "rule"; y: number }[]): NoteHang | undefined {
+  const L = ctx.L;
+  if (!touchTap(ctx) || !L?.portrait || !L.bar || plan.r.y > L.bar.y + L.bar.h + 1) return undefined;
+  let ruleEnd = 0;
+  for (const v of lines) if (v.line !== "rule" && RULE_ROLES.has(v.line.block.role)) ruleEnd = Math.max(ruleEnd, v.y + (v.line.font === "5" ? 7 : 5));
+  if (!ruleEnd) return undefined;
+  const deck = L.frame ? screenRect(L, { x: L.frame.dx, y: L.frame.dy, w: DECK, h: DECK }) : null;
+  return { ruleEnd, covers: (b) => rulesCovered(b, lines).length > 0, pad: L.pad ?? null, hard: [deck, L.fight, L.cargo, L.bar].filter((q): q is Rect => !!q) };
+}
+
+/**
+ * PRESENT-2 P (cap's ruling 26addce8293da756): for a panel in the landscape COLUMN, what keywords.ts columnPlace needs to keep a shown definition off the rule rows: a box's covering a rule row, the
+ * column's top and the y its area ends, the free strip beside the column (2 px right of its edge to 2 px left of the carrier's DRAWING: layout.ts carrierBox, the widest the ship is ever drawn),
+ * the screen's foot less 2 px, and what a note never covers. undefined for every other panel (the portrait band, the desk's hover tips): their notes are placed as before.
+ */
+function columnSpec(ctx: Ctx, plan: PanelPlan, lines: readonly { line: PLine | "rule"; y: number }[]): ColumnSpec | undefined {
+  const L = ctx.L;
+  if (!plan.column || !L || L.portrait || !L.info || !L.cam || !L.bar) return undefined;
+  const cb = carrierBox(false), carrier = screenRect(L, { x: L.cam.x + cb.x0, y: L.cam.y + cb.y0, w: cb.w, h: cb.h });
+  const x0 = L.info.x + L.info.w + 2, x1 = carrier.x - 2;
+  return {
+    covers: (b) => rulesCovered(b, lines).length > 0,
+    top: L.info.y, areaBottom: L.info.y + L.info.h,
+    beside: x1 > x0 ? { x0, x1 } : null,
+    floor: (ctx.game?.H ?? Infinity) - 2,
+    hard: [carrier, ...(L.cards ?? []), L.reroll, ...(L.packs ?? []), L.bar, L.fight, L.foe, L.cargo, plan.r].filter((q): q is Rect => !!q),
+  };
+}
+
+/**
+ * PRESENT-1 (S4 (b)): panelFit's note clause for the plan `d` of a panel in rect `r`: true where no definition is about to
+ * show (the fit as it was), else where the box the layer will draw (keywords.ts definitionAhead: the same words, targets and
+ * placement) fits defBoxPlace's rules and covers no rule row, and `r` is at least as tall as this open's chain has held it.
+ */
+function noteClear(ctx: Ctx, d: NonNullable<ReturnType<typeof detailsPlan>>, r: Rect): boolean {
+  const tap = touchTap(ctx);
+  if (!tap) return true;
+  const plan = d.plan, lines = visibleLines(plan);
+  const buttons = plan.column ? columnButtons(d.t.labels.length, plan.r, tap) : (plan.rects ?? []).map((b) => tapRect(b, tap, plan.r));
+  const strip = d.hint ? hintStrip(d.hint, plan.r, ctx.game?.H).r : null;
+  const a = definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip, hang: noteHang(ctx, plan, lines) }, lines, buttons, tap,
+    ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
+  return r.h >= a.hold && (!a.box || (a.fits && rulesCovered(a.box, lines).length === 0));
 }
 
 /** shoptap (D2): a plan's kept blocks fit and every one of their lines is drawn (T6's phone guarantee). */
@@ -2147,14 +2257,20 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   // CARD-3 (REQ-BFG-080, REQ-BFG-004, C): a band panel's how-to hint (its tip new), outside the panel's plan (CARD-4, S:
   // just under it). CARD-4 (K, D): the keyword layer keeps a shown note's box clear of it
   const strip = d.hint ? hintStrip(d.hint, r, ctx.game?.H) : null;
-  if (strip) drawHintStrip(g, strip);
+  // PRESENT-2 L (cap's ruling 0d0ef2465804aafb): at the growth limit a note that hangs under the last rule row can land where the strip is:
+  // the strip is not drawn while it shows, from the note's first frame (its place is worked out here, before the layer runs, as panelFit does);
+  // it is back in the frame the note closes. Its tip stays new: only the action completes it (tips.ts)
+  const hang = noteHang(ctx, plan, shown);
+  const yields = !!strip && !!hang && !!definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip: strip.r, hang }, shown, hits, tap,
+    ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan").place?.yieldsStrip;
+  if (strip && !yields) drawHintStrip(g, strip);
   // U2c (REQ-BFG-045, REQ-BFG-046): tap to explain (keywords.ts): the words' underlines and targets, the `?` button, the
   // shown definition or the KEYWORDS view, the desk's hover tooltip
   // U2f (REQ-BFG-070): the ⓘ view may grow past the panel (infoFree: above it on the phone, down the column on the desk)
   // EXPLAIN-1 (REQ-BFG-089, E3): the screen's size, so the icon's hover tooltip stays on it
   // CARD-2 (REQ-BFG-004, K1): the build screen asks for the first-sight notes in its caravan only (never in a refit, the
   // build screen between a fight's rounds; a fight's own faces never come here)
-  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, { ...d, strip: strip?.r ?? null }, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
+  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, { ...d, strip: strip?.r ?? null, hang, column: columnSpec(ctx, plan, shown) }, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
     ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
 }
 
@@ -2167,7 +2283,7 @@ export function drawFamHead(g: G, plan: Pick<PanelPlan, "r" | "famHead">): void 
   const fh = plan.famHead, r = plan.r;
   if (!fh) return;
   if (fh.names) {
-    const spans = familySpans(fh.tags.map(familyWord).join(", "), C.slate4); // CARD-3 (REQ-BFG-107): the player's tags
+    const spans = famHeadSpans(fh.tags, C.slate4, !!fh.explained); // CARD-3 (REQ-BFG-107): the player's tags; PRESENT-2 W (b): `FORGE FAMILY`, `FAMILIES: FORGE, TEMPO` where the explained words fit
     if (fh.at === "sub") drawRich(g, spans, r.x + 23, r.y + 19, "3");
     else drawRich(g, spans, r.x + r.w - 4 - lineWidth(spans, "3"), r.y + (fh.at === "sub2" ? 19 : 5), "3");
     return;

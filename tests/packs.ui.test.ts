@@ -12,6 +12,7 @@ import {
   packRects, phoneScreen, wideCardW, type BuildLayout,
 } from "../src/screens/build/layout";
 import { PACK_TALL_H, packAmount, packPriceText } from "../src/screens/build/shop";
+import { packShortAmount } from "../src/screens/build/shop"; // PRESENT-1 (REQ-BFG-081): the short face's line
 import { ICON, textWidth } from "../src/render/font";
 import { TAP_CSS } from "../src/ui/tap";
 import type { Rect } from "../src/ui/ui";
@@ -38,7 +39,8 @@ function labelsFit(r: Rect, id: (typeof PACK_IDS)[number]): boolean {
     const [n, word] = packAmount(id).split(" ");
     return [n, word].every((t) => textWidth(t, "3") <= r.w - 2) && textWidth(packPriceText(id)) <= r.w - 2 && r.h >= 40;
   }
-  return r.h >= 20 && textWidth(packAmount(id), "3") <= r.w - 2 && 16 + textWidth(packPriceText(id)) <= r.w - 1;
+  // PRESENT-1 (REQ-BFG-081): the short face draws packShortAmount (the amount, or its number alone where the words can't fit; was packAmount whole)
+  return r.h >= 20 && textWidth(packShortAmount(packAmount(id), r.w), "3") <= r.w - 2 && 16 + textWidth(packPriceText(id)) <= r.w - 1;
 }
 const rerollFits = (r: Rect) => textWidth("REROLL", "3") <= r.w - 4 && 14 <= r.w - 4;
 
@@ -233,11 +235,13 @@ describe("P5 (oracle b24d14b979bbded9): buildScale holds the pack row; nothing g
 });
 
 describe("P5: what a slot shows", () => {
-  it("the amount and the price: +4 BELT and 2G, +250 and the hull icon and 5G (whole numbers, no decimal)", () => {
+  it("the amount and the price: +4 BELT and 2G, +250 HULL and 5G (whole numbers, no decimal)", () => {
     // NUM-1 (REQ-BFG-047): ARMOR PACK's hull is x10 (+250 HULL; was +25 HULL); BELT and the prices are unchanged
     // NUM-2 (cap's answer to NUM-1's question 1): the ARMOR PACK shows its number and the hull icon, the stat form
     // (+250 ♥, through ICON.HULL; was "+250 HULL", which overflowed the narrowest slots); the hull from the data
-    expect(PACK_IDS.map((id) => [packAmount(id), packPriceText(id)])).toEqual([["+4 BELT", "2G"], [`+${ITEMS[PACK_ITEM.armor].supply!.hull} ${ICON.HULL}`, "5G"]]);
+    // PRESENT-1 (REQ-BFG-081; REVIEW-SC0912B item 3): HULL in words again, never the heart (was `+250 ${ICON.HULL}`); the short face's
+    // one line drops the word where it can't fit (shop.ts packShortAmount: labelsFit above reads it)
+    expect(PACK_IDS.map((id) => [packAmount(id), packPriceText(id)])).toEqual([["+4 BELT", "2G"], [`+${ITEMS[PACK_ITEM.armor].supply!.hull} HULL`, "5G"]]);
     expect(ITEMS[PACK_ITEM.armor].supply!.hull).toBe(250);
     for (const id of PACK_IDS) expect(`${packAmount(id)} ${packPriceText(id)}`).not.toMatch(/\d\.\d/);
   });

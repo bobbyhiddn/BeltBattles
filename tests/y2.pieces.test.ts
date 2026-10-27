@@ -501,7 +501,8 @@ describe("Y2 row 19: GRAPNEL GUN ★3 drops SALVAGE, and a hit keg is no longer 
     // "SHOT: RIPS 1 SLUG OFF AN ENEMY BELT." (2, 3 SLUGS)
     expect(lines("grapnel")).toEqual([["SHOT: A HIT ON A FOE BELT OR RIG DESTROYS 1 SLUG NEAR IT."], ["SHOT: A HIT ON A FOE BELT OR RIG DESTROYS 2 SLUGS NEAR IT."], ["SHOT: A HIT ON A FOE BELT OR RIG DESTROYS 3 SLUGS NEAR IT."]]); // SHOPCARD-1b (REQ-BFG-081): whose slug, and gone (was ON A BELT OR RIG, RIPS n SLUG(S)); SHOPCARD-1c (G6): only a hit rips, one verb (was A FOE BELT OR RIG LOSES n SLUG(S))
     oneLine("grapnel", 2); // SHOPCARD-1c (G6): two rows of the band (239 / 245 px; was one row)
-    expect(levels("grapnel", 1)).toEqual(["RIPS [1]/2/3", "NEXT ★2: RIPS 2"]); // Y7b2 (the words): was ["RIPS [1]/2/3", "★3 SALVAGE LINE", "NEXT ★2: RIPS 2"]
-    expect(glossaryText("SHOT", { def: "grapnel", stars: 1 })).toBe("SHOT: IT RIPS THE NEAREST SLUGS WITHIN 1 TILE OF A HIT.");
+    // PRESENT-1 (REQ-BFG-081; REVIEW-READ14 fix 2): the ladder and the SHOT note say DESTROYS (were ["RIPS [1]/2/3", "NEXT ★2: RIPS 2"] and "SHOT: IT RIPS THE NEAREST ...")
+    expect(levels("grapnel", 1)).toEqual(["DESTROYS [1]/2/3", "NEXT ★2: DESTROYS 2"]); // Y7b2 (the words): was ["RIPS [1]/2/3", "★3 SALVAGE LINE", "NEXT ★2: RIPS 2"]
+    expect(glossaryText("SHOT", { def: "grapnel", stars: 1 })).toBe("SHOT: IT DESTROYS THE NEAREST SLUGS WITHIN 1 TILE OF A HIT.");
   });
 });

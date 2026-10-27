@@ -33,6 +33,7 @@ import { plainRigsRules, setPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1 
 import { setShapes2, shapes2Rules } from "../src/sim/shapes2"; // SHAPES-2 (REQ-BFG-114): --shapes2
 import { setScaleRigs } from "../src/sim/scale"; // SCALE-2c (REQ-BFG-098): BB_SCALE=1
 import { scaleNotes } from "../src/ui/faces"; // SCALE-2c (REQ-BFG-089): the readers' NOTES line (SCALE_RIGS on only)
+import { ruleNotes } from "../src/ui/faces"; // PRESENT-1 (REQ-BFG-081): LIMPET WORKS's ANYTHING line
 import { setGates } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052): --gates
 import { splitSheetLines } from "../src/sim/splitPreview"; // GATES-1b (REQ-BFG-057 B2): --gates also lists the drop-to-split tag
 import { ENCHANT_DEFS, ENCHANT_IDS, enchantKindOf, enchantProblem, enchantRules, replacesText, sellAskText, setEnchant, type EnchantId, type EnchantKind } from "../src/sim/enchant"; // ENCHANT-1 (REQ-BFG-085): --enchant
@@ -48,6 +49,8 @@ import { SHRINE_ID, SHRINE_NO_TAKER, shrineChoices, shrineOffer } from "../src/g
 import { EASY_PAY_LATE, MATRIARCH_GOLD, REWARD_GOLD, warlordDropTable } from "../src/game/road"; // ENCHANT-2 (T2): a rival's drop table, its lines carrying the word; ENCHANT-2W (W4): the warlords' reward gold
 import { goldLineParts, goldLineText } from "../src/screens/warlordHud"; // ENCHANT-2W (W4): the victory card's gold line
 import { cardNote, chipText, choiceLabel, deltaIcon, deltaText, exchangeForm, ghostForm, ghostText, ghostWidth, isShrineBlockedPart, itemName } from "../src/screens/event/cards"; // ENCHANT-2 (T3): the card's strings and the widths its chips take; ENCHANT-2W: the count form, the blocked card's would-be line
+import { chipPlan, chipWidth, exchangePlan, exchangeRoom } from "../src/screens/event/cards"; // PRESENT-2 N: the road cards that give a part
+import { SWAP_TIER, UPGRADE } from "../src/game/eventDefs"; // PRESENT-2 N: the parts a good can be swapped for
 import { eventLayout } from "../src/screens/event/layout"; // ENCHANT-2 (T3): the card widths the event screen lays out
 import { wordInfoRows } from "../src/screens/event/wordInfo"; // ENCHANT-2 (T3): the word card behind a card's `?`
 import { cutName, dropCardText, dropListHeader, dropListText, dropWord, fitWordName, NO_DROP } from "../src/screens/fork/drops"; // ENCHANT-2 (T2): the drop list and the victory card
@@ -88,6 +91,8 @@ function piece(d: ItemDef, out: string[]): void {
       // ROWS-1 (REQ-BFG-098; F2): a scaling reader's belt timeline row (abilityText.ts hitText: a rig whose gate has `reads`; the gun part
       // SPALL CATCHER's reader line is at its shot, no row), on day 1 and day 24, as the timeline draws it (bare words, no icons)
       if (effectAt(d.id, s).gate?.reads) for (const day of [1, 24]) out.push(`  - belt row, day ${day}: \`${hitText({ uid: 0, def: d.id, stars: s } as TimelineHit, "free", day)}\``);
+      // PRESENT-1 (REQ-BFG-081; REVIEW-READ14 fix 3): LIMPET WORKS's ANYTHING line, its ⓘ NOTES (faces.ts ruleNotes)
+      for (const n of ruleNotes(d.id)) out.push(`  - ⓘ NOTES: \`${plain(n)}\``);
     } else {
       const at = abilityText(d.id, s, o);
       out.push(`  - kept text: ${at.sentences.map((t) => `\`${t}\``).join(" ")}${at.perk ? ` (perk ★${at.perk.stars} ${at.perk.name})` : ""}`);
@@ -230,6 +235,7 @@ function enchantSection(out: string[]): void {
   // room its screen gives it; any text wider than its room joins the overflows counted in the summary below
   withCanvasStub(() => {
     shrineCardsSection(out);
+    roadPartsSection(out); // PRESENT-2 N (REQ-BFG-113 (1)): the road cards that give a part
     dropLinesSection(out);
   });
   out.push("", "### The refusal reasons (a tap on a piece the word cannot go on, in APPLY)", "");
@@ -397,6 +403,67 @@ function shrineCardsSection(out: string[]): void {
   // ENCHANT-2W (W3): the two words whose card moves with the run's day (wordFace(id, day): step x D(day), rounded down, as the part's panel gives it); the other six ignore the day
   out.push("", "In a run the cards of RISING and GROWING give the run's day's amounts (wordFace(id, day): the step x D(day), rounded down, as a part's panel does); the other six words' cards ignore the day:", "");
   for (const id of ["rising", "growing"] as const) out.push(`- ${ENCHANT_DEFS[id].name}, on a rig: ${[1, 6, 8, 12, 16, 24].map((day) => `day ${day} \`${plain(wordFace(id, day).lines[0].text)}\``).join("; ")}`);
+}
+
+/**
+ * PRESENT-2 N (REQ-BFG-113 (1), REQ-BFG-087; backlog #492 (5)): the road cards that GIVE a part, as the event screen draws them: the TRADER's SWAP (a good for the part one tier up),
+ * SALVAGE (a free part) and the SMUGGLER's parts (for gold), on the same four layouts as the shrine's cards. Each line is the game's own (cards.ts exchangePlan, exchangeRoom, chipPlan:
+ * the line, whether the parts the card takes are icons alone so the gain keeps its name, or the gain's name has a row of its own); a line wider than its room is an OVERFLOW.
+ */
+function roadPartsSection(out: string[]): void {
+  out.push("", "### Road cards that give a part (PRESENT-2 N; REQ-BFG-113 (1): a card never hides a gain; as the event screen draws them: the exchange line and a gain's own row)", "");
+  out.push("Read off the game: cards.ts exchangePlan and exchangeRoom on a choice that gives a part (game/eventDefs.ts partChoice: the TRADER's SWAP, SALVAGE and the SMUGGLER's parts). The exchange line runs across the card less 10 px and the grids of its shaped parts (a plate is the grid and 2 px, 4 px more beside them); a chip is its icon, 2 px and its text, then 5 px; the arrow takes 7. Where the whole line (every part named) does not fit, the parts the card TAKES are icons alone (`[icon]`: the cost may stay an icon, the card never hides a gain); where the gain's name fits no line beside the plates even so, it goes on a row of its own under the line (`→ NAME`, 3x5, 9 px under the line's middle, 2 px clear of the note's row). A text wider than its room is an OVERFLOW (counted in the summary below).", "");
+  const road = (d: ItemDef): boolean => d.kind !== "turret" && d.kind !== "supply" && !!d.merchant;
+  const parts = Object.values(ITEMS).filter(road);
+  const item = (def: string): Delta => ({ k: "item", def });
+  const swap = (cost: string, gain: string): Choice => ({ label: "SWAP", cost: [{ k: "item", def: cost, uid: 1, from: "cargo" }], gain: [item(gain)] });
+  const widest = (ds: readonly ItemDef[], f: (d: ItemDef) => number): ItemDef => ds.reduce((a, b) => (f(b) > f(a) ? b : a));
+  const gainsOf = (cost: string): string[] => UPGRADE[SWAP_TIER[ITEMS[cost].rarity]].filter((id) => id !== cost && ITEMS[id]);
+  /** the line as drawn (cards.ts exchange), its width, its room, the plan and what the whole line (every part named) would take */
+  const line = (c: Choice, cw: number): { text: string; used: number; room: number; whole: number; plan: ReturnType<typeof exchangePlan> } => {
+    const room = exchangeRoom(c, cw), plan = exchangePlan(c, room);
+    let x = c.cost.length ? 0 : textWidth("FREE", "3") + 4, whole = x;
+    const cost = c.cost.map((d) => {
+      const p = chipPlan(x, d, true, room, undefined, plan.costBare, false);
+      x = p.next;
+      whole += chipWidth(d, true, undefined, false);
+      return d.k === "item" && !p.text ? "[icon]" : p.text;
+    });
+    x += 7;
+    whole += 7;
+    const gain = c.gain.map((d) => {
+      const p = chipPlan(x, d, false, room, undefined, plan.ownRow.length > 0, false);
+      x = p.next;
+      whole += chipWidth(d, false, undefined, false);
+      return d.k === "item" && !p.text ? "[icon]" : p.text;
+    });
+    return { text: `${cost.length ? cost.join(" ") : "FREE"} → ${gain.join(" ")}${plan.ownRow.length ? `; row under it \`→ ${plan.ownRow.join(", ")}\`` : ""}`, used: x - 5, room, whole: whole - 5, plan };
+  };
+  const row = (where: string, what: string, c: Choice, cw: number): string => {
+    const l = line(c, cw), own = l.plan.ownRow.length ? textWidth(`→ ${l.plan.ownRow.join(", ")}`, "3") : 0;
+    return `  - ${what}: \`${l.text}\` (${pxFit(`${where}, ${what}`, l.used, l.room)}${l.plan.costBare ? `; the whole line would take ${l.whole}: the part it takes is an icon alone` : ""}${own ? `; its own row ${pxFit(`${where}, ${what}, own row`, own, cw - 10)}` : ""})`;
+  };
+  const platest = widest(parts, (d) => (hasGrid(d.id) ? shapeGridSize(d.id).w : 0));
+  const longest = [...parts].sort((a, b) => textWidth(itemName(b.id), "3") - textWidth(itemName(a.id), "3") || (a.id < b.id ? -1 : 1)).slice(0, 5);
+  for (const v of EVENT_VIEWS) {
+    const L = eventLayout(v.W, v.H, v.portrait, 3), cw = L.cards[0].w, ch = L.cards[0].h;
+    out.push(`- ${v.name} (event layout ${v.W}x${v.H}; cards ${cw} x ${ch} px)`);
+    if (ITEMS.spikerail && ITEMS.pickaxe) out.push(row(v.name, "SWAP a SPIKE RAIL for a PICKAXE", swap("spikerail", "pickaxe"), cw));
+    // the worst cases: the widest plate on the cost side (the part with the widest grid), the longest names on the gain side
+    for (const g of longest) if (gainsOf(platest.id).includes(g.id)) out.push(row(v.name, `SWAP a ${platest.name} for ${itemName(g.id)}`, swap(platest.id, g.id), cw));
+    out.push(row(v.name, `SALVAGE (free) of the longest name, ${itemName(longest[0].id)}`, { label: "SALVAGE", cost: [], gain: [item(longest[0].id)] }, cw));
+    // every swap a good can make (each part for each part of the tier a good of its rarity is swapped for): how many lines name the gain as the card always drew it, how many need the cost as an icon, how many a row
+    let n = 0, asBefore = 0, costIcon = 0, ownRow = 0, firstOwn: [string, string] | null = null;
+    for (const a of parts) for (const b of gainsOf(a.id)) {
+      const pl = exchangePlan(swap(a.id, b), exchangeRoom(swap(a.id, b), cw));
+      n++;
+      if (pl.ownRow.length) { ownRow++; firstOwn ??= [a.id, b]; }
+      else if (pl.costBare) costIcon++;
+      else asBefore++;
+    }
+    if (firstOwn) out.push(row(v.name, `the first swap that needs the gain's own row: a ${ITEMS[firstOwn[0]].name} for ${itemName(firstOwn[1])}`, swap(firstOwn[0], firstOwn[1]), cw));
+    out.push(`  - every swap a good can make (${n}, each part for each part of the tier one step up): the line names the gain as it did, the cost whole: ${asBefore}; the cost as an icon alone: ${costIcon}; the gain's name on its own row: ${ownRow}; a gain left without its name: 0`);
+  }
 }
 
 /**

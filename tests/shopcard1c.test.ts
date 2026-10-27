@@ -248,10 +248,11 @@ describe("SHOPCARD-1c G6 (READ-10 fix 6): GRAPNEL GUN rips only on a hit, with o
       const line = `SHOT: A HIT ON A FOE BELT OR RIG DESTROYS ${n} SLUG${n === 1 ? "" : "S"} NEAR IT.`;
       expect(rules("grapnel", s), `★${s}`).toEqual([line]);
       expect(rows(line), `★${s}`).toBe(2);
-      expect(levelLines("grapnel", s)!.map((l) => levelText(l)).some((l) => l.startsWith("RIPS ")), `★${s}: the ⓘ ladder says RIPS`).toBe(true);
+      // PRESENT-1 (REQ-BFG-081; REVIEW-READ14 fix 2): the ladder says DESTROYS (was RIPS)
+      expect(levelLines("grapnel", s)!.map((l) => levelText(l)).some((l) => l.startsWith("DESTROYS ")), `★${s}: the ⓘ ladder says DESTROYS`).toBe(true);
       expect(/LOSES|TAKES/.test(line), "one verb: no LOSES, no TAKES").toBe(false);
     }
-    expect(glossaryText("SHOT", { def: "grapnel", stars: 1 })).toBe("SHOT: IT RIPS THE NEAREST SLUGS WITHIN 1 TILE OF A HIT.");
+    expect(glossaryText("SHOT", { def: "grapnel", stars: 1 })).toBe("SHOT: IT DESTROYS THE NEAREST SLUGS WITHIN 1 TILE OF A HIT."); // PRESENT-1: was "SHOT: IT RIPS ..."
     // SHOPCARD-1f (F5; READ-13 fix list 5: 10 of 12 readers asked whether the slug is destroyed or taken): the face says DESTROYS now (battle.ts:2377 splices it off the foe's belt, nothing
     // goes to the shooter); the ⓘ ladder (RIPS 1/2/3) and the SHOT note above keep RIPS
     expect(faceLines("grapnel", 1, { k: 1 })!.rules.map((r) => r.text.includes("DESTROYS"))).toEqual([true]);

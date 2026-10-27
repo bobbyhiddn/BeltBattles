@@ -476,7 +476,8 @@ describe("U2c group 0: cap's fixes 1-5 on the 0.8.7 rune build", () => {
   it("fix 3: the packs' tooltips read their faces (chrome.ts), one line of the tooltip's 3x5 text each", () => {
     // AZ-PREP (REVIEW-HULL1D Q3): with the run's day (chrome.ts packTip; was faceLines(def, 1)?.rules[0]?.text, day 1's)
     expect(readFileSync("src/screens/build/chrome.ts", "utf8")).toContain("faceLines(def, 1, textOpts(run))?.rules[0]?.text");
-    expect(stripIcons(faceLines("plating", 1)!.rules[0].text)).toBe(`+${fmtDmg(ITEMS.plating.supply!.hull!)} ${ICON.HULL} FOR THE RUN.`);
+    // PRESENT-1 (REQ-BFG-081): HULL in words, never the heart (was `+250 ${ICON.HULL} FOR THE RUN.`)
+    expect(stripIcons(faceLines("plating", 1)!.rules[0].text)).toBe(`+${fmtDmg(ITEMS.plating.supply!.hull!)} HULL FOR THE RUN.`);
     for (const def of ["beltcrate", "plating"]) expect(textWidth(faceLines(def, 1)!.rules[0].text, "3"), def).toBeLessThanOrEqual(150); // shop.ts TOOLTIP_TEXT_W
   });
 
@@ -565,7 +566,7 @@ describe("U2d F1 (cap's answer to U2c question 1): NEXT★ shows every number th
     const [offText, offAdd] = withScaleRigs(() => [stripIcons(faceNext("spallcatcher", 1)!.text), effectAt("spallcatcher", 2).mod!.spall!.add] as const, false);
     expect(offText).toBe(`NEXT ★2: +${fmtDmg(offAdd)} `);
     expect(stripIcons(faceNext("spotter", 1)!.text)).toBe(`NEXT ★2: ${fmtCount(effectAt("spotter", 2).mod!.rerolls!)} MORE AIMS`);
-    expect(stripIcons(faceNext("grapnel", 2, { k: 1 })!.text)).toBe(`NEXT ★3: RIPS ${fmtCount(effectAt("grapnel", 3).core!.rip!)}`);
+    expect(stripIcons(faceNext("grapnel", 2, { k: 1 })!.text)).toBe(`NEXT ★3: DESTROYS ${fmtCount(effectAt("grapnel", 3).core!.rip!)}`); // PRESENT-1 (REQ-BFG-081): was `NEXT ★3: RIPS n`
     expect(faceAt("armorpress", 1)!.nums.find(([key]) => key === "every")![1]).toBe(`EVERY ${fmtSec(effectAt("armorpress", 1).factory!.plate!.every)}{SEC}`);
   });
 

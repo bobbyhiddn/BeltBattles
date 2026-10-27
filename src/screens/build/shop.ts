@@ -7,20 +7,19 @@ import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): the A
 import type { ShopBadge } from "../../game/run";
 import { C, RARITY_COLOR } from "../../render/palette";
 import { frame, makeCanvas, rect, type G } from "../../render/pixel";
-import { ICON, drawText, icons, textWidth, wrap } from "../../render/font";
+import { drawText, icons, textWidth, wrap } from "../../render/font"; // PRESENT-1: ICON left with the pack's heart
 import { coinIcon, itemIcon } from "../../render/sprites";
 import type { Rect } from "../../ui/ui";
 import { colourize, drawRich, lineWidth, wrapRich, type RichLine } from "../../ui/richText"; // 0.6.2t (T4, T5)
-import { drawFamilyMarks, familiesText, familySpans } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2)
+import { drawFamilyMarks, famHeadSpans, familiesOf } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2); PRESENT-2 W (b): the tooltip's head (famHeadSpans)
 import { faceLines } from "../../ui/faces"; // TXT-095: the offer's tooltip, faces first (offerTooltip)
 import { plainRigStats } from "../../ui/faces"; // CARD-2 (REQ-BFG-084, K6): a plain rig's tooltip is its stat row
 import { statRow } from "../../ui/icons"; // CARD-2 (K6)
 import { abilityText, type TextOpts } from "../../ui/abilityText"; // TXT-095: its fallback, the kept opening sentence
-import { CARD_W } from "./layout";
+import { CARD_TEXT_MIN_W, CARD_W } from "./layout";
 import { faceBlocks } from "./faceBlocks"; // SHOPCARD-1 (REQ-BFG-115, F5): the panel's own face blocks, for the hover tooltip's whole face
 import { shapeWord } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-086.1): the type line's shape
-import { drawShapePlate, gridCell } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G1): the card's shape grid (was SHAPES-1's miniShape); SC-0912: gridCell (was GRID_CELL)
-import { shapedPiece } from "./shapeEdit"; // SHAPES-1
+import { CARGO_FACE, drawShapePlate, gridCell, hasGrid } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G1): the card's shape grid (was SHAPES-1's miniShape); SC-0912: gridCell (was GRID_CELL)
 import { GAP } from "../../ui/spacing"; // CARD-3 (REQ-BFG-087, D4): the tooltip's family line's gap
 
 export const MERCHANT_COLOR: Record<MerchantId, string> = {
@@ -333,14 +332,16 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   if (s.sold) g.globalAlpha = SOLD_ALPHA;
   g.drawImage(iconX2(def.id), x + z.icon.x, y + z.icon.y);
   g.globalAlpha = 1;
-  if (shapedPiece(def.id)) drawShapePlate(g, def.id, x + z.grid.x, y + z.grid.y, gridCell(def.id), s.sold ? SOLD_ALPHA : 1); // SC-0912: the piece's own cell (4 for PICKAXE)
+  if (hasGrid(def.id)) drawShapePlate(g, def.id, x + z.grid.x, y + z.grid.y, r.w >= CARD_TEXT_MIN_W ? undefined : gridCell(def.id, CARGO_FACE), s.sold ? SOLD_ALPHA : 1); // PRESENT-2 K: a wide card has room: no cell given, the piece's own cell with the 4 px arrow (shapePic.ts HEAD_BIG) // SC-0912: the piece's own cell (PICKAXE 4 where the 16 px face binds); PRESENT-1 S1: every piece bigger than one cell (hasGrid), a plain 2x2 factory and a size-2 turret too; a wide card (landscape, desk: 69 px and up) has room for PICKAXE at 5 (S1 (d))
   if (!s.sold) {
     // F4: the bottom-left corner holds the merge mark (MERGE ★2, ★3) or the owned marker (a copy that won't merge yet, or
-    // only ★3 copies: was the MAX word); the sale mark sits against the price (1c), where no merge mark is
+    // only ★3 copies: was the MAX word); the sale mark sits against the price (1c). PRESENT-1 S4 (a) (REQ-BFG-115; LIVE-PACKETS-0912
+    // section 1 item 5): beside the merge mark or the owned marker too (a sale that can merge showed no sale mark: zones' `sale`
+    // is clear of both, tests/shopcard1.test.ts)
     const b = s.badge;
     if (b?.kind === "merge") drawMergeMark(g, x + z.merge.x, y + z.merge.y, b.toStars, t);
     else if (b) drawOwnedMarker(g, x + ownedMarkAt(r.h).x, y + ownedMarkAt(r.h).y);
-    else if (s.sale) drawSaleMark(g, x + z.sale.x, y + z.sale.y);
+    if (s.sale) drawSaleMark(g, x + z.sale.x, y + z.sale.y);
     // the price stays at the bottom centre on both widths (a sold card shows none: it dims, and says no word)
     const px = cardPriceX(x, r.w, price, false, false);
     g.drawImage(coinIcon(), px, y + r.h - 11);
@@ -403,8 +404,13 @@ export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, text: string
   // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families, named in their colours under its kind (none: no line).
   // CARD-3 (REQ-BFG-087, D4; SPACE-1 open item 7): the family line and the effect are separate items: the gap G (3x5's)
   // between them (the effect's first line sat right under the names: 2 px, the pitch's)
-  const fam = familiesText(def.id), famLine = fam ? familySpans(fam) : null, fh = famLine ? 7 + GAP["3"] : 0;
-  const w = Math.max(textWidth(def.name), ...lines.map((l) => lineWidth(l, "3")), textWidth(describe(def), "3"), famLine ? lineWidth(famLine, "3") : 0) + 10;
+  // PRESENT-2 W (b) (REQ-BFG-081; the desk's hover is where a mouse meets a family head with no note opened): the line says what the names are, as the panel's head does
+  // (`FORGE FAMILY`, `FAMILIES: FORGE, TEMPO`: families.ts famHeadSpans); the box is as wide as its widest line, so the words lose nothing
+  const tags = familiesOf(def.id), famLine = tags.length ? famHeadSpans(tags) : null, fh = famLine ? 7 + GAP["3"] : 0;
+  // PRESENT-1 (REQ-BFG-081; LIVE-PACKETS-0912 1 (5) g): the kind line in the panel's words (panelKind: a core's and gear's plain words, WORDS-1's
+  // KIND_SUB), as the phone panel and the desk column say it; WORDS-1 changed only the panel's sub line (was describe(def): "RARE TURRET CORE")
+  const kind = panelKind(def);
+  const w = Math.max(textWidth(def.name), ...lines.map((l) => lineWidth(l, "3")), textWidth(kind, "3"), famLine ? lineWidth(famLine, "3") : 0) + 10;
   const h = 22 + fh + lines.length * 7 + apart;
   const x = Math.max(2, Math.min(W - w - 2, Math.round(r.x + r.w / 2 - w / 2)));
   const y = H ? Math.max(2, Math.min(r.y + r.h + 4, H - 2 - h)) : r.y + r.h + 4;
@@ -413,7 +419,7 @@ export function drawTooltip(g: G, r: Rect, def: ItemDef, W: number, text: string
   rect(g, x + 1, y + 1, w - 2, h - 2, C.night);
   rect(g, x + 1, y + 1, w - 2, 1, RARITY_COLOR[def.rarity]);
   drawText(g, def.name, x + 5, y + 4, RARITY_COLOR[def.rarity], { outline: C.ink });
-  drawText(g, describe(def), x + 5, y + 13, C.slate4, { font: "3" });
+  drawText(g, kind, x + 5, y + 13, C.slate4, { font: "3" });
   if (famLine) drawRich(g, famLine, x + 5, y + 21, "3");
   let ly = y + 21 + fh;
   items.forEach((item, k) => {
@@ -437,10 +443,25 @@ export function drawReroll(g: G, r: Rect, enabled: boolean, hover: boolean, pres
 /** bb-0.8.6 (REQ-BFG-051, PACKS P5): a pack's amount as its slot shows it: "+4 BELT", "+25 HULL" (the ITEMS entry's).
  *  NUM-2 (REQ-BFG-047; NUM-1's question 1, cap's answer): the ARMOR PACK's is its number and the hull icon, "+250 ♥" (the
  *  stat form of docs/TEXT-STYLE.md; RIVETER's face draws the same icon): NUM-1's "+250 HULL" (34 px of the 3x5 font)
- *  overflowed the narrowest slots (32 and 34 px). No layout change. */
+ *  overflowed the narrowest slots (32 and 34 px). No layout change.
+ *  PRESENT-1 (REQ-BFG-081; REVIEW-SC0912 "For later", REVIEW-SC0912B item 3): HULL in words again, never the heart (readers take
+ *  it for the run's hearts: families.ts:78-80), "+250 HULL": the tall face's two lines ("+250" over "HULL", as "+4" over "BELT");
+ *  the short face's one line where it fits, else its number alone (packShortAmount). Was `+250 ${ICON.HULL}`, "+250 ♥". */
 export function packAmount(id: PackId, day?: number): string {
   const s = ITEMS[PACK_ITEM[id]].supply!;
-  return s.belt ? `+${s.belt} BELT` : `+${hullShown(s.hull!, day)} ${ICON.HULL}`; // HULL-1a (REQ-BFG-079): the day's number
+  return s.belt ? `+${s.belt} BELT` : `+${hullShown(s.hull!, day)} HULL`; // HULL-1a (REQ-BFG-079): the day's number
+}
+
+/** PRESENT-1 (REQ-BFG-081): the short face's one amount line in a slot `w` px wide: the most words that fit (w - 2 px of the 3x5 face):
+ *  the amount whole; else (PRESENT-1's fix round, the cold read's PR-05: the desk's ARMOR PACK slot read "+550" with no word, 0 of 3 desk
+ *  readers could say hull) the amount without its plus, the word kept: "250 HULL" is 30 px against "+250 HULL"'s 34 (a desk's 32-34 px slot
+ *  holds it while the number has three digits; with the hull scale on that is day 6 and earlier); else the number alone ("+1100": four
+ *  digits, 34 px either way, past the 28-32 px a 30-34 px slot gives it: NUM-1's overflow), and the word stays in the hover tooltip
+ *  ("+250 HULL FOR THE RUN."); "+4 BELT" (27 px) fits every slot, as before. Pure (tests). */
+export function packShortAmount(amount: string, w: number): string {
+  if (textWidth(amount, "3") <= w - 2) return amount;
+  const bare = amount.replace(/^\+/, "");
+  return textWidth(bare, "3") <= w - 2 ? bare : amount.split(" ")[0];
 }
 
 /** bb-0.8.6 (PACKS P5): a slot this tall or taller shows the tall face (icon, two short amount lines, price inside REROLL's
@@ -477,7 +498,7 @@ export function drawPack(g: G, r: Rect, id: PackId, enabled: boolean, hover: boo
     rect(g, r.x + 1, y + 1, r.w - 2, 1, enabled ? C.amber : C.slate1);
     g.drawImage(itemIcon(d.id), r.x + 2, top + 2);
     drawText(g, price, r.x + 16, top + 4, pc, { outline: C.ink });
-    drawText(g, amount, cx, top + 14, tc, { font: "3", align: "center" });
+    drawText(g, packShortAmount(amount, r.w), cx, top + 14, tc, { font: "3", align: "center" }); // PRESENT-1: the words where they fit
   }
   if (hover && enabled) frame(g, r.x - 1, y - 1, r.w + 2, r.h + 2, C.bone);
 }
