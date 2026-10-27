@@ -235,8 +235,9 @@ export interface Block {
   /** POLISH-2 (Q2): ONE line, in candidates from the fullest (`text` holds it) to the shortest: layBlock draws the first that fits the panel's text width in the face used
    *  (the last whatever its width), so the line is one line on every view (beltWords.ts leftOutCandidates). */
   fit?: readonly string[];
-  /** POLISH-2 (Q2): kept like a `keep` block (the timeline rows give way for it) where the panel can draw it whole beside its kept text; where it cannot, planIn plans the
-   *  panel without it, exactly as it was (a `keep` block that does not fit is a phone cut; this one never costs the kept text its room). */
+  /** POLISH-2 (Q2), R1 (RULING-POLISH2-R1): a GUEST. The panel is planned without it first (that plan is the panel); the block is drawn only where a plan with it keeps every
+   *  other line exactly as that plan draws it (the same face, the same rows, the same `+n MORE`, the same gaps): it uses only room the panel has spare. Where it cannot, the
+   *  panel is exactly the plan without it (planIn), and the belt panel's ⓘ view carries the words (routePanel's `notes`). An ordinary optional block while it is laid out. */
   hold?: boolean;
 }
 
@@ -923,6 +924,9 @@ export interface BeltPanel {
   rows: Block[];
   /** The gun end's readout, always in sight. */
   foot: Block[];
+  /** POLISH-2 R1: the ⓘ view's NOTES: the NOT COUNTED line's words (its fullest form, wrapped by the view), first; [] when nothing is left out. The same words as the foot's guest line
+   *  (drawn in the panel only where the panel has room to spare, inspector.ts planIn), so the player is always one tap from them. */
+  notes: Block[];
   /** What stands for the last n rows on a short panel (moreFor: hit tiles only, 0.6.2j). */
   more: (n: number) => Block;
 }
@@ -1014,9 +1018,12 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
     rows,
     foot: [
       ...cells.map((c, i): Block => ({ role: "grid", text: "", cells: c, keep: true, ...(i ? { tie: true } : {}) })),
-      // POLISH-2 (REQ-BFG-098; Q2): one line under the readout when a part on the belt is one its numbers leave out (a reader, RISING ...): kept with the readout, small, one line on every view
+      // POLISH-2 (REQ-BFG-098; Q2), R1: one line under the readout when a part on the belt is one its numbers leave out (a reader, RISING ...): small, one line on every view, and a GUEST
+      // (`hold`): drawn only where the panel has room to spare (planIn); it never changes a face or pushes a line out
       ...(cut.length ? [{ role: "note", text: cut[0], fit: cut, small: true, hold: true, tie: true } as Block] : []),
     ],
+    // POLISH-2 R1: and the same words first in the panel's ⓘ view, where the panel cannot show them (always there: the player is one tap from them on every view)
+    notes: cut.length ? [{ role: "note", text: cut[0] } as Block] : [],
     more: (n) => moreFor(rows.slice(rows.length - n)),
   };
 }
@@ -1060,6 +1067,7 @@ export function routePanel(run: Run, index: number): PanelText | null {
     title: "BELT ROUTE", color: C.white, sub: bp.sub, ...(bp.subShort ? { subShort: bp.subShort } : {}), headerOnly: bp.headerOnly,
     body: [...bp.head, ...bp.rows, ...bp.foot],
     labels: ["REMOVE BELT"],
+    ...(bp.notes.length ? { notes: bp.notes } : {}), // POLISH-2 R1: the NOT COUNTED words, first in the ⓘ view
   };
 }
 
@@ -1412,7 +1420,7 @@ function choose(all: readonly Laid[], avail: number, width: number, main: FontId
     const at = lastTrim ? seq.indexOf(lastTrim) + 1 : grid >= 0 ? grid : seq.length;
     return [...seq.slice(0, at), note, ...seq.slice(at)];
   };
-  let set = new Set(all.filter((l) => l.b.keep || l.b.hold)); // POLISH-2 (Q2): a `hold` block is kept here; planIn takes it out again where it cannot be drawn whole
+  let set = new Set(all.filter((l) => l.b.keep)); // POLISH-2 R1: a `hold` block (the guest line) is an optional block here, after the rows (planIn's guest rule keeps the plan only where nothing else moved)
   let note: Laid | null = null;
   if (heightOf(seqOf(set, null)) > avail) return { chosen: seqOf(set, null), fits: false };
   const trims = all.filter((l) => l.b.trim);
@@ -1745,16 +1753,43 @@ function withoutHold(t: PanelText): PanelText {
   return { ...t, body: f(t.body), ...(t.variants ? { variants: t.variants.map((v) => ({ ...v, body: f(v.body) })) } : {}) };
 }
 
+/** POLISH-2 R1: one drawn line's key (where it is drawn, in what face, its words): two plans' lines are compared by it. */
+function drawnKey(v: { line: PLine | "rule"; y: number }): string {
+  const l = v.line;
+  if (l === "rule") return `rule@${v.y}`;
+  const cells = l.cells ? l.cells.map((c) => `${c.label}@${c.at}/${c.vx}=${lineText(c.spans)}`).join("|") : "";
+  return `${v.y}:${l.font}:${l.pitch}:${l.label ?? ""}:${l.indent ?? 0}:${lineText(l.spans)}:${cells}`;
+}
+
+/**
+ * POLISH-2 R1 (RULING-POLISH2-R1 (a)): does plan `p` (the panel with its guest line) equal plan `p0` (the panel without it) plus the line, drawn whole? Every line `p0` draws is drawn by
+ * `p` at the same place, in the same face and words (no block changes face, no row is pushed out or cut further, `+n MORE` does not grow, the gaps do not shrink), the header, the
+ * buttons and the body's variant are the same, and neither plan is a phone cut or a header-only strip.
+ */
+function guestFits(p0: PanelPlan, p: PanelPlan): boolean {
+  if (p0.headerOnly || p.headerOnly || !p0.body.fits || !p.body.fits) return false;
+  const a = p0.body, b = p.body;
+  if (a.font !== b.font || a.variant !== b.variant || a.tight !== b.tight || a.fullBody !== b.fullBody || a.sub !== b.sub || a.subColor !== b.subColor) return false;
+  if (p0.column !== p.column || p0.shift !== p.shift || p0.subMax !== p.subMax || p0.y !== p.y) return false;
+  if (JSON.stringify(p0.subs) !== JSON.stringify(p.subs) || JSON.stringify(p0.famHead) !== JSON.stringify(p.famHead)) return false;
+  const now = visibleLines(p), was = visibleLines(p0);
+  const guest = b.lines.filter((l): l is PLine => l !== "rule" && !!l.block.hold);
+  if (!guest.length || !guest.every((l) => now.some((v) => v.line === l))) return false; // the line itself is drawn whole
+  const rest = now.filter((v) => v.line === "rule" || !v.line.block.hold);
+  return rest.length === was.length && rest.every((v, i) => drawnKey(v) === drawnKey(was[i]));
+}
+
 /** planPanel's plan; `small` (CARD-3, B's lever 3): the body in the 3x5 face only (planBody's `small`).
- *  POLISH-2 (REQ-BFG-098; Q2): a `hold` block (the belt readout's NOT COUNTED line) is kept with the readout where the panel can draw it whole beside its kept text; where it cannot (a
- *  cramped desk column, a header-only strip), the panel is planned without it and is exactly what it was: the line never costs the kept text its room. (The rule is here, in the one place
- *  every plan goes through, and not in planPanel, so planPanel's own lines are the base's.) */
+ *  POLISH-2 (REQ-BFG-098; Q2), R1 (RULING-POLISH2-R1): a `hold` block (the belt readout's NOT COUNTED line) is a GUEST. The panel is planned WITHOUT it first: that plan is the panel. The
+ *  plan with the line replaces it only where it is that plan plus the line (guestFits: nothing changes face, nothing is pushed out or cut further, the gaps stay): the line uses only room the
+ *  panel has spare, in the band and in a grown panel alike, and the panel's size and fit never depend on it (the same plan is fit or not fit, with or without it). Otherwise the panel is
+ *  exactly the plan without it, and the words are in the panel's ⓘ view (routePanel's `notes`). (The rule is here, in the one place every plan goes through, and not in planPanel, so
+ *  planPanel's own lines are the base's.) */
 function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean }, small: boolean): PanelPlan {
+  if (!sp.body.some((b) => b.hold)) return planOnce(sp, area, families, o, small);
+  const p0 = planOnce(withoutHold(sp), area, families, o, small); // today's panel
   const p = planOnce(sp, area, families, o, small);
-  if (!sp.body.some((b) => b.hold)) return p;
-  const drawn = new Set(visibleLines(p).map((v) => v.line));
-  const whole = !p.headerOnly && p.body.fits && p.body.shown.every((l) => !(l.b.keep || l.b.hold) || l.lines.every((ln) => drawn.has(ln)));
-  return whole ? p : planOnce(withoutHold(sp), area, families, o, small);
+  return guestFits(p0, p) ? p : p0;
 }
 
 /** planIn's plan of `sp` as it stands. */
@@ -2134,6 +2169,9 @@ export function panelFit(ctx: Ctx, sel: Sel, phone: boolean): (r: Rect, at?: "ba
 /** PRESENT-1 (S4 (b)): the roles whose rows are a panel's rules: a shown definition may cover a panel's flavour, hint,
  *  reminder or caveat row (the ruling), never one of these. */
 const RULE_ROLES: ReadonlySet<Role> = new Set<Role>(["ability", "hits", "warn", "next", "merges", "merge", "row", "grid", "note"]);
+/** POLISH-2 R1: a drawn line is a rule row when its role is one of them and it is not the guest line (`hold`: the belt's NOT COUNTED line yields to a definition's box as a flavour row
+ *  does, and never moves where a panel grows or where a note hangs: the line is a guest, the panel is what it is without it). */
+const isRuleRow = (l: PLine): boolean => RULE_ROLES.has(l.block.role) && !l.block.hold;
 
 /**
  * PRESENT-1 (REQ-BFG-081; S4 (b)): the rule rows of a panel's drawn `lines` (visibleLines) that box `box` covers, each with
@@ -2143,7 +2181,7 @@ const RULE_ROLES: ReadonlySet<Role> = new Set<Role>(["ability", "hits", "warn", 
 export function rulesCovered(box: Rect, lines: readonly { line: PLine | "rule"; y: number }[], clear = 1): PLine[] {
   const out: PLine[] = [];
   for (const v of lines) {
-    if (v.line === "rule" || !RULE_ROLES.has(v.line.block.role)) continue;
+    if (v.line === "rule" || !isRuleRow(v.line)) continue;
     const bottom = v.y + (v.line.font === "5" ? 7 : 5);
     if (v.y - clear < box.y + box.h && box.y < bottom + clear) out.push(v.line);
   }
@@ -2161,7 +2199,7 @@ function noteHang(ctx: Ctx, plan: PanelPlan, lines: readonly { line: PLine | "ru
   const L = ctx.L;
   if (!touchTap(ctx) || !L?.portrait || !L.bar || plan.r.y > L.bar.y + L.bar.h + 1) return undefined;
   let ruleEnd = 0;
-  for (const v of lines) if (v.line !== "rule" && RULE_ROLES.has(v.line.block.role)) ruleEnd = Math.max(ruleEnd, v.y + (v.line.font === "5" ? 7 : 5));
+  for (const v of lines) if (v.line !== "rule" && isRuleRow(v.line)) ruleEnd = Math.max(ruleEnd, v.y + (v.line.font === "5" ? 7 : 5));
   if (!ruleEnd) return undefined;
   const deck = L.frame ? screenRect(L, { x: L.frame.dx, y: L.frame.dy, w: DECK, h: DECK }) : null;
   return { ruleEnd, covers: (b) => rulesCovered(b, lines).length > 0, pad: L.pad ?? null, hard: [deck, L.fight, L.cargo, L.bar].filter((q): q is Rect => !!q) };

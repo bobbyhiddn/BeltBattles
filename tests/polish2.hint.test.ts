@@ -6,7 +6,9 @@
 //  (b) its absence: a plain belt, WHETSTONE only, FIERY / GROWING / WIDE / BRACED (counted or without an effect on a slug), a word on a rig that has no hit on this belt, the switch off;
 //  (c) its words: the candidates from the fullest to the shortest (names, then `+n MORE`, then a count);
 //  (d) its fit: ONE line on every view the belt-panel tests cover (the desk column, the two phones, the narrow desk, the landscape phone), never wider than its room, and it never costs the
-//      panel's kept text its room (planIn's `hold` rule, reached through planPanel: where it cannot be drawn whole the panel is what it was without it).
+//      panel's kept text its room (planIn's guest rule, reached through planPanel: where it cannot be drawn beside the panel as it is without it, the panel IS what it was without it).
+//      POLISH-2 R1 (RULING-POLISH2-R1; the trail of what changed here): the line is a GUEST. Run 1 asserted it was IN the panel on every belt on the three main views; now it is in the panel OR the FIRST
+//      item of the panel's ⓘ view (routePanel's `notes`) there (the fit test below; tests/polish2.guest.test.ts proves the rest over 75 belts, seven views and the scouted foes). Nothing else here moved.
 import { afterEach, describe, expect, it } from "vitest";
 import { computeView } from "../src/core/io";
 import { ITEMS } from "../src/sim/content";
@@ -155,12 +157,12 @@ const MAIN = new Set(["desk 1280x800", "op690 402x690 @3", "small 360x640 @2"]);
 
 describe("POLISH-2 Q2: the line is one line on every view and never costs the kept text its room", () => {
   it("every reader (alone, with a word on it, with a second thing left out) on each view: one line, within its room, the panel's kept text as whole as without the line", () => {
-    const tally: Record<string, { plans: number; shown: number }> = {};
+    const tally: Record<string, { plans: number; shown: number; behind: number }> = {};
     for (const [name, w, h, dpr] of VIEWS) {
       const v = computeView(w, h, dpr), phone = isPhone(v), tap = phone ? tapPx(v) : 0;
       const L = buildLayout(v.W, v.H, v.portrait, 5, phone && v.portrait, tap);
       const o = phone ? { tap, band: true, inBand: true } : {};
-      tally[name] = { plans: 0, shown: 0 };
+      tally[name] = { plans: 0, shown: 0, behind: 0 };
       const runs: [string, Run][] = [];
       for (const id of READERS) {
         runs.push([`${id}`, rigRun(id, 3, 6)]);
@@ -177,7 +179,9 @@ describe("POLISH-2 Q2: the line is one line on every view and never costs the ke
         if (!shown) {
           // given way: the panel is exactly what it was without the line
           expect(withLine.body.shown.map((l) => l.b), `${name} ${label}: no line, the panel as before`).toEqual(without.body.shown.map((l) => l.b));
-          expect(MAIN.has(name), `${name} ${label}: the line is missing on a main view`).toBe(false);
+          // POLISH-2 R1 (was `expect(MAIN.has(name), ...the line is missing on a main view).toBe(false)`): the line is a guest; where the panel cannot draw it, it is the FIRST item of the panel's ⓘ view
+          expect(t.notes?.[0]?.text, `${name} ${label}: behind the ?, first`).toBe(t.body.find((b) => !!b.hold)!.text);
+          tally[name].behind++;
           continue;
         }
         tally[name].shown++;
@@ -191,7 +195,8 @@ describe("POLISH-2 Q2: the line is one line on every view and never costs the ke
         expect(lineText(ln.spans).startsWith(LEFT_LEAD), `${name} ${label}`).toBe(true);
       }
     }
-    for (const name of MAIN) expect(tally[name].shown, `${name}: the line shows on every belt`).toBe(tally[name].plans);
+    // POLISH-2 R1 (was `expect(tally[name].shown).toBe(tally[name].plans)`): on the main views the line is in the panel OR first in the ⓘ view on every belt
+    for (const name of MAIN) expect(tally[name].shown + tally[name].behind, `${name}: the line is in the panel or first behind the ⓘ on every belt`).toBe(tally[name].plans);
     console.log(`POLISH-2 Q2 fit: ${JSON.stringify(tally)}`);
   });
 
