@@ -20,16 +20,13 @@ import { ENCHANT_DEFS, ENCHANT_IDS, enchantKindOf, enchantProblem, freeSides } f
 
 installRaster();
 
-/** The 402x690 views that need more than 3 ⓘ pages at the tip, `view|how|piece|stars|word`, sorted (4 pages each). */
+/** The 402x690 views that need more than 3 ⓘ pages, `view|how|piece|stars|word`, sorted (4 pages each). RE-PINNED for a 0.9.14.1 base
+ *  (cap's review of POLISH-2, D/polish2/REVIEW-POLISH2.md): 35 views, the same with or without POLISH-2's src (it changes no ⓘ page count);
+ *  against POLISH-2's own base (29), 0.9.14.1's rides moved 6 views back to 3 pages and 12 to 4 (GANTRY PRESS and LIMPET with a word). */
 const PAST_3_AT_402X690 = [
   "op690|installed|rampart|1|massive", // MASSIVE RAMPART CANNON ★
-  "op690|installed|rampart|2|braced", // BRACED RAMPART CANNON ★★
-  "op690|installed|rampart|2|fiery", // FIERY RAMPART CANNON ★★
   "op690|installed|scrapcannon|1|massive", // MASSIVE SCRAP CANNON ★ (the one tests/enchant1.faces.test.ts pins)
-  "op690|installed|scrapcannon|2|braced", // BRACED SCRAP CANNON ★★
-  "op690|placed|armorpress|2|echoing", // ECHOING ARMOR PRESS ★★
   "op690|placed|armorpress|3|braced", // BRACED ARMOR PRESS ★★★
-  "op690|placed|armorpress|3|echoing", // ECHOING ARMOR PRESS ★★★
   "op690|placed|armorpress|3|fiery", // FIERY ARMOR PRESS ★★★
   "op690|placed|coil|1|fiery", // FIERY GALVANIC COIL ★
   "op690|placed|coil|2|fiery", // FIERY GALVANIC COIL ★★
@@ -46,8 +43,19 @@ const PAST_3_AT_402X690 = [
   "op690|placed|elbowguard|3|braced", // BRACED ELBOW GUARD ★★★
   "op690|placed|elbowguard|3|fiery", // FIERY ELBOW GUARD ★★★
   "op690|placed|elbowguard|3|growing", // GROWING ELBOW GUARD ★★★
+  "op690|placed|gantry|1|braced", // BRACED GANTRY PRESS ★ (0.9.14.1: joined with PRESENT-1/2's panels)
+  "op690|placed|gantry|1|fiery", // FIERY GANTRY PRESS ★ (0.9.14.1: joined with PRESENT-1/2's panels)
+  "op690|placed|gantry|2|braced", // BRACED GANTRY PRESS ★★ (0.9.14.1: joined with PRESENT-1/2's panels)
+  "op690|placed|gantry|2|fiery", // FIERY GANTRY PRESS ★★ (0.9.14.1: joined with PRESENT-1/2's panels)
+  "op690|placed|limpet|1|echoing", // ECHOING LIMPET ★ (0.9.14.1: joined with PRESENT-1/2's panels)
+  "op690|placed|limpet|2|braced", // BRACED LIMPET ★★ (0.9.14.1: joined with PRESENT-1/2's panels)
+  "op690|placed|limpet|2|echoing", // ECHOING LIMPET ★★ (0.9.14.1: joined with PRESENT-1/2's panels)
+  "op690|placed|limpet|2|rising", // RISING LIMPET ★★ (0.9.14.1: joined with PRESENT-1/2's panels)
+  "op690|placed|limpet|3|braced", // BRACED LIMPET ★★★ (0.9.14.1: joined with PRESENT-1/2's panels)
+  "op690|placed|limpet|3|echoing", // ECHOING LIMPET ★★★ (0.9.14.1: joined with PRESENT-1/2's panels)
+  "op690|placed|limpet|3|fiery", // FIERY LIMPET ★★★ (0.9.14.1: joined with PRESENT-1/2's panels)
+  "op690|placed|limpet|3|wide", // WIDE LIMPET ★★★ (0.9.14.1: joined with PRESENT-1/2's panels)
   "op690|placed|mendpress|3|braced", // BRACED MEND PRESS ★★★
-  "op690|placed|mendpress|3|echoing", // ECHOING MEND PRESS ★★★
   "op690|placed|scaleguard|1|wide", // WIDE SCALE GUARD ★
   "op690|placed|scaleguard|2|wide", // WIDE SCALE GUARD ★★
   "op690|placed|scaleguard|3|wide", // WIDE SCALE GUARD ★★★
@@ -118,7 +126,7 @@ function pagesOn(view: keyof typeof VIEWS): Map<string, number> {
 }
 
 describe("POLISH-2 Q4 (a): the ⓘ view's page count has a guard (the layout is left as it is: cap's ruling 4891557f50a5880a)", () => {
-  it("402x690: exactly the pinned 29 views need a 4th page (none more than 4); a new one past 3 fails here", () => {
+  it("402x690: exactly the pinned views (35 on 0.9.14.1) need a 4th page (none more than 4); a new one past 3 fails here", () => {
     const pages = pagesOn("op690");
     expect(pages.size).toBeGreaterThan(3000);
     const over = [...pages].filter(([, n]) => n > 3).map(([k]) => k).sort();
