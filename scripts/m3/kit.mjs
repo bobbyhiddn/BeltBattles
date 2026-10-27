@@ -23,9 +23,20 @@ async function ihdr(file) {
   return [b.readUInt32BE(16), b.readUInt32BE(20), b[25]];
 }
 
+/** Empties the kit folder for a new run, but only a folder that is missing, empty or already a kit (it holds index.html and shots.json):
+ *  a wrong --out never deletes anything else. */
+async function clearKit(dir) {
+  let names = [];
+  try { names = await readdir(dir); } catch { return; }
+  if (names.length && !(names.includes("index.html") && names.includes("shots.json"))) {
+    throw new Error(`${dir} is not empty and is not a kit folder (no index.html and shots.json): refusing to empty it`);
+  }
+  await rm(dir, { recursive: true, force: true });
+}
+
 async function main() {
+  await clearKit(OUT); // first, so a wrong --out stops before anything is built or deleted
   viteBuild(DIST, { label: "the plain offline build" });
-  await rm(OUT, { recursive: true, force: true });
   await mkdir(OUT, { recursive: true });
   const shots = spawnSync(process.execPath, [join(ROOT, "scripts", "m3", "storeshots.mjs"), "--dist", DIST, "--out", OUT, "--orient", ORIENT, "--stores", "apple,apple-6.3,play"], { stdio: "inherit" });
   if (shots.status !== 0) throw new Error("storeshots failed");

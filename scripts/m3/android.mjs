@@ -14,7 +14,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { args, openArtPage, ROOT } from "./lib.mjs";
 import { drawMotif } from "./icon.mjs";
-import { encodePng, over, scaleNearest, crop } from "./img.mjs";
+import { encodePng, over, scaleNearest } from "./img.mjs";
 import { FG_SIZES, LEGACY_SIZES, N, legacyIcon, legacyRound, master, solid, subjectLayer, subjectStats } from "./mark.mjs";
 
 const a = args();
@@ -62,6 +62,5 @@ async function main() {
 
   console.log(`mark ${MOTIF} (field ${field}; subject ${st.width}x${st.height} of ${N} px, ${(((st.width * S) / side) * 100).toFixed(1)}% of the splash's width)`);
   for (const w of written) console.log(`  wrote ${w}`);
-  void crop;
 }
 main().catch((e) => { console.error(e); process.exit(1); });
