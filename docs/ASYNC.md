@@ -388,13 +388,14 @@ and no key, signature or player id. The rate limit keys on the client IP (on Fly
 Fly-Client-IP) and keeps it in memory only, so no player address is written to the store or reaches
 Fly's log stream.
 
-IDENT-2 (run history, REQ-BFG-122 clause 4): a LINKED device also sends its list of finished runs, signed, under its player's id
-(`history/<player>/...`): for each run its hero, outcome, wins, days, hearts left, the device's clock at the end, and for each dusk the
-result and, when the device made one (online play), the battle record, which holds both decks as they fought. An entry holds no name, no
-address, no key and no other player's id (a record may hold the foe's deck: game data). A device that was never linked sends none of
-it, and keeps its list on the device. `DELETE /v1/player` removes it with the rest, and `ghost-admin purge-tombstoned` removes what a
-second machine wrote after the tombstone. The request log still prints the path only: an entry id travels in the query of a read or in
-the signed body, never in a path.
+IDENT-2 (run history, REQ-BFG-122 clause 4): a device that has shown or entered a link code (or linked its Steam account) also sends its
+finished runs, signed, under its player's id (`history/<player>/...`). Showing a code is enough, even if no one ever enters it: the device
+then sends each new run until DELETE MY ONLINE DATA. Each run: hero, outcome, wins, days, hearts left, the device's clock at the end, and
+for each dusk the result and, when the device made one (online play), the battle record, which holds both decks as they fought. An entry
+holds no name, no address, no key and no other player's id (a record may hold the foe's deck: game data). A device that has never shown or
+entered a code sends none of it, and keeps its list on the device. `DELETE /v1/player` removes it with the rest, and
+`ghost-admin purge-tombstoned` removes what a second machine wrote after the tombstone. The request log still prints the path only: an
+entry id travels in the query of a read or in the signed body, never in a path.
 
 ## Hosting options (operator decides)
 
