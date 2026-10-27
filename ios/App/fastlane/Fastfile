@@ -1,0 +1,146 @@
+default_platform(:ios)
+
+# M2 (BRIEF-M2 Goal 3): BeltBattles' lanes, from the operator's Fastfile (bobbyhiddn/repo.md capacitor/ios/App/fastlane/Fastfile; collack has the same file).
+# NOT RUN ANYWHERE YET: no Mac and no Ruby on the dev host. What changed from his lane, and why:
+#   - project "App.xcodeproj", not workspace "App.xcworkspace": Capacitor 8 makes a Swift Package Manager project (no Podfile, no Pods, no workspace).
+#   - the bundle id (DEVELOPER_APP_IDENTIFIER) is capacitor.config.json's appId, set by the workflows; it is not a secret.
+#   - version numbers by xcargs (MARKETING_VERSION and CURRENT_PROJECT_VERSION), not increment_version_number and increment_build_number: those run agvtool,
+#     which wants the Apple Generic versioning system (Apple QA1827) that this project does not set, and they edit the project. A build setting on the
+#     command line needs no edit, and Info.plist reads both through $(...). The marketing version is package.json's (CUSTOM_VERSION, from
+#     scripts/ios-version.mjs); the build number is the latest TestFlight build + 1, and a failed read of it stops the lane (his `rescue 0` would have
+#     turned a bad API key into build number 1 and a confusing upload error later).
+#   - the temporary keychain is fastlane's own setup_ci (documented for GitHub Actions, and it puts match in read-only mode), so the workflow needs no
+#     `security` steps and no TEMP_KEYCHAIN_PASSWORD secret. The workflow deletes the keychain at the end.
+#   - the App Store Connect key is built from the .p8 body in APPLE_KEY_CONTENT whether or not it carries BEGIN/END lines, in 64-column lines.
+#   - upload_to_testflight does not wait for build processing (skip_waiting_for_build_processing): saves 7-10 billed macOS minutes; ITSAppUsesNonExemptEncryption is
+#     set in Info.plist, so no export-compliance question is left. It uploads the .ipa gym just built.
+#   - match_init (new): the one-off that makes the certificate and the profile (ios-match-init.yml), in the same file as the lane that reads them.
+#   - kept: the API key, match read-only into the temporary keychain, manual signing with the profile "match AppStore <bundle id>" through
+#     update_code_signing_settings (on the project file, so Swift package targets are untouched, which signing settings passed in xcargs would not be),
+#     export method app-store.
+#   - gone: his FASTLANE_APPLE_ID, APP_STORE_CONNECT_TEAM_ID, GIT_AUTHORIZATION and TEMP_KEYCHAIN_PASSWORD (not read by anything here).
+
+platform :ios do
+  desc "Push a new beta build to TestFlight: build, sign with match (read-only), upload; it does not wait for App Store Connect's processing"
+  desc "Required environment variables (the workflow sets them; the secrets are the six in ios.yml):"
+  desc "  APPLE_KEY_ID, APPLE_ISSUER_ID: App Store Connect API key id and issuer id"
+  desc "  APPLE_KEY_CONTENT: the .p8 key's body, without its BEGIN and END lines"
+  desc "  DEVELOPER_PORTAL_TEAM_ID: the Apple Developer team id (10 characters)"
+  desc "  MATCH_GIT_URL, MATCH_PASSWORD: the private match repository (with its token in the URL) and the password that encrypts it"
+  desc "  DEVELOPER_APP_IDENTIFIER: the bundle id, from capacitor.config.json's appId (not a secret)"
+  desc "  CUSTOM_VERSION: the marketing version x.y.z, from package.json"
+  lane :closed_beta do
+    bundle_id = ENV["DEVELOPER_APP_IDENTIFIER"].to_s.strip
+    team_id = ENV["DEVELOPER_PORTAL_TEAM_ID"].to_s.strip
+    version = ENV["CUSTOM_VERSION"].to_s.strip
+    UI.user_error!("DEVELOPER_APP_IDENTIFIER is not set (the workflow reads it from capacitor.config.json's appId)") if bundle_id.empty?
+    UI.user_error!("DEVELOPER_PORTAL_TEAM_ID is not set") if team_id.empty?
+    UI.user_error!("CUSTOM_VERSION must be the marketing version x.y.z, not \"#{version}\"") unless version.match?(/\A\d+\.\d+\.\d+\z/)
+
+    setup_ci if ENV["CI"]
+
+    # Configure App Store Connect API
+    key_body = ENV["APPLE_KEY_CONTENT"].to_s.gsub(/-----[^-]+-----/, "").gsub(/\s+/, "")
+    UI.user_error!("APPLE_KEY_CONTENT is empty") if key_body.empty?
+    app_store_connect_api_key(
+      key_id: ENV["APPLE_KEY_ID"],
+      issuer_id: ENV["APPLE_ISSUER_ID"],
+      key_content: "-----BEGIN PRIVATE KEY-----\n#{key_body.scan(/.{1,64}/).join("\n")}\n-----END PRIVATE KEY-----",
+      in_house: false,
+      is_key_content_base64: false
+    )
+    api_key = lane_context[SharedValues::APP_STORE_CONNECT_API_KEY]
+
+    # Build number: the latest TestFlight build + 1 (0 + 1 for a new app)
+    latest = begin
+      latest_testflight_build_number(
+        api_key: api_key,
+        app_identifier: bundle_id,
+        initial_build_number: 0
+      )
+    rescue StandardError => e
+      UI.user_error!("Could not read TestFlight's latest build number for #{bundle_id} (#{e.message}). Does the app record exist in App Store Connect, and may the API key read it?")
+    end
+    build_number = latest.to_i + 1
+    UI.message("Marketing version #{version}; TestFlight's latest build is #{latest}, so this one is #{build_number}")
+
+    # Sync certificates and profiles (read-only: ios-match-init.yml makes them)
+    sync_code_signing(
+      type: "appstore",
+      app_identifier: bundle_id,
+      git_url: ENV["MATCH_GIT_URL"],
+      readonly: true
+    )
+    profile_name = ENV["sigh_#{bundle_id}_appstore_profile-name"] || "match AppStore #{bundle_id}"
+
+    # Update code signing settings (the App target of App.xcodeproj only)
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: "App.xcodeproj",
+      targets: ["App"],
+      team_id: team_id,
+      code_sign_identity: "iPhone Distribution",
+      profile_name: profile_name,
+      bundle_identifier: bundle_id
+    )
+
+    # Build the app
+    build_app(
+      project: "App.xcodeproj",
+      scheme: "App",
+      configuration: "Release",
+      export_method: "app-store",
+      xcargs: "MARKETING_VERSION=#{version} CURRENT_PROJECT_VERSION=#{build_number}",
+      export_options: {
+        provisioningProfiles: {
+          bundle_id => profile_name
+        }
+      },
+      output_directory: "build",
+      output_name: "BeltBattles-#{version}-#{build_number}"
+    )
+
+    # Upload to TestFlight; App Store Connect's processing is not waited for
+    upload_to_testflight(
+      api_key: api_key,
+      app_identifier: bundle_id,
+      ipa: lane_context[SharedValues::IPA_OUTPUT_PATH],
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  desc "ONE-OFF, WRITES to the match repository and to the Apple account: create or renew the App Store distribution certificate and the profile"
+  desc "Same environment as closed_beta, without CUSTOM_VERSION. Run by .github/workflows/ios-match-init.yml, never by the release lane."
+  lane :match_init do
+    bundle_id = ENV["DEVELOPER_APP_IDENTIFIER"].to_s.strip
+    team_id = ENV["DEVELOPER_PORTAL_TEAM_ID"].to_s.strip
+    UI.user_error!("DEVELOPER_APP_IDENTIFIER is not set (the workflow reads it from capacitor.config.json's appId)") if bundle_id.empty?
+    UI.user_error!("DEVELOPER_PORTAL_TEAM_ID is not set") if team_id.empty?
+
+    setup_ci if ENV["CI"]
+
+    key_body = ENV["APPLE_KEY_CONTENT"].to_s.gsub(/-----[^-]+-----/, "").gsub(/\s+/, "")
+    UI.user_error!("APPLE_KEY_CONTENT is empty") if key_body.empty?
+    app_store_connect_api_key(
+      key_id: ENV["APPLE_KEY_ID"],
+      issuer_id: ENV["APPLE_ISSUER_ID"],
+      key_content: "-----BEGIN PRIVATE KEY-----\n#{key_body.scan(/.{1,64}/).join("\n")}\n-----END PRIVATE KEY-----",
+      in_house: false,
+      is_key_content_base64: false
+    )
+    api_key = lane_context[SharedValues::APP_STORE_CONNECT_API_KEY]
+
+    # Write mode, on purpose (setup_ci would have switched match to read-only). If the certificate in the match repository has expired:
+    # match replaces it with a new one and leaves the old one at Apple (fastlane docs, match: "automatically repairs broken and expired credentials").
+    sync_code_signing(
+      type: "appstore",
+      app_identifier: bundle_id,
+      git_url: ENV["MATCH_GIT_URL"],
+      team_id: team_id,
+      api_key: api_key,
+      readonly: false,
+      generate_apple_certs: true,
+      skip_confirmation: true
+    )
+  end
+end

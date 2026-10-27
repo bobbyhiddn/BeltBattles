@@ -1,0 +1,10 @@
+source "https://rubygems.org"
+
+# M2 (BRIEF-M2 Goal 3). fastlane only, pinned to one release: 2.241.2, released 2026-10-26 on rubygems.org (Ruby >= 3.2.0; the workflows use Ruby 3.3).
+# Its release notes include "[match] Fix GHSA-hqmj-jmgc-wmwp"; GitHub's macos-26 image carries fastlane 2.241.0 beside Xcode 26.6.
+# The operator's 2025 Gemfile also listed logger, fiddle, mutex_m, abbrev, highline and pry (workarounds for Ruby 3.4 and an older fastlane) and pinned
+# Ruby 3.2.6; fastlane declares what it needs itself and the workflows choose Ruby 3.3, so none of that is kept.
+# There is no Gemfile.lock (no Ruby on the dev host to make one): ruby/setup-ruby's bundler-cache runs `bundle lock` when there is none and keys its gem
+# cache on the lock it made, so the first run resolves fastlane's dependencies afresh. To freeze every gem, run `bundle lock` with Ruby 3.3 in this
+# folder on a Mac and commit the Gemfile.lock.
+gem "fastlane", "2.241.2"

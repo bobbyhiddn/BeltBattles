@@ -1,0 +1,7 @@
+# M2 (BRIEF-M2 Goal 3): the operator's Matchfile, unchanged in what it says. MATCH_GIT_URL is the private match repository (bobbyhiddn/fastlane, with a token in the URL).
+git_url(ENV["MATCH_GIT_URL"])
+storage_mode("git")
+type("appstore")
+app_identifier([ENV["DEVELOPER_APP_IDENTIFIER"]])
+
+# For all available options run `fastlane match --help`
