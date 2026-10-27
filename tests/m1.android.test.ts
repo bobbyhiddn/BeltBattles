@@ -97,11 +97,14 @@ describe("M1 Goal 1: the committed android/ project (cap add android, Capacitor 
     expect(read("capacitor.config.json")).not.toMatch(/cleartext/i);
   });
 
-  it("keeps the template's 26 default PNGs (launcher icons and splash: the real art is job M3's) and adds no other image", () => {
+  // M3 (REQ-BFG-119) changed this pin: it held the template's 26 default PNGs (15 launcher icons and 11 splash images). M3 drew the 15
+  // launcher PNGs with the game's own art and deleted the 11 splash images (the launch theme shows a plain colour, then the system splash
+  // draws the launcher icon). tests/m3.android.test.ts checks the art itself and that no template file is left.
+  it("holds the 15 launcher PNGs and no other image: no splash image (M3 deleted the 11 template ones) and no picture the launch theme could show", () => {
     const images = walk(RES).filter((f) => /\.(png|jpe?g|webp|gif|svg)$/i.test(f));
-    expect(images.length).toBe(26);
+    expect(images.length).toBe(15);
     expect(images.filter((f) => /ic_launcher(_foreground|_round)?\.png$/.test(f)).length).toBe(15);
-    expect(images.filter((f) => /splash\.png$/.test(f)).length).toBe(11);
+    expect(images.filter((f) => /splash\.png$/.test(f)).length).toBe(0);
   });
 
   it("android/.gitignore keeps the copied web build and the generated config out of git (cap sync writes them; CI makes them)", () => {

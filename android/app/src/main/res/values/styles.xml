@@ -20,8 +20,9 @@
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <!-- M1: the template's drawable/splash.png has a white background, so the launch screen is the page's dark colour instead
-             (the 26 template PNGs stay in res/ for M3 to replace with the game's own art). -->
+        <!-- M1: the template's drawable/splash.png had a white background, so the launch screen is the page's dark colour instead.
+             M3 deleted the 11 splash images and set no splash icon: Android 12+ draws the launcher icon (the game's mark) on
+             windowSplashScreenBackground, and Android 7-11 show this colour until the page paints. -->
         <item name="android:background">@color/bb_background</item>
         <item name="android:windowBackground">@color/bb_background</item>
         <item name="windowSplashScreenBackground">@color/bb_background</item>
