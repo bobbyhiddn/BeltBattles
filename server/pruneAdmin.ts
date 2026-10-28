@@ -34,7 +34,7 @@ import type { AdminIdentity } from "./adminIdentity";
 import type { AdminArgs, AdminStore, Holdings, Plan, PurgeStats, StoredRecord } from "./ghostAdmin"; // types only: ghostAdmin.ts imports this module
 import { nameOf, type HistoryName } from "./historyStore";
 import { Links, decodeKeyLink, decodePlayer, decodeTombstone, tombstoneIds, type KeyLink, type PlayerRecord, type Tombstone } from "./links";
-import { CLOCK_GUARD_MS, DAY_MS, GHOST_RETENTION_DAYS, IDLE_RETENTION_DAYS } from "./retention";
+import { CLOCK_GUARD_MS, DAY_MS, GHOST_RETENTION_DAYS, IDLE_RETENTION_DAYS, STALE_STORE_DAYS } from "./retention";
 
 export const RETENTION_COMMANDS = ["delete-player", "find-player", "prune-ghosts", "prune-idle", "weekly"] as const;
 export type RetentionCommand = (typeof RETENTION_COMMANDS)[number];
@@ -47,7 +47,8 @@ export const RETENTION_USAGE = [
   `  prune-ghosts [--days N] [--apply]   every upload, in every rules version, that the server received more than N days ago (default ${GHOST_RETENTION_DAYS})`,
   `  prune-idle [--days N] [--apply]     every player with no server-side sign of play for more than N days (default ${IDLE_RETENTION_DAYS}), deleted as delete-player does`,
   "  weekly [--apply]                    prune-idle, then purge-tombstoned, then prune-ghosts, with the defaults: the one command the weekly machine runs",
-  "  (these five take no --rules: they read every rules version; a clock more than a day behind the store's newest receipt time refuses the three that delete by age)",
+  "  (these five take no --rules: they read every rules version. The three that delete by age refuse when a receipt time in the store is more than a day after now, and",
+  `   with --apply when the newest one is more than ${STALE_STORE_DAYS} days before now, unless --stale-ok: a wrong clock. A bare -- ends the options, for a player ID that starts with two dashes)`,
 ];
 
 /** What this module borrows from server/ghostAdmin.ts (which imports this module, so it cannot import that one's values). */
@@ -64,7 +65,7 @@ type Clock = () => number;
 export const PLAUSIBLE_LATEST = Date.UTC(2100, 0, 1);
 const plausible = (at: number | null | undefined): at is number => typeof at === "number" && Number.isSafeInteger(at) && at >= 0 && at <= PLAUSIBLE_LATEST;
 
-const iso = (ms: number): string => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+const iso = (ms: number): string => (Number.isFinite(ms) && Math.abs(ms) <= 8.64e15 ? new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z") : "an impossible time"); // total: a damaged time must not crash a run
 const days = (ms: number): number => Math.floor(ms / DAY_MS);
 
 // ---------------------------------------------------------------------------------------------------------------- the command line
@@ -73,12 +74,13 @@ const days = (ms: number): number => Math.floor(ms / DAY_MS);
 export function parseRetention(
   command: RetentionCommand,
   pos: string[],
-  f: { rules?: string; apply: boolean; pool: boolean; days?: string; tag?: string },
+  f: { rules?: string; apply: boolean; pool: boolean; days?: string; tag?: string; staleOk?: boolean },
   fail: (message: string) => Error,
 ): AdminArgs {
   if (f.rules !== undefined) throw fail(`--rules does not go with ${command}: it reads every rules version`);
   if (f.pool) throw fail("--pool goes only with wipe-uploads");
-  const args: AdminArgs = { command, rules: "", apply: f.apply, pool: false };
+  if (f.staleOk && command !== "prune-ghosts" && command !== "prune-idle" && command !== "weekly") throw fail("--stale-ok goes only with prune-ghosts, prune-idle and weekly");
+  const args: AdminArgs = { command, rules: "", apply: f.apply, pool: false, ...(f.staleOk ? { staleOk: true } : {}) };
   if (f.tag !== undefined && command !== "find-player") throw fail("--tag goes only with find-player");
   if (f.days !== undefined && command !== "prune-ghosts" && command !== "prune-idle") throw fail("--days goes only with prune-ghosts and prune-idle");
   if (command === "delete-player") {
@@ -152,18 +154,14 @@ export async function readInventory(store: AdminStore, ident: AdminIdentity | nu
   if (parts.uploads) {
     if (!store.rulesVersions) throw new Error("this store cannot list rules versions");
     for (const rules of await store.rulesVersions()) {
-      const h = await store.read(rules, true);
-      for (const record of h.records) {
-        if (record.kind !== "upload") continue;
-        if (store.kind === "tigris") record.text = ""; // Tigris removes by key, so the body is not needed again: the weekly run holds every upload, and a body is a few KB
-        inv.uploads.push({ rules, record });
-      }
+      const h = await store.read(rules, "fields"); // the fields every command asks of an upload, no body kept (a run holds every upload at once)
+      for (const record of h.records) if (record.kind === "upload") inv.uploads.push({ rules, record });
     }
   }
   if (parts.links) {
     if (!ident) throw new Error("this store has no identity records to read");
     const links = ident.links;
-    for (const k of await links.list("tombstones/")) {
+    await eachLimit(await links.list("tombstones/"), 16, async (k) => {
       const t = decodeTombstone(await links.get(k));
       if (!t) inv.skipped++;
       else {
@@ -171,7 +169,7 @@ export async function readInventory(store: AdminStore, ident: AdminIdentity | nu
         inv.tombstoned.add(idOfKey(k));
         for (const id of t.ids) inv.tombstoned.add(id);
       }
-    }
+    });
     await eachLimit(await links.list("links/keys/"), 16, async (k) => {
       const l = decodeKeyLink(await links.get(k));
       if (l) inv.keyLinks.set(idOfKey(k), l);
@@ -227,11 +225,18 @@ export function latestReceipt(inv: Inventory, scope: "uploads" | "all"): { at: n
   return best.at < 0 ? null : best;
 }
 
-/** The refusal text when the store holds a receipt time later than now plus a day; null when the clock looks right. */
-export function clockProblem(inv: Inventory, now: number, scope: "uploads" | "all"): string | null {
+/**
+ * The refusal text when the clock looks wrong; null when it looks right. (1) The store holds a receipt time later than now plus a day: the clock is BEHIND the store. (2) With
+ * --apply (and no --stale-ok), the newest receipt time is more than STALE_STORE_DAYS before now: either nobody has played for that long or the clock is far AHEAD, which would
+ * make every record look old; a dry run is never refused for it (its clock line says so).
+ */
+export function clockProblem(inv: Inventory, now: number, scope: "uploads" | "all", run?: { apply: boolean; staleOk?: boolean }): string | null {
   const late = latestReceipt(inv, scope);
   if (late && late.at > now + CLOCK_GUARD_MS) {
     return `refused: the store holds a receipt time of ${iso(late.at)} (${late.what}), later than now (${iso(now)}) plus one day. This machine's clock is wrong, or the store came from one whose clock was. Nothing was deleted; fix the clock and run again.`;
+  }
+  if (late && run?.apply && !run.staleOk && now - late.at > STALE_STORE_DAYS * DAY_MS) {
+    return `refused: the newest receipt time in the store is ${iso(late.at)} (${late.what}), ${days(now - late.at)} days before now (${iso(now)}), more than ${STALE_STORE_DAYS} days. Either nobody has played for that long, or this machine's clock is far ahead and --apply would delete records that are not due. Nothing was deleted. Check the clock; if the store really is that quiet, run again with --stale-ok.`;
   }
   return null;
 }
@@ -468,6 +473,7 @@ async function deletePlayerCommand(args: AdminArgs, store: AdminStore, ident: Ad
     return 1;
   }
   out(`resolved: player ${r.player} (given as ${r.how})`);
+  if (inv.skipped) out(`note: ${inv.skipped} identity record(s) could not be read and were skipped`);
   const plan = planDelete(inv, r.group, r.player, tk);
   printDelete(plan, out, tk);
   if (!args.apply) {
@@ -554,7 +560,7 @@ async function pruneGhostsCommand(args: AdminArgs, store: AdminStore, out: Out, 
   const now = clock();
   const daysOld = args.days ?? GHOST_RETENTION_DAYS;
   const inv = await readInventory(store, null, { uploads: true });
-  const refused = clockProblem(inv, now, "uploads");
+  const refused = clockProblem(inv, now, "uploads", args);
   if (refused) {
     out(refused);
     return 1;
@@ -662,7 +668,7 @@ async function pruneIdleCommand(args: AdminArgs, store: AdminStore, ident: Admin
   const now = clock();
   const daysIdle = args.days ?? IDLE_RETENTION_DAYS;
   const inv = read ?? await readInventory(store, ident, { uploads: true, links: true, profiles: true, history: true });
-  const refused = clockProblem(inv, now, "all");
+  const refused = clockProblem(inv, now, "all", args);
   if (refused) {
     out(refused);
     return { code: 1, players: 0, uploads: 0 };
@@ -672,6 +678,7 @@ async function pruneIdleCommand(args: AdminArgs, store: AdminStore, ident: Admin
   const uploads = plans.flatMap((p) => p.plan.uploads);
   if (!quiet) {
     out(clockLine(inv, now, "all"));
+    if (inv.skipped) out(`note: ${inv.skipped} identity record(s) could not be read and were skipped`);
     out(`players with stored records: ${res.considered}; idle (no server-side sign of play since ${iso(now - daysIdle * DAY_MS)}, more than ${daysIdle} days): ${res.idle.length}; kept: ${res.kept}${res.unjudged.length ? `; left alone because they cannot be judged: ${res.unjudged.length}` : ""}`);
     for (const line of res.unjudged) out(`  kept (not judged) ${line}`);
     for (const { v, plan } of plans) {
@@ -704,15 +711,17 @@ async function pruneIdleCommand(args: AdminArgs, store: AdminStore, ident: Admin
 async function weeklyCommand(args: AdminArgs, store: AdminStore, ident: AdminIdentity, out: Out, clock: Clock, tk: Toolkit): Promise<number> {
   const now = clock();
   const idleArgs: AdminArgs = { ...args, command: "prune-idle", days: IDLE_RETENTION_DAYS };
-  const ghostArgs: AdminArgs = { ...args, command: "prune-ghosts", days: GHOST_RETENTION_DAYS };
+  // the third step reads the uploads only (after the first two removed some), so it is not judged for a quiet store again: the guard below judged every record at the start
+  const ghostArgs: AdminArgs = { ...args, command: "prune-ghosts", days: GHOST_RETENTION_DAYS, staleOk: true };
   const purgeArgs: AdminArgs = { command: "purge-tombstoned", rules: "", apply: args.apply, pool: false };
   const guard = await readInventory(store, ident, { uploads: true, links: true, profiles: true, history: true });
-  const refused = clockProblem(guard, now, "all");
+  const refused = clockProblem(guard, now, "all", args);
   if (refused) {
     out(refused);
     return 1;
   }
   out(clockLine(guard, now, "all"));
+  if (guard.skipped) out(`note: ${guard.skipped} identity record(s) could not be read and were skipped`);
   if (!args.apply) {
     out(`weekly 1/3 prune-idle (${IDLE_RETENTION_DAYS} days):`);
     const idle = judgeIdle(guard, now, IDLE_RETENTION_DAYS);
@@ -756,7 +765,7 @@ async function weeklyCommand(args: AdminArgs, store: AdminStore, ident: AdminIde
   }
   try {
     const inv = await readInventory(store, null, { uploads: true });
-    const late = clockProblem(inv, clock(), "uploads");
+    const late = clockProblem(inv, clock(), "uploads", ghostArgs);
     if (late) step(3, "prune-ghosts", late, 1);
     else {
       const plan = planGhosts(inv, clock(), GHOST_RETENTION_DAYS);

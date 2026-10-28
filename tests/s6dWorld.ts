@@ -6,7 +6,8 @@ import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { runAdmin, type AdminStore } from "../server/ghostAdmin";
+import type { StoreConfig } from "../server/config";
+import { openAdmin, runAdmin, type AdminStore } from "../server/ghostAdmin";
 import { FileHistoryStore, TigrisHistoryStore, type HistoryStore } from "../server/historyStore";
 import { FileLinkStore, TigrisLinkStore, type LinkStore } from "../server/linkStore";
 import { FileProfileStore, TigrisProfileStore, type ProfileStore } from "../server/profileStore";
@@ -152,6 +153,23 @@ export function world(kind: Kind, fake: FakeS3): World {
     },
     ids: () => ghostIds(walk(dir), kind),
     state: () => walk(dir),
+  };
+}
+
+/**
+ * An `open` for admin(): the real store the settings name (JSON lines or Tigris on the fake S3), with some of its methods replaced - a read that throws, a removal that deletes less,
+ * a link store that fails on its second delete. The same wrapper serves both stores, so a failure case is tested on both.
+ */
+export function wrapped(over: (real: AdminStore) => Partial<AdminStore>): (cfg: StoreConfig) => AdminStore {
+  return (cfg) => {
+    const real = openAdmin(cfg);
+    const base: AdminStore = {
+      kind: real.kind, where: real.where,
+      read: (rules, bodies) => real.read(rules, bodies), remove: (records) => real.remove(records),
+      rulesVersions: () => real.rulesVersions!(), tombstoned: () => real.tombstoned!(),
+      history: (ids) => real.history!(ids), removeHistory: (held) => real.removeHistory!(held), identity: () => real.identity!(),
+    };
+    return { ...base, ...over(real) };
   };
 }
 

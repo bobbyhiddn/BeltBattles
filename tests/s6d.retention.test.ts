@@ -2,13 +2,11 @@
 // clean-up) as `ghost-admin prune-ghosts`, `prune-idle` and `weekly`, and the clock guard. Both stores: the JSON-lines directory, and Tigris on the
 // in-process fake S3 (seven keys a LIST page). The tool's clock is set by the test (tests/s6dWorld.ts admin(): NOW = 2026-10-28 12:00 UTC).
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { StoreConfig } from "../server/config";
-import { USAGE, parseArgs, openAdmin, type AdminStore } from "../server/ghostAdmin";
-import { JsonlAdmin } from "../server/ghostAdmin";
+import { USAGE, parseArgs } from "../server/ghostAdmin";
 import { CLEANUP_PROMISE_DAYS, CLOCK_GUARD_MS, DAY_MS, GHOST_RETENTION_DAYS, IDLE_RETENTION_DAYS, IDLE_RETENTION_MONTHS, WEEKLY_CLEANUP_DAYS } from "../server/retention";
 import type { FakeS3 } from "../tools/fakeS3";
 import { startFake } from "./netStores";
-import { DAY, NOW, R1, R2, admin, idOf, removeWorlds, statePath, world, type Kind, type World } from "./s6dWorld";
+import { DAY, NOW, R1, R2, admin, idOf, removeWorlds, statePath, world, wrapped, type Kind, type World } from "./s6dWorld";
 
 let fake: FakeS3;
 beforeAll(async () => {
@@ -116,18 +114,13 @@ describe.each(KINDS)("prune-ghosts on %s", (kind) => {
   it("a store the tool cannot read is exit 1; usage mistakes are exit 2", async () => {
     const w = world(kind, fake);
     plant(w);
-    const dead: AdminStore = { kind: "jsonl", where: "double", read: async () => { throw new Error("disk exploded"); }, remove: async () => 0, rulesVersions: async () => [R1] };
-    const r = await admin(w, ["prune-ghosts"], NOW, (() => dead) as never);
+    const r = await admin(w, ["prune-ghosts"], NOW, wrapped(() => ({ read: async () => { throw new Error("disk exploded"); } })) as never);
     expect(r.code).toBe(1);
     expect(r.text).toContain("ghosts:admin failed: disk exploded");
-    const partial = kind === "jsonl" ? new JsonlAdmin(w.argv[1]) : null;
-    if (partial) {
-      const some: AdminStore = { kind: partial.kind, where: partial.where, read: (rules) => partial.read(rules), remove: (x) => partial.remove(x.slice(0, 1)), rulesVersions: () => partial.rulesVersions() };
-      const p = await admin(w, ["prune-ghosts", "--apply"], NOW, (() => some) as never);
-      expect(p.code).toBe(1);
-      expect(p.text).toContain("APPLIED: deleted 1 of 2 record(s).");
-      expect(p.text).toContain("1 planned record(s) had already changed or gone");
-    }
+    const p = await admin(w, ["prune-ghosts", "--apply"], NOW, wrapped((real) => ({ remove: (x) => real.remove(x.slice(0, 1)) })) as never);
+    expect(p.code).toBe(1);
+    expect(p.text).toContain("APPLIED: deleted 1 of 2 record(s).");
+    expect(p.text).toContain("1 planned record(s) had already changed or gone");
     for (const args of [["prune-ghosts", "--days", "0"], ["prune-ghosts", "extra"], ["prune-ghosts", "--rules", R1]]) expect((await admin(w, args)).code, args.join(" ")).toBe(2);
   });
 });
@@ -302,10 +295,11 @@ describe.each(KINDS)("the clock guard on %s", (kind) => {
   it("a seed-pool record dated in the future does not trip it (a pool record's time is an old createdAt, never a receipt time)", async () => {
     const w = world(kind, fake);
     w.upload(R1, 1, "old", P, ago(200));
+    w.upload(R1, 2, "recent", P, ago(1));
     w.pool(R1, 1, "pool-future", NOW + 30 * DAY);
     const r = await admin(w, ["prune-ghosts", "--apply"]);
     expect(r.code, r.text).toBe(0);
-    expect(w.ids()).toEqual(["pool bb-0.12.0 pool-future"]);
+    expect(w.ids()).toEqual(["player bb-0.12.0 recent", "pool bb-0.12.0 pool-future"]);
   });
 
   it("weekly refuses before any step when any record has a receipt time more than a day ahead: nothing deleted", async () => {
@@ -331,23 +325,68 @@ describe.each(KINDS)("damaged times and the clock line on %s", (kind) => {
     const w = world(kind, fake);
     w.upload(R1, 1, "old", P, ago(200));
     w.upload(R1, 2, "huge", P, 8.64e15 - 1); // a valid millisecond count, year 275760: no clock reads that
+    w.upload(R1, 3, "recent", P, ago(1));
     const r = await admin(w, ["prune-ghosts", "--apply"]);
     expect(r.code, r.text).toBe(0);
     expect(r.text).toContain("1 upload(s) with no readable receipt time are kept");
-    expect(w.ids()).toEqual(["player bb-0.12.0 huge"]);
+    expect(w.ids()).toEqual(["player bb-0.12.0 huge", "player bb-0.12.0 recent"]);
     const weekly = await admin(w, ["weekly", "--apply"]);
     expect(weekly.code, weekly.text).toBe(0);
   });
 
   it("a player whose record carries a damaged time is not judged: kept and said; another idle player is still deleted", async () => {
     const w = world(kind, fake);
-    const damaged = idOf("damaged"), gone = idOf("gone");
+    const damaged = idOf("damaged"), gone = idOf("gone"), active = idOf("active");
     await w.profile(damaged, 8_000_000_000_000_000); // receivedAt in the year 256000
     await w.profile(gone, ago(800));
+    await w.profile(active, ago(2));
     const r = await admin(w, ["prune-idle", "--apply"]);
     expect(r.code, r.text).toBe(0);
     expect(r.text).toContain(`kept (not judged) ${damaged}: a record that dates it cannot be read`);
-    expect(Object.keys(w.state()).filter((k) => k.startsWith("profiles/")).sort()).toEqual([`profiles/${damaged}.json`]);
+    expect(Object.keys(w.state()).filter((k) => k.startsWith("profiles/")).sort()).toEqual([`profiles/${active}.json`, `profiles/${damaged}.json`].sort());
+  });
+
+  it("a clock far AHEAD: --apply refuses (exit 1, nothing deleted) when the newest receipt time is more than 90 days old, a dry run goes on with its NOTE, --stale-ok overrides; exactly 90 days is fine", async () => {
+    const make = async (): Promise<World> => {
+      const w = world(kind, fake);
+      await w.profile(P, ago(800)); // idle by the real clock
+      await w.profile(Q, ago(2)); // active by the real clock
+      w.upload(R1, 1, "old", Q, ago(200));
+      w.upload(R1, 2, "new", Q, ago(2));
+      return w;
+    };
+    const ahead = NOW + 3 * 365 * DAY; // a clock three years ahead: every record looks old
+    for (const args of [["prune-ghosts", "--apply"], ["prune-idle", "--apply"], ["weekly", "--apply"]]) {
+      const w = await make();
+      const before = w.state();
+      const r = await admin(w, args, ahead);
+      expect(r.code, args.join(" ") + "\n" + r.text).toBe(1);
+      expect(r.text).toMatch(/refused: the newest receipt time in the store is 2026-10-26T12:00:00Z \(\S+ \S+\), 1097 days before now \(2029-10-27T12:00:00Z\), more than 90 days\./);
+      expect(r.text).toContain("run again with --stale-ok");
+      expect(r.text).not.toMatch(/weekly \d\/3/);
+      expect(w.state()).toEqual(before);
+    }
+    // the dry runs are never refused for it: they say so and plan what the wrong clock would do
+    const w = await make();
+    const dry = await admin(w, ["weekly"], ahead);
+    expect(dry.code, dry.text).toBe(0);
+    expect(dry.text).toMatch(/NOTE: that is 1097 days ago/);
+    // the operator, sure the store is that quiet, may say so
+    const forced = await admin(w, ["prune-ghosts", "--apply", "--stale-ok"], ahead);
+    expect(forced.code, forced.text).toBe(0);
+    expect(w.ids()).toEqual([]);
+    // 90 days is the line: exactly 90 days old is fine, 90 days and a second is not
+    const edge = world(kind, fake);
+    edge.upload(R1, 1, "e", P, ago(200));
+    edge.upload(R1, 2, "f", P, NOW - 90 * DAY);
+    expect((await admin(edge, ["prune-ghosts", "--apply"])).code).toBe(0);
+    const over = world(kind, fake);
+    over.upload(R1, 1, "e", P, ago(200));
+    over.upload(R1, 2, "f", P, NOW - 90 * DAY - 1000);
+    expect((await admin(over, ["prune-ghosts", "--apply"])).code).toBe(1);
+    // and --stale-ok belongs to the three commands that delete by age
+    expect((await admin(over, ["delete-player", P, "--stale-ok"])).code).toBe(2);
+    expect((await admin(over, ["list", "--rules", R1, "--stale-ok"])).code).toBe(2);
   });
 
   it("every run says what time it believes and when the newest record is, with a NOTE when that is more than 60 days old: the one sign of a clock far AHEAD, which the guard cannot see", async () => {
@@ -444,15 +483,8 @@ describe.each(KINDS)("weekly on %s", (kind) => {
   it("the order matters: uploads that prune-idle could not remove are purged by the next step of the same run, because the player is tombstoned by then", async () => {
     const w = world(kind, fake);
     await plant(w);
-    const firstRemoveDeletesNothing = (cfg: StoreConfig): AdminStore => {
-      const real = openAdmin(cfg);
-      let calls = 0;
-      return {
-        kind: real.kind, where: real.where, read: (rules, b) => real.read(rules, b), rulesVersions: () => real.rulesVersions!(), tombstoned: () => real.tombstoned!(),
-        history: (ids) => real.history!(ids), removeHistory: (h) => real.removeHistory!(h), identity: () => real.identity!(),
-        remove: async (records) => (++calls === 1 ? 0 : real.remove(records)), // the first removal is prune-idle's: it deletes nothing
-      };
-    };
+    let calls = 0;
+    const firstRemoveDeletesNothing = wrapped((real) => ({ remove: async (records) => (++calls === 1 ? 0 : real.remove(records)) })); // the first removal is prune-idle's: it deletes nothing
     const r = await admin(w, ["weekly", "--apply"], NOW, firstRemoveDeletesNothing as never);
     expect(r.code, r.text).toBe(1);
     expect(r.out.filter((l) => /^weekly \d\/3 /.test(l))).toEqual([
@@ -466,18 +498,14 @@ describe.each(KINDS)("weekly on %s", (kind) => {
   it("a step that fails is said, does not stop the next one, and makes the exit code 1", async () => {
     const w = world(kind, fake);
     await plant(w);
-    const real = kind === "jsonl" ? new JsonlAdmin(w.argv[1]) : null;
-    if (!real) return;
     let calls = 0;
-    const flaky: AdminStore = {
-      kind: real.kind, where: real.where, read: (rules) => real.read(rules), rulesVersions: () => real.rulesVersions(), tombstoned: () => real.tombstoned(),
-      history: (ids) => real.history(ids), removeHistory: (h) => real.removeHistory(h), identity: () => real.identity(),
+    const flaky = wrapped((real) => ({
       remove: async (records) => {
         if (++calls === 3) throw new Error("the disk is full"); // the third removal: prune-ghosts'
         return real.remove(records);
       },
-    };
-    const r = await admin(w, ["weekly", "--apply"], NOW, (() => flaky) as never);
+    }));
+    const r = await admin(w, ["weekly", "--apply"], NOW, flaky as never);
     expect(r.code, r.text).toBe(1);
     expect(r.out.filter((l) => /^weekly \d\/3 /.test(l))).toEqual([
       expect.stringContaining("weekly 1/3 prune-idle: deleted 1 idle player(s)"),

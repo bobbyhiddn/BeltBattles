@@ -34,3 +34,10 @@ export const CLEANUP_PROMISE_DAYS = 14;
  * wrong (set far ahead it would age every record at once), so the command refuses, deletes nothing and says why.
  */
 export const CLOCK_GUARD_MS = DAY_MS;
+
+/**
+ * The other half of the clock guard. A clock far AHEAD of the store's own would make every record look old and nothing in the store can say so, except that the
+ * newest record is then old too. So `--apply` of prune-ghosts, prune-idle and weekly refuses when the newest receipt time in the store is more than this many days
+ * before now, unless `--stale-ok` is given (the weekly machine never passes it). A store this quiet has nobody to protect; a wrong clock has everybody.
+ */
+export const STALE_STORE_DAYS = 90;

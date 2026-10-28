@@ -698,6 +698,7 @@ node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.6.2 --pool   # 0.7.0's 
   record, the history objects and the uploads.
 - **The clock guard.** `prune-ghosts`, `prune-idle` and `weekly` refuse (exit 1, nothing deleted) when the store holds a receipt time later than now plus one day (`CLOCK_GUARD_MS`). It
   sees a clock behind the store, not one far ahead; each of the three prints a `clock:` line (the time it believes, the newest receipt time in the store, a `NOTE:` past 60 days) for a reader.
+  With `--apply` they also refuse when the newest receipt time is more than 90 days before now (`STALE_STORE_DAYS`), unless `--stale-ok`: a clock far ahead makes every record look old.
   A time after the year 2100 (`PLAUSIBLE_LATEST`) is a damaged record: kept and said, never a sign of play, never a reason to refuse.
 - **`weekly --apply`** runs `prune-idle`, `purge-tombstoned`, `prune-ghosts` in that order, each on a fresh read of the store, prints `weekly 1/3 prune-idle: ...`,
   `weekly 2/3 purge-tombstoned: ...`, `weekly 3/3 prune-ghosts: ...` and `weekly: done, all three steps succeeded`; a failed step does not stop the next and the exit code is 1.

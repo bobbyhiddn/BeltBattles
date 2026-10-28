@@ -267,7 +267,7 @@ describe("S6D Goal 4: deploy/RUNBOOK.md section 7 - the commands, the weekly cle
       expect(dry.out.join("\n")).toContain("idle: 0");
       expect(dry.out.join("\n")).toContain("plan: delete 0 upload(s)");
       expect(dry.out[dry.out.length - 1]).toMatch(/^DRY RUN: nothing was deleted\. --apply runs the three steps above in that order/);
-      expect(w).toContain("plans `idle: 0` and `plan: delete 0 upload(s)`");
+      expect(w).toContain("right after a `weekly: done` run the dry run (`weekly`, above) plans nothing to delete (`idle: 0`, `delete 0 upload(s)`)");
 
       // one planted player: an upload by "p1" (the lenient shape the tool reads), named ANNA, hero furnace
       appendFileSync(join(dir, "ghosts.jsonl"), `${JSON.stringify({ id: "g1", at: 5, snapshot: { rules: "bb-0.12.0", day: 1, playerId: "p1", name: "ANNA", hero: "furnace" } })}\n`);
@@ -351,7 +351,7 @@ describe("S6D Goal 4: docs/ASYNC.md '## Operations: the ghost admin tool (0.7.0)
     const dir = mkdtempSync(join(tmpdir(), "bb-s6d-docs-ops-"));
     try {
       const up = (id: string, at: number): string => `${JSON.stringify({ id, at, snapshot: { rules: "bb-0.12.0", day: 1, playerId: `p-${id}` } })}\n`;
-      appendFileSync(join(dir, "ghosts.jsonl"), up("a179", NOW - 179 * day) + up("a180", NOW - 180 * day) + up("a181", NOW - 181 * day));
+      appendFileSync(join(dir, "ghosts.jsonl"), up("a179", NOW - 179 * day) + up("a180", NOW - 180 * day) + up("a181", NOW - 181 * day) + up("recent", NOW - day)); // a store somebody still plays
       const out: string[] = [];
       const code = await runAdmin(["prune-ghosts", "--apply", "--data", dir], { BB_GHOST_STORE: "jsonl" }, (l) => out.push(l), undefined, () => NOW);
       expect(code, out.join("\n")).toBe(0);

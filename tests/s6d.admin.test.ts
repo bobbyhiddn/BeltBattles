@@ -9,14 +9,14 @@ import { nameTag } from "../src/net/names";
 import { playerCode } from "../src/net/playerCode";
 import type { Identity } from "../src/net/identity";
 import { COMMANDS, USAGE, parseArgs, runAdmin, type AdminStore } from "../server/ghostAdmin";
-import { JsonlAdmin } from "../server/ghostAdmin";
+import { StorageError } from "../server/store";
 import { FileHistoryStore, TigrisHistoryStore } from "../server/historyStore";
 import type { FakeS3 } from "../tools/fakeS3";
 import { s3For, startFake, FAKE_CREDS } from "./netStores";
 import { testIdentity } from "./netIdentity";
 import { closeRigs, deleteMe, linkVia, openRig, postGhost, putWire, requestCode, theFake, uploadFor, type Kind as RigKind, type Rig } from "./identRig";
 import { freshWire } from "./profileupWire";
-import { DAY, NOW, R1, R2, admin, bucketState, idOf, removeWorlds, statePath, walk, withoutReceiptTimes, world, type Kind, type World } from "./s6dWorld";
+import { DAY, NOW, R1, R2, admin, bucketState, idOf, removeWorlds, statePath, walk, withoutReceiptTimes, world, wrapped, type Kind, type World } from "./s6dWorld";
 
 let fake: FakeS3;
 let A: Identity, B: Identity, C: Identity;
@@ -259,29 +259,80 @@ describe.each(KINDS)("delete-player on %s", (kind) => {
     expect(w.state()).toEqual(before);
   });
 
-  it("a storage error is exit 1 and an apply that deleted less than its plan is exit 1; a store without identity records says so", async () => {
+  it("a storage error is exit 1 and an apply that deleted less than its plan is exit 1 (both stores); a store without identity records says so", async () => {
     const w = world(kind, fake);
     await populate(w);
-    const real = kind === "jsonl" ? new JsonlAdmin(w.argv[1]) : null;
     const noIdentity: AdminStore = { kind: "jsonl", where: "double", read: async () => ({ records: [], other: [] }), remove: async () => 0, rulesVersions: async () => [] };
     const r = await admin(w, ["delete-player", P], NOW, (() => noIdentity) as never);
     expect(r.code).toBe(1);
     expect(r.text).toContain("ghosts:admin failed: this store cannot read the identity records");
-    if (real) {
-      const dead: AdminStore = { kind: real.kind, where: real.where, read: async () => { throw new Error("disk exploded"); }, remove: (x) => real.remove(x), rulesVersions: () => real.rulesVersions(), tombstoned: () => real.tombstoned(), identity: () => real.identity() };
-      const a = await admin(w, ["delete-player", P], NOW, (() => dead) as never);
-      expect(a.code).toBe(1);
-      expect(a.text).toContain("ghosts:admin failed: disk exploded");
-      const partial: AdminStore = { kind: real.kind, where: real.where, read: (rules) => real.read(rules), remove: (x) => real.remove(x.slice(0, 1)), rulesVersions: () => real.rulesVersions(), tombstoned: () => real.tombstoned(), identity: () => real.identity() };
-      const b = await admin(w, ["delete-player", P, "--apply"], NOW, (() => partial) as never);
-      expect(b.code).toBe(1);
-      expect(b.text).toContain("deleted 1 of 3 upload(s).");
-      expect(b.text).toContain("2 planned upload(s) had already changed or gone");
-      // the delete itself was made (a retry finishes the uploads)
-      const retry = await admin(w, ["delete-player", P, "--apply"]);
-      expect(retry.code, retry.text).toBe(0);
-      expect(w.ids()).toEqual(["player bb-0.11.0 g5", "player bb-0.12.0 g4", "pool bb-0.11.0 pool2", "pool bb-0.12.0 pool1"]);
+    const a = await admin(w, ["delete-player", P], NOW, wrapped(() => ({ read: async () => { throw new Error("disk exploded"); } })) as never);
+    expect(a.code).toBe(1);
+    expect(a.text).toContain("ghosts:admin failed: disk exploded");
+    const b = await admin(w, ["delete-player", P, "--apply"], NOW, wrapped((real) => ({ remove: (x) => real.remove(x.slice(0, 1)) })) as never);
+    expect(b.code).toBe(1);
+    expect(b.text).toContain("deleted 1 of 3 upload(s).");
+    expect(b.text).toContain("2 planned upload(s) had already changed or gone");
+    // the delete itself was made (a retry finishes the uploads)
+    const retry = await admin(w, ["delete-player", P, "--apply"]);
+    expect(retry.code, retry.text).toBe(0);
+    expect(w.ids()).toEqual(["player bb-0.11.0 g5", "player bb-0.12.0 g4", "pool bb-0.11.0 pool2", "pool bb-0.12.0 pool1"]);
+  });
+
+  it("a store failure INSIDE the delete, after the tombstone: exit 1, the tombstone stands; the retry finishes and leaves what a clean run leaves", async () => {
+    const clean = world(kind, fake);
+    await populate(clean);
+    expect((await admin(clean, ["delete-player", P, "--apply"])).code).toBe(0);
+    const w = world(kind, fake);
+    await populate(w);
+    const failingLinks = wrapped((real) => ({
+      identity: () => {
+        const id = real.identity!();
+        let deletes = 0;
+        const links = {
+          get: (k: string) => id.links.get(k), put: (k: string, t: string) => id.links.put(k, t), list: (p: string) => id.links.list(p),
+          delete: async (k: string) => {
+            if (++deletes === 2) throw new StorageError("identity delete failed: HTTP 503"); // the second link record the delete removes
+            return id.links.delete(k);
+          },
+        };
+        return { ...id, links };
+      },
+    }));
+    const r = await admin(w, ["delete-player", P, "--apply"], NOW, failingLinks as never);
+    expect(r.code, r.text).toBe(1);
+    expect(r.text).toContain("ghosts:admin failed: identity delete failed: HTTP 503");
+    expect(JSON.parse(w.state()[statePath(kind, `tombstones/${P}.json`)])).toEqual({ at: NOW, ids: [P, K] }); // written first
+    expect(w.ids().filter((id) => /g[123]$/.test(id))).toHaveLength(3); // the uploads have not been touched yet
+    const retry = await admin(w, ["delete-player", K, "--apply"]); // by the key's id this time: the tombstone names it
+    expect(retry.code, retry.text).toBe(0);
+    expect(w.state()).toEqual(clean.state());
+  });
+
+  it("the dry run lists exactly what --apply removes: the records that disappear are the lines it printed, and the tombstone is the only record that appears", async () => {
+    const w = world(kind, fake);
+    await populate(w);
+    const before = w.state();
+    const idsBefore = w.ids();
+    const dry = await admin(w, ["delete-player", P]);
+    const listed: string[] = [];
+    for (const l of dry.planned) {
+      let m: RegExpExecArray | null;
+      if ((m = /^profile (\S+)$/.exec(l))) listed.push(statePath(kind, `profiles/${m[1]}.json`));
+      else if ((m = /^key link (\S+)$/.exec(l))) listed.push(statePath(kind, `links/keys/${m[1]}.json`));
+      else if ((m = /^Steam link (\S+)$/.exec(l))) listed.push(statePath(kind, `links/steam/${m[1]}.json`));
+      else if (l === "the live link code") listed.push(statePath(kind, `linkcodes/${HASH}.json`));
+      else if ((m = /^player record (\S+)$/.exec(l))) listed.push(statePath(kind, `players/${m[1]}.json`));
+      else if ((m = /^(history\/\S+)$/.exec(l))) listed.push(m[1]);
     }
+    const listedGhosts = dry.planned.map((l) => /ghost (\S+)/.exec(l)?.[1]).filter((x): x is string => !!x).sort();
+    expect((await admin(w, ["delete-player", P, "--apply"])).code).toBe(0);
+    const after = w.state();
+    const gone = Object.keys(before).filter((k) => !(k in after) && !k.startsWith("ghosts"));
+    expect(gone.sort()).toEqual(listed.sort()); // no record disappears that the dry run did not list, none listed stays
+    expect(Object.keys(after).filter((k) => !(k in before))).toEqual([statePath(kind, `tombstones/${P}.json`)]);
+    const goneGhosts = idsBefore.filter((id) => !w.ids().includes(id)).map((id) => id.split(" ")[2]).sort();
+    expect(goneGhosts).toEqual(listedGhosts);
   });
 
   it("a data directory that does not exist is a settings error (exit 2) before anything is read", async () => {
@@ -343,9 +394,7 @@ describe.each(KINDS)("delete-player --apply leaves what a real DELETE /v1/player
       const r = await admin(worldOf(rig), ["delete-player", arg, "--apply"], rig.clock.now);
       expect(r.code, r.text).toBe(0);
       expect(r.text).toContain("deleted 3 of 3 upload(s).");
-      expect(stateOf(rig), `--apply by ${arg}`).toEqual(want);
-      // C and the seed pool are what the reference left too
-      expect(Object.keys(stateOf(rig)).filter((k) => /c-1|player\//.test(k) || k === "ghosts.jsonl").length).toBeGreaterThan(0);
+      expect(stateOf(rig), `--apply by ${arg}`).toEqual(want); // C's ghost and everything else the reference left are there, byte for byte
     }
   });
 });

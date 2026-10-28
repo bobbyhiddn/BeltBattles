@@ -88,8 +88,10 @@ export interface Holdings {
 export interface AdminStore {
   readonly kind: StoreKind;
   readonly where: string;
-  /** Every seed-pool record and upload of `rules`; nothing of another rules version. `bodies`: read the uploads' bytes. */
-  read(rules: string, bodies: boolean): Promise<Holdings>;
+  /** Every seed-pool record and upload of `rules`; nothing of another rules version. `bodies`: read the uploads' bytes. S6D: "fields" reads them but keeps
+   *  only what the commands ask of an upload (its player, receipt time, name and hero, set on the record), not the text: a run over 100,000 uploads on Tigris
+   *  would otherwise hold all their bodies at once. The JSON-lines store keeps the line (a removal checks its bytes). */
+  read(rules: string, bodies: boolean | "fields"): Promise<Holdings>;
   /** Delete exactly these records (as read() returned them). Resolves how many were deleted. */
   remove(records: readonly StoredRecord[]): Promise<number>;
   /** IDENT-1: every rules version that holds a record here (purge-tombstoned walks them all). Optional so a test double need not have it. */
@@ -127,11 +129,12 @@ async function heldIn(store: HistoryStore, ids: ReadonlySet<string>, limit = 1):
 async function readTombstones(links: LinkStore): Promise<{ ids: Set<string>; skipped: number }> {
   const ids = new Set<string>();
   let skipped = 0;
-  for (const key of await links.list("tombstones/")) {
+  // S6D: 16 reads at a time (a tombstone is kept for ever, so there are more every week: on Tigris each is a HEAD and a GET)
+  await eachLimit(await links.list("tombstones/"), 16, async (key) => {
     const t = decodeTombstone(await links.get(key));
     if (t) for (const id of t.ids) ids.add(id);
     else skipped++;
-  }
+  });
   return { ids, skipped };
 }
 
@@ -276,7 +279,7 @@ export class TigrisAdmin implements AdminStore {
     return this.s3.describe();
   }
 
-  async read(rules: string, bodies: boolean): Promise<Holdings> {
+  async read(rules: string, bodies: boolean | "fields"): Promise<Holdings> {
     const prefix = `ghosts/${rules}/`;
     const records: StoredRecord[] = [], other: string[] = [];
     for (const o of await this.s3.listAll(prefix)) {
@@ -302,6 +305,7 @@ export class TigrisAdmin implements AdminStore {
         r.at = f.at; // S6D: the server's receipt time, the record's own `at`
         r.name = f.name;
         r.hero = f.hero;
+        if (bodies === "fields") r.text = f.playerId === null ? "?" : ""; // S6D: keep the fields, drop the text ("?": a body with no readable player, as describe() prints it)
       });
     }
     return { records: records.filter((r) => !gone.has(r)), other };
@@ -429,6 +433,8 @@ export interface AdminArgs {
   name?: string;
   tag?: string;
   days?: number;
+  /** S6D: --stale-ok lets prune-ghosts, prune-idle and weekly --apply run on a store whose newest receipt time is over STALE_STORE_DAYS old. */
+  staleOk?: boolean;
 }
 
 /** A usage error: nothing is read or deleted; exit code 2. */
@@ -456,7 +462,7 @@ export const USAGE = [
 /** The command line: <command> [<playerId>] --rules <v> [--apply] [--pool] [--data <dir>]. Throws UsageError. */
 export function parseArgs(argv: readonly string[]): AdminArgs {
   const pos: string[] = [];
-  let rules: string | undefined, apply = false, pool = false, days: string | undefined, tag: string | undefined;
+  let rules: string | undefined, apply = false, pool = false, days: string | undefined, tag: string | undefined, staleOk = false;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--") { // S6D: everything after a bare -- is an argument, so a player ID that starts with two dashes can be given
@@ -465,6 +471,7 @@ export function parseArgs(argv: readonly string[]): AdminArgs {
     }
     if (a === "--apply") apply = true;
     else if (a === "--pool") pool = true;
+    else if (a === "--stale-ok") staleOk = true;
     else if (a === "--rules" || a === "--data" || a === "--days" || a === "--tag") {
       const v = argv[++i];
       if (v === undefined || v.startsWith("--")) throw new UsageError(`${a} needs a value`);
@@ -478,7 +485,8 @@ export function parseArgs(argv: readonly string[]): AdminArgs {
   if (!command) throw new UsageError("no command");
   if (!(COMMANDS as readonly string[]).includes(command)) throw new UsageError(`unknown command "${command}": use ${COMMANDS.join(", ")}`);
   // S6D: the five commands of server/pruneAdmin.ts take no --rules (every rules version), and --days / --tag belong to them alone
-  if (isRetention(command)) return parseRetention(command, pos, { rules, apply, pool, days, tag }, (m) => new UsageError(m));
+  if (isRetention(command)) return parseRetention(command, pos, { rules, apply, pool, days, tag, staleOk }, (m) => new UsageError(m));
+  if (staleOk) throw new UsageError("--stale-ok goes only with prune-ghosts, prune-idle and weekly");
   if (days !== undefined || tag !== undefined) throw new UsageError(`${days !== undefined ? "--days" : "--tag"} goes only with ${days !== undefined ? "prune-ghosts and prune-idle" : "find-player"}`);
   // IDENT-1: purge-tombstoned walks every rules version unless --rules names one; every other command reads exactly one
   if (rules === undefined && command !== "purge-tombstoned") throw new UsageError("--rules <bb-x.y.z> is required: the tool only reads and deletes one rules version");
@@ -591,7 +599,7 @@ export async function purgeTombstoned(args: AdminArgs, store: AdminStore, out: (
   let total = 0, others = 0;
   if (ids.size) {
     for (const rules of versions) {
-      const h = await store.read(rules, true);
+      const h = await store.read(rules, "fields"); // S6D: only the player of each upload is used below, so no body is kept
       const plan = makePlan({ ...args, rules }, h, ids);
       plans.push(plan);
       total += plan.delete.length;

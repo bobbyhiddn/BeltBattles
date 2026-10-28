@@ -849,11 +849,14 @@ fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs weekly --apply
 - **The clock guard.** `prune-ghosts`, `prune-idle` and `weekly` refuse (exit 1, nothing deleted, one line starting `refused:`) when the store holds a receipt time later than
   now plus one day: a machine whose clock is behind the store's own writes is wrong. **It cannot see a clock set far AHEAD** (then every record looks old and nothing in the store says otherwise), so each of the three
   also prints one `clock:` line, the time it believes and the newest receipt time in the store, with a `NOTE:` when that newest record is more than 60 days old: read it in the first dry run and look at it in the log of each
-  weekly run. A time after the year 2100 is a damaged record, not a clock: the upload or player is kept and said, and it does not stop the run.
+  weekly run. **With `--apply` they also refuse when the newest receipt time in the store is more than 90 days before now** (`STALE_STORE_DAYS`): either nobody has played that long, or this machine's clock is far
+  ahead; run again with `--stale-ok` only when the store really is that quiet and the clock is right. The weekly machine never passes `--stale-ok`: after a quiet quarter its log says `refused:` and nothing is deleted
+  until the operator looks. A time after the year 2100 is a damaged record, not a clock: the upload or player is kept and said, and it does not stop the run.
 - Exit codes as above: 0 done (a dry run too), 1 a refusal, a storage error or an apply that deleted less than its plan, 2 a refused command line.
 - **The two delays after any delete.** A running server learns of a tombstone that another process wrote at its next tombstone refresh (within 60 s: `TOMBSTONE_TTL_MS` in
   server/links.ts) and from then on serves no ghost of those ids. A ghost it has cached is served until its bucket cache expires (`BB_GHOST_CACHE_TTL_S`, 600 s in fly.toml)
-  or the machine restarts (`fly apps restart beltbattles`); on JSON lines only a restart does it.
+  or the machine restarts (`fly apps restart beltbattles`); on JSON lines only a restart does it. A tombstone that is rewritten in place (a second `delete-player` on a deleted player, or the
+  second delete for a key the player's record forgot) reaches a running server only at its next full read of the tombstones, up to `TOMBSTONE_FULL_READ_MS` = 6 hours.
 
 ### The weekly clean-up (S6D; documented only)
 
@@ -862,6 +865,10 @@ deleted themselves; and the stored ghosts of a player who deleted their online d
 `CLEANUP_PROMISE_DAYS` in server/retention.ts). Nothing in the app does that by itself: `weekly --apply` does, and something must run it once a week. **This subsection is
 documented only: nothing in it has been run, and fly.toml, the Dockerfile and the other files under deploy/ do not change for it.** Creating the machine is the operator's own
 approval, next to the release that publishes the policy; **the machine must exist from that release on**, or the policy promises a clean-up that nobody runs.
+
+**Release order.** The policy and support pages are served by the app's own server, so they go public with the deploy that carries them (the 404-until-filled rule of section 5 is already satisfied: they are
+filled). Do steps 1 to 3 below in the same sitting as that deploy, the machine first if you can, and check after the deploy: `fly machine list -a beltbattles` lists `weekly-cleanup`, and within 14 days
+`fly logs -a beltbattles --machine <machine-id> --no-tail` shows a `weekly: done` line (step 5). Section 5's live checks have no line for the machine; add one there when that section is next edited.
 
 **What it is.** One more Machine in the app, run on the app's own image, that Fly starts on a weekly schedule, that runs `node /app/dist/ghost-admin.mjs weekly --apply` and
 stops when the command ends. Fly.io's scheduled Machines are that: `fly machine run` has a `--schedule` flag, which "starts the Machine on a fuzzy `hourly`, `daily`, `weekly`, or
@@ -901,7 +908,8 @@ stops when the command ends. Fly.io's scheduled Machines are that: `fly machine 
      Machine with a schedule defaults to `on-fail`). A run that ends with exit 1 is therefore repeated, which is safe: every step plans again from the store.
    - No `--rm`: "Use the `--rm` flag to cause the Machine to instead be destroyed when it stops" would destroy it after the first run. No `--metadata`: see step 4.
    - **Size:** `--vm-size shared-cpu-1x --vm-memory 512` is the app's own CPU (fly.toml says `shared-cpu-1x`, `256mb`) with twice the memory, because the tool holds a small record for every upload
-     and every player it reads at once (on Tigris it drops each upload's body once it has the player, the name and the receipt time; `list` shows how many uploads there are). That is an estimate, not a measurement: if a run is killed for lack of memory, raise it
+     and every player it reads at once (on Tigris it keeps each upload's player, name, hero and receipt time and never its body; a run reads the bodies up to three times, 16 at a time, so 100,000 uploads are some 300,000
+     requests and ten to fifteen minutes; `list` shows how many uploads there are). That is an estimate, not a measurement: if a run is killed for lack of memory, raise it
      (`fly machine update <machine-id> -a beltbattles --vm-memory 1024 --skip-start --yes`). The Machine runs only as long as the clean-up takes and is stopped the rest of the week.
    - **Once it exists, the app has two Machines.** `fly ssh console` "Connect[s] to a running instance of the current app" and its page does not say which instance it takes when there are
      several (https://docs.fly.io/flyctl/cmd/fly_ssh_console, read 2026-10-28). From then on, name the app's own Machine in every `fly ssh console` line of this RUNBOOK:
@@ -928,7 +936,7 @@ stops when the command ends. Fly.io's scheduled Machines are that: `fly machine 
    (more than 730 days without play) and ... of their upload(s)`, `weekly 2/3 purge-tombstoned: deleted ... of ... upload(s) and ... of ... history object(s) of the ... id(s) in tombstones`,
    `weekly 3/3 prune-ghosts: deleted ... of ... upload(s) received more than 180 days ago`, and `weekly: done, all three steps succeeded`. `weekly: finished with N failed step(s)` or a line starting
    `refused:` (the clock guard) needs action. How long Fly keeps log lines is not in the pages read for this job, so look within a day or two of a run. `fly machine list -a beltbattles` shows the Machine
-   `stopped` between runs. The tool also checks itself: after a good week the dry run (`weekly`, above) plans `idle: 0` and `plan: delete 0 upload(s)`. The policy promises 14 days (twice the schedule): if no
+   `stopped` between runs. The tool also checks itself: right after a `weekly: done` run the dry run (`weekly`, above) plans nothing to delete (`idle: 0`, `delete 0 upload(s)`); a week later it lists the uploads and players that crossed their limit since. The policy promises 14 days (twice the schedule): if no
    `weekly: done` line has appeared for 14 days, treat the clean-up as broken and fix it first.
 6. **Pause or remove it.** Remove: `fly machine destroy <machine-id> -a beltbattles --force` ("Destroy one or more Fly machines"; `-f, --force`: "force kill machine regardless of current state";
    https://docs.fly.io/flyctl/cmd/fly_machine_destroy, read 2026-10-28), then `fly machine list -a beltbattles`. The pages read for this job give no way to hold a scheduled Machine or to switch its
@@ -956,6 +964,7 @@ before every delete:
    fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs delete-player <id or code>'
    ```
    It must print `resolved: player <P> (given as ...)` and list only that player's records. A line starting `refused:` means nothing matched (or two players did) and nothing was deleted: fix the id.
+   (A player ID that starts with two dashes, one in about four thousand, is read as an option: put a bare `--` before it, `delete-player -- <id>`. A code never starts with one.)
 4. The same line with `--apply`. Expect `APPLIED: ...` and `deleted N of N upload(s)`. The two delays above apply: the player's ghosts stop being served within about a minute, and a ghost the
    server has cached for up to 10 minutes (or until a restart). Tell the player: their online data is deleted; if a device still holds the game, its next online game starts a new player and the progress on
    that device stays.
