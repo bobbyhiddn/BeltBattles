@@ -384,3 +384,59 @@ describe("S6D Goal 4: docs/ASYNC.md '## Operations: the ghost admin tool (0.7.0)
     expect(readdirSync(join(ROOT, "tests")).some((f) => /^s6d\..+\.test\.ts$/.test(f))).toBe(true);
   });
 });
+
+// ------------------------------------------------------------------------------------------------------------------ S6D Goal 6: the stores' age answers
+
+describe("S6D Goal 6: the stores' age answers (store/listing/play.md and apple.md)", () => {
+  const play = read("store/listing/play.md"), apple = read("store/listing/apple.md");
+  const heads = (t: string): string[] => [...t.matchAll(/^## (.+)$/gm)].map((m) => m[1].replace(/\s*\([^()]*\)$/, ""));
+  /** A field's text (as tests/m3.listing.test.ts reads them: each `## Heading (note)` section, trimmed). */
+  const field = (t: string, name: string): string => {
+    const part = t.split(/^## /m).slice(1).find((s) => s.startsWith(`${name} (`));
+    expect(part, name).toBeDefined();
+    return part!.slice(part!.indexOf("\n")).trim();
+  };
+
+  it("play.md: 'Target audience and content' comes last, after the S6 fields: ages 13 and over, not under 13, not designed for children, no ads; sourced and dated", () => {
+    expect(heads(play).slice(-2)).toEqual(["Data deletion URL", "Target audience and content"]);
+    const t = field(play, "Target audience and content");
+    for (const f of [
+      "Target age: Ages 13-15, Ages 16-17 and Ages 18 and over.", "Not selected: Age 5 and under, Ages 6-8 and Ages 9-12.", "The app is not designed for children, and not designed primarily for children under 13.",
+      "Ads: none.", "Manage target audience and app content settings", "read 2026-10-28", "support.google.com/googleplay/android-developer/answer/9867159",
+      "\"Select the age group(s) that your app targets.\"", "\"You must still meet the requirements outlined in Google Play Developer Program policies and Developer Distribution Agreement.\"",
+    ]) expect(t, f).toContain(f);
+    expect(t, "a source is cited without a link: the listing files hold the site's own addresses only").not.toMatch(/https?:/);
+    // true of the code: the privacy page says 13 and over and that no age is asked; no ads (dependencies are Capacitor's only)
+    const privacyPage = read("server/pages/privacy.html");
+    expect(privacyPage).toContain("is for people aged 13 and over and is not aimed at children. It asks for no age");
+    const pkg = JSON.parse(read("package.json")) as { dependencies: Record<string, string> };
+    expect(Object.keys(pkg.dependencies).every((d) => d.startsWith("@capacitor/"))).toBe(true);
+  });
+
+  it("apple.md: 'Age rating questionnaire' and 'Made for Kids' come last, after the S6 fields; every answer follows from the code", () => {
+    expect(heads(apple).slice(-3)).toEqual(["Contact email", "Age rating questionnaire", "Made for Kids"]);
+    const q = field(apple, "Age rating questionnaire");
+    for (const a of [
+      "Parental Controls: none.", "Age Assurance: none.", "Unrestricted Web Access: no.", "User-Generated Content: yes (judgment).", "Messaging and Chat: no.", "Social Media: no.", "Advertising: no.",
+      "Profanity or Crude Humor: none.", "Horror or Fear Themes: none (judgment", "Alcohol, Tobacco, or Drug Use or References: none.", "Medical or Treatment Information: none.", "Mature or Suggestive Themes: none.",
+      "Cartoon or Fantasy Violence: frequent.", "Guns or Other Weapons: frequent.", "Realistic Violence: none.", "Simulated Gambling: infrequent.", "Gambling: none.", "Loot Boxes: none", "Contests: none (judgment",
+    ]) expect(q, a).toContain(a);
+    expect(q.split("\n").filter((l) => l.startsWith("•") && l.includes("(judgment"))).toHaveLength(3); // the text says "The three marked (judgment)"
+    expect(q).toContain("The three marked (judgment)");
+    expect(q).toContain("\"Apple generates appropriate ratings based on your answer to the age rating questionnaire.\"");
+    expect(q).toContain("So these answers should give 13+, as the privacy policy's \"13 and over\".");
+    expect(q).toContain("Source: App Store Connect help, \"Age ratings values and definitions\" (developer.apple.com/help/app-store-connect/reference/app-information/age-ratings-values-and-definitions), read 2026-10-28.");
+    expect(q).toContain(`a name of ${NAME_MIN} to ${NAME_MAX} characters (A-Z, 0-9, space, hyphen)`);
+    const k = field(apple, "Made for Kids");
+    expect(k.startsWith("No. Leave the app out of the Kids category.")).toBe(true);
+    expect(k).toContain("\"Made for Kids: An indication that the app appears in the Kids category on the App Store.");
+    expect(k).toContain("developer.apple.com/help/app-store-connect/reference/app-information/app-information), read 2026-10-28.");
+    expect(apple.match(/https?:\/\/[^\s)]+/g)!.every((u) => u.startsWith("https://beltbattles.fly.dev/"))).toBe(true);
+    expect(apple).not.toMatch(/Data deletion/); // Apple's form has no such field (tests/s6.contact.test.ts)
+    // the answers follow from the code: names are the only text a player makes, the game opens one fixed address, there are a dice event and a skull
+    expect(PRIVACY_URL).toBe("https://beltbattles.fly.dev/privacy");
+    expect(read("src/game/eventDefs.ts")).toContain('title: "BONE DICE", kind: "GAMBLE"');
+    expect(read("src/screens/event/cards.ts")).toContain('case "sabotage": return skullIcon();');
+    expect(read("server/pages/privacy.html")).toContain("It asks for no age");
+  });
+});

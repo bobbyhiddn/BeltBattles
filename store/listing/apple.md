@@ -80,3 +80,49 @@ https://beltbattles.fly.dev/support
 ## Contact email (on the support page; App Review contact information)
 
 micah@crewport.ai
+
+## Age rating questionnaire (App Information, Age Rating; set once for the app on every platform)
+
+The answers follow from the code. The three marked (judgment) rest on how Apple defines the item, so check them in the Console.
+
+In-app controls
+• Parental Controls: none. The game has none.
+• Age Assurance: none. The game asks no age and does not use Apple's Declared Age Range API.
+
+Capabilities
+• Unrestricted Web Access: no. The game has no browser and no way to type an address. OPTIONS, PRIVACY opens one fixed page of the game's own server, outside the game.
+• User-Generated Content: yes (judgment). What a player makes that other players see is a name of 2 to 10 characters (A-Z, 0-9, space, hyphen), shown as NAME#TAG, and the saved build that carries it. The game and the server both check names against a word list. There are no pictures, posts, audio or video.
+• Messaging and Chat: no. Players send each other nothing; a saved build is met at dusk, and nobody faces anyone in real time.
+• Social Media: no. There is no feed, no sharing and no likes. Social Media Disabled for Users Under 13: not applicable.
+• Advertising: no. There are no ads and no in-app purchases.
+
+Mature themes
+• Profanity or Crude Humor: none.
+• Horror or Fear Themes: none (judgment: the ELVEN SAPPERS road event, kind SABOTAGE, shows a small pixel skull).
+• Alcohol, Tobacco, or Drug Use or References: none.
+
+Medical or wellness
+• Medical or Treatment Information: none. Health or Wellness Topics: none.
+
+Sexuality or nudity
+• Mature or Suggestive Themes: none. Sexual Content or Nudity: none. Graphic Sexual Content and Nudity: none.
+
+Violence
+• Cartoon or Fantasy Violence: frequent. Every day of a run is a fight between fantasy war cruisers, drawn as pixel art.
+• Guns or Other Weapons: frequent. The turrets fire in every fight.
+• Realistic Violence: none. Prolonged Graphic or Sadistic Realistic Violence: none.
+
+Chance-based activities
+• Simulated Gambling: infrequent. The BONE DICE road event lets the player bet gold they earned in the run (and a herald takes a stake on a fight); no real money and no purchase is involved.
+• Gambling: none. Loot Boxes: none, as nothing is bought with real money.
+• Contests: none (judgment: there are no events, rankings or prizes).
+
+Rating: Apple computes it from the answers: "Apple generates appropriate ratings based on your answer to the age rating questionnaire." Apple's table of values on the same page lists Frequent Cartoon or Fantasy Violence, Frequent Guns or Other Weapons and Infrequent Simulated Gambling under 13+, and nothing here belongs to 16+ or 18+ (Unrestricted Web Access is listed under 16+, Frequent Simulated Gambling under 18+). So these answers should give 13+, as the privacy policy's "13 and over". Check the rating the Console shows before saving.
+
+Source: App Store Connect help, "Age ratings values and definitions" (developer.apple.com/help/app-store-connect/reference/app-information/age-ratings-values-and-definitions), read 2026-10-28.
+
+## Made for Kids (App Information, Made for Kids)
+
+No. Leave the app out of the Kids category. Apple's help says: "Made for Kids: An indication that the app appears in the Kids category on the App Store. This property includes an age range set for the app. Once an app marked as Made for Kids is approved by App Review, this selection cannot be changed and all subsequent updates will need to follow the Kids category guidelines." The app is for 13 and over, so it is not marked.
+
+Source: App Store Connect help, "App information" (developer.apple.com/help/app-store-connect/reference/app-information/app-information), read 2026-10-28.

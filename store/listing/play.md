@@ -72,3 +72,13 @@ micah@crewport.ai
 ## Data deletion URL (App content, Data safety: the web link where users can ask for their data to be deleted)
 
 https://beltbattles.fly.dev/privacy#delete
+
+## Target audience and content (App content, Target audience and content)
+
+Target age: Ages 13-15, Ages 16-17 and Ages 18 and over. Not selected: Age 5 and under, Ages 6-8 and Ages 9-12.
+
+The app is not designed for children, and not designed primarily for children under 13. The privacy policy says 13 and over, and the game asks no age.
+
+Ads: none. The Console asks whether the app contains ads before this section; the answer is no (no ads and no in-app purchases).
+
+Source: Play Console help, "Manage target audience and app content settings", read 2026-10-28 (support.google.com/googleplay/android-developer/answer/9867159). It says: open Policy, App content, and under "Target audience and content" click Start; under Target age, "Select the age group(s) that your app targets."; its age groups are Age 5 and under, Ages 6-8, Ages 9-12, Ages 13-15, Ages 16-17 and Ages 18 and over; and for an app that is "not designed for children", "You must still meet the requirements outlined in Google Play Developer Program policies and Developer Distribution Agreement." The page does not list the questions the Console adds for an app that targets only 13 and over: answer those as the Console words them, from this entry. It also says a listing with marketing elements that suggest children can be rejected, so the listing adds none.

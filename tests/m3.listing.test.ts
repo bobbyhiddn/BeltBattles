@@ -61,8 +61,10 @@ const appleText = [...Object.keys(APPLE_LIMITS), "Keywords"].map((k) => [`apple 
 describe("M3 Goal 4: the listing files' fields and limits", () => {
   it("each file has its fields, in order, and each heading states the limit the store gives", () => {
     // S6 (REQ-BFG-119) Goal 4: + the privacy, support, contact and (Play) data deletion fields, after the M3 fields (tests/s6.contact.test.ts holds their words)
-    expect(play.order).toEqual(["App name", "Short description", "Full description", "Release notes for version 1", "Category", "Privacy policy URL", "Support URL", "Contact email", "Data deletion URL"]);
-    expect(apple.order).toEqual(["Name", "Subtitle", "Promotional text", "Description", "Keywords", "What's New in version 1", "Note on What's New", "Categories", "Privacy Policy URL", "Support URL", "Contact email"]);
+    // S6D (REQ-BFG-119) Goal 6: + the stores' age answers after the S6 fields: Play's Target audience and content; Apple's age rating questionnaire and Made for Kids
+    // (none of them is a field this file scans for banned words: tests/s6.docs.test.ts holds their words)
+    expect(play.order).toEqual(["App name", "Short description", "Full description", "Release notes for version 1", "Category", "Privacy policy URL", "Support URL", "Contact email", "Data deletion URL", "Target audience and content"]);
+    expect(apple.order).toEqual(["Name", "Subtitle", "Promotional text", "Description", "Keywords", "What's New in version 1", "Note on What's New", "Categories", "Privacy Policy URL", "Support URL", "Contact email", "Age rating questionnaire", "Made for Kids"]);
     for (const [k, n] of Object.entries(PLAY_LIMITS)) expect(play.notes[k], `play ${k}`).toBe(`max ${n.toLocaleString("en-US")} characters`);
     for (const [k, n] of Object.entries(APPLE_LIMITS)) expect(apple.notes[k], `apple ${k}`).toBe(`max ${n.toLocaleString("en-US")} characters`);
     expect(apple.notes.Keywords).toBe("max 100 bytes, comma-separated, no space after a comma");
