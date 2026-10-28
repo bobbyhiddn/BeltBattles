@@ -3,14 +3,40 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
-## Next release (battle rules bb-0.14.0; the release lane writes the label): a part of each kind in every shop, and fresh ghosts
+## 0.9.15: a SHOCK and a BURN part in every shop, and clearer panels
 
-New battle rules: bb-0.14.0. Ghosts and uploads from bb-0.13.0 and older no longer meet this release's players. The
-stand-in and seed pools were rebuilt for the new rules and again cover days 1 to 16 (192 ghosts in the seed pool).
-- **Every run's shop stock holds at least one SHOCK part and one BURN part**, so the SMUGGLER always has a part of each
-  kind to offer and never reads NONE ON OFFER.
-- **Two late captains changed.** RATCHET's TEMPER holds BRACED from day 12 (it held FIERY), and GRIMHOLD's second ANVIL
-  comes on day 6 (it came on day 4).
+New battle rules: bb-0.14.0. This release is matched only with bb-0.14.0 ghosts (it turns away any other), and its server takes
+uploads only under bb-0.14.0, so ghosts and uploads from bb-0.13.0 and older no longer meet its players. The stand-in and seed
+pools were rebuilt for the new rules and still cover days 1 to 16 (192 ghosts in the seed pool).
+- **The shop:** every run begun on 0.9.15 has at least one SHOCK part and one BURN part, of the kinds the SMUGGLER sells,
+  among the parts its shop can sell over the run. A run that would have had none gets one in place of another part, of the
+  same merchant and rarity where it can. So in a new run the SMUGGLER always has a part of each kind to offer (early, if none is
+  on sale yet) and never reads NONE ON OFFER.
+- **The captains:** two captains changed. RATCHET (Easy): its TEMPER holds BRACED from day 12 (it held FIERY). GRIMHOLD
+  (Medium) fuses its second ANVIL BREECH into its first on day 6 (it was day 4), so that part has one star on days 4 and 5.
+- **Belt panels:** a belt's panel now counts FIERY and GROWING, on a rig, the factory or the turret the belt feeds: FIERY adds
+  1 BURN for each star, for each hit, and a GROWING part's grown damage is in DMG (both were left out before). A FUSER, SCATTER
+  MILL or SMELTER on the belt stops this, and the panel names the word instead. When a belt carries something its numbers leave
+  out (IRON WALL and the other rigs that count something in the fight, or an enchantment such as RISING or ECHOING), the panel
+  says so in one small line, such as NOT COUNTED: IRON WALL (CHANGES IN THE FIGHT), shorter on a narrow panel. The line uses only
+  room the panel has spare; the same words are always the first note in the panel's ? view, and a belt panel that had no ? now
+  shows one when it has such a line.
+- **Notes on panels:** on a phone held upright, while the how-to hints still show (as on a first run), a definition note no
+  longer covers the top rows of the deck: it moves up to end at the deck's edge, and the how-to hint hides while the note sits
+  on it. On desks and on phones turned sideways, a definition note that would have covered a turret panel's rules now opens
+  between the shop row and the carrier, in the top-left corner, or in smaller text (a few notes still cover them on a 1920x1080
+  screen on a day the ENCHANTER's wagon is up). On a turret's panel, two or more empty gear slots share one row, such as GEAR 2-6
+  EMPTY.
+- **Stars, icons and cards:** every star in the small text (notes, tooltips, cards and the help card) is a five-point star, as
+  the larger text's star already was. The heavy turrets (SCRAP CANNON, RAMPART CANNON, BOMBARD, SIEGE GUN and THUNDERER) have a
+  new icon, a gun on a wheeled carriage with its barrel raised on the diagonal and the rarity colour still at its foot; the turret
+  drawn on the deck is unchanged. A road card's arrow between what it takes and what it gives is a larger, brighter right arrow.
+  LAST CHANCE's cards, the road's drop list and an event card's info button draw the same ? as a part's panel (LAST CHANCE and
+  the drop list showed an i).
+
+The battle rules are now bb-0.14.0, so players of 0.9.15 meet only 0.9.15's ghosts; a run saved on 0.9.14.1 loads and goes on
+with the shop stock it was dealt (so the new SHOCK and BURN rule does not reach it), keeps the foe already picked for its day, and
+from then on meets bb-0.14.0's ghosts and captains.
 
 ## 0.9.14.1: clearer cards, panels and words
 
