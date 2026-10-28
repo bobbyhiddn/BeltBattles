@@ -435,12 +435,14 @@ interface KwState {
   text: string | null;
   /** PRESENT-2 P: the lines the last shown note drew (a box beside the column wraps to its own width); null: none shown. Read by the tests. */
   note: RichLine[] | null;
+  /** PRESENT-4 T (F10): where the rig sentence's box went on its first frame (rigPlace); kept while it shows (no jumps), null when it is not shown. Read by the tests and by rigAhead. */
+  rigAt: RigPlace | null;
 }
 const STATE = new WeakMap<object, KwState>();
 const stateOf = (owner: object, key: string): KwState => {
   let s = STATE.get(owner);
   if (!s || s.key !== key) {
-    s = { key, word: null, page: null, hover: null, opened: false, auto: null, rig: false, chain: false, held: 0, place: null, face: null, text: null, note: null };
+    s = { key, word: null, page: null, hover: null, opened: false, auto: null, rig: false, chain: false, held: 0, place: null, face: null, text: null, note: null, rigAt: null };
     STATE.set(owner, s);
   }
   return s;
@@ -1070,13 +1072,14 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   }
   // the rig sentence's box: by the panel's icon, in the icon tooltip's look (iconTipRect, drawIconTip), a UI region.
   // CARD-4 run 2 (REQ-BFG-087): where the screen has no room beside the panel (a phone's band panel), under the panel and
-  // its strip, off the shop (rigTipRect)
+  // its strip, off the shop (rigTipRect). PRESENT-4 T (F10): there, its place is rigPlace's (inside the panel's body, else
+  // the strip's place with the strip yielding, else rigTipRect's), chosen once from the box's first frame (KwState.rigAt)
   if (s.rig) {
-    const items = [RIG_SENTENCE], tr = rigTipRect(items, r, screen, d.strip ?? null);
-    drawIconTip(g, items, tr);
-    ui.add({ id: SIGHT_REGION, r: tr, block: true });
+    const items = [RIG_SENTENCE], pl = s.rigAt ?? (s.rigAt = rigPlace(items, r, screen, d.strip ?? null, rigRowsEnd(lines, plan), d.deck));
+    drawIconTip(g, items, pl.box);
+    ui.add({ id: SIGHT_REGION, r: pl.box, block: true });
     sawRig();
-  }
+  } else s.rigAt = null;
 }
 
 /** FLIP-X1 (N4-b): one text row the ⓘ view draws: a section's header (3x5, `section`) or one line of an entry (5x7,
@@ -1231,6 +1234,59 @@ export function rigTipRect(items: readonly string[], r: Rect, screen?: { W: numb
   const above = Math.min(r.y, strip && strip.y < r.y ? strip.y : r.y) - tr.h - 6;
   if (above >= 2) return { ...tr, y: above };
   return tr;
+}
+
+/**
+ * PRESENT-4 T (REQ-BFG-087, REQ-BFG-004; STAGE-0915's F10; cap's call): the first-run rig sentence's box on a phone's band panel went just under the panel and its how-to strip (rigTipRect), so on 402x690 it
+ * covered the hull's top and the deck's first row (546 of 546 boxes on every one of the five checked phone views, every tip new; the strip above it tells the player to drag the rig onto that deck). Where the box
+ * is placed (chosen ONCE, from its first frame: KwState.rigAt; never moved while it shows), in this order:
+ *   (1) `inside`: inside the panel's own body, under its last row (`rowsEnd`: the lowest text row's foot) and 2 px clear of it, where the box fits whole 2 px clear of the panel's edge (its 2 px drop shadow, drawIconTip's, ends inside the frame);
+ *   (2) `strip`: the how-to strip yields (it is not drawn from the box's first frame, back in the frame the box closes, never moved: cap's ruling 0d0ef2465804aafb item 2, as definitionAhead's `yieldsStrip`) and
+ *       the box takes the strip's place (its top at the strip's top), where it then covers no deck cell (`deck`: a touch panel on a portrait layout, inspector.ts deckOf). With no strip this open (the tips are
+ *       done and only the first sight is left) there is nothing to yield: the place is the panel's foot, taken only where rigTipRect's place would cover a deck cell (a box that clears the deck stays where it was);
+ *   (3) `today`: rigTipRect's place (the tests list the panels that land here).
+ * Where the box goes beside the panel (the desk's, the landscape phone's column) its place is rigTipRect's, as before. Its x and size are rigTipRect's; only y moves. Pure (the layer, rigAhead, the tests).
+ */
+export interface RigPlace {
+  box: Rect;
+  place: "inside" | "strip" | "today";
+  /** the box is in the strip's place and a strip is under the panel: the strip is not drawn while the box shows */
+  yieldsStrip: boolean;
+}
+export function rigPlace(items: readonly string[], r: Rect, screen: { W: number; H: number } | undefined, strip: Rect | null, rowsEnd: number, deck: Rect | null | undefined): RigPlace {
+  const today = rigTipRect(items, r, screen, strip);
+  if (today.x >= r.x + r.w || today.x + today.w <= r.x) return { box: today, place: "today", yieldsStrip: false }; // beside the panel: as before
+  const inside: Rect = { ...today, y: rowsEnd + 2 };
+  if (inside.y + inside.h + 2 <= r.y + r.h) return { box: inside, place: "inside", yieldsStrip: false };
+  if (deck) {
+    const top = Math.floor(deck.y), H = screen?.H ?? Infinity; // the deck's top is fractional under the carrier's zoom: whole px, as deckClear
+    const clear = (b: Rect): boolean => b.y + b.h <= top && b.y + b.h <= H;
+    const at: Rect = { ...today, y: strip ? strip.y : r.y + r.h };
+    if (strip ? clear(at) : !clear(today) && clear(at)) return { box: at, place: "strip", yieldsStrip: !!strip };
+  }
+  return { box: today, place: "today", yieldsStrip: false };
+}
+/** PRESENT-4 T: the foot of the panel's lowest text row (5x7 rows are 7 px tall, 3x5 rows 5), at least the body's top. */
+export const rigRowsEnd = (lines: readonly { line: PLine | "rule"; y: number }[], plan: Pick<PanelPlan, "y">): number =>
+  Math.max(plan.y, ...lines.filter((v) => v.line !== "rule").map((v) => v.y + ((v.line as { font: FontId }).font === "5" ? 7 : 5)));
+/**
+ * PRESENT-4 T: the place the rig sentence's box has in THIS frame, worked out before the panel draws its strip (inspector.ts drawDetails, as definitionAhead is for a note): the place of its first frame while it
+ * shows, or, on a new open where the layer will open it now (the screen asks for first sights, the body draws no how-to hint, the rig is one the sentence is true of and it is not seen yet, the layer has
+ * something to draw), the place rigPlace gives. null: no sentence this frame. Pure.
+ */
+export function rigAhead(owner: object, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; strip?: Rect | null; deck?: Rect | null },
+  lines: readonly { line: PLine | "rule"; y: number }[], screen: { W: number; H: number } | undefined, sight: boolean): RigPlace | null {
+  const s0 = STATE.get(owner), s = s0 && s0.key === JSON.stringify(d.show) ? s0 : undefined;
+  // shown: the place of its first frame, unless a tapped word's note or the ⓘ view takes the panel this frame (the layer closes the sentence then: drawKeywordLayer's `if (s.page !== null || box) s.rig = false`)
+  if (s?.rig && s.rigAt) return s.word !== null || s.page !== null ? null : s.rigAt;
+  if (s?.opened) return null; // this open's first sight is decided: the sentence shows only through rigAt
+  if (!sight || lines.some((v) => v.line !== "rule" && v.line.block.role === "hint")) return null;
+  const piece = panelPiece(run, d.show);
+  if (!(rigSentenceRig(piece) && !rigSeen())) return null;
+  const own = explainWords(d.t, piece, run.day);
+  const words = [...own, ...runeWords(run).filter((w) => !own.some((o) => o.word === w.word))];
+  if (!words.length && !infoLevels(run, d.show).length && !(d.t.notes ?? []).length) return null; // the layer draws nothing here
+  return rigPlace([RIG_SENTENCE], d.plan.r, screen, d.strip ?? null, rigRowsEnd(lines, d.plan), d.deck);
 }
 
 /** EXPLAIN-1 (E3): the icon's hover tooltip in `tr` (iconTipRect), drawHoverTip's style: an ink frame and shadow, night,
