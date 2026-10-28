@@ -25,13 +25,11 @@ function carriageGun(g: G, rim: string): void {
     const y = 5 - k, top = Math.max(0, y);
     rect(g, 1 + k, top, 4, 3 - (top - y), C.ink);
   }
-  // PRESENT-4 M (REQ-BFG-113; backlog #531 (5)): the muzzle's cap is drawn BEFORE the barrel's steel, so the barrel's last steel pixel (9, 0) stays and the white muzzle pixel (10, 0) joins it: the barrel ends in a white
-  // tip. It was drawn after the steel, over (9, 0): an ink pixel stood between the barrel and the white pixel, which 7 of PRESENT-3's readers saw as a separate dot or spark.
-  rect(g, 9, 0, 3, 2, C.ink);
   for (let k = 0; k < 7; k++) {
     rect(g, 2 + k, 6 - k, 2, 1, C.steel3);
     if (k > 1) rect(g, 2 + k, 5 - k, 1, 1, C.white);
   }
+  rect(g, 9, 0, 3, 2, C.ink);
   rect(g, 10, 0, 1, 1, C.white);
 }
 

@@ -48,10 +48,8 @@ describe("PRESENT-3 C: the heavy turrets' icon", () => {
     // the SCRAP CANNON's picture, pinned (common: its rim is steel3): `.` clear, `#` ink, `w` white, `s` steel3, `1` steel1
     const g = px("scrapcannon").map((c) => (c === null ? "." : c === C.ink ? "#" : c === C.white ? "w" : c === C.steel3 ? "s" : c === C.steel1 ? "1" : "?"));
     const rows = Array.from({ length: 12 }, (_, y) => g.slice(y * 12, y * 12 + 12).join(""));
-    // PRESENT-4 M (REQ-BFG-113; backlog #531 (5)), old -> new: row 0 was `......#ws#w#`: an ink pixel at x 9 stood between the barrel's steel and the white muzzle pixel (7 of PRESENT-3's readers saw a separate dot or
-    // spark); the muzzle's cap is drawn before the steel now, so x 9 is steel3 and the white pixel joins the barrel's end: `......#wssw#`. The other eleven rows are as they were.
     expect(rows).toEqual([
-      "......#wssw#", ".....#wss###", "....#wss##..", "...#wss##...", "..##ss##....", ".##ss##.....",
+      "......#ws#w#", ".....#wss###", "....#wss##..", "...#wss##...", "..##ss##....", ".##ss##.....",
       ".#ss##111#..", ".#########..", "..#1111#....", "..#1ss1#....", "..#ssss#....", "..######....",
     ]);
   });
