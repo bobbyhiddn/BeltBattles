@@ -847,7 +847,9 @@ fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs weekly --apply
   prune-idle: ...`, `weekly 2/3 purge-tombstoned: ...`, `weekly 3/3 prune-ghosts: ...`) and ends `weekly: done, all three steps succeeded`. A step that fails does not
   stop the next, and the exit code is 1 if any failed.
 - **The clock guard.** `prune-ghosts`, `prune-idle` and `weekly` refuse (exit 1, nothing deleted, one line starting `refused:`) when the store holds a receipt time later than
-  now plus one day: a machine whose clock is set far ahead would make every record look old.
+  now plus one day: a machine whose clock is behind the store's own writes is wrong. **It cannot see a clock set far AHEAD** (then every record looks old and nothing in the store says otherwise), so each of the three
+  also prints one `clock:` line, the time it believes and the newest receipt time in the store, with a `NOTE:` when that newest record is more than 60 days old: read it in the first dry run and look at it in the log of each
+  weekly run. A time after the year 2100 is a damaged record, not a clock: the upload or player is kept and said, and it does not stop the run.
 - Exit codes as above: 0 done (a dry run too), 1 a refusal, a storage error or an apply that deleted less than its plan, 2 a refused command line.
 - **The two delays after any delete.** A running server learns of a tombstone that another process wrote at its next tombstone refresh (within 60 s: `TOMBSTONE_TTL_MS` in
   server/links.ts) and from then on serves no ghost of those ids. A ghost it has cached is served until its bucket cache expires (`BB_GHOST_CACHE_TTL_S`, 600 s in fly.toml)

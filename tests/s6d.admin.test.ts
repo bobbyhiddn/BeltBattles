@@ -427,6 +427,16 @@ describe.each(KINDS)("find-player on %s", (kind) => {
     expect(r.text).toContain(`resolved: player ${Q} `);
   });
 
+  it("an upload whose player id is no id (an old or damaged record) is counted and said, not a crash", async () => {
+    const w = world(kind, fake);
+    await plant(w);
+    w.upload(R1, 4, "odd", "has a space!", NOW - DAY, { name: "ANNA", hero: "ranger" });
+    const r = await admin(w, ["find-player", "ANNA"]);
+    expect(r.code, r.text).toBe(0);
+    expect(r.out[1]).toBe('find-player "ANNA": 4 player ID(s) have a stored upload with that name');
+    expect(r.text).toContain("1 more upload(s) with that name carry a player id that is not an id");
+  });
+
   it("is read only: --apply is refused (exit 2)", async () => {
     const w = world(kind, fake);
     await plant(w);

@@ -60,6 +60,10 @@ export interface Toolkit {
 type Out = (line: string) => void;
 type Clock = () => number;
 
+/** A time after the start of the year 2100 is a damaged record, not a clock reading: it is no sign of play, no age to delete by and no reason for the clock guard to refuse (the upload or player is kept and said). */
+export const PLAUSIBLE_LATEST = Date.UTC(2100, 0, 1);
+const plausible = (at: number | null | undefined): at is number => typeof at === "number" && Number.isSafeInteger(at) && at >= 0 && at <= PLAUSIBLE_LATEST;
+
 const iso = (ms: number): string => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 const days = (ms: number): number => Math.floor(ms / DAY_MS);
 
@@ -210,7 +214,7 @@ export async function readInventory(store: AdminStore, ident: AdminIdentity | nu
 export function latestReceipt(inv: Inventory, scope: "uploads" | "all"): { at: number; what: string } | null {
   const best = { at: -1, what: "" };
   const see = (at: number | null | undefined, what: string) => {
-    if (typeof at === "number" && at > best.at) Object.assign(best, { at, what });
+    if (plausible(at) && at > best.at) Object.assign(best, { at, what });
   };
   for (const u of inv.uploads) see(u.record.at, `upload ${u.record.ref}`);
   if (scope === "all") {
@@ -230,6 +234,17 @@ export function clockProblem(inv: Inventory, now: number, scope: "uploads" | "al
     return `refused: the store holds a receipt time of ${iso(late.at)} (${late.what}), later than now (${iso(now)}) plus one day. This machine's clock is wrong, or the store came from one whose clock was. Nothing was deleted; fix the clock and run again.`;
   }
   return null;
+}
+
+/**
+ * What the run believes the time is, and the newest receipt time it saw: the guard above catches a clock BEHIND the store, never one far AHEAD (every record then looks old
+ * and nothing in the store can say so), so this line is printed on every run for a reader, with a NOTE when the newest record is more than 60 days old.
+ */
+export function clockLine(inv: Inventory, now: number, scope: "uploads" | "all"): string {
+  const late = latestReceipt(inv, scope);
+  const base = `clock: now ${iso(now)}; ${late ? `the newest receipt time in the store is ${iso(late.at)} (${late.what})` : "the store holds no receipt time"}.`;
+  const age = late ? days(now - late.at) : 0;
+  return age > 60 ? `${base} NOTE: that is ${age} days ago. If the game has been played since, this machine's clock is ahead and every record looks older than it is: check the clock before any --apply.` : base;
 }
 
 // ---------------------------------------------------------------------------------------------------------------- players: groups and resolving an id
@@ -320,7 +335,7 @@ function indexOf(inv: Inventory): Index {
     const pid = u.record.playerId;
     if (pid == null) continue;
     const e = idx.uploadAt.get(pid) ?? { at: -1, undated: false };
-    if (u.record.at == null) e.undated = true;
+    if (!plausible(u.record.at)) e.undated = true;
     else if (u.record.at > e.at) e.at = u.record.at;
     idx.uploadAt.set(pid, e);
   }
@@ -473,13 +488,21 @@ async function findPlayerCommand(args: AdminArgs, store: AdminStore, ident: Admi
   const inv = await readInventory(store, ident, { uploads: true, links: true });
   const want = normalizeName(args.name ?? "");
   const byPlayer = new Map<string, Upload[]>();
+  let notIds = 0; // uploads of that name whose player id is no id (an old or damaged record): they cannot be shown by id or deleted by it
   for (const u of inv.uploads) {
     const id = u.record.playerId;
     if (id === null || id === undefined || u.record.name == null || normalizeName(u.record.name) !== want) continue;
+    if (!ID_PATTERN.test(id)) {
+      notIds++;
+      continue;
+    }
     if (args.tag !== undefined && nameTag(id) !== args.tag) continue;
-    byPlayer.set(id, [...(byPlayer.get(id) ?? []), u]);
+    const held = byPlayer.get(id);
+    if (held) held.push(u);
+    else byPlayer.set(id, [u]);
   }
-  const rows = [...byPlayer].map(([id, ups]) => ({ id, ups, newest: Math.max(...ups.map((u) => u.record.at ?? 0)) })).sort((a, b) => b.newest - a.newest || (a.id < b.id ? -1 : 1));
+  const newestOf = (ups: Upload[]) => ups.reduce((m, u) => (plausible(u.record.at) && u.record.at > m ? u.record.at : m), 0);
+  const rows = [...byPlayer].map(([id, ups]) => ({ id, ups, newest: newestOf(ups) })).sort((a, b) => b.newest - a.newest || (a.id < b.id ? -1 : 1));
   out(`find-player ${JSON.stringify(want)}${args.tag ? ` --tag ${args.tag}` : ""}: ${rows.length} player ID(s) have a stored upload with that name${args.tag ? " and tag" : ""}`);
   for (const row of rows) {
     const heroes = [...new Set(row.ups.map((u) => u.record.hero ?? "?"))].sort();
@@ -488,6 +511,7 @@ async function findPlayerCommand(args: AdminArgs, store: AdminStore, ident: Admi
     const dead = inv.tombstoned.has(row.id);
     out(`  player ${row.id}  tag ${nameTag(row.id)}  code ${playerCode(row.id)}  uploads ${row.ups.length}  newest ${row.newest > 0 ? iso(row.newest) : "unknown"}  heroes ${heroes.join(",")}  rules ${versions.join(",")}  tombstoned ${dead ? "yes" : "no"}${link ? `  linked to player ${link.player}` : ""}`);
   }
+  if (notIds) out(`  ${notIds} more upload(s) with that name carry a player id that is not an id (1-64 of A-Z a-z 0-9 _ -); they are not listed. prune-ghosts ages them out`);
   if (rows.length === 0) {
     out(args.tag !== undefined
       ? "  no stored upload with that name carries that tag: leave --tag out to see every player with the name"
@@ -512,7 +536,7 @@ export function planGhosts(inv: Inventory, now: number, daysOld: number, skip: R
   for (const u of inv.uploads) {
     if (skip.has(u.record)) continue;
     const at = u.record.at;
-    if (at === null || at === undefined) plan.undated++;
+    if (!plausible(at)) plan.undated++;
     else if (at < cutoff) plan.delete.push(u);
     else plan.keep++;
   }
@@ -535,6 +559,7 @@ async function pruneGhostsCommand(args: AdminArgs, store: AdminStore, out: Out, 
     out(refused);
     return 1;
   }
+  out(clockLine(inv, now, "uploads"));
   const plan = planGhosts(inv, now, daysOld);
   printGhosts(plan, now, daysOld, out, tk);
   if (!args.apply) {
@@ -574,7 +599,9 @@ export function lastPlayOf(inv: Inventory, group: Group): { at: number; basis: s
   const best = { at: -1, basis: "" };
   let undatable = false;
   const see = (at: number | null | undefined, basis: string) => {
-    if (typeof at === "number" && at > best.at) Object.assign(best, { at, basis });
+    if (typeof at !== "number") return;
+    if (!plausible(at)) undatable = true; // a damaged time: the player cannot be judged
+    else if (at > best.at) Object.assign(best, { at, basis });
   };
   const idx = indexOf(inv);
   for (const id of group.members) {
@@ -592,7 +619,7 @@ export function lastPlayOf(inv: Inventory, group: Group): { at: number; basis: s
     const up = idx.uploadAt.get(id);
     if (up) {
       if (up.undated) undatable = true;
-      see(up.at, `an upload of ${id} (received)`);
+      if (up.at >= 0) see(up.at, `an upload of ${id} (received)`);
     }
   }
   return best.at < 0 && !undatable ? null : { at: best.at, basis: best.basis, undatable };
@@ -644,6 +671,7 @@ async function pruneIdleCommand(args: AdminArgs, store: AdminStore, ident: Admin
   const plans = plansFor(inv, res.idle, tk);
   const uploads = plans.flatMap((p) => p.plan.uploads);
   if (!quiet) {
+    out(clockLine(inv, now, "all"));
     out(`players with stored records: ${res.considered}; idle (no server-side sign of play since ${iso(now - daysIdle * DAY_MS)}, more than ${daysIdle} days): ${res.idle.length}; kept: ${res.kept}${res.unjudged.length ? `; left alone because they cannot be judged: ${res.unjudged.length}` : ""}`);
     for (const line of res.unjudged) out(`  kept (not judged) ${line}`);
     for (const { v, plan } of plans) {
@@ -684,6 +712,7 @@ async function weeklyCommand(args: AdminArgs, store: AdminStore, ident: AdminIde
     out(refused);
     return 1;
   }
+  out(clockLine(guard, now, "all"));
   if (!args.apply) {
     out(`weekly 1/3 prune-idle (${IDLE_RETENTION_DAYS} days):`);
     const idle = judgeIdle(guard, now, IDLE_RETENTION_DAYS);

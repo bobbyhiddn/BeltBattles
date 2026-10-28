@@ -324,6 +324,48 @@ describe.each(KINDS)("the clock guard on %s", (kind) => {
   });
 });
 
+// ---------------------------------------------------------------------------------------------------------------- damaged times, and the clock line
+
+describe.each(KINDS)("damaged times and the clock line on %s", (kind) => {
+  it("an upload dated after the year 2100 is a damaged record: kept and counted, it does not stop the run, and the old uploads still go", async () => {
+    const w = world(kind, fake);
+    w.upload(R1, 1, "old", P, ago(200));
+    w.upload(R1, 2, "huge", P, 8.64e15 - 1); // a valid millisecond count, year 275760: no clock reads that
+    const r = await admin(w, ["prune-ghosts", "--apply"]);
+    expect(r.code, r.text).toBe(0);
+    expect(r.text).toContain("1 upload(s) with no readable receipt time are kept");
+    expect(w.ids()).toEqual(["player bb-0.12.0 huge"]);
+    const weekly = await admin(w, ["weekly", "--apply"]);
+    expect(weekly.code, weekly.text).toBe(0);
+  });
+
+  it("a player whose record carries a damaged time is not judged: kept and said; another idle player is still deleted", async () => {
+    const w = world(kind, fake);
+    const damaged = idOf("damaged"), gone = idOf("gone");
+    await w.profile(damaged, 8_000_000_000_000_000); // receivedAt in the year 256000
+    await w.profile(gone, ago(800));
+    const r = await admin(w, ["prune-idle", "--apply"]);
+    expect(r.code, r.text).toBe(0);
+    expect(r.text).toContain(`kept (not judged) ${damaged}: a record that dates it cannot be read`);
+    expect(Object.keys(w.state()).filter((k) => k.startsWith("profiles/")).sort()).toEqual([`profiles/${damaged}.json`]);
+  });
+
+  it("every run says what time it believes and when the newest record is, with a NOTE when that is more than 60 days old: the one sign of a clock far AHEAD, which the guard cannot see", async () => {
+    const w = world(kind, fake);
+    w.upload(R1, 1, "recent", P, ago(2));
+    const r = await admin(w, ["prune-ghosts"]);
+    expect(r.out[1]).toMatch(/^clock: now 2026-10-28T12:00:00Z; the newest receipt time in the store is 2026-10-26T12:00:00Z \(upload \S+\)\.$/);
+    // three years ahead: nothing refuses (every record looks old), and the line says so
+    const ahead = await admin(w, ["prune-ghosts"], NOW + 3 * 365 * DAY);
+    expect(ahead.code).toBe(0);
+    expect(ahead.out[1]).toMatch(/NOTE: that is 1097 days ago\. If the game has been played since, this machine's clock is ahead/);
+    expect(ghostsIn(ahead.planned)).toEqual(["recent"]);
+    const none = world(kind, fake);
+    const empty = await admin(none, ["prune-ghosts"]);
+    expect(empty.out[1]).toBe("clock: now 2026-10-28T12:00:00Z; the store holds no receipt time.");
+  });
+});
+
 // ---------------------------------------------------------------------------------------------------------------- weekly
 
 describe.each(KINDS)("weekly on %s", (kind) => {
@@ -370,7 +412,8 @@ describe.each(KINDS)("weekly on %s", (kind) => {
     const r = await admin(w, ["weekly", "--apply"]);
     expect(r.code, r.text).toBe(0);
     expect(r.out[0]).toContain("(APPLY)");
-    expect(r.out.slice(1)).toEqual([
+    expect(r.out[1]).toMatch(/^clock: now 2026-10-28T12:00:00Z; the newest receipt time in the store is 2026-10-2\dT12:00:00Z \(upload \S+\)\.$/); // a clock a reader can check
+    expect(r.out.slice(2)).toEqual([
       "weekly 1/3 prune-idle: deleted 1 idle player(s) (more than 730 days without play) and 1 of their upload(s)",
       "weekly 2/3 purge-tombstoned: deleted 2 of 2 upload(s) and 1 of 1 history object(s) of the 3 id(s) in tombstones",
       "weekly 3/3 prune-ghosts: deleted 1 of 1 upload(s) received more than 180 days ago",
@@ -389,7 +432,7 @@ describe.each(KINDS)("weekly on %s", (kind) => {
     // a second run has nothing to do and succeeds, changing nothing
     const again = await admin(w, ["weekly", "--apply"]);
     expect(again.code, again.text).toBe(0);
-    expect(again.out.slice(1)).toEqual([
+    expect(again.out.slice(2)).toEqual([
       "weekly 1/3 prune-idle: deleted 0 idle player(s) (more than 730 days without play) and 0 of their upload(s)",
       "weekly 2/3 purge-tombstoned: deleted 0 of 0 upload(s) and 0 of 0 history object(s) of the 3 id(s) in tombstones",
       "weekly 3/3 prune-ghosts: deleted 0 of 0 upload(s) received more than 180 days ago",

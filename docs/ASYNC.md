@@ -696,7 +696,9 @@ node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.6.2 --pool   # 0.7.0's 
   the removals follow in the same order; the ids it tombstones come from one function both use (`tombstoneIds`). Its uploads are then removed through the same selection
   `purge-tombstoned` uses. The dry run prints the tombstone (new, or the one that exists), the profile of every id, the key links, the Steam links, the live code, the player
   record, the history objects and the uploads.
-- **The clock guard.** `prune-ghosts`, `prune-idle` and `weekly` refuse (exit 1, nothing deleted) when the store holds a receipt time later than now plus one day (`CLOCK_GUARD_MS`).
+- **The clock guard.** `prune-ghosts`, `prune-idle` and `weekly` refuse (exit 1, nothing deleted) when the store holds a receipt time later than now plus one day (`CLOCK_GUARD_MS`). It
+  sees a clock behind the store, not one far ahead; each of the three prints a `clock:` line (the time it believes, the newest receipt time in the store, a `NOTE:` past 60 days) for a reader.
+  A time after the year 2100 (`PLAUSIBLE_LATEST`) is a damaged record: kept and said, never a sign of play, never a reason to refuse.
 - **`weekly --apply`** runs `prune-idle`, `purge-tombstoned`, `prune-ghosts` in that order, each on a fresh read of the store, prints `weekly 1/3 prune-idle: ...`,
   `weekly 2/3 purge-tombstoned: ...`, `weekly 3/3 prune-ghosts: ...` and `weekly: done, all three steps succeeded`; a failed step does not stop the next and the exit code is 1.
   It is meant to run once a week (`WEEKLY_CLEANUP_DAYS`) on a scheduled Fly machine, which the RUNBOOK documents and nothing in fly.toml or the Dockerfile creates.
