@@ -2,6 +2,6 @@
 # The page itself is not committed: `node deploy/stage.mjs <file>` copies it to the gitignored
 # deploy/public/index.html and refuses a file whose SHA-256 differs from this record. To ship a new
 # build: `node deploy/stage.mjs <new.html> --record`, then commit this file. Paths: from the repo root.
-source: ../output-stage09141/pages/BeltBattles-0.9.14.1-e7b636a44b55-online.html
-bytes: 1160876
-sha256: 8be6986bc622bc59eece9655500cd1dd9dd2500531a4d2cc649a93322fd95661
+source: ../output-stage0915/pages/BeltBattles-0.9.15-8256f7d15581-online.html
+bytes: 1169732
+sha256: b4f84e0f3100a3c8275b874d7bd5c45b0d08dd5afec40677e2e810cbab9a3d68
