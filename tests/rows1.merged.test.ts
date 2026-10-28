@@ -172,7 +172,7 @@ describe("ROWS-1 W3: the word is the placed rig's panel's: the title's first wor
             const c = deckOf(id, stars, day, { word }), rp = rigPanel(c.run, c.uid)!;
             const rule = faceLines(id, stars, { day })!.rules[0].text, w = wordOn(c.p, ITEMS[id], stars)!;
             expect(rp.ench, `${id} ${word}`).toBe(word);
-            expect(rp.title, `${id} ${word}`).toBe(enchantedTitle(word as never, stars > 1 ? `${ITEMS[id].name} ${"★".repeat(stars)}` : ITEMS[id].name)); // (a ★1 title has no star)
+            expect(rp.title, `${id} ${word}`).toBe(enchantedTitle(word as never, `${ITEMS[id].name} ${"★".repeat(stars)}`)); // STAGE-09141 (POLISH-1 P5a's ★1 star meets ROWS-1's pin; cap, RULING-STAGE09141-R1): was `stars > 1 ? ... : ITEMS[id].name` ("a ★1 title has no star"); P5a: a ★1 title carries its star too
             const line = pieceLine(w.id, w.kind, w.stars, day);
             expect(line, `${id} ${word}: the word has a line on a rig`).toBeTruthy();
             const at = rp.body.findIndex((b) => b.text === rule), wl = rp.body.findIndex((b) => b.text === icons(line ?? ""));
