@@ -12,6 +12,7 @@ import { drawText, textWidth } from "../../render/font";
 import { itemIcon } from "../../render/sprites";
 import { drawShapePlate, hasGrid, iconCell, shapeGrid, shapeGridSize } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on the drop surfaces
 import { panel, type Rect } from "../../ui/ui";
+import { drawInfoMarkIn } from "../../ui/infoGlyph"; // POLISH-2 (REQ-BFG-089; Q3): the one ⓘ mark
 import { isPhone, tapPx } from "../../ui/tap";
 import { itemName } from "../event/cards";
 import { DROP_CLASS_LABEL, pctText, type DropLine, type DropTable } from "../../sim/npcDay";
@@ -77,15 +78,12 @@ export function drawDropIcons(g: G, t: DropTable, x: number, y: number, w: numbe
  *  the text sheet (tools/textSheet.ts) reads it from here. HULL-1b: the table's star. */
 export const dropListHeader = (t: DropTable): string => `${dropLine(t)} ON A WIN · TO CARGO AT ★${t.stars ?? 1}`;
 
-/** The ⓘ glyph in its 11 px box (lastChancePicker.ts drawInfo's form: a dot over a stem on a foot). */
+/** The ⓘ button in its 11 px box: the one mark of every info button (ui/infoGlyph.ts: the 5x7 face's `?`, as a part's panel and LAST CHANCE's cards draw it), centred in
+ *  the box's interior; the box and its colours are this list's own. POLISH-2 (REQ-BFG-089; Q3): was a hand-drawn "i" (a dot over a stem on a foot). */
 export function drawInfoBox(g: G, r: Rect, on: boolean): void {
   rect(g, r.x, r.y, r.w, r.h, C.ink);
   rect(g, r.x + 1, r.y + 1, r.w - 2, r.h - 2, on ? C.brass1 : C.slate0);
-  const c = on ? C.yellow : C.brass3, x = r.x + 4, y = r.y + 3;
-  rect(g, x + 1, y, 1, 1, c);
-  rect(g, x + 1, y + 2, 1, 3, c);
-  rect(g, x, y + 2, 1, 1, c);
-  rect(g, x, y + 4, 3, 1, c);
+  drawInfoMarkIn(g, r, on ? C.yellow : C.brass3);
 }
 
 /** The ⓘ button at (x, y): drawn 11 px, its target a finger's on a phone (tap.ts tapPx). */

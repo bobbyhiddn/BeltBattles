@@ -16,6 +16,7 @@ import { itemIcon } from "../render/sprites";
 import { drawShapePlate, hasGrid, iconCell, shapeGrid, shapeGridSize } from "../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its card
 import { isPhone, tapPx } from "../ui/tap"; // a finger's target for the ⓘ on a phone
 import { panel, type Rect } from "../ui/ui";
+import { drawInfoMarkIn } from "../ui/infoGlyph"; // POLISH-2 (REQ-BFG-089; Q3): the one ⓘ mark
 import { colourize, drawRich, wrapRich, type RichLine } from "../ui/richText";
 import { faceLines } from "../ui/faces";
 import { drawTitlePlate } from "./pickHead"; // TXT-AZ (REQ-BFG-073; REVIEW-STAGE097 R5): the title block on the cards' panel
@@ -215,15 +216,13 @@ export function lcLayout(W: number, H: number, hs: readonly number[]): LcLayout 
   return { top, cardW, cards, infos, bottom: y };
 }
 
-/** The ⓘ glyph (keywords.ts drawInfoGlyph's "i": a dot over a stem on a foot) in its box. */
-function drawInfo(g: G, r: Rect, on: boolean): void {
+/** The ⓘ button in its box: the one mark of every info button (ui/infoGlyph.ts: the 5x7 face's `?`, the glyph keywords.ts drawInfoGlyph draws on a part's panel),
+ *  centred in the 11 px box's interior; the box, its sizes and its colours are this screen's own. POLISH-2 (REQ-BFG-089; Q3): was a hand-drawn "i" (a dot over a
+ *  stem on a foot), the glyph POLISH-1 replaced on the part's panel. */
+export function drawInfo(g: G, r: Rect, on: boolean): void { // POLISH-2 (Q3): exported for tests/polish2.glyph.test.ts
   rect(g, r.x, r.y, r.w, r.h, C.ink);
   rect(g, r.x + 1, r.y + 1, r.w - 2, r.h - 2, on ? C.brass1 : C.slate0);
-  const c = on ? C.yellow : C.brass3, x = r.x + 4, y = r.y + 3;
-  rect(g, x + 1, y, 1, 1, c);
-  rect(g, x + 1, y + 2, 1, 3, c);
-  rect(g, x, y + 2, 1, 1, c);
-  rect(g, x, y + 4, 3, 1, c);
+  drawInfoMarkIn(g, r, on ? C.yellow : C.brass3);
 }
 
 /** SHOPCARD-1 (REQ-BFG-113, G4): where a shaped part's grid plate sits on its card `r` (null: not a shaped piece, or no room): in

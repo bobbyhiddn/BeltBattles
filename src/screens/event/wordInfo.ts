@@ -7,7 +7,8 @@
 import type { G } from "../../render/pixel";
 import { rect } from "../../render/pixel";
 import { C } from "../../render/palette";
-import { drawText, icons, textWidth, wrap } from "../../render/font";
+import { drawText, icons, wrap } from "../../render/font";
+import { drawInfoMarkIn } from "../../ui/infoGlyph"; // POLISH-2 (REQ-BFG-089; Q3): the one ⓘ mark
 import { isEnchantId } from "../../sim/enchant";
 import { TAP_CSS } from "../../ui/tap";
 import { wordFace } from "../../ui/enchantFaces";
@@ -51,9 +52,10 @@ export function drawWordInfo(g: G, r: Rect, word: string, day?: number): void {
   drawText(g, tip, r.x + r.w - 5, r.y + r.h - 9, C.slate4, { font: "3", align: "right" });
 }
 
-/** Draw the `?` button: an ink box with a slate face and the mark in the word's colour. */
+/** Draw the `?` button: an ink box with a slate face and the mark in the word's colour. POLISH-2 (REQ-BFG-089; Q3): the mark is the one mark of every info button (ui/infoGlyph.ts, the 5x7 `?` of
+ *  a part's panel), centred in the 9 px box (its interior is 7 x 7: the mark is 5 x 7); it was the 3x5 face's `?`. */
 export function drawInfoButton(g: G, btn: Rect, colour: string, open: boolean): void {
   rect(g, btn.x, btn.y, btn.w, btn.h, C.ink);
   rect(g, btn.x + 1, btn.y + 1, btn.w - 2, btn.h - 2, open ? C.slate3 : C.slate1);
-  drawText(g, "?", btn.x + Math.floor((btn.w - textWidth("?", "3")) / 2), btn.y + 2, colour, { font: "3" });
+  drawInfoMarkIn(g, btn, colour);
 }
