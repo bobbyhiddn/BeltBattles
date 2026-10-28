@@ -1095,7 +1095,7 @@ export interface InfoRow {
 }
 
 /** FLIP-X1 (N4-b): page `page` of the ⓘ view as drawView draws it: its areas and pages (infoView), each area's box (null
- *  where none is drawn), every text row, and the footer's top (`TAP FOR MORE n/m`, 3x5) where there are more pages. */
+ *  where none is drawn), every text row, and the footer's top (`TAP FOR MORE n/m`, on the last page `TAP TO CLOSE m/m`: infoFootText; 3x5) where there are more pages. */
 export interface InfoDrawn {
   view: InfoView;
   boxes: (Rect | null)[];
@@ -1188,8 +1188,14 @@ function drawView(g: G, ui: UI, s: KwState, items: readonly InfoItem[], r: Rect,
     }
     ui.add({ id: `${KW_REGION}view`, r: box, onTap: turn });
   });
-  if (foot !== null) drawText(g, `TAP FOR MORE ${(s.page ?? 0) + 1}/${pages.length}`, r.x + r.w - 5, foot, C.slate4, { font: "3", align: "right" });
+  if (foot !== null) drawText(g, infoFootText(s.page ?? 0, pages.length), r.x + r.w - 5, foot, C.slate4, { font: "3", align: "right" });
 }
+
+/**
+ * PRESENT-4 N (REQ-BFG-089; STAGE-0915's F7 and F12: every page of the ⓘ view, the last one included, read `TAP FOR MORE n/N`): the footer's words. A tap on a page turns it (drawView's `turn`), and past the
+ * last page it closes the view, so the last page says `TAP TO CLOSE N/N`; the others are as they were. Both are 12 letters and spaces in the 3x5 face, 45 px wide: the new words fit wherever the old ones did.
+ */
+export const infoFootText = (page: number, pages: number): string => `${page + 1 >= pages ? "TAP TO CLOSE" : "TAP FOR MORE"} ${page + 1}/${pages}`;
 
 /** EXPLAIN-1 (REQ-BFG-089, E3): the icon tooltip's text width (3x5 px), as the word tooltip's (drawHoverTip). */
 export const ICON_TIP_W = 150;
