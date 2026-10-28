@@ -36,7 +36,7 @@ import { ICON, KEYWORDS, PLAYER_WORD, drawText, icons, textWidth, type FontId } 
 import { colourize, drawRich, lineText, lineWidth, wrapRich, type RichLine } from "../../ui/richText";
 import { glossaryEntry, glossaryHits, glossaryText, keywordRow, tapNote } from "../../ui/glossary";
 import { STAT_ICONS, statIconNote } from "../../ui/glossary"; // WORDS-1 (REQ-BFG-081): the stat icons' notes
-import { ICON_COLOUR } from "../../render/font"; // WORDS-1: a stat icon's underline in its colour ({RATE} yellow)
+import { ICON_COLOUR, faceChars } from "../../render/font"; // WORDS-1: a stat icon's underline in its colour ({RATE} yellow); PRESENT-3 D: faceChars, for smallFaceHolds
 import { FAMILY, famHeadParts, famHeadText, familyNote, familyWord } from "../../ui/families"; // WORDS-1: the family tags' taps (familyTargets); PRESENT-2 W (b): the head's words
 import type { ModuleTag } from "../../sim/content"; // WORDS-1
 import { tapRect, inside, type Rect, type UI } from "../../ui/ui";
@@ -428,7 +428,11 @@ interface KwState {
    *  back between two notes. */
   held: number;
   /** PRESENT-2 P (cap's ruling 26addce8293da756): where the last shown note went on the landscape column (columnPlace); null: not a column's, or none shown. Read by the tests. */
-  place: "today" | "under" | "beside" | "fallback" | null;
+  place: "today" | "under" | "beside" | "band" | "corner" | "fallback" | null;
+  /** PRESENT-3 D: the face the last column note drew in (the small-face pass: "3"); null: not a column's, or none shown. Read by the tests. */
+  face: FontId | null;
+  /** PRESENT-3 D: the text of the last shown note (before wrapping); null: none shown. Read by the tests (the small-face pass keeps every word). */
+  text: string | null;
   /** PRESENT-2 P: the lines the last shown note drew (a box beside the column wraps to its own width); null: none shown. Read by the tests. */
   note: RichLine[] | null;
 }
@@ -436,7 +440,7 @@ const STATE = new WeakMap<object, KwState>();
 const stateOf = (owner: object, key: string): KwState => {
   let s = STATE.get(owner);
   if (!s || s.key !== key) {
-    s = { key, word: null, page: null, hover: null, opened: false, auto: null, rig: false, chain: false, held: 0, place: null, note: null };
+    s = { key, word: null, page: null, hover: null, opened: false, auto: null, rig: false, chain: false, held: 0, place: null, face: null, text: null, note: null };
     STATE.set(owner, s);
   }
   return s;
@@ -505,13 +509,23 @@ export function questionRect(r: Rect, bodyY: number, tap: number, buttons: reado
   return q;
 }
 
-/** The definition's lines in 5x7 at the panel's text width (`w`), its keyword in its colour. */
-export const definitionLines = (text: string, w: number): RichLine[] => wrapRich(colourize(icons(text), C.bone), w, "5");
+/** The definition's lines at the panel's text width (`w`), its keyword in its colour: in 5x7, or (PRESENT-3 D's small-face pass) in 3x5. */
+export const definitionLines = (text: string, w: number, face: FontId = "5"): RichLine[] => wrapRich(colourize(icons(text), C.bone), w, face);
+
+/** PRESENT-3 D: a note's line pitch in each face (the glyph's rows and 2 px between lines): 9 in 5x7, 7 in 3x5. */
+export const NOTE_PITCH: Record<FontId, number> = { "5": 9, "3": 7 };
+
+/** PRESENT-3 D (cap's ruling 6420b5479c7c7b92 (3)): can the 3x5 face draw every character of this note? It draws `?` for one it has no glyph for, and such a note never takes the small-face pass. The
+ *  icons' markup is expanded to their glyphs first (icons()), as definitionLines does; a lower-case letter reads as its capital, as the face's own lookup does. */
+export function smallFaceHolds(text: string): boolean {
+  const have = new Set(faceChars("3"));
+  return [...icons(text)].every((ch) => have.has(ch) || have.has(ch.toUpperCase()));
+}
 
 /** The box a shown definition takes: the panel's bottom rows (the hint's place), as tall as its lines, growing up over the
  *  panel (and above it on a strip too short to hold it): never cut. `bottom`: the body's last row + 1. */
-export function definitionBox(r: Rect, bottom: number, lines: number): Rect {
-  const h = lines * 9 + 3;
+export function definitionBox(r: Rect, bottom: number, lines: number, pitch = 9): Rect {
+  const h = lines * pitch + 3;
   return { x: r.x + 2, y: bottom - h, w: r.w - 4, h };
 }
 
@@ -586,6 +600,21 @@ export function hangPlace(placed: { box: Rect; fits: boolean }, own: readonly { 
 }
 
 /**
+ * PRESENT-3 H (REQ-BFG-081; PRESENT-1's old item list, PRESENT-2 run 1's Question 5): in the first-run state a phone's panel has its how-to strip just under it, and a note that
+ * goes to defBoxPlace's last candidate (just under the strip) ended 1-10 px into the deck's top rows (402x690 with a rune: 411 tapped notes and 230 first sights; 390x660: 612 and
+ * 622; the other three views none). `deck` is the deck's cells on screen (a touch panel on a portrait layout: inspector.ts deckOf). A box that overlaps it moves UP until it ends at the
+ * deck's top, no higher than the panel's foot (so it covers no panel row, header or word of its own); where it then overlaps the how-to strip the strip is not drawn while the note shows
+ * (`yieldsStrip`: from the note's first frame, back in the frame the note closes, never moved: cap's ruling 0d0ef2465804aafb item 2). A box clear of the deck is returned as it is. If it
+ * cannot clear the deck above the panel's foot it stays (`blocked`: the tests list it). Pure (drawKeywordLayer, definitionAhead).
+ */
+export function deckClear(placed: NotePlace, deck: Rect | null | undefined, panel: Rect, strip: Rect | null): NotePlace {
+  if (!deck || !overlaps(placed.box, deck)) return placed;
+  const b: Rect = { ...placed.box, y: Math.floor(deck.y) - placed.box.h }; // whole px: the deck's top is fractional under the carrier's zoom (231.8), a box is drawn on whole ones
+  if (b.y < panel.y + panel.h || b.y < 0) return { ...placed, blocked: true };
+  return { ...placed, box: b, yieldsStrip: placed.yieldsStrip || (!!strip && overlaps(b, strip)) };
+}
+
+/**
  * PRESENT-2 P (REQ-BFG-081; PRESENT-1's ruling af2c96863a44ab41 item 4, and cap's ruling 26addce8293da756): on the landscape COLUMN (a panel sized to its content, buttons under its text) a shown
  * definition at the foot of the text covered a rule row on 965 of 2,484 boxes on 844x390 @3. Where the column fits the panel there, `col` (built by inspector.ts) carries what the ladder needs, and
  * the note takes the first place that works, in turn: (today) where defBoxPlace put it, if that covers no rule row; (under) under the panel's foot, under its buttons, at the column's full
@@ -593,6 +622,12 @@ export function hangPlace(placed: { box: Rect; fits: boolean }, own: readonly { 
  * 2 px left of the carrier), as tall as its text wrapped to that width, its top level with its word's line, moved up only as far as it must to end 2 px above the screen's foot, never above the
  * column's top; (fallback) else today's place, which the tests list by name. A box never covers a `hard` rect (the carrier's drawing, a shop card, REROLL, a pack, the top bar, FIGHT, the foe
  * card, the cargo bar, the panel), a rule row, the header or its own word's row, and sits whole on the screen. Pure.
+ *
+ * PRESENT-3 D (REQ-BFG-081; backlog #498 (1); cap's ruling 6420b5479c7c7b92): on the desks the strip beside the column is 35 and 19 px, so 170 and 275 notes (every one a turret panel with a core and
+ * gear) still covered a rule row. Two places join the ladder after (beside), in this order: (band) the free room between the shop row's foot and the carrier's drawing, from 2 px right of the
+ * column, as wide as the note needs (1-2 lines on 1280x800 and the laptop); (corner) above the column, left of the shop row, under the rune row (closed on a day the ENCHANTER's wagon is up:
+ * it uses that margin). A note that is clean in the first three keeps its exact box. Then, when no place takes a note in the 5x7 face, the same five are tried once more in the 3x5 face (`again`
+ * gives today's place for a smaller box; the words are the same, none broken, clipped or hyphenated; a note with a character the 3x5 face has no glyph for stays out of the pass: smallFaceHolds).
  */
 export interface ColumnSpec {
   covers: (box: Rect) => boolean;
@@ -601,26 +636,54 @@ export interface ColumnSpec {
   beside: { x0: number; x1: number } | null;
   floor: number;
   hard: readonly Rect[];
+  /** PRESENT-3 D: the band (null where under one 3x5 line tall or 40 px wide). */
+  band?: Rect | null;
+  /** PRESENT-3 D: the corner (null with the ENCHANTER's wagon up, or where under one line tall or 40 px wide). */
+  corner?: Rect | null;
 }
 export interface ColumnNote {
   box: Rect;
   lines: RichLine[];
-  place: "today" | "under" | "beside" | "fallback";
+  place: "today" | "under" | "beside" | "band" | "corner" | "fallback";
+  /** PRESENT-3 D: the face the lines are in ("3": the small-face pass). */
+  face: FontId;
 }
-export function columnPlace(text: string, placed: { box: Rect; fits: boolean }, lines: RichLine[], own: readonly { glyph: Rect }[], head: readonly Rect[], panel: Rect, col: ColumnSpec): ColumnNote {
-  if (!col.covers(placed.box)) return { box: placed.box, lines, place: "today" };
+/** The ladder in one face: the first place that works for `lines` (wrapped at the panel's text width), or null. `placed` is today's place for a box of these lines. */
+function columnLadder(face: FontId, text: string, placed: { box: Rect; fits: boolean }, lines: RichLine[], own: readonly { glyph: Rect }[], head: readonly Rect[], panel: Rect, col: ColumnSpec): ColumnNote | null {
+  const pitch = NOTE_PITCH[face];
+  if (!col.covers(placed.box)) return { box: placed.box, lines, place: "today", face };
   // `covers` is a test of y alone (the panel's rule rows are all inside the panel): a box BESIDE the column is out of the panel by x, so only the box under the panel is held to it
   const whole = (b: Rect, apart: boolean): boolean => b.y >= 0 && b.y + b.h <= col.floor + 2 && !head.some((q) => overlaps(b, q)) && !own.some((t) => overlaps(t.glyph, b)) && !col.hard.some((q) => overlaps(b, q)) && (apart || !col.covers(b));
-  const h = lines.length * 9 + 3, under: Rect = { x: panel.x + 2, y: panel.y + panel.h + 2, w: panel.w - 4, h };
-  if (under.y + under.h <= col.areaBottom && whole(under, false)) return { box: under, lines, place: "under" };
+  const h = lines.length * pitch + 3, under: Rect = { x: panel.x + 2, y: panel.y + panel.h + 2, w: panel.w - 4, h };
+  if (under.y + under.h <= col.areaBottom && whole(under, false)) return { box: under, lines, place: "under", face };
   if (col.beside && col.beside.x1 - col.beside.x0 >= 40) {
-    const w = col.beside.x1 - col.beside.x0, l2 = definitionLines(text, w - 6), h2 = l2.length * 9 + 3;
+    const w = col.beside.x1 - col.beside.x0, l2 = definitionLines(text, w - 6, face), h2 = l2.length * pitch + 3;
     const word = own.length ? Math.min(...own.map((t) => t.glyph.y)) : placed.box.y, y = Math.min(word, col.floor - h2);
     const beside: Rect = { x: col.beside.x0, y, w, h: h2 };
     // no broken or clipped word: wrapRich sets a unit wider than the line on a line of its own, past the box's edge: such a note is not set beside
-    if (y >= col.top && l2.every((l) => lineWidth(l, "5") <= w - 6) && whole(beside, true)) return { box: beside, lines: l2, place: "beside" };
+    if (y >= col.top && l2.every((l) => lineWidth(l, face) <= w - 6) && whole(beside, true)) return { box: beside, lines: l2, place: "beside", face };
   }
-  return { box: placed.box, lines, place: "fallback" };
+  // PRESENT-3 D: the band (its top under the shop row) and the corner (its foot just above the column): the box is as wide as its widest line needs, from the free room's left edge
+  for (const [place, room] of [["band", col.band], ["corner", col.corner]] as const) {
+    if (!room) continue;
+    const l2 = definitionLines(text, room.w - 6, face), h2 = l2.length * pitch + 3;
+    if (h2 > room.h || !l2.every((l) => lineWidth(l, face) <= room.w - 6)) continue;
+    const box: Rect = { x: room.x, y: place === "band" ? room.y : room.y + room.h - h2, w: Math.min(room.w, Math.max(...l2.map((l) => lineWidth(l, face))) + 6), h: h2 };
+    if (whole(box, true)) return { box, lines: l2, place, face };
+  }
+  return null;
+}
+export function columnPlace(text: string, placed: { box: Rect; fits: boolean }, lines: RichLine[], own: readonly { glyph: Rect }[], head: readonly Rect[], panel: Rect, col: ColumnSpec,
+  again?: (lines: number) => { box: Rect; fits: boolean }): ColumnNote {
+  const big = columnLadder("5", text, placed, lines, own, head, panel, col);
+  if (big) return big;
+  // PRESENT-3 D (cap's ruling 6420b5479c7c7b92 (3)): no place takes it in 5x7: the same ladder once more in the 3x5 face (one general rule), where the face has every character of the note
+  if (again && smallFaceHolds(text)) {
+    const small = definitionLines(text, panel.w - 10, "3");
+    const got = columnLadder("3", text, again(small.length), small, own, head, panel, col);
+    if (got) return got;
+  }
+  return { box: placed.box, lines, place: "fallback", face: "5" };
 }
 
 /** CARD-4 (D): a planned panel's header as defBoxPlace avoids it: its rows from the panel's top to the body's (the title,
@@ -645,7 +708,7 @@ export function panelHead(plan: Pick<PanelPlan, "r" | "y" | "rects" | "column">,
  * - the chain (CARD-5) goes on: the note that opened by itself has closed and no box shows: the next one the layer opens now.
  * Pure (panelFit, the tests).
  */
-export function definitionAhead(owner: object, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; strip?: Rect | null; hang?: NoteHang },
+export function definitionAhead(owner: object, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; strip?: Rect | null; hang?: NoteHang; deck?: Rect | null },
   lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, screen: { W: number; H: number } | undefined,
   sight: boolean): { box: Rect | null; fits: boolean; hold: number; place?: NotePlace } {
   const none = { box: null, fits: true, hold: 0 };
@@ -678,8 +741,8 @@ export function definitionAhead(owner: object, run: Run, d: { show: Sel; t: Pane
   if (!shown) return { box: null, fits: true, hold };
   const defLines = definitionLines(shown.text, r.w - 10);
   const ownT = targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === word), head = panelHead(plan, buttons);
-  const placed = hangPlace(defBoxPlace(definitionBox(r, plan.maxY + 2, defLines.length), ownT, head, d.strip ?? null, screen?.H),
-    ownT, head, d.strip ?? null, screen?.H ?? Infinity, d.hang); // PRESENT-2 L: at the growth limit, under the last rule row
+  const placed = deckClear(hangPlace(defBoxPlace(definitionBox(r, plan.maxY + 2, defLines.length), ownT, head, d.strip ?? null, screen?.H),
+    ownT, head, d.strip ?? null, screen?.H ?? Infinity, d.hang), d.deck, r, d.strip ?? null); // PRESENT-2 L: at the growth limit, under the last rule row; PRESENT-3 H: never over the deck
   return { box: placed.box, fits: placed.fits, hold, place: placed };
 }
 
@@ -866,7 +929,7 @@ function underline(g: G, t: KwTarget): void {
  * definition or the KEYWORDS view; on the desk, the hover tooltip and the `help` cursor. `owner`: the screen (its state);
  * `ui`: the frame's regions; `buttons`: the drawn buttons' hit rects; `tap`: a finger's target height (0: a mouse).
  */
-export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null; strip?: Rect | null; hang?: NoteHang; column?: ColumnSpec },
+export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null; strip?: Rect | null; hang?: NoteHang; column?: ColumnSpec; deck?: Rect | null },
   lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, canvas?: HTMLCanvasElement | null,
   free: Rect | null = null, screen?: { W: number; H: number }, sight = false): void {
   // CARD-2 (REQ-BFG-004, K1): `sight`, the screen asks for the first-sight notes (inspector.ts drawDetails: the build
@@ -944,13 +1007,17 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   // explains there (a short phone panel's last rows: TEMPER's BURN box over [BURN]+1). CARD-4 (REQ-BFG-087, D): then just
   // under the word's line, or above it only where that misses the header, never over the header or the hint strip
   const ownT = shown ? targets.filter((t) => (glossaryEntry(t.word)?.word ?? t.word) === s.word) : [], head = shown ? panelHead(plan, buttons) : [];
-  const foot = shown ? hangPlace(defBoxPlace(definitionBox(r, bottom, defLines.length), ownT, head, d.strip ?? null, screen?.H),
-    ownT, head, d.strip ?? null, screen?.H ?? Infinity, d.hang) : null; // PRESENT-2 L: at the growth limit, under the last rule row
+  const foot = shown ? deckClear(hangPlace(defBoxPlace(definitionBox(r, bottom, defLines.length), ownT, head, d.strip ?? null, screen?.H),
+    ownT, head, d.strip ?? null, screen?.H ?? Infinity, d.hang), d.deck, r, d.strip ?? null) : null; // PRESENT-2 L: at the growth limit, under the last rule row; PRESENT-3 H: never over the deck
   // PRESENT-2 P (cap's ruling 26addce8293da756): on the landscape column, where that place covers a rule row: under the panel, else beside the column (columnPlace)
-  const cn = shown && foot && d.column ? columnPlace(shown.text, foot, defLines, ownT, head, r, d.column) : null;
+  const cn = shown && foot && d.column ? columnPlace(shown.text, foot, defLines, ownT, head, r, d.column,
+    (n) => defBoxPlace(definitionBox(r, bottom, n, NOTE_PITCH["3"]), ownT, head, d.strip ?? null, screen?.H)) : null; // PRESENT-3 D: today's place for a 3x5 box
   const box = cn ? cn.box : foot ? foot.box : null, shownLines = cn ? cn.lines : defLines;
   s.place = cn ? cn.place : null;
+  s.face = cn ? cn.face : null;
+  s.text = box && shown ? shown.text : null;
   s.note = box ? shownLines : null;
+  const noteFace: FontId = cn ? cn.face : "5";
   // PRESENT-1 (S4 (b)): the panel's height while this open's first-sight chain shows a note (definitionAhead's `hold`); 0 once it is over
   s.held = s.chain ? Math.max(s.held, box ? r.h : 0) : 0;
   targets.forEach((t, i) => {
@@ -961,7 +1028,7 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   if (box) {
     rect(g, box.x, box.y, box.w, box.h, C.navy);
     rect(g, box.x, box.y, box.w, 1, C.slate1);
-    shownLines.forEach((ln, i) => drawRich(g, ln, box.x + 3, box.y + 3 + i * 9, "5")); // PRESENT-2 P: box.x + 3 is r.x + 5 for today's box (x r.x + 2)
+    shownLines.forEach((ln, i) => drawRich(g, ln, box.x + 3, box.y + 3 + i * NOTE_PITCH[noteFace], noteFace)); // PRESENT-2 P: box.x + 3 is r.x + 5 for today's box (x r.x + 2); PRESENT-3 D: the 3x5 face's lines are 7 px apart
     ui.add({ id: "kwdef", r: box, block: true });
   }
   // the desk: a hovered word's definition in the shop's tooltip style, and the help cursor

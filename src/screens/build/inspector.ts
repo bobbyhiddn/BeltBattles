@@ -1123,7 +1123,8 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   const warn = (short: boolean) => deadEndLines(b, index, short).map((text): Block => ({ role: "warn", text, keep: true }));
   // the CORE and GEAR socket rows name the parts; they align apart from the stat rows (0.6.2t2 F2: LOAD TIME's wider
   // label moves only those)
-  const rowOf = (s: SocketRow): Block => ({ role: "row", label: s.label, text: s.text, keep: true, group: "part" });
+  // PRESENT-3 E: a folded run of EMPTY gear slots (`GEAR 2-6`) is its own alignment group, so its longer label never narrows the CORE and GEAR rows' text column
+  const rowOf = (s: SocketRow): Block => ({ role: "row", label: s.label, text: s.text, keep: true, group: s.folded ? "gear-run" : "part" });
   const noJam = tu.noJam || (tc.bought && tc.spec.noJam);
   // U2c step 4 (REQ-BFG-046, REQ-BFG-047): the turret's STAT ROW, as its face reads it (faces.ts turretStats: how often it
   // fires, the loads its chamber holds, its gear slots), at its effective values: the interval makeTurret builds (every
@@ -2206,6 +2207,15 @@ function noteHang(ctx: Ctx, plan: PanelPlan, lines: readonly { line: PLine | "ru
 }
 
 /**
+ * PRESENT-3 H (REQ-BFG-081): the deck's cells on screen for a finger's panel on a portrait layout, which keywords.ts deckClear keeps a shown note off (the first-run state's notes under the
+ * how-to strip ended 1-10 px into its top rows); null for every other panel (the desk's and the landscape column's notes are placed as before; a mouse's too, as the hang is).
+ */
+function deckOf(ctx: Ctx): Rect | null {
+  const L = ctx.L;
+  return touchTap(ctx) && L?.portrait && L.frame ? screenRect(L, { x: L.frame.dx, y: L.frame.dy, w: DECK, h: DECK }) : null;
+}
+
+/**
  * PRESENT-2 P (cap's ruling 26addce8293da756): for a panel in the landscape COLUMN, what keywords.ts columnPlace needs to keep a shown definition off the rule rows: a box's covering a rule row, the
  * column's top and the y its area ends, the free strip beside the column (2 px right of its edge to 2 px left of the carrier's DRAWING: layout.ts carrierBox, the widest the ship is ever drawn),
  * the screen's foot less 2 px, and what a note never covers. undefined for every other panel (the portrait band, the desk's hover tips): their notes are placed as before.
@@ -2215,12 +2225,23 @@ function columnSpec(ctx: Ctx, plan: PanelPlan, lines: readonly { line: PLine | "
   if (!plan.column || !L || L.portrait || !L.info || !L.cam || !L.bar) return undefined;
   const cb = carrierBox(false), carrier = screenRect(L, { x: L.cam.x + cb.x0, y: L.cam.y + cb.y0, w: cb.w, h: cb.h });
   const x0 = L.info.x + L.info.w + 2, x1 = carrier.x - 2;
+  // PRESENT-3 D (cap's ruling 6420b5479c7c7b92): the band, between the shop row's foot (+2) and the carrier's drawing (-2), from 2 px right of the column to 4 px left of FIGHT's column (where the foe card
+  // and FIGHT start); the corner, above the column (2 px clear), left of the shop row (3 px clear; the screen's edge 3 px in) and under the rune row (+2: the row's height is what the shop row was
+  // shifted down by, shiftLayout: the first card's y less the bar and the 9 px the layout puts above the cards). The corner is closed on a day the ENCHANTER's wagon is up (L.wagon: its cards use that
+  // margin, enchantStrip.ts inMargin), and a place under 40 px wide or one 3x5 line (10 px) tall is not one. Neither is ever over a hard rect (columnPlace holds every box to them).
+  const first = L.cards?.[0];
+  const shopFoot = first ? Math.max(...[...L.cards, L.reroll, ...(L.packs ?? [])].filter((q): q is Rect => !!q && q.y < L.info.y).map((q) => q.y + q.h)) : 0;
+  const bandRect: Rect | null = first && L.fight ? { x: x0, y: shopFoot + 2, w: L.fight.x - 4 - x0, h: carrier.y - 2 - (shopFoot + 2) } : null;
+  const cornerTop = first ? L.bar.y + L.bar.h + (first.y - (L.bar.h + 9)) + 2 : 0;
+  const cornerRect: Rect | null = first && !L.wagon ? { x: 3, y: cornerTop, w: first.x - 3 - 3, h: L.info.y - 2 - cornerTop } : null;
+  const roomy = (q: Rect | null): Rect | null => (q && q.w >= 40 && q.h >= 10 ? q : null);
   return {
     covers: (b) => rulesCovered(b, lines).length > 0,
     top: L.info.y, areaBottom: L.info.y + L.info.h,
     beside: x1 > x0 ? { x0, x1 } : null,
     floor: (ctx.game?.H ?? Infinity) - 2,
     hard: [carrier, ...(L.cards ?? []), L.reroll, ...(L.packs ?? []), L.bar, L.fight, L.foe, L.cargo, plan.r].filter((q): q is Rect => !!q),
+    band: roomy(bandRect), corner: roomy(cornerRect),
   };
 }
 
@@ -2235,7 +2256,7 @@ function noteClear(ctx: Ctx, d: NonNullable<ReturnType<typeof detailsPlan>>, r: 
   const plan = d.plan, lines = visibleLines(plan);
   const buttons = plan.column ? columnButtons(d.t.labels.length, plan.r, tap) : (plan.rects ?? []).map((b) => tapRect(b, tap, plan.r));
   const strip = d.hint ? hintStrip(d.hint, plan.r, ctx.game?.H).r : null;
-  const a = definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip, hang: noteHang(ctx, plan, lines) }, lines, buttons, tap,
+  const a = definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip, hang: noteHang(ctx, plan, lines), deck: deckOf(ctx) }, lines, buttons, tap,
     ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
   return r.h >= a.hold && (!a.box || (a.fits && rulesCovered(a.box, lines).length === 0));
 }
@@ -2346,8 +2367,9 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   // PRESENT-2 L (cap's ruling 0d0ef2465804aafb): at the growth limit a note that hangs under the last rule row can land where the strip is:
   // the strip is not drawn while it shows, from the note's first frame (its place is worked out here, before the layer runs, as panelFit does);
   // it is back in the frame the note closes. Its tip stays new: only the action completes it (tips.ts)
-  const hang = noteHang(ctx, plan, shown);
-  const yields = !!strip && !!hang && !!definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip: strip.r, hang }, shown, hits, tap,
+  // PRESENT-3 H: the same for a first-run note that was moved up off the deck's top rows and lands on the strip (deckClear): the strip yields, from the note's first frame
+  const hang = noteHang(ctx, plan, shown), deck = deckOf(ctx);
+  const yields = !!strip && !!(hang || deck) && !!definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip: strip.r, hang, deck }, shown, hits, tap,
     ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan").place?.yieldsStrip;
   if (strip && !yields) drawHintStrip(g, strip);
   // U2c (REQ-BFG-045, REQ-BFG-046): tap to explain (keywords.ts): the words' underlines and targets, the `?` button, the
@@ -2356,7 +2378,7 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   // EXPLAIN-1 (REQ-BFG-089, E3): the screen's size, so the icon's hover tooltip stays on it
   // CARD-2 (REQ-BFG-004, K1): the build screen asks for the first-sight notes in its caravan only (never in a refit, the
   // build screen between a fight's rounds; a fight's own faces never come here)
-  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, { ...d, strip: strip?.r ?? null, hang, column: columnSpec(ctx, plan, shown) }, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
+  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, { ...d, strip: strip?.r ?? null, hang, deck, column: columnSpec(ctx, plan, shown) }, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
     ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
 }
 

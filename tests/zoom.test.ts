@@ -441,7 +441,10 @@ describe("U2d: phoneBand(W) is what the tallest touch panel needs at W, and no m
     // the tallest fullest form (THUNDERER ★3 with a core and gear; RAIL GUN ★3 at 316-319) needs 123 at W 186-315, 116 at
     // 316-319 and 111 at 320-340 (was exactly phoneBand(W): 148 at 186-193, 141 at 194-315, 134 at 316-319, 129 at 320-340).
     // phoneBand keeps its table (the bands of the tallest views and PICKS are unchanged): it holds the tallest panel with room
-    expect(got).toEqual(widths.map((W) => [W, W <= 315 ? 123 : W <= 319 ? 116 : 111]));
+    // PRESENT-3 E (re-pinned old -> new): a turret panel folds its EMPTY gear rows (a run of two or more is one row), so the tallest fullest form is a SCRAP CANNON ★2/★3 with a core and gear
+    // (not the THUNDERER ★3: its five EMPTY rows are one) and needs 95 at W 186-320 and 83 at 340 (was 123 at 186-315, 116 at 316-319, 111 at 320-340); phoneBand keeps its table, now 46-53 px
+    // above what any panel needs (layout, for a later job: the band could give the carrier that room)
+    expect(got).toEqual(widths.map((W) => [W, W <= 320 ? 95 : 83]));
     expect(got.every(([W, n]) => n <= phoneBand(W)), "within phoneBand(W)").toBe(true);
     // Y7b2 (the words; cap's ruling e66379fbf3184e56): was 155, 155, 148, 148, 141, 141, 141, 141, 141, 134, 134, 129, 129
     expect(widths.map(phoneBand)).toEqual([148, 148, 141, 141, 141, 141, 141, 141, 141, 134, 134, 129, 129]); // was 169, 169, 162, 162, 155, 148, 148, 141, 141, 136, 136; x1: 148 at 241-280
@@ -569,11 +572,13 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
         // BUMP-1F (GATES on), measured: 1197 panels (the three converters' 12 in: 3 x 4), the 12 all in the band in their fullest form at every view: fullest and in the band +12 each
         // (390x660 and 390x664 [.., 1173, 1177] -> [.., 1185, 1189], 402x690 [122, 1184, 1184] -> [122, 1196, 1196], 430x739 and 390x844 [141, 1185, 1185] -> [141, 1197, 1197]); the
         // bands and the grown panels (8, 8, 1, 0, 0) unchanged
-        "390x660": [104, 1185, 1189], "390x664": [106, 1185, 1189], "402x690": [122, 1196, 1196], "430x739": [141, 1197, 1197], "390x844": [141, 1197, 1197], // BUMP-1F (GATES on): was [104, 1173, 1177], [106, 1173, 1177], [122, 1184, 1184], [141, 1185, 1185], [141, 1185, 1185]
+        // PRESENT-3 E (re-pinned old -> new): the tall turret panels fold their EMPTY gear rows, so the 8 turrets with a core and gear that grew the band (and the one at 402x690) now fit: every view holds all 1,197 in
+        // their fullest form, in the band (was 390x660 [104, 1185, 1189], 390x664 [106, 1185, 1189], 402x690 [122, 1196, 1196])
+        "390x660": [104, 1197, 1197], "390x664": [106, 1197, 1197], "402x690": [122, 1197, 1197], "430x739": [141, 1197, 1197], "390x844": [141, 1197, 1197], // BUMP-1F (GATES on): was [104, 1173, 1177], [106, 1173, 1177], [122, 1184, 1184], [141, 1185, 1185], [141, 1185, 1185]
       };
       expect([band, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
       // BUMP-1E: the seven new rigs' panels are all in the band in their fullest form, so the growth over the 0.9.11 world's numbers is exactly theirs (7 x 13 = 91)
-      const wantOff: Record<string, [number, number, number]> = { "390x660": [104, 1082, 1086], "390x664": [106, 1082, 1086], "402x690": [122, 1093, 1093], "430x739": [141, 1094, 1094], "390x844": [141, 1094, 1094] }; // BUMP-1E: the old pins
+      const wantOff: Record<string, [number, number, number]> = { "390x660": [104, 1094, 1094], "390x664": [106, 1094, 1094], "402x690": [122, 1094, 1094], "430x739": [141, 1094, 1094], "390x844": [141, 1094, 1094] }; // BUMP-1E: the old pins; PRESENT-3 E: the turrets that did not fit now do, so all five are alike (was 1082/1086, 1082/1086, 1093/1093)
       // BUMP-1F (GATES on): + the three converters' 12 panels (3 x 4, all in the band in their fullest form), so the growth over the 0.9.11 world is the seven new rigs' 91 and the converters' 12 (was the 91 alone)
       const grew = SCALE_IDS.length * 13 + GATES_IDS.length * 4; // BUMP-1F: was SCALE_IDS.length * 13
       expect([band, fullestN - grew, inBand - grew], `${w}x${h}: the growth is the seven new rigs' and the three converters' panels`).toEqual(wantOff[`${w}x${h}`]);

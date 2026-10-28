@@ -9,7 +9,7 @@ import {
   ICON, ICON_BASE, ICON_COLOUR, KEYWORDS, drawText, faceChars, glyphRows, icons, isIcon, keywordColour, stripIcons, textWidth, wrap,
   type FontId, type IconName,
 } from "../src/render/font";
-import { PLAYER_WORD } from "../src/render/font"; // CARD-3 (REQ-BFG-107)
+import { PLAYER_WORD, STAR5_ROWS } from "../src/render/font"; // CARD-3 (REQ-BFG-107); PRESENT-3 S: the 3x5 STAR is drawn as STAR5_ROWS
 import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling rules ship on (POISON is the 10th keyword); the 0.9.11 world's 9 read with it off
 import { KEYWORD_COLOUR, NUMBER_COLOUR, PERK_COLOUR, colourize, lineText, wrapRich, wrapText, type Span } from "../src/ui/richText";
 import { STAT_ROW_MAX, statRow } from "../src/ui/icons";
@@ -244,10 +244,12 @@ describe("U1 icons: colour", () => {
     installRaster();
     for (const font of ["5", "3"] as FontId[]) {
       for (const n of NAMES) {
-        const ch = ICON[n], r = rows(ch, font);
+        // PRESENT-3 S (re-pinned old -> new): the 3x5 face draws its ★ (the STAR icon's glyph) as the 5x5 star over its slot and the 2 columns before it, so the picture is
+        // STAR5_ROWS at x 0-4 when the text starts at x 2 (the 3-wide glyph map entry stays as the width); every other icon and the 5x7 face are the bitmaps as before
+        const ch = ICON[n], star3 = font === "3" && ch === "★", r = star3 ? STAR5_ROWS.split("|") : rows(ch, font);
         for (const mono of [false, true]) {
           const cv = fresh(8, 8);
-          drawText(G(cv), ch, 0, 0, C.bone, { font, mono });
+          drawText(G(cv), ch, star3 ? 2 : 0, 0, C.bone, { font, mono });
           const want = mono ? C.bone : ICON_COLOUR[ch] ?? C.bone;
           for (let y = 0; y < r.length; y++) for (let x = 0; x < r[0].length; x++) {
             expect(cv.at(x, y), `${n} ${font} mono=${mono} (${x},${y})`).toBe(r[y][x] === "#" ? want : null);
