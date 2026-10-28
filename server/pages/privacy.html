@@ -30,12 +30,13 @@ footer { margin-top: 2.5em; border-top: 1px solid #1f3042; padding-top: 1em; col
 <body>
 <header>
 <h1>BeltBattles Privacy Policy</h1>
-<p class="updated">Last updated: <time datetime="2026-10-27">27 October 2026</time></p>
+<p class="updated">Last updated: <time datetime="2026-10-28">28 October 2026</time></p>
 <p>This policy is for the game BeltBattles on iPhone, on Android and on the web at <a href="https://beltbattles.fly.dev/">beltbattles.fly.dev</a>. It says what the game keeps on your device, what it sends to its server, why, who can see it, how long it is kept and how you delete it. The game has no account, no sign-in and no in-app purchase, and it has no advertising and no analytics.</p>
 <h2 id="short">In short</h2>
 <ul>
 <li>Without a connection the game sends nothing, and plays against stand-in captains.</li>
 <li>Online, the game sends the name you chose and your builds, so that other players can meet them as ghosts, together with a random player ID and your progress. If you link devices it also sends your run history.</li>
+<li>The server deletes your ghosts 180 days after it received them, and the rest of your online data after 24 months without play.</li>
 <li>You can delete your online data in the game: OPTIONS, then DELETE MY ONLINE DATA.</li>
 </ul>
 <nav aria-label="Sections">
@@ -119,22 +120,23 @@ footer { margin-top: 2.5em; border-top: 1px solid #1f3042; padding-top: 1em; col
 
 <section id="kept">
 <h2>6. How long it is kept</h2>
-<p>On the server nothing is deleted just because time has passed, with the exceptions in the table. Data stays until you delete your online data.</p>
+<p>The server keeps your online data until you delete it, with two time limits: it deletes your ghosts 180 days after it received them, and it deletes the rest of your online data after 24 months (730 days) without play. A clean-up that runs once a week does the deleting, and it also removes the stored ghosts of players who deleted their online data. The clean-up can run late or fail, so we promise only that a deletion that is due is done within 14 days.</p>
 <table>
 <thead>
 <tr><th scope="col">Data</th><th scope="col">How long</th></tr>
 </thead>
 <tbody>
-<tr><td>Ghosts (your builds, with your name)</td><td>Until you delete your online data and the stored copies are removed (section 7). They stop being served at once.</td></tr>
-<tr><td>Profile</td><td>Until you delete your online data.</td></tr>
-<tr><td>Links between devices, Steam link</td><td>Until you delete your online data.</td></tr>
+<tr><td>Ghosts (your builds, with your name)</td><td>180 days after the server received them, or sooner if you delete your online data (section 7). They stop being served at once when you delete your online data. The weekly clean-up removes the stored copies.</td></tr>
+<tr><td>Profile</td><td>Until you delete your online data, or until 24 months (730 days) pass without play. The weekly clean-up then deletes it as if you had deleted it yourself (section 7): your next online game starts a new player, and the progress on your device stays.</td></tr>
+<tr><td>Links between devices, Steam link</td><td>Until you delete your online data, or until 24 months (730 days) pass without play, in the same way as the profile.</td></tr>
 <tr><td>Link code</td><td>A code works for 10 minutes. The server stores only a one-way hash of it, with the player it belongs to and its end time. That record is removed when the code is used, replaced by a newer one, found expired when someone tries it, or when you delete your online data.</td></tr>
-<tr><td>Run history</td><td>Your newest 200 entries (a run, and the ENDLESS part of a run, are one entry each), until you delete your online data. When a newer entry arrives beyond 200, the oldest is dropped.</td></tr>
+<tr><td>Run history</td><td>Your newest 200 entries (a run, and the ENDLESS part of a run, are one entry each), until you delete your online data, or until 24 months (730 days) pass without play, in the same way as the profile. When a newer entry arrives beyond 200, the oldest is dropped.</td></tr>
 <tr><td>Deletion record</td><td>After you delete your online data, the server keeps one small record: your player ID and the IDs of your linked devices (codes made by hashing, not names) and the time of the deletion. It has no end date. It is what keeps your old ghosts from being served again.</td></tr>
 <tr><td>Request log</td><td>The time, method, path, status and duration of each request, written to the server's log on Fly.io. The game sets no period for these lines. Fly.io decides how long its log stream keeps them.</td></tr>
 <tr><td>IP addresses</td><td>Only in the server's memory, for the rate limits (they count over one minute, and over ten minutes for wrong link codes), until the server restarts. Never in storage or in the log. Fly.io's and Tigris's own records may include the address a request came from, and the web address of an opponent search contains your player ID.</td></tr>
 </tbody>
 </table>
+<p><strong>Without play</strong> means that for 24 months (730 days) the server has seen none of these from you or from a device linked to you: a ghost or a profile it received, a run in your run history, or a link (linking a device or a Steam account, or showing a link code). Playing without a connection sends nothing, so it does not count.</p>
 <p>On your device, data stays until you delete the app or clear the site's data.</p>
 </section>
 
@@ -155,17 +157,17 @@ footer { margin-top: 2.5em; border-top: 1px solid #1f3042; padding-top: 1em; col
 <h3>If you keep playing online</h3>
 <p>After you restart the game, your next online game sends your name, builds and progress again, under a new player ID. To stop that, play with your device's connection off.</p>
 <h3>Your stored ghosts</h3>
-<p>A clean-up that the developer runs removes the stored copies of the ghosts of every player who deleted their online data. Until it has run, those ghosts are stored but never served.</p>
+<p>The weekly clean-up removes the stored copies of the ghosts of every player who deleted their online data. It can run late or fail, so we promise only that it does this within 14 days after you delete your online data. Until it has run, those ghosts are stored but never served.</p>
 <h3>Your other devices</h3>
 <p>If you linked more than one device, the others find out the next time they send a ghost or a run: the server answers that the player was deleted. They then throw away their key and link record and start a new player. Their local progress stays.</p>
 <h3>If you cannot use the game</h3>
-<p>If your device is lost, wiped or sold, you cannot sign the request. Write to <a href="mailto:micah@crewport.ai">micah@crewport.ai</a> and tell us the name you used in the game, the hero and roughly when you played. We will look for the ghosts and records that belong to it and delete what we can find. We cannot be sure a request comes from the owner, so we may ask you questions. We answer within one month (section 8).</p>
+<p>If your device is lost, wiped or sold, you cannot sign the request. Write to <a href="mailto:micah@crewport.ai">micah@crewport.ai</a> and quote your player ID. The game shows it: tap OPTIONS, then MY PLAYER ID. It is a code like XXXX-XXXX-XXXX-XXXX, shown with the name and tag other players see you under. The row is greyed out while the game has no online session, as DELETE MY ONLINE DATA is. Note it while you still have the device. If you did not note it, tell us the name you used in the game, the hero and roughly when you played. We find the player and delete its online data the way the game does, its stored ghosts included. Anyone who met your ghost can learn your player ID, so we may ask you questions to be sure the request is yours. We answer within one month (section 8).</p>
 </section>
 
 <section id="rights">
 <h2>8. Your rights</h2>
 <p>You can ask us for a copy of the data we hold about you (access), for wrong data to be corrected (correction), for your data to be deleted (deletion; you can also do it yourself, section 7), and that we stop or limit using it (objection and restriction). Write to <a href="mailto:micah@crewport.ai">micah@crewport.ai</a>. We answer within one month.</p>
-<p>There is no account, so we can find your data only from your player ID or from the name you used. We may ask you questions to be sure we have the right data.</p>
+<p>There is no account, so we can find your data only from your player ID or from the name you used. The game shows your player ID: tap OPTIONS, then MY PLAYER ID. Note it while you still have the device. We may ask you questions to be sure we have the right data.</p>
 <p>If you think we use your data wrongly, you can complain to the data protection authority in your country.</p>
 </section>
 

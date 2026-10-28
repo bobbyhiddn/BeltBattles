@@ -7,6 +7,17 @@
 //  - every claim the page makes that a number or a string of the code can prove is held to it: the deletion steps are linkCards.ts's own words, every
 //    request the page names is one src/net makes and every one src/net makes is on the page, the data kinds are PrivacyInfo.xcprivacy's three, the
 //    listing's ghost sentence is on the page, the limits (10 minutes, 8 characters, 5 tries, 200 runs, 50, 300, 2 KB, an hour) are the code's.
+// S6D (REQ-BFG-119) Goal 5, the last describe block: the pages say what the operator's retention decisions made real (server/retention.ts, the ghost-admin
+//    commands prune-ghosts, prune-idle, weekly, delete-player and find-player, and the MY PLAYER ID row), and nothing more:
+//  - every number of time on either page (180 days, 24 months, 730 days, 14 days, a weekly clean-up) is a constant of server/retention.ts, and no other
+//    number of days or months is on a page; every command the pages rely on is in ghostAdmin's COMMANDS; the MY PLAYER ID words are linkCards.ts's WORDS;
+//  - "within 14 days" is twice the schedule, on purpose: Fly.io's docs promise no day for a scheduled Machine. https://docs.fly.io/machines/flyctl/fly-machine-run
+//    (read 2026-10-28) calls the schedule a "fuzzy hourly, daily, weekly, or monthly cycle", the Machine started "again once per (approximate) hour, day,
+//    week, or month", and says a stopped Machine whose host lacks the resources "when its scheduled time comes" gets an error back;
+//    https://docs.fly.io/blueprints/task-scheduling (read 2026-10-28) calls scheduled Machines "Not for precise timing". So a weekly run can be late or
+//    fail, and the page promises 14 days, not 7;
+//  - decisions 4 and 5 of the operator are NOT made, so the pages hold no "same or equal protection" sentence, no safeguard for the transfer to the United
+//    States and no Article 27 note, and no sentence was added to #who-sees or #transfers.
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -21,6 +32,8 @@ import { SYNC_INTERVAL_MS } from "../src/net/profileSync";
 import { COUNTER_KEYS, MAX_PROFILE_BYTES } from "../src/net/profileWire";
 import { CODE_LENGTH, CODE_TTL_MS } from "../server/links";
 import { REDEEM_FAILS } from "../server/linkRoutes";
+import { CLEANUP_PROMISE_DAYS, GHOST_RETENTION_DAYS, IDLE_RETENTION_DAYS, IDLE_RETENTION_MONTHS, WEEKLY_CLEANUP_DAYS } from "../server/retention";
+import { PLAYER_CODE_GROUP, PLAYER_CODE_SYMBOLS, playerCode } from "../src/net/playerCode";
 import { contrast, hexIn, hexToRgb, luminance, parseCss, parseHtml, type Parsed } from "./s6Html";
 
 const ROOT = new URL("..", import.meta.url).pathname;
@@ -102,7 +115,7 @@ describe("S6 Goal 1: the two pages are well-formed static HTML", () => {
       const named = new Date(`${month} ${day}, ${year} 00:00:00 UTC`);
       expect(Number.isNaN(named.getTime()), `${name}: ${day} ${month} ${year}`).toBe(false);
       expect(`${y}-${mo}-${d}`, `${name}: the words and the datetime agree`).toBe(named.toISOString().slice(0, 10));
-      expect(`${y}-${mo}-${d}` >= "2026-10-27", `${name}: not before this work`).toBe(true);
+      expect(`${y}-${mo}-${d}` >= "2026-10-28", `${name}: not before the S6D change (28 October 2026)`).toBe(true);
     }
   });
 
@@ -435,7 +448,7 @@ describe("S6 Goal 1: what the independent review found is on the pages, each hel
     // no switch in the OPTIONS card: its buttons are DONE, REDUCED MOTION, SOUND, FULLSCREEN, NAME and the extra rows (tests/m1.options.test.ts pins them)
     const hudButtons = [...read("src/ui/hud.ts").matchAll(/button\(ui, g, "(opt-[a-z]+)"/g)].map((m) => m[1]);
     expect(hudButtons).toEqual(["opt-rm", "opt-snd", "opt-fs", "opt-name"]);
-    expect(optionsRows).toEqual(["opt-link", "opt-delete", "opt-privacy"]);
+    expect(optionsRows).toEqual(["opt-link", "opt-id", "opt-delete", "opt-privacy"]); // S6D: MY PLAYER ID, below LINK A DEVICE and above DELETE MY ONLINE DATA
     expect(parsed.support.text).toContain("While your device reports no connection, the game does not look for ghosts and does not upload builds or progress.");
   });
 
@@ -504,6 +517,158 @@ describe("S6 Goal 1: what the independent review found is on the pages, each hel
     expect(read("server/links.ts")).toContain("export const AT_WINDOW_MS = 10 * 60_000;");
     expect(read("src/screens/battle.ts")).toContain("`VS ${foeTitle(this.foe)}`"); // the foe's NAME#TAG is what the dusk intro shows (day.ts foeTitle)
     expect(read("src/game/day.ts")).toContain("export function foeTitle");
+  });
+});
+
+describe("S6D Goal 5: the pages say what the operator's retention decisions made real (server/retention.ts, ghost-admin, MY PLAYER ID), and nothing more", () => {
+  const text = parsed.privacy.text;
+  const sup = parsed.support.text;
+  const kept = sectionText(SRC.privacy, "kept");
+  const del = sectionText(SRC.privacy, "delete");
+  const rights = sectionText(SRC.privacy, "rights");
+  const g = `${GHOST_RETENTION_DAYS} days`;
+  const idle = `${IDLE_RETENTION_MONTHS} months (${IDLE_RETENTION_DAYS} days)`;
+  /** The second cell of a row of the #kept table, tags removed. */
+  const row = (label: string): string => {
+    const m = new RegExp(`<tr><td>${label.replace(/[()]/g, "\\$&")}</td><td>([\\s\\S]*?)</td></tr>`).exec(SRC.privacy);
+    if (!m) throw new Error(`no row "${label}" in the table of #kept`);
+    return parseHtml(m[1]).text;
+  };
+
+  it("the periods are the operator's, in one file: ghosts 180 days, a player 24 months counted as 730 days, a weekly clean-up, 14 days promised (twice the schedule)", () => {
+    expect(GHOST_RETENTION_DAYS).toBe(180);
+    expect(IDLE_RETENTION_MONTHS).toBe(24);
+    expect(IDLE_RETENTION_DAYS).toBe(730);
+    expect(WEEKLY_CLEANUP_DAYS).toBe(7);
+    expect(CLEANUP_PROMISE_DAYS).toBe(14);
+    expect(IDLE_RETENTION_DAYS).toBe(2 * 365); // 24 months, counted as two years of 365 days
+    expect(Math.abs(IDLE_RETENTION_DAYS - (IDLE_RETENTION_MONTHS * 365.25) / 12)).toBeLessThan(2); // within a day or two of 24 calendar months
+    expect(CLEANUP_PROMISE_DAYS).toBeGreaterThanOrEqual(2 * WEEKLY_CLEANUP_DAYS); // a weekly run can be late or fail: never a promise shorter than two runs
+  });
+
+  it("#kept: the opening line and the rows for ghosts, profile, links and run history carry exactly those numbers; the weekly clean-up does the deleting", () => {
+    expect(kept).toContain(`The server keeps your online data until you delete it, with two time limits: it deletes your ghosts ${g} after it received them, and it deletes the rest of your online data after ${idle} without play.`);
+    expect(kept).toContain("A clean-up that runs once a week does the deleting, and it also removes the stored ghosts of players who deleted their online data.");
+    expect(kept).toContain(`The clean-up can run late or fail, so we promise only that a deletion that is due is done within ${CLEANUP_PROMISE_DAYS} days.`);
+    expect(kept).not.toContain("nothing is deleted just because time has passed"); // the S6 opening line, now false
+    expect(row("Ghosts (your builds, with your name)")).toContain(`${g} after the server received them, or sooner if you delete your online data (section 7). They stop being served at once when you delete your online data. The weekly clean-up removes the stored copies.`);
+    expect(row("Profile")).toContain(`Until you delete your online data, or until ${idle} pass without play. The weekly clean-up then deletes it as if you had deleted it yourself (section 7): your next online game starts a new player, and the progress on your device stays.`);
+    expect(row("Links between devices, Steam link")).toContain(`Until you delete your online data, or until ${idle} pass without play, in the same way as the profile.`);
+    expect(row("Run history")).toContain(`Your newest ${HISTORY_PLAYER_MAX} entries (a run, and the ENDLESS part of a run, are one entry each), until you delete your online data, or until ${idle} pass without play, in the same way as the profile. When a newer entry arrives beyond ${HISTORY_PLAYER_MAX}, the oldest is dropped.`);
+    // the link code, deletion record, request log and IP rows are as they were: none takes a period from the retention decisions
+    for (const label of ["Link code", "Deletion record", "Request log", "IP addresses"]) expect(row(label), label).not.toMatch(/\b(180|730|14)\b|24 months|weekly|clean-up/);
+    expect(row("Link code")).toContain("A code works for 10 minutes.");
+    expect(row("Deletion record")).toContain("It has no end date.");
+    expect(row("Request log")).toContain("The game sets no period for these lines.");
+    expect(row("IP addresses")).toContain("until the server restarts. Never in storage or in the log.");
+    // the "In short" list at the top says it too
+    expect(SRC.privacy).toContain(`<li>The server deletes your ghosts ${g} after it received them, and the rest of your online data after ${IDLE_RETENTION_MONTHS} months without play.</li>`);
+  });
+
+  it("#kept: what 'without play' means is what the server stores with a time - a ghost's receipt time, the profile's receivedAt, a run's finishedAt, the link and player records' at", () => {
+    expect(kept).toContain(`Without play means that for ${idle} the server has seen none of these from you or from a device linked to you: a ghost or a profile it received, a run in your run history, or a link (linking a device or a Steam account, or showing a link code). Playing without a connection sends nothing, so it does not count.`);
+    expect(read("server/store.ts")).toContain("return JSON.stringify({ id, at, snapshot });"); // a ghost: the server's own time of receipt
+    expect(read("server/profileStore.ts")).toContain("receivedAt: number;"); // a profile: when the last upload arrived
+    expect(read("server/historyStore.ts")).toMatch(/export interface HistoryName \{\s*finishedAt: number;/); // a run: the object name holds its finishedAt
+    const links = read("server/links.ts");
+    expect(links).toMatch(/export interface KeyLink \{\s*player: string;\s*at: number;/); // a linked device: when it was linked
+    expect(links).toMatch(/export interface PlayerRecord \{[\s\S]*?\n  at: number;/); // the player record: its last change
+    expect(links).toContain("await this.putPlayer(player, { ...rec, code: hash, at: this.now() });"); // showing a link code writes it (issueCode)
+    expect(links).toContain("await this.putKeyLink(signer, { player, at: this.now() });"); // linking a device writes it (join)
+    expect(links).toContain("await this.store.put(steamKey(steamId), JSON.stringify({ player: mine, at: this.now() }));"); // and linking a Steam account (linkSteam)
+  });
+
+  it("#delete: the weekly clean-up removes the stored ghosts, within 14 days; a player who cannot use the game quotes the ID MY PLAYER ID shows, and we find the player and delete it the way the game does", () => {
+    expect(del).toContain("The weekly clean-up removes the stored copies of the ghosts of every player who deleted their online data.");
+    expect(del).toContain(`It can run late or fail, so we promise only that it does this within ${CLEANUP_PROMISE_DAYS} days after you delete your online data.`);
+    expect(del).toContain("Until it has run, those ghosts are stored but never served.");
+    expect(del).not.toContain("A clean-up that the developer runs"); // the S6 sentence, now false
+    expect(del).toContain(`and quote your player ID. The game shows it: tap OPTIONS, then ${WORDS.idRow}.`);
+    expect(del).toContain("Note it while you still have the device. If you did not note it, tell us the name you used in the game, the hero and roughly when you played.");
+    expect(del.indexOf("The game shows it: tap OPTIONS")).toBeGreaterThan(del.indexOf("and quote your player ID.")); // in this order: quote the ID, where the game shows it, note it, else the name
+    expect(del).toContain("We find the player and delete its online data the way the game does, its stored ghosts included.");
+    expect(del).toContain("Anyone who met your ghost can learn your player ID, so we may ask you questions to be sure the request is yours. We answer within one month (section 8).");
+    expect(del).not.toContain("We will look for the ghosts and records"); // the S6 sentence, now replaced
+    expect(hasEmail(del)).toBe(true);
+    // "the way the game does": DELETE /v1/player calls Links.deletePlayer, which is what the admin's delete-player calls too (server/pruneAdmin.ts, tests/s6d.*)
+    expect(read("server/linkRoutes.ts")).toContain("await r.links.deletePlayer(o.signer);");
+    // "anyone who met your ghost can learn your player ID": the opponent search serves the whole snapshot, and a snapshot holds the player ID
+    expect(read("server/app.ts")).toContain("servedSnapshot(hit.snapshot)");
+    expect(read("src/net/snapshot.ts")).toContain('playerId: str(o.playerId, "snapshot.playerId", ID_PATTERN)');
+  });
+
+  it("#rights: OPTIONS shows the player ID; the page's example of the code is the code's own shape (16 symbols, four groups of four)", () => {
+    expect(rights).toContain(`There is no account, so we can find your data only from your player ID or from the name you used. The game shows your player ID: tap OPTIONS, then ${WORDS.idRow}. Note it while you still have the device.`);
+    const shape = Array.from({ length: PLAYER_CODE_SYMBOLS / PLAYER_CODE_GROUP }, () => "X".repeat(PLAYER_CODE_GROUP)).join("-");
+    expect(shape).toBe("XXXX-XXXX-XXXX-XXXX");
+    expect(del).toContain(`It is a code like ${shape}, shown with the name and tag other players see you under. The row is greyed out while the game has no online session, as ${WORDS.deleteRow} is.`);
+    const cards = read("src/screens/linkCards.ts"); // the row is off exactly when DELETE MY ONLINE DATA is: the same availability flag
+    expect(cards).toContain('{ id: "opt-id", label: WORDS.idRow, disabled: !a.on,');
+    expect(cards).toContain('{ id: "opt-delete", label: WORDS.deleteRow, disabled: !a.on,');
+    expect(playerCode("A".repeat(43))).toMatch(/^[0-9A-Z]{4}(?:-[0-9A-Z]{4}){3}$/);
+    // the card says what other players see (NAME#TAG), as the page says it shows "the name and tag other players see you under"
+    expect(Object.values(WORDS).some((w) => w.includes("OTHER PLAYERS SEE YOU AS"))).toBe(true);
+  });
+
+  it("MY PLAYER ID is the game's own words: WORDS.idRow is the OPTIONS row below LINK A DEVICE, and both pages say OPTIONS, then MY PLAYER ID", () => {
+    expect(WORDS.idRow).toBe("MY PLAYER ID");
+    expect(read("src/screens/linkCards.ts")).toContain('{ id: "opt-id", label: WORDS.idRow,');
+    for (const [name, t] of [["privacy", text], ["support", sup]] as const) expect(t, name).toContain(`OPTIONS, then ${WORDS.idRow}`);
+  });
+
+  it("support: the lost-device and delete answers name MY PLAYER ID and say what we do with it; the address stays in #contact only", () => {
+    const lost = sectionText(SRC.support, "lost");
+    const dd = sectionText(SRC.support, "delete-data");
+    expect(lost).toContain(`write to us and quote your player ID, which OPTIONS, then ${WORDS.idRow} showed on the old device (the privacy policy, section 7, has the rest). Note it while you still have the device. If you did not note it, tell us the name you used, the hero and roughly when you played.`);
+    expect(dd).toContain(`If you can no longer use the game, write to us and quote your player ID: OPTIONS, then ${WORDS.idRow} shows it, so note it while you still have the device. If you do not have it, tell us the name you used, the hero and roughly when you played.`);
+    expect(dd).toContain("We find the player and delete its online data the way the game does, its stored ghosts included, and we may ask you questions to be sure it is yours.");
+    expect(dd).toContain("The steps and what is removed are in the privacy policy, section 7.");
+    expect(lost + dd).not.toMatch(/@|\[\[/);
+  });
+
+  it("every ghost-admin command the pages rely on exists: prune-ghosts (180 days), prune-idle (24 months), weekly (the clean-up), purge-tombstoned (a deleted player's ghosts), find-player and delete-player (a lost device)", async () => {
+    const { COMMANDS } = await import("../server/ghostAdmin");
+    const commands = COMMANDS as readonly string[];
+    const reliesOn: [string, string][] = [
+      [`${g} after the server received them`, "prune-ghosts"],
+      [`${idle} without play`, "prune-idle"],
+      ["A clean-up that runs once a week does the deleting", "weekly"],
+      ["removes the stored copies of the ghosts of every player who deleted their online data", "purge-tombstoned"],
+      ["We find the player", "find-player"],
+      ["delete its online data the way the game does, its stored ghosts included", "delete-player"],
+    ];
+    for (const [phrase, command] of reliesOn) {
+      expect(text, phrase).toContain(phrase);
+      expect(commands, `"${phrase}" relies on ghost-admin ${command}`).toContain(command);
+    }
+    expect(sup).toContain("We find the player and delete its online data the way the game does");
+    for (const command of ["delete-player", "find-player", "prune-ghosts", "prune-idle", "weekly"]) expect(commands, command).toContain(command);
+  });
+
+  it("no other number of days or months is on either page; the clean-up's rhythm is the constant's (once a week = 7 days) and no other", () => {
+    const known = new Set([g, `${IDLE_RETENTION_MONTHS} months`, `${IDLE_RETENTION_DAYS} days`, `${CLEANUP_PROMISE_DAYS} days`]);
+    for (const [name, t] of [["privacy", text], ["support", sup]] as const) {
+      for (const m of t.matchAll(/\b(\d+) (?:days?|months?)\b/g)) expect(known.has(m[0]), `${name}: "${m[0]}" is no constant of server/retention.ts`).toBe(true);
+    }
+    for (const k of known) expect(text, k).toContain(k);
+    expect(WEEKLY_CLEANUP_DAYS).toBe(7);
+    expect(text).toContain("once a week");
+    expect(text).toContain("The weekly clean-up");
+    expect(text).not.toMatch(/\b(daily|monthly|every day|every month)\b/i);
+    expect(sup).not.toMatch(/\b(weekly|once a week)\b/i); // the support page promises no period
+  });
+
+  it("#children keeps '13 and over'; decisions 4 and 5 are not made: no 'same or equal protection' sentence, no safeguard for the transfer, no Article 27 note, nothing new in #who-sees or #transfers", () => {
+    expect(sectionText(SRC.privacy, "children")).toContain("BeltBattles is for people aged 13 and over and is not aimed at children.");
+    for (const [name, t] of [["privacy", text], ["support", sup]] as const) {
+      expect(t.toLowerCase(), name).not.toMatch(/equal protection|same protection|same or equal|standard contractual|contractual clauses|adequacy|article 27|eu representative|uk representative|binding corporate|data processing (agreement|addendum)|privacy shield|data privacy framework|safeguard/);
+    }
+    expect(sectionText(SRC.privacy, "who-sees")).toContain("Our hosting providers process the data for us. Fly.io runs the server, and Tigris, the object storage that Fly.io offers, holds the stored data. They also keep their own technical records of connections, under their own policies.");
+    expect(sectionText(SRC.privacy, "who-sees")).not.toMatch(/protection|safeguard|agreement|clauses/i);
+    const transfers = sectionText(SRC.privacy, "transfers").replace(new RegExp(EMAIL, "g"), "EMAIL");
+    expect(transfers).toBe(
+      "12. Where the data is processed The server runs on Fly.io in Ashburn, Virginia, in the United States (Fly.io region iad). The data is stored in Tigris. We did not restrict where Tigris places objects, so by its default (a global bucket) objects are stored close to where they are written and copies can be made in other regions when they are read. If you live outside the United States, your data is therefore sent to the United States and may be copied to other countries. For questions about this, write to EMAIL.",
+    );
   });
 });
 
