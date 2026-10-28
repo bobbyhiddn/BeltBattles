@@ -839,7 +839,9 @@ fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs weekly --apply
   newest run in the run history (the object name holds its finishedAt), and the times of the key-link and Steam-link records and of the player record (written when a
   device is linked and when SHOW MY CODE makes a code), over the player and every id linked to it, so a linked player whose second device still plays is not idle. A
   tombstoned player is never idle again. A player whose last play cannot be dated (an unreadable profile, ids that do not name one player) is left alone and said; a
-  player known only from uploads is not judged here (its uploads go by `prune-ghosts`).
+  player known only from uploads is not judged here (its uploads go by `prune-ghosts`). **A smaller `--days` deletes more**: `prune-idle --days 30` is every player who has not
+  played for a month. Read the dry run's count (`idle: N`) before any `--apply` with a `--days`; the weekly machine never passes one. The tool judges the store as it reads it: a player who
+  comes back during the minutes a run takes is deleted like the others (the next online game starts a new player and the progress on the device stays).
 - `weekly` is `prune-idle`, then `purge-tombstoned`, then `prune-ghosts`, each with its defaults, in that order (a player who goes idle in this run has their uploads
   and run history removed in the same run). A dry run prints one plan and one `DRY RUN` line. With `--apply` it prints one summary line for each step (`weekly 1/3
   prune-idle: ...`, `weekly 2/3 purge-tombstoned: ...`, `weekly 3/3 prune-ghosts: ...`) and ends `weekly: done, all three steps succeeded`. A step that fails does not

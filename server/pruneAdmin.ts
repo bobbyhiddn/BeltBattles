@@ -293,12 +293,40 @@ export function groupsOf(inv: Inventory): Map<string, Group> {
     if (state.has(id)) g.hasState = true;
     byRoot.set(r, g);
   }
+  // a key is an id that its own link names a player for, or that a player record lists (a crash between the two writes of a link leaves a listed key
+  // with no link: server/links.ts join); the player of a group is what is no key
+  const listed = new Set<string>();
+  for (const [id, p] of inv.players) for (const k of p.keys) if (k !== id) listed.add(k);
   const out = new Map<string, Group>();
   for (const g of byRoot.values()) {
-    g.roots = g.tombstoned ? [...g.members].filter((m) => inv.tombstones.has(m)).sort() : [...g.members].filter((m) => !inv.keyLinks.has(m)).sort();
+    g.roots = g.tombstoned ? [...g.members].filter((m) => inv.tombstones.has(m)).sort() : [...g.members].filter((m) => !inv.keyLinks.has(m) && !listed.has(m)).sort();
     for (const m of g.members) out.set(m, g);
   }
   return out;
+}
+
+/** What judgeIdle asks again and again for every player, indexed once for an inventory (a scan of every upload for each player would be quadratic). */
+interface Index {
+  /** The newest receipt time of the uploads that carry a player id, and whether one of them has none that can be read. */
+  uploadAt: Map<string, { at: number; undated: boolean }>;
+  steamAt: Map<string, { steamId: string; at: number }[]>;
+}
+const indexes = new WeakMap<Inventory, Index>();
+function indexOf(inv: Inventory): Index {
+  let idx = indexes.get(inv);
+  if (idx) return idx;
+  idx = { uploadAt: new Map(), steamAt: new Map() };
+  for (const u of inv.uploads) {
+    const pid = u.record.playerId;
+    if (pid == null) continue;
+    const e = idx.uploadAt.get(pid) ?? { at: -1, undated: false };
+    if (u.record.at == null) e.undated = true;
+    else if (u.record.at > e.at) e.at = u.record.at;
+    idx.uploadAt.set(pid, e);
+  }
+  for (const [steamId, l] of inv.steamLinks) idx.steamAt.set(l.player, [...(idx.steamAt.get(l.player) ?? []), { steamId, at: l.at }]);
+  indexes.set(inv, idx);
+  return idx;
 }
 
 export type Resolved = { ok: true; group: Group; player: string; how: string } | { ok: false; why: string };
@@ -347,25 +375,32 @@ export interface DeletePlan {
   uploads: Upload[];
 }
 
-function uploadsOf(inv: Inventory, ids: ReadonlySet<string>, tk: Toolkit): Upload[] {
-  const out: Upload[] = [];
+/** The uploads of these ids, chosen by the very selection purge-tombstoned makes for tombstoned ids (ghostAdmin.makePlan), once for the whole set, grouped by player id. */
+function uploadsByPlayer(inv: Inventory, ids: ReadonlySet<string>, tk: Toolkit): Map<string, Upload[]> {
+  const out = new Map<string, Upload[]>();
   const versions = [...new Set(inv.uploads.map((u) => u.rules))].sort();
   for (const rules of versions) {
     const mine = inv.uploads.filter((u) => u.rules === rules);
     const plan = tk.makePlan({ command: "purge-tombstoned", rules, apply: false, pool: false }, { records: mine.map((u) => u.record), other: [] }, ids);
     const gone = new Set(plan.delete.map((d) => d.record));
-    out.push(...mine.filter((u) => gone.has(u.record)));
+    for (const u of mine) {
+      if (!gone.has(u.record)) continue;
+      const pid = u.record.playerId as string; // makePlan selects an upload only by its player id
+      out.set(pid, [...(out.get(pid) ?? []), u]);
+    }
   }
   return out;
 }
 
-export function planDelete(inv: Inventory, group: Group, player: string, tk: Toolkit): DeletePlan {
+/** `uploads`: the uploads of every player about to be deleted, grouped by player id (uploadsByPlayer); planDelete takes those of its own ids. */
+export function planDelete(inv: Inventory, group: Group, player: string, tk: Toolkit, uploads?: Map<string, Upload[]>): DeletePlan {
   const rec = inv.players.get(player) ?? null;
   const prior = inv.tombstones.get(player) ?? null;
   const base = tombstoneIds(player, player, rec, prior);
   const strays = [...group.members].filter((m) => !base.includes(m) && inv.keyLinks.get(m)?.player === player).sort();
   const ids = [...base, ...strays];
   const idSet = new Set(ids);
+  const byPlayer = uploads ?? uploadsByPlayer(inv, idSet, tk);
   return {
     player, group, prior, ids, strays,
     profiles: ids.filter((id) => inv.profiles.has(id)),
@@ -377,7 +412,7 @@ export function planDelete(inv: Inventory, group: Group, player: string, tk: Too
     code: rec?.code !== undefined,
     playerRecord: rec !== null,
     history: ids.flatMap((id) => (inv.history.get(id) ?? []).map((name) => ({ id, name }))),
-    uploads: uploadsOf(inv, idSet, tk),
+    uploads: ids.flatMap((id) => byPlayer.get(id) ?? []),
   };
 }
 
@@ -541,8 +576,8 @@ export function lastPlayOf(inv: Inventory, group: Group): { at: number; basis: s
   const see = (at: number | null | undefined, basis: string) => {
     if (typeof at === "number" && at > best.at) Object.assign(best, { at, basis });
   };
-  const ids = group.members;
-  for (const id of ids) {
+  const idx = indexOf(inv);
+  for (const id of group.members) {
     if (inv.profiles.has(id)) {
       const at = inv.profiles.get(id);
       if (at === null || at === undefined) undatable = true;
@@ -553,13 +588,11 @@ export function lastPlayOf(inv: Inventory, group: Group): { at: number; basis: s
     const p = inv.players.get(id);
     if (p) see(p.at, `the player record of ${id}`);
     for (const h of inv.history.get(id) ?? []) see(h.finishedAt, `a run in the history of ${id} (finishedAt)`);
-  }
-  for (const [sid, l] of inv.steamLinks) if (ids.has(l.player)) see(l.at, `the Steam link ${sid}`);
-  for (const u of inv.uploads) {
-    const pid = u.record.playerId;
-    if (pid != null && ids.has(pid)) {
-      if (u.record.at == null) undatable = true;
-      else see(u.record.at, `an upload of ${pid} (received)`);
+    for (const s of idx.steamAt.get(id) ?? []) see(s.at, `the Steam link ${s.steamId}`);
+    const up = idx.uploadAt.get(id);
+    if (up) {
+      if (up.undated) undatable = true;
+      see(up.at, `an upload of ${id} (received)`);
     }
   }
   return best.at < 0 && !undatable ? null : { at: best.at, basis: best.basis, undatable };
@@ -590,6 +623,13 @@ export function judgeIdle(inv: Inventory, now: number, daysIdle: number): IdleRe
   return res;
 }
 
+/** The delete plan of each idle player; the uploads of all of them are chosen in one pass (a pass for each player would be quadratic in the uploads). */
+function plansFor(inv: Inventory, idle: readonly IdleVerdict[], tk: Toolkit): { v: IdleVerdict; plan: DeletePlan }[] {
+  const everyId = new Set(idle.flatMap((v) => [...v.group.members]));
+  const byPlayer = idle.length ? uploadsByPlayer(inv, everyId, tk) : new Map<string, Upload[]>();
+  return idle.map((v) => ({ v, plan: planDelete(inv, v.group, v.player, tk, byPlayer) }));
+}
+
 /** prune-idle. `quiet`: only the refusal is said here (weekly prints its own summary line); `inv`: the store as weekly has just read it. */
 async function pruneIdleCommand(args: AdminArgs, store: AdminStore, ident: AdminIdentity, out: Out, clock: Clock, tk: Toolkit, quiet = false, read?: Inventory): Promise<{ code: number; players: number; uploads: number }> {
   const now = clock();
@@ -601,7 +641,7 @@ async function pruneIdleCommand(args: AdminArgs, store: AdminStore, ident: Admin
     return { code: 1, players: 0, uploads: 0 };
   }
   const res = judgeIdle(inv, now, daysIdle);
-  const plans = res.idle.map((v) => ({ v, plan: planDelete(inv, v.group, v.player, tk) }));
+  const plans = plansFor(inv, res.idle, tk);
   const uploads = plans.flatMap((p) => p.plan.uploads);
   if (!quiet) {
     out(`players with stored records: ${res.considered}; idle (no server-side sign of play since ${iso(now - daysIdle * DAY_MS)}, more than ${daysIdle} days): ${res.idle.length}; kept: ${res.kept}${res.unjudged.length ? `; left alone because they cannot be judged: ${res.unjudged.length}` : ""}`);
@@ -647,7 +687,7 @@ async function weeklyCommand(args: AdminArgs, store: AdminStore, ident: AdminIde
   if (!args.apply) {
     out(`weekly 1/3 prune-idle (${IDLE_RETENTION_DAYS} days):`);
     const idle = judgeIdle(guard, now, IDLE_RETENTION_DAYS);
-    const plans = idle.idle.map((v) => ({ v, plan: planDelete(guard, v.group, v.player, tk) }));
+    const plans = plansFor(guard, idle.idle, tk);
     out(`  players with stored records: ${idle.considered}; idle: ${idle.idle.length}; kept: ${idle.kept}${idle.unjudged.length ? `; left alone because they cannot be judged: ${idle.unjudged.length}` : ""}`);
     for (const { v, plan } of plans) {
       out(`  idle player ${v.player}: last play ${iso(v.lastPlay)} (${v.basis}), ${days(now - v.lastPlay)} days ago`);

@@ -236,6 +236,29 @@ describe.each(KINDS)("delete-player on %s", (kind) => {
     expect(w.ids()).toEqual([]);
   });
 
+  it("a key the player's record lists but whose link was never written (a crash between the two writes of a link) is still a key: the player is the one that is no key", async () => {
+    const w = world(kind, fake);
+    const L = idOf("listed-only");
+    await w.profile(P, NOW - DAY);
+    await w.playerRec(P, [L], NOW - DAY); // lists L; no links/keys/L.json
+    await w.profile(L, NOW - 2 * DAY);
+    w.upload(R1, 1, "gl", L, NOW - 2 * DAY, { name: "ANNA", hero: "ranger" });
+    for (const arg of [P, L]) {
+      const r = await admin(w, ["delete-player", arg]);
+      expect(r.code, r.text).toBe(0);
+      expect(r.text).toContain(`resolved: player ${P} `);
+      expect(r.text).toContain(`naming 2 id(s): ${P} ${L}`);
+    }
+    // and two players that both list one key are not one player: refused, nothing deleted
+    const M = idOf("claims-l");
+    await w.playerRec(M, [L], NOW - DAY);
+    const before = w.state();
+    const r = await admin(w, ["delete-player", L, "--apply"]);
+    expect(r.code, r.text).toBe(1);
+    expect(r.text).toContain("the store does not say which is the player");
+    expect(w.state()).toEqual(before);
+  });
+
   it("a storage error is exit 1 and an apply that deleted less than its plan is exit 1; a store without identity records says so", async () => {
     const w = world(kind, fake);
     await populate(w);

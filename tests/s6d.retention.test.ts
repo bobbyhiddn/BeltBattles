@@ -2,7 +2,8 @@
 // clean-up) as `ghost-admin prune-ghosts`, `prune-idle` and `weekly`, and the clock guard. Both stores: the JSON-lines directory, and Tigris on the
 // in-process fake S3 (seven keys a LIST page). The tool's clock is set by the test (tests/s6dWorld.ts admin(): NOW = 2026-10-28 12:00 UTC).
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { USAGE, parseArgs, type AdminStore } from "../server/ghostAdmin";
+import type { StoreConfig } from "../server/config";
+import { USAGE, parseArgs, openAdmin, type AdminStore } from "../server/ghostAdmin";
 import { JsonlAdmin } from "../server/ghostAdmin";
 import { CLEANUP_PROMISE_DAYS, CLOCK_GUARD_MS, DAY_MS, GHOST_RETENTION_DAYS, IDLE_RETENTION_DAYS, IDLE_RETENTION_MONTHS, WEEKLY_CLEANUP_DAYS } from "../server/retention";
 import type { FakeS3 } from "../tools/fakeS3";
@@ -235,10 +236,12 @@ describe.each(KINDS)("prune-idle on %s", (kind) => {
   it("--days N changes the line; a player with uploads only is never judged; a player whose ids name two players is left alone and said", async () => {
     const w = world(kind, fake);
     await plant(w);
-    const two = idOf("two-a"), twoB = idOf("two-b");
+    const two = idOf("two-a"), twoB = idOf("two-b"), twoC = idOf("two-c");
     await w.profile(two, ago(900));
     await w.profile(twoB, ago(900));
-    await w.playerRec(two, [twoB], ago(900)); // the record lists twoB as a key, but twoB's own link does not name it: two roots
+    await w.profile(twoC, ago(900));
+    await w.playerRec(two, [twoB], ago(900)); // two players' records both list twoB as their key (damaged data): the ids name two players
+    await w.playerRec(twoC, [twoB], ago(900));
     const idleOf = (out: string[]) => out.filter((l) => l.startsWith("idle player ")).map((l) => l.split(" ")[2].replace(":", "")).sort();
     const nine = await admin(w, ["prune-idle", "--days", "9"]);
     expect(nine.code, nine.text).toBe(0);
@@ -250,7 +253,7 @@ describe.each(KINDS)("prune-idle on %s", (kind) => {
     expect(idleOf(nine.out)).not.toContain(P7); // the second device's history, five days ago, keeps the linked player
     const seven = await admin(w, ["prune-idle", "--days", "700"]);
     expect(idleOf(seven.out)).toEqual([IDLE1, B729, B730, B731].sort());
-    expect(profilesLeft(w)).toEqual([...everyone, two, twoB].sort()); // dry runs: nobody was deleted
+    expect(profilesLeft(w)).toEqual([...everyone, two, twoB, twoC].sort()); // dry runs: nobody was deleted
   });
 
   it("with a clock a day short of the newest record it still runs; two days short, it refuses (exit 1) and deletes nothing", async () => {
@@ -393,6 +396,28 @@ describe.each(KINDS)("weekly on %s", (kind) => {
       "weekly: done, all three steps succeeded",
     ]);
     expect(w.state()).toEqual(s);
+  });
+
+  it("the order matters: uploads that prune-idle could not remove are purged by the next step of the same run, because the player is tombstoned by then", async () => {
+    const w = world(kind, fake);
+    await plant(w);
+    const firstRemoveDeletesNothing = (cfg: StoreConfig): AdminStore => {
+      const real = openAdmin(cfg);
+      let calls = 0;
+      return {
+        kind: real.kind, where: real.where, read: (rules, b) => real.read(rules, b), rulesVersions: () => real.rulesVersions!(), tombstoned: () => real.tombstoned!(),
+        history: (ids) => real.history!(ids), removeHistory: (h) => real.removeHistory!(h), identity: () => real.identity!(),
+        remove: async (records) => (++calls === 1 ? 0 : real.remove(records)), // the first removal is prune-idle's: it deletes nothing
+      };
+    };
+    const r = await admin(w, ["weekly", "--apply"], NOW, firstRemoveDeletesNothing as never);
+    expect(r.code, r.text).toBe(1);
+    expect(r.out.filter((l) => /^weekly \d\/3 /.test(l))).toEqual([
+      "weekly 1/3 prune-idle: deleted 1 idle player(s) (more than 730 days without play) and 0 of their upload(s) (FAILED: exit 1)",
+      "weekly 2/3 purge-tombstoned: deleted 3 of 3 upload(s) and 1 of 1 history object(s) of the 3 id(s) in tombstones", // X's upload x1 is here: X is tombstoned
+      "weekly 3/3 prune-ghosts: deleted 1 of 1 upload(s) received more than 180 days ago",
+    ]);
+    expect(w.ids()).toEqual(["player bb-0.12.0 a-new", "pool bb-0.11.0 pool2", "pool bb-0.12.0 pool1"].sort());
   });
 
   it("a step that fails is said, does not stop the next one, and makes the exit code 1", async () => {
