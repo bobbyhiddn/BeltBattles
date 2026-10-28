@@ -22,10 +22,17 @@ installRaster();
 
 /** The 402x690 views that need more than 3 ⓘ pages, `view|how|piece|stars|word`, sorted (4 pages each). RE-PINNED for a 0.9.14.1 base
  *  (cap's review of POLISH-2, D/polish2/REVIEW-POLISH2.md): 35 views, the same with or without POLISH-2's src (it changes no ⓘ page count);
- *  against POLISH-2's own base (29), 0.9.14.1's rides moved 6 views back to 3 pages and 12 to 4 (GANTRY PRESS and LIMPET with a word). */
+ *  against POLISH-2's own base (29), 0.9.14.1's rides moved 6 views back to 3 pages and 12 to 4 (GANTRY PRESS and LIMPET with a word).
+ *  0.9.15 (cap, release lane 4228a395, RULING-STAGE0915-R0): 39 views. PRESENT-3's E (1b5778d1, a turret panel folds its EMPTY gear rows
+ *  into one `GEAR 2-6 EMPTY` row) makes an installed turret's panel shorter, so its ⓘ view has less room: 4 installed ★★ views with a word
+ *  move from 3 pages to 4. Measured at merge-tree(present3-accepted, polish2-accepted) and at r0915-rides; BUMP-1G (bb-0.14.0) moves none. */
 const PAST_3_AT_402X690 = [
   "op690|installed|rampart|1|massive", // MASSIVE RAMPART CANNON ★
+  "op690|installed|rampart|2|massive", // MASSIVE RAMPART CANNON ★★ (0.9.15: PRESENT-3's E folds the EMPTY gear rows; RULING-STAGE0915-R0)
+  "op690|installed|rampart|2|wide", // WIDE RAMPART CANNON ★★ (0.9.15: PRESENT-3's E folds the EMPTY gear rows; RULING-STAGE0915-R0)
   "op690|installed|scrapcannon|1|massive", // MASSIVE SCRAP CANNON ★ (the one tests/enchant1.faces.test.ts pins)
+  "op690|installed|scrapcannon|2|massive", // MASSIVE SCRAP CANNON ★★ (0.9.15: PRESENT-3's E folds the EMPTY gear rows; RULING-STAGE0915-R0)
+  "op690|installed|twinneedle|2|massive", // MASSIVE TWIN NEEDLE ★★ (0.9.15: PRESENT-3's E folds the EMPTY gear rows; RULING-STAGE0915-R0)
   "op690|placed|armorpress|3|braced", // BRACED ARMOR PRESS ★★★
   "op690|placed|armorpress|3|fiery", // FIERY ARMOR PRESS ★★★
   "op690|placed|coil|1|fiery", // FIERY GALVANIC COIL ★
