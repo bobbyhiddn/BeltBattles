@@ -169,11 +169,18 @@ export function decodeTombstone(text: string | null): Tombstone | null {
   return ids ? { at: o.at, ids } : null;
 }
 
-const keyOf = (id: string) => `links/keys/${id}.json`;
-const playerOf = (id: string) => `players/${id}.json`;
-const codeKey = (hash: string) => `linkcodes/${hash}.json`;
-const steamKey = (id: string) => `links/steam/${id}.json`;
-const tombKey = (id: string) => `tombstones/${id}.json`;
+// S6D: exported so ghost-admin (server/pruneAdmin.ts) names the same records the server does
+export const keyOf = (id: string) => `links/keys/${id}.json`;
+export const playerOf = (id: string) => `players/${id}.json`;
+export const codeKey = (hash: string) => `linkcodes/${hash}.json`;
+export const steamKey = (id: string) => `links/steam/${id}.json`;
+export const tombKey = (id: string) => `tombstones/${id}.json`;
+
+/** S6D: the ids a delete tombstones - the player, the signing key, every key the player's record lists, and every id an earlier tombstone
+ *  named. ONE formula for `deletePlayer` and for ghost-admin's dry run of delete-player, so the dry run prints what the delete writes. */
+export function tombstoneIds(player: string, signer: string, rec: PlayerRecord | null, prior: Tombstone | null): string[] {
+  return [...new Set([player, signer, ...(rec?.keys ?? []), ...(prior?.ids ?? [])])];
+}
 
 /** The hash a link code is stored under: SHA-256 over a domain tag and the 8 normalized characters (hex). */
 export function hashCode(normalized: string): string {
@@ -692,7 +699,7 @@ export class Links {
       const player = await this.playerOfKey(signer, true);
       const rec = await this.playerRecord(player, true);
       const prior = decodeTombstone(await this.store.get(tombKey(player)));
-      const ids = [...new Set([player, signer, ...(rec?.keys ?? []), ...(prior?.ids ?? [])])];
+      const ids = tombstoneIds(player, signer, rec, prior);
       await this.store.put(tombKey(player), JSON.stringify({ at: prior?.at ?? this.now(), ids }));
       for (const id of ids) this.gone.add(id); // from this moment no ghost of these ids is served
       const removals: (() => Promise<void>)[] = [];

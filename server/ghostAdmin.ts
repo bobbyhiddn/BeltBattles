@@ -46,10 +46,13 @@ import { FileHistoryStore, HISTORY_DIR, TigrisHistoryStore, nameOf, type History
 import { S3Client } from "./s3";
 import { POOL_FILE, STORE_FILE, type StoreKind } from "./store";
 import { parseKey } from "./tigrisStore";
+import { jsonlIdentity, tigrisIdentity, type AdminIdentity } from "./adminIdentity"; // S6D (REQ-BFG-119)
+import { RETENTION_USAGE, isRetention, parseRetention, runRetention } from "./pruneAdmin"; // S6D: delete-player, find-player, prune-ghosts, prune-idle, weekly
 
 type Env = Record<string, string | undefined>;
 
-export const COMMANDS = ["list", "revalidate", "wipe-uploads", "remove-player", "purge-tombstoned"] as const;
+// S6D (REQ-BFG-119): delete-player, find-player, prune-ghosts, prune-idle and weekly are the operator's privacy decisions made real (server/pruneAdmin.ts)
+export const COMMANDS = ["list", "revalidate", "wipe-uploads", "remove-player", "purge-tombstoned", "delete-player", "find-player", "prune-ghosts", "prune-idle", "weekly"] as const;
 export type Command = (typeof COMMANDS)[number];
 export type RecordKind = "pool" | "upload";
 
@@ -68,6 +71,11 @@ export interface StoredRecord {
   keyed: boolean;
   /** Tigris: an object under pool/ or player/ whose key is not a ghost key. */
   badKey?: boolean;
+  /** S6D: what the record's own body says - `at` is the server's receipt time (a seed-pool record's is its old createdAt), then the
+   *  snapshot's name and hero. Unset when the body was not read; null when it is not there or not readable. */
+  at?: number | null;
+  name?: string | null;
+  hero?: string | null;
 }
 
 /** One rules version's records in a store. */
@@ -94,6 +102,8 @@ export interface AdminStore {
    *  one that stopped half way, leaves it behind). Optional so a test double need not have them. */
   history?(ids: ReadonlySet<string>): Promise<HistoryHeld[]>;
   removeHistory?(held: readonly HistoryHeld[]): Promise<number>;
+  /** S6D: the identity records beside the ghosts (links, profiles, run history), for delete-player and the prune commands. Optional so a test double need not have it. */
+  identity?(): AdminIdentity;
 }
 
 /** One history object as the tool sees it: whose prefix it is under and its entry. */
@@ -128,20 +138,23 @@ async function readTombstones(links: LinkStore): Promise<{ ids: Set<string>; ski
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** A record's rules, day, id and player, read without the strict check (a broken record is listed, not refused). */
-function lenient(text: string): { rules: string | null; day: number | null; id: string | null; playerId: string | null } {
+function lenient(text: string): { rules: string | null; day: number | null; id: string | null; playerId: string | null; at: number | null; name: string | null; hero: string | null } {
   let rec: unknown;
   try {
     rec = JSON.parse(text);
   } catch {
     rec = null;
   }
-  const o = typeof rec === "object" && rec !== null && !Array.isArray(rec) ? (rec as { id?: unknown; snapshot?: unknown }) : {};
-  const s = typeof o.snapshot === "object" && o.snapshot !== null ? (o.snapshot as { rules?: unknown; day?: unknown; playerId?: unknown }) : {};
+  const o = typeof rec === "object" && rec !== null && !Array.isArray(rec) ? (rec as { id?: unknown; at?: unknown; snapshot?: unknown }) : {};
+  const s = typeof o.snapshot === "object" && o.snapshot !== null ? (o.snapshot as { rules?: unknown; day?: unknown; playerId?: unknown; name?: unknown; hero?: unknown }) : {};
   return {
     rules: typeof s.rules === "string" ? s.rules : null,
     day: typeof s.day === "number" && Number.isInteger(s.day) ? s.day : null,
     id: typeof o.id === "string" ? o.id : null,
     playerId: typeof s.playerId === "string" ? s.playerId : null,
+    at: typeof o.at === "number" && Number.isSafeInteger(o.at) && o.at >= 0 ? o.at : null, // S6D: the server's receipt time
+    name: typeof s.name === "string" ? s.name : null,
+    hero: typeof s.hero === "string" ? s.hero : null,
   };
 }
 
@@ -175,7 +188,7 @@ export class JsonlAdmin implements AdminStore {
         if (!line.trim()) return;
         const f = lenient(line);
         if (f.rules === null) other.push(`${file}:${i + 1}`);
-        else if (f.rules === rules) records.push({ ref: `${file}:${i + 1}`, kind, day: f.day, id: f.id, playerId: f.playerId, text: line, keyed: false });
+        else if (f.rules === rules) records.push({ ref: `${file}:${i + 1}`, kind, day: f.day, id: f.id, playerId: f.playerId, text: line, keyed: false, at: f.at, name: f.name, hero: f.hero });
       });
     }
     return { records, other };
@@ -220,6 +233,12 @@ export class JsonlAdmin implements AdminStore {
     const store = new FileHistoryStore(join(this.dataDir, HISTORY_DIR));
     for (const h of held) await store.delete(h.id, h.name);
     return held.length;
+  }
+
+  /** S6D: the identity records beside the ghosts (identity/, profiles/, history/ in the data directory). */
+  identity(): AdminIdentity {
+    if (!existsSync(this.dataDir)) throw new ConfigError(`no ghost data directory ${this.dataDir} (BB_GHOST_DATA or --data)`);
+    return jsonlIdentity(this.dataDir);
   }
 
   /**
@@ -278,7 +297,11 @@ export class TigrisAdmin implements AdminStore {
         const text = await this.s3.getText(r.ref);
         if (text === null) return void gone.add(r); // deleted since the LIST
         r.text = text;
-        r.playerId = lenient(text).playerId;
+        const f = lenient(text);
+        r.playerId = f.playerId;
+        r.at = f.at; // S6D: the server's receipt time, the record's own `at`
+        r.name = f.name;
+        r.hero = f.hero;
       });
     }
     return { records: records.filter((r) => !gone.has(r)), other };
@@ -317,6 +340,11 @@ export class TigrisAdmin implements AdminStore {
     const store = new TigrisHistoryStore(this.s3);
     await eachLimit(held, this.concurrency, (h) => store.delete(h.id, h.name));
     return held.length;
+  }
+
+  /** S6D: the identity records in the bucket (links, tombstones, profiles/, history/). */
+  identity(): AdminIdentity {
+    return tigrisIdentity(this.s3);
   }
 }
 
@@ -396,6 +424,11 @@ export interface AdminArgs {
   apply: boolean;
   pool: boolean;
   playerId?: string; // remove-player
+  /** S6D: delete-player's <id> (a player ID, a linked key id or the MY PLAYER ID code); find-player's <name> and --tag; --days for the prune commands. */
+  target?: string;
+  name?: string;
+  tag?: string;
+  days?: number;
 }
 
 /** A usage error: nothing is read or deleted; exit code 2. */
@@ -415,6 +448,7 @@ export const USAGE = [
   "  remove-player <playerId> [--apply]  every upload by that player",
   "  purge-tombstoned [--apply]          every upload of the players who deleted their online data (their tombstones), in every",
   "                                      rules version; --rules <bb-x.y.z> limits it to one",
+  ...RETENTION_USAGE,
   "A dry run unless --apply. The store is the server's: BB_GHOST_STORE=jsonl (BB_GHOST_DATA, or --data <dir>) or tigris",
   "(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL_S3, BUCKET_NAME).",
 ].join("\n");
@@ -422,21 +456,30 @@ export const USAGE = [
 /** The command line: <command> [<playerId>] --rules <v> [--apply] [--pool] [--data <dir>]. Throws UsageError. */
 export function parseArgs(argv: readonly string[]): AdminArgs {
   const pos: string[] = [];
-  let rules: string | undefined, apply = false, pool = false;
+  let rules: string | undefined, apply = false, pool = false, days: string | undefined, tag: string | undefined;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
+    if (a === "--") { // S6D: everything after a bare -- is an argument, so a player ID that starts with two dashes can be given
+      pos.push(...argv.slice(i + 1));
+      break;
+    }
     if (a === "--apply") apply = true;
     else if (a === "--pool") pool = true;
-    else if (a === "--rules" || a === "--data") {
+    else if (a === "--rules" || a === "--data" || a === "--days" || a === "--tag") {
       const v = argv[++i];
       if (v === undefined || v.startsWith("--")) throw new UsageError(`${a} needs a value`);
       if (a === "--rules") rules = v;
+      else if (a === "--days") days = v;
+      else if (a === "--tag") tag = v;
     } else if (a.startsWith("--")) throw new UsageError(`unknown option ${a}`);
     else pos.push(a);
   }
   const command = pos.shift();
   if (!command) throw new UsageError("no command");
   if (!(COMMANDS as readonly string[]).includes(command)) throw new UsageError(`unknown command "${command}": use ${COMMANDS.join(", ")}`);
+  // S6D: the five commands of server/pruneAdmin.ts take no --rules (every rules version), and --days / --tag belong to them alone
+  if (isRetention(command)) return parseRetention(command, pos, { rules, apply, pool, days, tag }, (m) => new UsageError(m));
+  if (days !== undefined || tag !== undefined) throw new UsageError(`${days !== undefined ? "--days" : "--tag"} goes only with ${days !== undefined ? "prune-ghosts and prune-idle" : "find-player"}`);
   // IDENT-1: purge-tombstoned walks every rules version unless --rules names one; every other command reads exactly one
   if (rules === undefined && command !== "purge-tombstoned") throw new UsageError("--rules <bb-x.y.z> is required: the tool only reads and deletes one rules version");
   if (rules !== undefined && !parseRules(rules)) throw new UsageError(`--rules ${JSON.stringify(rules)} is not a rules version (bb-MAJOR.MINOR.PATCH)`);
@@ -517,20 +560,30 @@ export function countDays(h: Holdings): { days: DayCount[]; total: DayCount; noP
 
 const pad = (v: string | number, n: number) => String(v).padStart(n);
 
-function describe(r: StoredRecord): string {
+export function describe(r: StoredRecord): string {
   const player = r.playerId ?? (r.text === "" ? "(not read)" : "?"); // wipe-uploads reads no bodies on Tigris
   return `${r.ref}  ${r.kind === "pool" ? "pool  " : "upload"} day ${r.day ?? "?"}  ghost ${r.id ?? "?"}  player ${player}`;
+}
+
+/** S6D: what a purge-tombstoned run planned and did, for `weekly`'s one summary line per step. */
+export interface PurgeStats {
+  tombstoned: number;
+  planned: number;
+  deleted: number;
+  historyPlanned: number;
+  historyDeleted: number;
 }
 
 /**
  * IDENT-1 (REQ-BFG-122): purge-tombstoned. The tombstoned ids (every deleted player and every key linked to one) come from the same
  * store the ghosts do; each rules version's uploads are read (their bodies, to learn whose each is, as remove-player does) and the
  * ones by a tombstoned id are planned for deletion, the seed pool never. Exit codes as runAdmin's: 0 done (a dry run too), 1 a
- * storage error or an apply that deleted less than its plan.
+ * storage error or an apply that deleted less than its plan. S6D: exported for `weekly` (server/pruneAdmin.ts), which passes `stats`.
  */
-async function purgeTombstoned(args: AdminArgs, store: AdminStore, out: (line: string) => void): Promise<number> {
+export async function purgeTombstoned(args: AdminArgs, store: AdminStore, out: (line: string) => void, stats?: PurgeStats): Promise<number> {
   if (!store.tombstoned || !store.rulesVersions) throw new Error("this store cannot list tombstones or rules versions");
   const { ids, skipped } = await store.tombstoned();
+  if (stats) stats.tombstoned = ids.size;
   out(`tombstones: ${ids.size} deleted player and key id(s)${skipped ? `; ${skipped} record(s) in tombstones/ could not be read and were skipped` : ""}`);
   // with no tombstone there is nothing to look for, so no ghost is listed or read
   const versions = !ids.size ? [] : args.rules ? [args.rules] : await store.rulesVersions();
@@ -553,6 +606,7 @@ async function purgeTombstoned(args: AdminArgs, store: AdminStore, out: (line: s
   if (others) out(`  ${others} other record(s) here, never touched`);
   // IDENT-2 (REQ-BFG-122 clause 4): the run history under history/<id>/ of the same ids goes too (the dry run counts it, line by line)
   const held = ids.size && store.history ? await store.history(ids) : [];
+  if (stats) Object.assign(stats, { planned: total, historyPlanned: held.length });
   if (ids.size && store.history) {
     out(`history: delete ${held.length} object(s) under history/<id>/ of ${new Set(held.map((h) => h.id)).size} of the ${ids.size} tombstoned id(s)`);
     for (const h of held) out(`  delete history/${h.id}/${nameOf(h.name)}`);
@@ -566,6 +620,7 @@ async function purgeTombstoned(args: AdminArgs, store: AdminStore, out: (line: s
   // lines first would move the next one's (each is checked against the bytes the plan read, and a moved one would be skipped)
   const records = plans.flatMap((p) => p.delete.map((d) => d.record));
   const n = records.length ? await store.remove(records) : 0;
+  if (stats) stats.deleted = n;
   out(`APPLIED: deleted ${n} of ${total} record(s).`);
   if (n) {
     out(store.kind === "tigris"
@@ -575,6 +630,7 @@ async function purgeTombstoned(args: AdminArgs, store: AdminStore, out: (line: s
   if (n < total) out(`  ${total - n} planned record(s) had already changed or gone: run again to see the store as it is now.`);
   // IDENT-2: the history objects the dry run listed (a history object that is gone already is not an error: a delete of a missing one is fine)
   const hn = held.length && store.removeHistory ? await store.removeHistory(held) : 0;
+  if (stats) stats.historyDeleted = hn;
   if (ids.size && store.history) out(`APPLIED: deleted ${hn} of ${held.length} history object(s).`);
   return n === total && hn === held.length ? 0 : 1;
 }
@@ -584,7 +640,7 @@ async function purgeTombstoned(args: AdminArgs, store: AdminStore, out: (line: s
  * Resolves the exit code: 0 done (a dry run too), 1 a storage error or an apply that deleted less than its plan, 2 a usage
  * or settings error (nothing read or deleted). `open` is the store opener (tests pass their own).
  */
-export async function runAdmin(argv: readonly string[], env: Env, out: (line: string) => void, open: (cfg: StoreConfig) => AdminStore = (c) => openAdmin(c, out)): Promise<number> {
+export async function runAdmin(argv: readonly string[], env: Env, out: (line: string) => void, open: (cfg: StoreConfig) => AdminStore = (c) => openAdmin(c, out), clock: () => number = () => Date.now()): Promise<number> {
   let args: AdminArgs, store: AdminStore;
   try {
     args = parseArgs(argv);
@@ -595,9 +651,12 @@ export async function runAdmin(argv: readonly string[], env: Env, out: (line: st
     out(USAGE);
     return 2;
   }
-  const mode = args.command === "list" ? "read only" : args.apply ? "APPLY" : "DRY RUN";
-  out(`ghosts:admin ${args.command}${args.playerId ? ` ${args.playerId}` : ""} ${args.rules ? `--rules ${args.rules}` : "(every rules version)"}: ${store.kind} store, ${store.where} (${mode})`);
+  const mode = args.command === "list" || args.command === "find-player" ? "read only" : args.apply ? "APPLY" : "DRY RUN";
+  const subject = args.playerId ?? args.target ?? args.name; // S6D: delete-player's <id>, find-player's <name>
+  const extra = args.days !== undefined ? ` --days ${args.days}` : args.tag ? ` --tag ${args.tag}` : "";
+  out(`ghosts:admin ${args.command}${subject ? ` ${subject}` : ""}${extra} ${args.rules ? `--rules ${args.rules}` : "(every rules version)"}: ${store.kind} store, ${store.where} (${mode})`);
   try {
+    if (isRetention(args.command)) return await runRetention(args, store, out, clock, { makePlan, describe, purgeTombstoned }); // S6D
     if (args.command === "purge-tombstoned") return await purgeTombstoned(args, store, out);
     const h = await store.read(args.rules, args.command !== "wipe-uploads");
     if (args.command === "list") {
