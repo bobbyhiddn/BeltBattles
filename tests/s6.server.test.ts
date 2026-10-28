@@ -159,12 +159,13 @@ describe("S6 Goal 2: the pages with an address and a name are served", () => {
   });
 
   it("a page is withheld on its own: one filled, the other still holding a placeholder (or any other [[name]])", async () => {
-    const half = await boot({ privacy: FILLED.privacy, support: FILES.support.includes("[[") ? FILES.support : FILLED.support.replace("Example Games", "[[DEVELOPER_NAME]]") });
+    // once contact.mjs has filled the committed pages, FILLED carries their real name rather than "Example Games", so the placeholder is appended
+    const half = await boot({ privacy: FILLED.privacy, support: FILES.support.includes("[[") ? FILES.support : `${FILLED.support}[[DEVELOPER_NAME]]\n` });
     expect((await fetch(`${half.base}/privacy`)).status).toBe(200);
     expect((await fetch(`${half.base}/support`)).status).toBe(404);
     expect((await fetch(`${half.base}/support.html`, { method: "HEAD" })).status).toBe(404);
     expect(half.logs.filter((l) => l.startsWith("NOT serving "))).toHaveLength(1);
-    const other = await boot({ privacy: FILLED.privacy.replace("Example Games", "[[SOMETHING_ELSE]]"), support: FILLED.support });
+    const other = await boot({ privacy: `${FILLED.privacy}[[SOMETHING_ELSE]]\n`, support: FILLED.support });
     expect((await fetch(`${other.base}/privacy`)).status).toBe(404);
     expect((await fetch(`${other.base}/support`)).status).toBe(200);
     expect(other.logs.find((l) => l.startsWith("NOT serving "))).toContain("[[SOMETHING_ELSE]]");
