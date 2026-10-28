@@ -422,16 +422,28 @@ entered a code sends none of it, and keeps its list on the device. `DELETE /v1/p
 `ghost-admin purge-tombstoned` removes what a second machine wrote after the tombstone. The request log still prints the path only: an
 entry id travels in the query of a read or in the signed body, never in a path.
 
-**Retention and deletion.** Nothing on the server expires because time has passed: ghosts, profiles, links,
-tombstones and the log have no expiry in the code. The bounds are a link code (10 minutes), a player's
-history (the newest 200 entries) and the device's own lists (50 runs, 300 ghosts). The privacy policy says so
-and names no period. OPTIONS, DELETE MY ONLINE DATA (`src/screens/linkCards.ts`) calls `DELETE /v1/player`:
-the profile, every key and Steam link, the live code and the run history go at once, the tombstone is
-written, and no ghost of those ids is served from that moment; `ghost-admin purge-tombstoned --apply`
-removes the stored ghosts (run it by hand: nothing schedules it, and again after any rollback or restore).
-The device drops its key, mirror and link record and keeps its local progress; the other linked devices do
-the same on their first 410. A player who has lost every device cannot sign the request: the policy sends
-them to the support address, which is a manual process and not code.
+**Retention and deletion.** S6D (REQ-BFG-119) made the operator's decisions of 2026-10-27/28 code. The periods are the constants of
+`server/retention.ts`, and `tests/s6.pages.test.ts` ties the policy's numbers to them. A ghost (an upload) is kept 180 days after the
+server received it (the record's own `at`), and sooner if its player deletes their online data. The profile, the device and Steam links and
+the run history are kept until the player deletes them (OPTIONS, DELETE MY ONLINE DATA, below) or for 24 months (counted as 730 days)
+without a server-side sign of play; then the weekly clean-up deletes them exactly as the player's own delete does (`Links.deletePlayer`),
+and the next online game starts a new player while the progress on the device stays. The deletion record (the tombstone) and the request
+log are not expired by this code. The other bounds are a link code (10 minutes), a player's history (the newest 200 entries) and the device's
+own lists (50 runs, 300 ghosts). The clean-up is `ghost-admin weekly --apply` (`prune-idle`, then `purge-tombstoned`, then `prune-ghosts`),
+run once a week by a scheduled Fly machine that deploy/RUNBOOK.md documents ("The weekly clean-up"); a weekly run can be late or fail, so the
+policy promises the removal of a deleted player's stored ghosts within 14 days (twice the schedule). OPTIONS, DELETE MY ONLINE DATA
+(`src/screens/linkCards.ts`) calls `DELETE /v1/player`: the profile, every key and Steam link, the live code and the run history go at
+once, the tombstone is written, and no ghost of those ids is served from that moment; the next weekly run removes the stored ghosts (or
+`ghost-admin purge-tombstoned --apply` by hand, which is also the step after any rollback or restore). The device drops its key, mirror and
+link record and keeps its local progress; the other linked devices do the same on their first 410.
+
+**MY PLAYER ID.** OPTIONS, MY PLAYER ID (`src/screens/linkCards.ts`) shows the player a code made from their player ID (`src/net/playerCode.ts`:
+the first 80 bits of the ID as 16 capitals and digits, without I, L, O or U, in four groups, XXXX-XXXX-XXXX-XXXX; the game's face draws capitals only, so the ID
+itself cannot be shown) and the NAME#TAG other players see. The card only shows what the device holds and sends nothing. A player who has lost
+every device cannot sign `DELETE /v1/player`: the policy sends them to the support address with that code (or the name they used, the hero and
+roughly when), and the operator finds the player with `ghost-admin find-player` and deletes it with `ghost-admin delete-player`, which takes the
+player ID, a linked key id or the code, does what the player's own delete does and then removes the stored ghosts (deploy/RUNBOOK.md, "A
+lost-device request"). The player ID is not a secret: anyone who met a ghost can learn it, so the operator asks questions before deleting.
 
 **Where it runs.** Fly.io, region `iad` (Ashburn, Virginia, US), with the objects in Tigris; the bucket was
 made without a location choice, and Tigris' default is a global bucket that places objects near the
@@ -626,6 +638,12 @@ npm run ghosts:admin -- list                     --rules bb-0.8.3
 npm run ghosts:admin -- revalidate               --rules bb-0.8.3 [--apply]
 npm run ghosts:admin -- wipe-uploads             --rules bb-0.8.3 [--apply] [--pool]
 npm run ghosts:admin -- remove-player <playerId> --rules bb-0.8.3 [--apply]
+npm run ghosts:admin -- purge-tombstoned         [--rules bb-x.y.z] [--apply]    # IDENT-1: every rules version unless --rules
+npm run ghosts:admin -- delete-player <id>       [--apply]                       # S6D: no --rules, every rules version
+npm run ghosts:admin -- find-player <name>       [--tag XX]
+npm run ghosts:admin -- prune-ghosts             [--days N] [--apply]
+npm run ghosts:admin -- prune-idle               [--days N] [--apply]
+npm run ghosts:admin -- weekly                   [--apply]
 node /app/dist/ghost-admin.mjs list --rules bb-0.8.3          # the same tool in the image
 node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.8.0 --pool   # 0.8.0-0.8.4's pool and uploads: a dry run
 node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.6.2 --pool   # 0.7.0's pool and uploads: a dry run
@@ -637,6 +655,12 @@ node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.6.2 --pool   # 0.7.0's 
 | `revalidate` | Every stored upload goes through the checks `POST /v1/ghosts` runs: the strict decoder (with the rules gate), the exact rules, `validateUpload` in the player mode and the reachable-record check (`src/net/records.ts`; POST has applied it since 0.8.0 H2, so revalidate finds records stored before that). It also checks its own id (and Tigris key). Each failure is listed with every reason; `--apply` deletes exactly those. Only this build's `RULES_VERSION`; for an older version use `wipe-uploads`. The signature can't be checked again: the server keeps neither the key nor the signature |
 | `wipe-uploads` | Every upload of that rules version. The seed pool goes only with `--pool`, and the next deploy's `seed` writes it back |
 | `remove-player <id>` | Every upload by that player. A seed-pool ghost is never touched |
+| `purge-tombstoned` | Every upload and run-history object of the players who deleted their online data (their tombstones), in every rules version unless `--rules` names one. The seed pool is never touched |
+| `delete-player <id>` | One player, by player ID, by a key id linked to a player, or by the code OPTIONS, MY PLAYER ID shows (any case, dashes or not). It resolves to exactly one player or refuses with one line (exit 1) and deletes nothing. `--apply` runs `Links.deletePlayer`, the code `DELETE /v1/player` runs (the tombstone first, then the profile of every id, the key and Steam links, the live code, the player record and the run history), then removes the player's uploads in every rules version. A delete of a deleted player succeeds and finishes what is left |
+| `find-player <name>` | Read only. Every player ID whose stored uploads carry that name (`--tag XX` keeps one tag): its tag, its MY PLAYER ID code, the number of uploads, the newest upload's receipt time (UTC), the heroes, the rules versions and whether it is tombstoned |
+| `prune-ghosts` | Every upload, in every rules version, that the server received more than `--days N` ago (default 180). The seed pool is never touched |
+| `prune-idle` | Every player with no server-side sign of play for more than `--days N` (default 730), each deleted exactly as `delete-player` does |
+| `weekly` | `prune-idle`, then `purge-tombstoned`, then `prune-ghosts`, with the defaults: one plan and one `DRY RUN` line, or with `--apply` one summary line for each step. The one command the weekly machine runs |
 
 - **A dry run unless `--apply`.** It prints exactly what `--apply` would delete (each record's key or line, kind,
   day, ghost id, player and reason) and deletes nothing.
@@ -656,6 +680,29 @@ node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.6.2 --pool   # 0.7.0's 
   - the seed pool and other rules versions stay;
   - bad uploads planted straight into the store, past POST, are found;
   - the match route stops serving a deleted ghost: a fresh server at once, a running one after its cache TTL.
+
+**Retention and the player's own ID (S6D, REQ-BFG-119).** The last five commands above carry the operator's decisions of 2026-10-27/28
+(`server/retention.ts` holds the periods; `server/pruneAdmin.ts` the commands; deploy/RUNBOOK.md has the lines to run and "The weekly clean-up").
+- **No `--rules`.** They read every rules version, as `purge-tombstoned` does, and still print the plan first: a dry run unless `--apply`, then
+  `DRY RUN: nothing was deleted`, and `--apply` deletes exactly what the plan printed. `find-player` only reads and refuses `--apply`. The seed pool is never touched.
+- **The time of an upload** is the record's own `at`, the server's receipt time, on both stores (the JSON line's field; the Tigris object's body): the tool reads every
+  upload's body anyway, a copied object changes the bucket's `LastModified` and not the `at`, and the fake S3 answers every `LastModified` alike. An upload whose `at`
+  cannot be read is kept and counted. `prune-ghosts` deletes the uploads received more than 180 days before now (`GHOST_RETENTION_DAYS`; exactly 180 days is kept).
+- **The last play of a player** (`prune-idle`; 730 days, `IDLE_RETENTION_DAYS`, the operator's 24 months) is the newest of the profile's `receivedAt`, the newest upload's
+  receipt time, the newest run-history entry's `finishedAt` (the object name holds it), and the times of the key-link, Steam-link and player records (written at a link and
+  at SHOW MY CODE), over the player and every id linked to it: a linked player whose second device still plays is not idle. A tombstoned player is never idle again; a player
+  whose last play cannot be dated, or whose ids do not name exactly one player, is left alone and said. Each idle player is deleted exactly as `delete-player --apply` does.
+- **`delete-player` shares the delete.** `--apply` calls `Links.deletePlayer` (`server/links.ts`), the function `DELETE /v1/player` calls, so the tombstone is written first and
+  the removals follow in the same order; the ids it tombstones come from one function both use (`tombstoneIds`). Its uploads are then removed through the same selection
+  `purge-tombstoned` uses. The dry run prints the tombstone (new, or the one that exists), the profile of every id, the key links, the Steam links, the live code, the player
+  record, the history objects and the uploads.
+- **The clock guard.** `prune-ghosts`, `prune-idle` and `weekly` refuse (exit 1, nothing deleted) when the store holds a receipt time later than now plus one day (`CLOCK_GUARD_MS`).
+- **`weekly --apply`** runs `prune-idle`, `purge-tombstoned`, `prune-ghosts` in that order, each on a fresh read of the store, prints `weekly 1/3 prune-idle: ...`,
+  `weekly 2/3 purge-tombstoned: ...`, `weekly 3/3 prune-ghosts: ...` and `weekly: done, all three steps succeeded`; a failed step does not stop the next and the exit code is 1.
+  It is meant to run once a week (`WEEKLY_CLEANUP_DAYS`) on a scheduled Fly machine, which the RUNBOOK documents and nothing in fly.toml or the Dockerfile creates.
+- **After a delete**, a running server learns of a tombstone another process wrote at its next tombstone refresh (60 s, `TOMBSTONE_TTL_MS`) and may serve a cached ghost until
+  `BB_GHOST_CACHE_TTL_S` has passed or it restarts (JSON lines: only a restart).
+- **Tested on both stores** in `tests/s6d.*.test.ts`, the way `tests/ident1.admin.test.ts` tests `purge-tombstoned`: the JSON-lines directory, and Tigris on the in-process fake S3.
 
 **The uploads step's probe (0.8.0 U2).** `server/ghostProbe.ts`, built beside the admin tool into
 `server/dist/ghost-probe.mjs`, checks a live server from outside, as a player's page would:
@@ -686,8 +733,9 @@ node /app/dist/ghost-admin.mjs wipe-uploads --rules bb-0.6.2 --pool   # 0.7.0's 
   (expected 7)`. The seven decks sit on days 1, 2, 3 (three), 7 and 12; `remove-player <id> --rules bb-0.11.0 --apply`
   deletes them (the Tigris store enumerates days 1 to 25). With a third argument, `--profile`, it also PUTs a minimal
   signed profile (`profile-signed`, expects 200 and the profile as sent) and the same body with a broken signature
-  (`profile-badsig`, 401): `17 of 17`. The server keeps that one profile for the probe's player; **ghost-admin does not
-  know `profiles/`** (Tigris: `profiles/<player id>.json`; the file store: `<data dir>/profiles`), so delete it by hand.
+  (`profile-badsig`, 401): `17 of 17`. The server keeps that one profile for the probe's player; **`list`, `revalidate`, `wipe-uploads` and
+  `remove-player` do not know `profiles/`** (Tigris: `profiles/<player id>.json`; the file store: `<data dir>/profiles`), but `delete-player <the probe's player id>` (S6D) removes it
+  with the rest of the player.
 
 ## PUT /v1/profile (PROFILE-UP, 0.9.11)
 

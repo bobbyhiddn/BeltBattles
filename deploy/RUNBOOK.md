@@ -775,10 +775,28 @@ fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs wipe-uploads -
 fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs remove-player <playerId> --rules bb-0.12.0'
 ```
 
-- Every command but `list` is a DRY RUN unless `--apply` is added: it prints each record it would delete
+S6D (REQ-BFG-119) adds the commands behind the privacy policy's promises. None takes `--rules`: they read every rules
+version. Each is a dry run first and then the same line with `--apply` (`find-player` only reads):
+
+```sh
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs find-player <NAME> --tag <XX>'
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs delete-player <id>'
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs delete-player <id> --apply'
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs purge-tombstoned'
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs purge-tombstoned --apply'
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs prune-ghosts'
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs prune-ghosts --apply'
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs prune-idle'
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs prune-idle --apply'
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs weekly'
+fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs weekly --apply'
+```
+
+- Every command but `list` and `find-player` is a DRY RUN unless `--apply` is added: it prints each record it would delete
   (key, kind, day, ghost id, player, reason), then `DRY RUN: nothing was deleted`. Read the plan, then run the
   same command again with `--apply`; it deletes exactly the planned records.
-- `--rules` is required; nothing of another rules version is read or touched. `revalidate` runs only for this
+- `--rules` is required for `list`, `revalidate`, `wipe-uploads` and `remove-player`; nothing of another rules version is read or touched.
+  `purge-tombstoned` and the S6D commands take none and read every rules version. `revalidate` runs only for this
   build's rules (bb-0.12.0): every upload through the strict decoder, the exact rules, the rules and hero gates,
   validateUpload in the player mode (the runes' exact count, one for each dawn, their ids, repeats and dormant runes
   too, and a LAST CHANCE's day and card), the reachable-record check (with the record's LAST CHANCE, read by the
@@ -792,12 +810,151 @@ fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs remove-player 
 - **After an `--apply` the running server keeps serving deleted ghosts** from its bucket cache until
   BB_GHOST_CACHE_TTL_S (600 s) passes or the machine restarts. To make it take effect at once:
   `fly apps restart beltbattles`, then check the match route.
-- `ghost-admin` does not know the profiles (PROFILE-UP, section 30): `profiles/<playerId>.json` on Tigris is never listed,
-  revalidated or removed by it; a `--profile` probe leaves one, to delete by hand (any S3 tool, or leave it: one small record).
+- `list`, `revalidate`, `wipe-uploads` and `remove-player` do not know the profiles (PROFILE-UP, section 30): `profiles/<playerId>.json`
+  on Tigris is never listed, revalidated or removed by them. `delete-player`, `prune-idle` and `weekly` (S6D, below) do delete a
+  player's profile with the rest of the player; a `--profile` probe leaves one, which `delete-player <the probe's player id>` removes
+  (a dry run first, then `--apply`; or leave it: one small record).
 - Old pools: the bb-0.11.0, bb-0.10.0, bb-0.9.7, bb-0.9.3, bb-0.9.1, bb-0.9.0, bb-0.8.7, bb-0.8.6, bb-0.8.3 and bb-0.8.0
   pools and uploads, and the bb-0.6.1 pool (and bb-0.6.2's, had 0.7.0 gone live), can stay; they serve only older
   cached pages.
   To remove one, on the operator's word: `wipe-uploads --rules <old rules> --pool`, a dry run first, then `--apply`.
+
+**The S6D commands, one by one** (REQ-BFG-119). The numbers are the operator's decisions of 2026-10-27/28 and live in one file, server/retention.ts.
+
+- `find-player <NAME> [--tag <XX>]` only reads (`--apply` is refused). It lists every player ID whose stored uploads carry that name (compared as the
+  server stores names: capitals, single spaces), one line each: the player ID, its tag (the two hex digits other players see in NAME#TAG; `--tag` keeps one), the
+  code OPTIONS > MY PLAYER ID shows for it, the number of uploads, the newest upload's receipt time (UTC), the heroes, the rules versions, whether it is tombstoned,
+  and `linked to player <P>` for a key that is linked to one. It reads every upload's body (a job for a quiet hour, like `purge-tombstoned`).
+- `delete-player <id>` deletes one player. `<id>` is a player ID, a key ID linked to a player, or the code that MY PLAYER ID shows (any case, dashes or not). It must name
+  exactly one player: for none, or for two, it prints one line starting `refused:`, deletes nothing and exits 1. Before the plan it prints `resolved: player <P> (given as ...)`.
+  The dry run prints exactly what `--apply` removes: the tombstone it writes (its IDs) or the one that exists already, the profile of every id, the key links, the Steam
+  links, the live link code, the player record, the run history objects and the player's uploads in every rules version (never the seed pool), then the `DRY RUN` line.
+  `--apply` does what `DELETE /v1/player` does through the same code (`Links.deletePlayer`: the tombstone first, then the removals), and then removes those uploads as
+  `purge-tombstoned` does for the same IDs. A delete of a player who is deleted already is a success that finishes whatever is left.
+- `prune-ghosts [--days N]` (default 180, `GHOST_RETENTION_DAYS`) deletes every upload, in every rules version, that the server received more than N days ago; never
+  the seed pool. The receipt time is the record's own `at`, the server's clock when it took the upload, in the JSON line and in the Tigris object's body alike (not the
+  bucket's LastModified: a copied object changes that, and the tool reads every body anyway). An upload whose `at` cannot be read is kept and counted.
+- `prune-idle [--days N]` (default 730, `IDLE_RETENTION_DAYS`: the decision's 24 months, counted as 730 days) deletes every player with no server-side sign of play for
+  more than N days, each exactly as `delete-player --apply` does. A player's last play is the newest of: the profile's `receivedAt`, the newest upload's receipt time, the
+  newest run in the run history (the object name holds its finishedAt), and the times of the key-link and Steam-link records and of the player record (written when a
+  device is linked and when SHOW MY CODE makes a code), over the player and every id linked to it, so a linked player whose second device still plays is not idle. A
+  tombstoned player is never idle again. A player whose last play cannot be dated (an unreadable profile, ids that do not name one player) is left alone and said; a
+  player known only from uploads is not judged here (its uploads go by `prune-ghosts`).
+- `weekly` is `prune-idle`, then `purge-tombstoned`, then `prune-ghosts`, each with its defaults, in that order (a player who goes idle in this run has their uploads
+  and run history removed in the same run). A dry run prints one plan and one `DRY RUN` line. With `--apply` it prints one summary line for each step (`weekly 1/3
+  prune-idle: ...`, `weekly 2/3 purge-tombstoned: ...`, `weekly 3/3 prune-ghosts: ...`) and ends `weekly: done, all three steps succeeded`. A step that fails does not
+  stop the next, and the exit code is 1 if any failed.
+- **The clock guard.** `prune-ghosts`, `prune-idle` and `weekly` refuse (exit 1, nothing deleted, one line starting `refused:`) when the store holds a receipt time later than
+  now plus one day: a machine whose clock is set far ahead would make every record look old.
+- Exit codes as above: 0 done (a dry run too), 1 a refusal, a storage error or an apply that deleted less than its plan, 2 a refused command line.
+- **The two delays after any delete.** A running server learns of a tombstone that another process wrote at its next tombstone refresh (within 60 s: `TOMBSTONE_TTL_MS` in
+  server/links.ts) and from then on serves no ghost of those ids. A ghost it has cached is served until its bucket cache expires (`BB_GHOST_CACHE_TTL_S`, 600 s in fly.toml)
+  or the machine restarts (`fly apps restart beltbattles`); on JSON lines only a restart does it.
+
+### The weekly clean-up (S6D; documented only)
+
+The privacy policy promises three things: an upload goes 180 days after the server received it; a player with no sign of play for 24 months is deleted as if they had
+deleted themselves; and the stored ghosts of a player who deleted their online data are removed within 14 days (`GHOST_RETENTION_DAYS`, `IDLE_RETENTION_DAYS` and
+`CLEANUP_PROMISE_DAYS` in server/retention.ts). Nothing in the app does that by itself: `weekly --apply` does, and something must run it once a week. **This subsection is
+documented only: nothing in it has been run, and fly.toml, the Dockerfile and the other files under deploy/ do not change for it.** Creating the machine is the operator's own
+approval, next to the release that publishes the policy; **the machine must exist from that release on**, or the policy promises a clean-up that nobody runs.
+
+**What it is.** One more Machine in the app, run on the app's own image, that Fly starts on a weekly schedule, that runs `node /app/dist/ghost-admin.mjs weekly --apply` and
+stops when the command ends. Fly.io's scheduled Machines are that: `fly machine run` has a `--schedule` flag, which "starts the Machine on a fuzzy `hourly`, `daily`, `weekly`, or
+`monthly` cycle" (https://docs.fly.io/machines/flyctl/fly-machine-run, read 2026-10-28), and Fly's task-scheduling guide offers them for "non-critical cleanup tasks or anything where
+"roughly once a day" is good enough", with "interval buckets" and no fine-grained control (https://docs.fly.io/blueprints/task-scheduling, read 2026-10-28). The Machines API page says
+"Interval starts at time of Machine creation" (https://docs.fly.io/machines/api/machines-resource, read 2026-10-28).
+
+1. **A dry run by hand, then one real run by hand.** The create line below also makes the first run (the Machine "is started the first time when you run `fly machine run`"), so
+   read the plan first. The store has never been pruned, so the first plan can list every upload older than 180 days.
+   ```sh
+   fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs weekly'
+   fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs weekly --apply'
+   ```
+2. **The image: the app's own, as the newest release has it.**
+   ```sh
+   fly releases -a beltbattles --image
+   ```
+   Take the IMAGE REF of the newest release (`registry.fly.io/beltbattles:deployment-<id>`, as section 8 uses them).
+3. **Create it** (one line; the image is the only thing to fill in):
+   ```sh
+   fly machine run <IMAGE REF> -a beltbattles --name weekly-cleanup --region iad --schedule weekly --restart on-fail --vm-size shared-cpu-1x --vm-memory 512 --env BB_GHOST_STORE=tigris -- node /app/dist/ghost-admin.mjs weekly --apply
+   ```
+   - The command at the end replaces the image's CMD (`node /app/dist/ghost-server.mjs`): "Override CMD by including the command to run at the end of the `fly machine run` invocation"
+     (the `fly machine run` page). The `--` ends flyctl's own flags, so `--apply` reaches ghost-admin. (Not run: if flyctl refuses the line, nothing is created.)
+   - `-a beltbattles` puts the Machine in this app; without it flyctl "create[s] a new Fly App for the new Machine to belong to" (same page). **It reads the app's secrets**: an app's
+     secrets are "available as environment variables at runtime on every Machine belonging to that Fly App, whether the Machine is managed by Fly Launch or not"
+     (https://docs.fly.io/apps/secrets, read 2026-10-28), so the Tigris variables are there (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL_S3`, `BUCKET_NAME`, and `AWS_REGION`
+     where flyctl set it). Never pass them with `--env`: that puts values on a command line (see "Secrets" above).
+   - `--env BB_GHOST_STORE=tigris` is the one setting the tool needs from fly.toml's `[env]`, which a Machine made by `fly machine run` is not known to read. Without it the tool would
+     look for a JSON-lines directory that does not exist, stop with exit 2 and delete nothing.
+   - `--region iad` is the app's primary region (fly.toml); left out, flyctl picks "the region that's fastest to reach from your location".
+   - `--schedule weekly`: Fly "starts the Machine" again "once per (approximate) hour, day, week, or month". "Scheduled machines cannot be started via flyctl or Machines API commands,
+     they will only run according to the schedule" (the `fly machine run` page), so there is no "run it now": use the `fly ssh console` lines above for that.
+   - `--restart on-fail`, not the default: "The default restart policy for a Machine created using `fly machine run` is `always`, unless you use the `--rm` option" (the `fly machine run`
+     page), and `always` restarts a Machine automatically and never lets it enter a stopped state, even after a clean exit (https://docs.fly.io/machines/guides-examples/machine-restart-policy,
+     read 2026-10-28): the clean-up would start again the moment it ended. `on-fail` restarts only after a non-zero exit, up to 10 times in 5 minutes (the same page, which also says a
+     Machine with a schedule defaults to `on-fail`). A run that ends with exit 1 is therefore repeated, which is safe: every step plans again from the store.
+   - No `--rm`: "Use the `--rm` flag to cause the Machine to instead be destroyed when it stops" would destroy it after the first run. No `--metadata`: see step 4.
+   - **Size:** `--vm-size shared-cpu-1x --vm-memory 512` is the app's own CPU (fly.toml says `shared-cpu-1x`, `256mb`) with twice the memory, because the tool holds a small record for every upload
+     and every player it reads at once (on Tigris it drops each upload's body once it has the player, the name and the receipt time; `list` shows how many uploads there are). That is an estimate, not a measurement: if a run is killed for lack of memory, raise it
+     (`fly machine update <machine-id> -a beltbattles --vm-memory 1024 --skip-start --yes`). The Machine runs only as long as the clean-up takes and is stopped the rest of the week.
+   - **Once it exists, the app has two Machines.** `fly ssh console` "Connect[s] to a running instance of the current app" and its page does not say which instance it takes when there are
+     several (https://docs.fly.io/flyctl/cmd/fly_ssh_console, read 2026-10-28). From then on, name the app's own Machine in every `fly ssh console` line of this RUNBOOK:
+     `fly ssh console -a beltbattles --machine <the app Machine's id, from fly machine list> -C '...'` (`--machine`: "Run the console in the existing machine with the specified ID").
+4. **A later app update does not move it.** "By default, `fly machine run` creates Machines that are ignored by Fly Launch features like `fly deploy`, `fly status`, and `fly scale`"
+   (the `fly machine run` page); `fly deploy` and `fly scale` "won't touch them since those commands only manage Machines that belong to a process group", and `fly status` lists them as
+   detached (https://docs.fly.io/machines/guides-examples/managing-machines-with-the-api, read 2026-10-28; also https://docs.fly.io/launch/deploy, read 2026-10-28: such Machines "can have
+   their own configuration different from that of the App"). So the weekly Machine keeps the image it was created with, through every deploy and every rollback, until it is moved. Do not add the `fly_platform_version` and
+   `fly_process_group` metadata to it: with them "The next `fly deploy` will update it along with the rest of the group" (the API page), which would put the server's service on it. **Move it after every
+   release that changes server/**, before its next run (an old ghost-admin must not run against data a newer server wrote):
+   ```sh
+   fly releases -a beltbattles --image
+   fly machine list -a beltbattles
+   fly machine update <machine-id> -a beltbattles --image <the newest IMAGE REF> --skip-start --yes
+   fly machine status <machine-id> -a beltbattles -d
+   ```
+   `--skip-start` "Updates without starting the Machine" (https://docs.fly.io/flyctl/cmd/fly_machine_update, read 2026-10-28): the Machines API says an update reboots a running Machine and
+   starts a stopped one unless told not to, and an extra run is harmless but unwanted. The last line displays the Machine's config as JSON (`-d, --display-config`; https://docs.fly.io/flyctl/cmd/fly_machine_status,
+   read 2026-10-28): check the new image, the schedule, the restart policy, the env and the command `weekly --apply`. (Not run: that `--image` alone keeps the rest is flyctl's behaviour, not
+   something the pages read here promise; if anything is missing, destroy the Machine and create it again with the line in step 3.) Setting an app secret also updates, and so restarts, every Machine of
+   the app (the secrets page), so the weekly Machine may run once more then: harmless.
+5. **See that it ran.** `fly logs -a beltbattles --machine <machine-id> --no-tail` (`-m, --machine`: "Filter by machine ID"; `-n, --no-tail`: "Do not continually stream logs";
+   https://docs.fly.io/flyctl/cmd/fly_logs, read 2026-10-28). A run prints `ghosts:admin weekly (every rules version): tigris store, ... (APPLY)`, then `weekly 1/3 prune-idle: deleted ... idle player(s)
+   (more than 730 days without play) and ... of their upload(s)`, `weekly 2/3 purge-tombstoned: deleted ... of ... upload(s) and ... of ... history object(s) of the ... id(s) in tombstones`,
+   `weekly 3/3 prune-ghosts: deleted ... of ... upload(s) received more than 180 days ago`, and `weekly: done, all three steps succeeded`. `weekly: finished with N failed step(s)` or a line starting
+   `refused:` (the clock guard) needs action. How long Fly keeps log lines is not in the pages read for this job, so look within a day or two of a run. `fly machine list -a beltbattles` shows the Machine
+   `stopped` between runs. The tool also checks itself: after a good week the dry run (`weekly`, above) plans `idle: 0` and `plan: delete 0 upload(s)`. The policy promises 14 days (twice the schedule): if no
+   `weekly: done` line has appeared for 14 days, treat the clean-up as broken and fix it first.
+6. **Pause or remove it.** Remove: `fly machine destroy <machine-id> -a beltbattles --force` ("Destroy one or more Fly machines"; `-f, --force`: "force kill machine regardless of current state";
+   https://docs.fly.io/flyctl/cmd/fly_machine_destroy, read 2026-10-28), then `fly machine list -a beltbattles`. The pages read for this job give no way to hold a scheduled Machine or to switch its
+   schedule off (`fly machine update --schedule` is described only as setting the schedule to hourly, daily, weekly or monthly, with no value for off; the update page above), so **a pause is a
+   removal**, and starting again is step 3 again (read a dry run first: the creation runs it once). While it is gone nothing deletes by age, and the policy's promises are not kept.
+
+The numbers are the defaults of `weekly` and live in server/retention.ts; changing one needs a new build, step 4 for the Machine, and the policy's sentence that tests/s6.pages.test.ts ties to it.
+
+### A lost-device request: find-player, then delete-player (S6D; documented only)
+
+A player who lost every device cannot sign `DELETE /v1/player`, so they write to the support address (the policy and the support page say how). Answer in this order, a dry run
+before every delete:
+
+1. Ask for what the policy asks: their player ID (OPTIONS, MY PLAYER ID shows a code made from it; they can only quote it if they noted it while they had a device), or else the name they
+   used, the hero and roughly when they played. Ask enough to be sure it is theirs: anyone who met their ghost can learn the player ID.
+2. With a code or a player ID, go to 3. With only a name, look it up (read only):
+   ```sh
+   fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs find-player <NAME>'
+   fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs find-player <NAME> --tag <XX>'
+   ```
+   Compare each line with what they told you: heroes, rules versions, the newest upload's date, `tombstoned`. A name can match several players. Uploads made before a device was linked sit under the
+   key's own ID (the line says `linked to player <P>`); take the line of the player, `<P>`.
+3. The dry run, and read it:
+   ```sh
+   fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs delete-player <id or code>'
+   ```
+   It must print `resolved: player <P> (given as ...)` and list only that player's records. A line starting `refused:` means nothing matched (or two players did) and nothing was deleted: fix the id.
+4. The same line with `--apply`. Expect `APPLIED: ...` and `deleted N of N upload(s)`. The two delays above apply: the player's ghosts stop being served within about a minute, and a ghost the
+   server has cached for up to 10 minutes (or until a restart). Tell the player: their online data is deleted; if a device still holds the game, its next online game starts a new player and the progress on
+   that device stays.
 
 ## 8. Re-seed, rollback, teardown
 
