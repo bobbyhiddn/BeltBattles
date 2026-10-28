@@ -12,10 +12,11 @@ import { setSession } from "../src/game/session";
 import type { Identity } from "../src/net/identity";
 import type { deleteOnlineData, redeemLinkCode, requestLinkCode } from "../src/net/linkClient";
 import { NAME_KEY } from "../src/net/names";
+import { playerCode } from "../src/net/playerCode"; // S6D: the MY PLAYER ID card's code, swept with the words
 import { faceChars, textWidth, wrap } from "../src/render/font";
 import type { G } from "../src/render/pixel";
 import {
-  LinkCard, OK_CSS, ROW_CSS, WORDS, checkTyped, failLine, layoutCard, linkAvailability, minutesLeftLine, optionsExtras,
+  LinkCard, OK_CSS, ROW_CSS, WORDS, checkTyped, failLine, layoutCard, linkAvailability, minutesLeftLine, optionsExtras, seenLine,
   type Availability, type LinkCardDeps,
 } from "../src/screens/linkCards";
 import { TitleScreen, refreshIdentity, startupSync } from "../src/screens/title";
@@ -248,6 +249,8 @@ describe("IDENT-1 UI: the words", () => {
       const c = checkTyped(t);
       out.push(c.ok ? c.code : c.line);
     }
+    // S6D: the MY PLAYER ID card's built lines: the code, and what other players see (with a name, the longest one, and with none)
+    out.push(playerCode(ME.playerId), playerCode("_".repeat(43)), seenLine("ANNA", ME.playerId), seenLine("ABCDEFGHIJ", ME.playerId), seenLine("A-1 B-2 C-3", ME.playerId), seenLine(null, ME.playerId));
     return out;
   }
 
@@ -266,7 +269,7 @@ describe("IDENT-1 UI: the words", () => {
   });
 
   it("a sentence ends in a full stop (the labels and titles are short words); the lines are whole sentences", () => {
-    const labels = ["linkRow", "deleteRow", "privacyRow", "linkTitle", "showCode", "enterCode", "newCode", "deleteTitle", "close", "back", "done", "cancel", "delete", "tryAgain"] as const; // S6: + privacyRow, the PRIVACY row's label
+    const labels = ["linkRow", "deleteRow", "privacyRow", "idRow", "linkTitle", "idTitle", "showCode", "enterCode", "newCode", "deleteTitle", "close", "back", "done", "cancel", "delete", "tryAgain"] as const; // S6: + privacyRow, the PRIVACY row's label; S6D: + idRow and idTitle, MY PLAYER ID's
     for (const [key, text] of Object.entries(WORDS)) {
       if ((labels as readonly string[]).includes(key)) {
         expect(text.length, key).toBeLessThanOrEqual(21);
@@ -420,16 +423,16 @@ describe("IDENT-1 UI: the OPTIONS card", () => {
     }
   });
 
-  it("the title's card draws the two rows after NAME; the extra rows make it taller and nothing else moves", () => {
+  it("the title's card draws the extra rows after NAME; the extra rows make it taller and nothing else moves", () => {
     const tv = titleView(402, 690, 3);
     const stub = stubGame(tv);
     const plain = optionsGeometry(tv.W, tv.H, tv.k, 1);
     const withRows = optionsGeometry(tv.W, tv.H, tv.k, 1, optionsExtras(stub.game, () => tv.k, { availability: () => ON }));
     const step = Math.ceil(19 * tv.k - 1e-9) + 3;
-    expect(withRows.card.h - plain.card.h).toBe(3 * step); // S6: LINK A DEVICE, DELETE MY ONLINE DATA and PRIVACY (was 2 rows)
+    expect(withRows.card.h - plain.card.h).toBe(4 * step); // S6: LINK A DEVICE, DELETE MY ONLINE DATA and PRIVACY (was 2 rows); S6D: + MY PLAYER ID (4)
     expect(withRows.bw).toBe(plain.bw);
     const off = optionsGeometry(tv.W, tv.H, tv.k, 1, optionsExtras(stub.game, () => tv.k, { availability: () => ({ on: false, why: WORDS.offNone }) }));
-    expect(off.card.h - plain.card.h).toBe(3 * step + off.noteLines.length * NOTE_ROW);
+    expect(off.card.h - plain.card.h).toBe(4 * step + off.noteLines.length * NOTE_ROW);
   });
 });
 

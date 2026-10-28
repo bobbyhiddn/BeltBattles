@@ -1,21 +1,29 @@
 // IDENT-1 (REQ-BFG-122): the title's two OPTIONS entries and their cards. S6 (REQ-BFG-119): and a third row, PRIVACY, which opens the privacy
-// policy outside the game (net/privacyLink.ts); it has no card and is on whatever the session is.
+// policy outside the game (net/privacyLink.ts); it has no card and is on whatever the session is. S6D (REQ-BFG-119): and MY PLAYER ID, between
+// LINK A DEVICE and DELETE MY ONLINE DATA: the operator's decision that a player who lost every device can quote their own ID.
 //   LINK A DEVICE        a card with two choices. SHOW MY CODE asks the server for a one-time code (net/linkClient.ts requestLinkCode) and
 //                        shows it big as XXXX-XXXX, the minutes left and one line: ENTER IT ON YOUR OTHER DEVICE. ENTER A CODE has a real
 //                        HTML <input> (the name screen's way, src/screens/name.ts) with an OK button of at least 44x44 CSS px; it calls
 //                        redeemLinkCode. Success says the device is linked and when that starts (the next NEW RUN); a refusal shows
 //                        one plain line, chosen by the server's status.
+//   MY PLAYER ID         a card that shows the player ID as a readable code (net/playerCode.ts: XXXX-XXXX-XXXX-XXXX, capitals and digits, 80 bits
+//                        of the ID), big as the link code is, the NAME#TAG other players see (net/names.ts displayName) and one dim line: QUOTE THIS
+//                        CODE IF YOU WRITE TO US ABOUT YOUR DATA. It sends nothing: it shows what the device holds (identity.playerId, which on a
+//                        linked device is the player it is linked to, the ID its uploads carry). `ghost-admin delete-player` and `find-player` take the code.
 //   DELETE MY ONLINE DATA  asks once (CANCEL / DELETE), says what goes and what stays, then reports the result (deleteOnlineData).
-// With no server (offline, a build without one, a session that failed or has no identity yet) both entries are drawn off and one plain
-// line under them says why (hud.ts optionsCard's `extras`).
+// With no server (offline, a build without one, a session that failed or has no identity yet) LINK, MY PLAYER ID and DELETE are drawn off and one
+// plain line under the rows says why (hud.ts optionsCard's `extras`).
 // The cards are modals (game.ts openModal): drawn over the screen, they take every tap and key, as the name screen does. Their layout is
 // the pure layoutCard below, so tests/ident1.ui.test.ts checks exactly what is drawn on the desk and on the phones. The words follow
 // docs/TEXT-STYLE.md section 8: capitals, whole sentences with their full stops, no line breaks of their own (they wrap at draw time).
 
+import { currentName } from "../game/ghostSnapshot"; // S6D: the name other players see, on the MY PLAYER ID card
 import type { Game, Modal } from "../game/game";
 import { onlineSession, type Online } from "../game/online";
 import type { Identity } from "../net/identity";
 import { deleteOnlineData, redeemLinkCode, requestLinkCode } from "../net/linkClient";
+import { displayName } from "../net/names"; // S6D: NAME#TAG
+import { playerCode } from "../net/playerCode"; // S6D: the readable code of a player ID
 import { PRIVACY_URL, openOutside } from "../net/privacyLink"; // S6 (REQ-BFG-119): the PRIVACY row
 import { drawText, textWidth, wrap, type FontId } from "../render/font";
 import { C } from "../render/palette";
@@ -30,6 +38,7 @@ export const WORDS = {
   linkRow: "LINK A DEVICE",
   deleteRow: "DELETE MY ONLINE DATA",
   privacyRow: "PRIVACY", // S6: always on, offline too: it opens the privacy policy outside the game (net/privacyLink.ts)
+  idRow: "MY PLAYER ID", // S6D: on and off with LINK A DEVICE; the privacy page and the support page name this row (tests/s6.pages.test.ts)
   // why the two entries are off (one line, by state)
   offNone: "ONLINE ONLY. THIS GAME HAS NO SERVER.",
   offFailed: "THIS PAGE CANNOT GO ONLINE.",
@@ -49,6 +58,11 @@ export const WORDS = {
   typeFirst: "TYPE THE CODE FIRST.",
   eightChars: "A CODE HAS 8 LETTERS AND NUMBERS.",
   neverThese: "CODES NEVER HAVE 0, 1, I, L OR O.",
+  // the player ID card (S6D). `seenAs` has a % where NAME#TAG goes (seenLine); with no name stored the card says `seenNoName` instead
+  idTitle: "MY PLAYER ID",
+  seenAs: "OTHER PLAYERS SEE YOU AS %.",
+  seenNoName: "YOU HAVE NO NAME YET. OTHER PLAYERS SEE YOU ONLY AFTER YOU PICK ONE.",
+  quoteIt: "QUOTE THIS CODE IF YOU WRITE TO US ABOUT YOUR DATA.",
   // the delete card
   deleteTitle: "DELETE MY ONLINE DATA",
   goes: "THIS DELETES YOUR ONLINE PROFILE, YOUR LINKS AND YOUR GHOSTS.",
@@ -75,6 +89,12 @@ export const WORDS = {
 
 /** The countdown line: "9 MINUTES LEFT.", "1 MINUTE LEFT.". */
 export const minutesLeftLine = (n: number): string => (n >= 2 ? `${n} MINUTES LEFT.` : "1 MINUTE LEFT.");
+
+/** S6D: the player ID card's line about what other players see: "OTHER PLAYERS SEE YOU AS ANNA#4F." (names.ts displayName: the name, then the
+ *  tag every reader derives from the player ID, which on a linked device is the ID its uploads carry), or, with no name stored (a player who has
+ *  none cannot upload a ghost: the server refuses one without a name), what they see then. */
+export const seenLine = (name: string | null, playerId: string): string =>
+  name ? WORDS.seenAs.replace("%", () => displayName(name, playerId)) : WORDS.seenNoName;
 
 /** The one plain line a refusal gets. `op`: which call. A status of its own where the server has one; no status = no answer. */
 export function failLine(op: "code" | "redeem" | "delete", status?: number): string {
@@ -129,22 +149,27 @@ export interface LinkCardDeps {
   /** S6: opens an address outside the game, for the PRIVACY row. Default: net/privacyLink.ts openOutside (a new tab on the web, the system
    *  browser in the apps). Optional, so a test's own full set of deps (ident1.ui.test.ts's fakeDeps) needs no change. */
   openOutside?: (url: string) => void;
+  /** S6D: the name other players see on the MY PLAYER ID card (default: ghostSnapshot.ts currentName, the one the uploads carry). Optional, so a
+   *  test's own full set of deps needs no change. */
+  name?: () => string | null;
 }
 
 export function realDeps(): LinkCardDeps {
   return { requestLinkCode, redeemLinkCode, deleteOnlineData, availability: () => linkAvailability(), now: () => Date.now() };
 }
 
-/** The OPTIONS entries below NAME (hud.ts optionsCard's `extras`): LINK A DEVICE and DELETE MY ONLINE DATA, off with the one line why while
- *  there is no session, and (S6) PRIVACY, always on: also offline, where the browser then shows its own offline page. `k`: the title's button
- *  size factor, read when a card opens and while it is up. */
+/** The OPTIONS entries below NAME (hud.ts optionsCard's `extras`): LINK A DEVICE, (S6D) MY PLAYER ID and DELETE MY ONLINE DATA, off with the one
+ *  line why while there is no session, and (S6) PRIVACY, always on: also offline, where the browser then shows its own offline page. `k`: the
+ *  title's button size factor, read when a card opens and while it is up. */
 export function optionsExtras(game: Game, k: () => number = () => 1, deps: Partial<LinkCardDeps> = {}): OptionsExtras {
   const d: LinkCardDeps = { ...realDeps(), ...deps };
   const a = d.availability();
-  const open = (start: "link" | "delete") => () => game.openModal(new LinkCard(game, start, k, d));
+  const open = (start: "link" | "delete" | "id") => () => game.openModal(new LinkCard(game, start, k, d));
   return {
     rows: [
       { id: "opt-link", label: WORDS.linkRow, disabled: !a.on, onTap: open("link") },
+      // S6D (REQ-BFG-119): the player's own ID, on exactly when LINK A DEVICE is (an identity has loaded), off with the same note otherwise
+      { id: "opt-id", label: WORDS.idRow, disabled: !a.on, onTap: open("id") },
       { id: "opt-delete", label: WORDS.deleteRow, disabled: !a.on, onTap: open("delete") },
       // S6 (REQ-BFG-119): the privacy policy, outside the game. Not tied to the session, the build or the demo flag
       { id: "opt-privacy", label: WORDS.privacyRow, onTap: () => (d.openOutside ?? openOutside)(PRIVACY_URL) },
@@ -285,6 +310,7 @@ export function layoutCard(c: Content, W: number, H: number, k: number, css: num
 // ------------------------------------------------------------------------------------------------------------------ the card
 
 type Step =
+  | { s: "id" } // S6D: MY PLAYER ID, one state: it shows what the device holds and sends nothing
   | { s: "menu" }
   | { s: "asking" }
   | { s: "code"; code: string; t0: number; left: number }
@@ -314,8 +340,8 @@ export class LinkCard implements Modal {
   private seq = 0; // an answer that comes after the card moved on is dropped
   private typed = ""; // what was typed, kept across a refusal (and what a headless run types)
 
-  constructor(private game: Game, start: "link" | "delete" = "link", private k: () => number = () => 1, private deps: LinkCardDeps = realDeps()) {
-    this.step = start === "delete" ? { s: "confirm" } : { s: "menu" };
+  constructor(private game: Game, start: "link" | "delete" | "id" = "link", private k: () => number = () => 1, private deps: LinkCardDeps = realDeps()) {
+    this.step = start === "delete" ? { s: "confirm" } : start === "id" ? { s: "id" } : { s: "menu" };
   }
 
   /** Tooling and tests: the state and the layout as drawn. */
@@ -343,6 +369,17 @@ export class LinkCard implements Modal {
     const b = (id: string, label: string, onTap: () => void, o: { primary?: boolean; danger?: boolean } = {}): Btn => ({ id, label, onTap, ...o });
     const close = b("link-close", WORDS.close, () => this.close());
     switch (st.s) {
+      case "id": {
+        // S6D: read live (the card stays right if the session goes away under it, or the name changes): the code of the ID the uploads carry
+        const a = this.deps.availability();
+        if (!a.on) return { title: WORDS.idTitle, lines: [{ text: a.why, tone: "dim" }], buttons: [b("id-close", WORDS.close, () => this.close(), { primary: true })] };
+        const id = a.session.identity.playerId;
+        return {
+          title: WORDS.idTitle,
+          lines: [{ text: playerCode(id), big: true }, { text: seenLine((this.deps.name ?? currentName)(), id) }, { text: WORDS.quoteIt, tone: "dim" }],
+          buttons: [b("id-close", WORDS.close, () => this.close(), { primary: true })],
+        };
+      }
       case "menu":
         return {
           title: WORDS.linkTitle, lines: [{ text: WORDS.linkHint }], stack: true,
@@ -400,7 +437,7 @@ export class LinkCard implements Modal {
   /** Escape: one step back (the menu), or out. */
   private back(): void {
     const s = this.step.s;
-    if (s === "menu" || s === "linked" || s === "confirm" || s === "deleted" || s === "deletefail" || s === "deleting" || s === "checking") this.close();
+    if (s === "id" || s === "menu" || s === "linked" || s === "confirm" || s === "deleted" || s === "deletefail" || s === "deleting" || s === "checking") this.close();
     else this.setStep({ s: "menu" });
   }
 

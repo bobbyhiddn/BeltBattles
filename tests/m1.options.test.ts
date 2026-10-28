@@ -2,8 +2,9 @@
 // title's OPTIONS card: optionsCard (src/ui/hud.ts) keeps IDENT-1's 7th parameter `extras` and takes C1's `opts: { fullscreen?: boolean }`
 // as the 8th; optionsGeometry has a 6th parameter `fullscreen`; the title passes both. No test covered the title's card with IDENT-1's
 // rows AND note AND the FULLSCREEN row together. Pinned here, on the four views tests/ident1.ui.test.ts uses and a phone on its side at
-// 740x360 @3 (the tightest): the card is fully on screen; its rows run SOUND, FULLSCREEN, NAME, LINK A DEVICE, DELETE MY ONLINE DATA, one
-// step apart and the same size; the note sits under DELETE; the PAUSED and build MENU cards are unchanged (no FULLSCREEN row, no extras).
+// 740x360 @3 (the tightest): the card is fully on screen; its rows run SOUND, FULLSCREEN, NAME, LINK A DEVICE, MY PLAYER ID (S6D), DELETE MY
+// ONLINE DATA, PRIVACY (S6), one step apart and the same size; the note sits under the last row; the PAUSED and build MENU cards are unchanged
+// (no FULLSCREEN row, no extras).
 // It uses the game's own pieces (computeView, titleScale, optionsGeometry, optionsExtras, the real TitleScreen); the stand-in Game and the
 // recording canvas are the small ones tests/ident1.ui.test.ts and tests/c1.screens.test.ts each carry (a test file cannot be imported
 // without running it).
@@ -135,7 +136,7 @@ function frame(game: Game, f: (g: G) => void): Placed[] {
 const ON: Availability = { on: true, session: { url: URL_, identity: ME } };
 const OFF: [string, Availability][] = [["no session", { on: false, why: WORDS.offNone }], ["failed", { on: false, why: WORDS.offFailed }], ["loading", { on: false, why: WORDS.offLoading }]];
 const done = { id: "optdone", label: "DONE", primary: true, onTap: () => undefined };
-const ROWS = ["opt-rm", "opt-snd", "opt-fs", "opt-name", "opt-link", "opt-delete", "opt-privacy"] as const; // S6: + PRIVACY, below DELETE MY ONLINE DATA
+const ROWS = ["opt-rm", "opt-snd", "opt-fs", "opt-name", "opt-link", "opt-id", "opt-delete", "opt-privacy"] as const; // S6: + PRIVACY, below DELETE MY ONLINE DATA; S6D: + MY PLAYER ID, between LINK A DEVICE and DELETE
 
 describe("M1 Goal 5: the views", () => {
   it("are tests/ident1.ui.test.ts's four, in its order, plus the 740x360 @3 phone on its side", () => {
@@ -149,7 +150,7 @@ describe("M1 Goal 5: the views", () => {
 });
 
 describe("M1 Goal 5: the title's OPTIONS card with IDENT-1's rows and note AND C1's FULLSCREEN row, on every view", () => {
-  it("is fully on screen; its rows run SOUND, FULLSCREEN, NAME, LINK, DELETE, one step apart, the same size, inside the card; and the geometry is the draw", () => {
+  it("is fully on screen; its rows run SOUND, FULLSCREEN, NAME, LINK, MY PLAYER ID, DELETE, PRIVACY, one step apart, the same size, inside the card; and the geometry is the draw", () => {
     for (const [what, cw, ch, dpr] of VIEWS) {
       const tv = titleView(cw, ch, dpr);
       for (const [state, a] of [["online", ON], ...OFF] as [string, Availability][]) {
@@ -163,7 +164,7 @@ describe("M1 Goal 5: the title's OPTIONS card with IDENT-1's rows and note AND C
         // the geometry is the one place the card is computed: the drawn card is optionsGeometry's, with the FULLSCREEN row counted
         const geo = optionsGeometry(tv.W, tv.H, tv.k, 1, extras, true);
         expect(card, at).toEqual(geo.card);
-        expect(geo.card.h, at).toBe(18 + 8 * geo.step + 4 + geo.noteLines.length * NOTE_ROW); // DONE, REDUCED MOTION, SOUND, FULLSCREEN, NAME, LINK, DELETE, PRIVACY
+        expect(geo.card.h, at).toBe(18 + 9 * geo.step + 4 + geo.noteLines.length * NOTE_ROW); // DONE, REDUCED MOTION, SOUND, FULLSCREEN, NAME, LINK, MY PLAYER ID, DELETE, PRIVACY
         expect(geo.card.h - optionsGeometry(tv.W, tv.H, tv.k, 1, extras, false).card.h, at).toBe(geo.step); // FULLSCREEN is exactly one row
         // the rows, in order, one step apart, the same size, inside the card
         const ids = game.ui.regions.map((r) => r.id);
@@ -177,7 +178,7 @@ describe("M1 Goal 5: the title's OPTIONS card with IDENT-1's rows and note AND C
           expect([r.w, r.h], `${at}: ${ROWS[i]} is a button of the card's own size`).toEqual([geo.bw, geo.bh]);
           expect(r.x >= card.x && r.x + r.w <= card.x + card.w && r.y >= card.y && r.y + r.h <= card.y + card.h, `${at}: ${ROWS[i]} inside the card`).toBe(true);
         }
-        // SOUND, FULLSCREEN, NAME, LINK, DELETE are the labels drawn in those rows, each inside its button
+        // SOUND, FULLSCREEN, NAME, LINK, MY PLAYER ID, DELETE, PRIVACY are the labels drawn in those rows, each inside its button
         const label = (id: (typeof ROWS)[number], text: string | RegExp) => {
           const r = game.ui.regions.find((x) => x.id === id)!.r;
           const p = drawn.find((x) => (typeof text === "string" ? x.s === text : text.test(x.s)) && x.y >= r.y && x.y < r.y + r.h);
@@ -188,16 +189,18 @@ describe("M1 Goal 5: the title's OPTIONS card with IDENT-1's rows and note AND C
         label("opt-fs", fullscreenLabel(false));
         label("opt-name", "NAME: ANNA");
         label("opt-link", WORDS.linkRow);
+        label("opt-id", WORDS.idRow);
         label("opt-delete", WORDS.deleteRow);
         label("opt-privacy", WORDS.privacyRow);
-        // LINK and DELETE take a tap only while an online session is active; FULLSCREEN and (S6) PRIVACY always do
+        // LINK, MY PLAYER ID (S6D) and DELETE take a tap only while an online session is active; FULLSCREEN and (S6) PRIVACY always do
         const reg = (id: string) => game.ui.regions.find((x) => x.id === id)!;
         expect(typeof reg("opt-fs").onTap, at).toBe("function");
         expect(typeof reg("opt-link").onTap === "function", at).toBe(a.on);
+        expect(typeof reg("opt-id").onTap === "function", at).toBe(a.on);
         expect(typeof reg("opt-delete").onTap === "function", at).toBe(a.on);
         expect(typeof reg("opt-privacy").onTap, at).toBe("function");
         // the note: one plain line under the last row (S6: PRIVACY; it was DELETE) and inside the card, only while the entries are off
-        const del = rows[6];
+        const del = rows[rows.length - 1];
         if (a.on) {
           expect(geo.noteLines, at).toEqual([]);
           expect(drawn.map((p) => p.s).join("|"), at).not.toMatch(/ONLINE ONLY|CANNOT GO ONLINE|GETTING READY/);
@@ -222,10 +225,11 @@ describe("M1 Goal 5: the title's OPTIONS card with IDENT-1's rows and note AND C
     const game = stubGame(tv);
     const longest = [WORDS.offNone, WORDS.offFailed, WORDS.offLoading].map((why) => optionsGeometry(tv.W, tv.H, tv.k, 1, optionsExtras(game, () => tv.k, { availability: () => ({ on: false, why }) }), true).card);
     for (const c of longest) expect(c.y >= 0 && c.y + c.h <= tv.H, JSON.stringify(c)).toBe(true);
-    // S6: the PRIVACY row is one more row of 22: 8 rows of 22, the heading and one note line (was 183 at y 89 with 7 rows)
-    expect(Math.max(...longest.map((c) => c.h))).toBe(205);
-    expect(longest[0]).toMatchObject({ y: 78, h: 205 });
-    expect(Math.min(...longest.map((c) => tv.H - (c.y + c.h)))).toBeGreaterThan(70); // never under the bottom edge: 77 px spare
+    // S6: the PRIVACY row was one more row of 22 (8 rows of 22, the heading and one note line: 205 at y 78; it was 183 at y 89 with 7 rows);
+    // S6D: MY PLAYER ID is one more: 9 rows of 22, the heading and one note line = 227 at y 67 (360/2 - 227/2 = 66.5, rounded up)
+    expect(Math.max(...longest.map((c) => c.h))).toBe(227);
+    expect(longest[0]).toMatchObject({ y: 67, h: 227 });
+    expect(Math.min(...longest.map((c) => tv.H - (c.y + c.h)))).toBe(66); // never under the bottom edge: 66 px spare (the 8-row card had 77)
   });
 
   it("the FULLSCREEN row follows the browser: ON when something is fullscreen, OFF when not, and no row (and no gap) where the browser cannot do it", () => {
@@ -244,7 +248,7 @@ describe("M1 Goal 5: the title's OPTIONS card with IDENT-1's rows and note AND C
       let card = { x: 0, y: 0, w: 0, h: 0 };
       const extras = optionsExtras(game, () => tv.k, { availability: () => ON });
       const drawn = frame(game, (g) => { card = optionsCard(game, g, "OPTIONS", [done], () => undefined, tv.k, extras, { fullscreen: true }); });
-      expect(game.ui.regions.map((r) => r.id)).toEqual(["optbg", "optcard", "optdone", "opt-rm", "opt-snd", "opt-name", "opt-link", "opt-delete", "opt-privacy"]);
+      expect(game.ui.regions.map((r) => r.id)).toEqual(["optbg", "optcard", "optdone", "opt-rm", "opt-snd", "opt-name", "opt-link", "opt-id", "opt-delete", "opt-privacy"]);
       expect(drawn.map((p) => p.s).join("|")).not.toMatch(/FULLSCREEN/);
       expect(card).toEqual(optionsGeometry(tv.W, tv.H, tv.k, 1, extras, false).card); // IDENT-1's card, exactly
     }
@@ -307,7 +311,7 @@ describe("M1 Goal 5: the real title, with its OPTIONS card open", () => {
   }
   const flush = async (): Promise<void> => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
 
-  it("on every view, with no session and with an active one: the rows run SOUND, FULLSCREEN, NAME, LINK, DELETE inside the card, and the note appears only without a session", async () => {
+  it("on every view, with no session and with an active one: the rows run SOUND, FULLSCREEN, NAME, LINK, MY PLAYER ID, DELETE, PRIVACY inside the card, and the note appears only without a session", async () => {
     for (const [what, cw, ch, dpr] of VIEWS) {
       for (const online of [false, true]) {
         const tv = titleView(cw, ch, dpr);

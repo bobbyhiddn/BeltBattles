@@ -2,7 +2,8 @@
 //  - src/net/privacyLink.ts holds the three absolute addresses; they are the server's routes (server/pages.ts), the listings' fields and the pages' own links;
 //  - openOutside: a new tab on the web (window.open, "_blank", "noopener"), a top-level navigation in the phone apps, which Capacitor 8.5.3's own native code
 //    hands to the system browser (the lines privacyLink.ts cites are read here), with no @capacitor/browser and no allowNavigation;
-//  - the PRIVACY row: third among the title's extra rows, below DELETE MY ONLINE DATA, on whatever the session is (also offline) and in the demo flag's
+//  - the PRIVACY row: last of the title's four extra rows (LINK A DEVICE, MY PLAYER ID, DELETE MY ONLINE DATA, PRIVACY; S6D put MY PLAYER ID between LINK and
+//    DELETE, so PRIVACY moved from the third place to the fourth), below DELETE MY ONLINE DATA, on whatever the session is (also offline) and in the demo flag's
 //    build; its tap calls the opener with PRIVACY_URL; the card still fits every view; and the tap runs INSIDE the pointerup event (a user gesture), through
 //    the game's own input chain (io.ts bindInput -> Game.pointerDown/pointerUp -> the region's onTap -> window.open).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -231,34 +232,35 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("S6 Goal 3: the PRIVACY row", () => {
-  it("is the third extra row, below DELETE MY ONLINE DATA, labelled PRIVACY, and takes a tap in every state; LINK and DELETE are off when there is no session", () => {
+  it("is the last extra row (the fourth since S6D put MY PLAYER ID before DELETE), below DELETE MY ONLINE DATA, labelled PRIVACY, and takes a tap in every state; LINK, MY PLAYER ID and DELETE are off when there is no session", () => {
     for (const [state, a] of STATES) {
       const game = stubGame(titleView(402, 690, 3));
       const x = optionsExtras(game, () => 1, { availability: () => a });
-      expect(x.rows.map((r) => r.id), state).toEqual(["opt-link", "opt-delete", "opt-privacy"]);
-      expect(x.rows.map((r) => r.label), state).toEqual([WORDS.linkRow, WORDS.deleteRow, "PRIVACY"]);
-      const [link, del, privacy] = x.rows;
-      expect(!!link.disabled && !!del.disabled, state).toBe(!a.on);
+      expect(x.rows.map((r) => r.id), state).toEqual(["opt-link", "opt-id", "opt-delete", "opt-privacy"]);
+      expect(x.rows.map((r) => r.label), state).toEqual([WORDS.linkRow, WORDS.idRow, WORDS.deleteRow, "PRIVACY"]);
+      const [link, id, del, privacy] = x.rows;
+      expect(!!link.disabled && !!id.disabled && !!del.disabled, state).toBe(!a.on);
       expect(privacy.disabled, state).toBeFalsy();
       expect(typeof privacy.onTap, state).toBe("function");
-      expect(x.note, state).toBe(a.on ? undefined : a.why); // the one line is about LINK and DELETE
+      expect(x.note, state).toBe(a.on ? undefined : a.why); // the one line is about LINK, MY PLAYER ID and DELETE
     }
     expect(WORDS.privacyRow).toBe("PRIVACY"); // one word, like the others
   });
 
-  it("its tap opens PRIVACY_URL through the opener, once, and LINK and DELETE open nothing outside", () => {
+  it("its tap opens PRIVACY_URL through the opener, once, and LINK, MY PLAYER ID and DELETE open nothing outside", () => {
     for (const [state, a] of STATES) {
       const opened: string[] = [];
       const game = stubGame(titleView(402, 690, 3));
       const x = optionsExtras(game, () => 1, { availability: () => a, openOutside: (u) => void opened.push(u) });
-      x.rows[2].onTap!();
+      x.rows[3].onTap!();
       expect(opened, state).toEqual([PRIVACY_URL]);
       if (a.on) {
         const modals: unknown[] = [];
         (game as unknown as { openModal: (m: unknown) => void }).openModal = (m) => void modals.push(m);
         x.rows[0].onTap!();
         x.rows[1].onTap!();
-        expect(modals.length, state).toBe(2);
+        x.rows[2].onTap!();
+        expect(modals.length, state).toBe(3);
       }
       expect(opened, state).toEqual([PRIVACY_URL]);
     }
@@ -268,7 +270,7 @@ describe("S6 Goal 3: the PRIVACY row", () => {
     const w = { open: vi.fn(), location: { assign: vi.fn() } };
     vi.stubGlobal("window", w);
     const game = stubGame(titleView(402, 690, 3));
-    optionsExtras(game, () => 1, { availability: () => STATES[1][1] }).rows[2].onTap!();
+    optionsExtras(game, () => 1, { availability: () => STATES[1][1] }).rows[3].onTap!();
     expect(w.open).toHaveBeenCalledWith(PRIVACY_URL, "_blank", "noopener");
   });
 
@@ -282,9 +284,9 @@ describe("S6 Goal 3: the PRIVACY row", () => {
     const fresh = await import("../src/screens/linkCards");
     const opened: string[] = [];
     const x = fresh.optionsExtras(stubGame(titleView(402, 690, 3)), () => 1, { availability: () => STATES[1][1], openOutside: (u) => void opened.push(u) });
-    expect(x.rows.map((r) => r.id)).toEqual(["opt-link", "opt-delete", "opt-privacy"]);
-    expect(x.rows[2].disabled).toBeFalsy();
-    x.rows[2].onTap!();
+    expect(x.rows.map((r) => r.id)).toEqual(["opt-link", "opt-id", "opt-delete", "opt-privacy"]);
+    expect(x.rows[3].disabled).toBeFalsy();
+    x.rows[3].onTap!();
     expect(opened).toEqual([PRIVACY_URL]);
     vi.unstubAllEnvs();
     vi.resetModules();
@@ -310,8 +312,8 @@ describe("S6 Goal 3: the PRIVACY row", () => {
         expect([privacy.r.w, privacy.r.h], at).toEqual([name.r.w, name.r.h]);
         expect(privacy.r.x >= card.x && privacy.r.x + privacy.r.w <= card.x + card.w && privacy.r.y + privacy.r.h <= card.y + card.h, `${at}: inside the card`).toBe(true);
         expect(typeof privacy.onTap, at).toBe("function");
-        // the rows: DONE, REDUCED MOTION, SOUND, NAME, LINK, DELETE, PRIVACY; the note (why LINK and DELETE are off) is under PRIVACY, in the card
-        expect(geo.card.h, at).toBe(18 + 7 * geo.step + 4 + geo.noteLines.length * NOTE_ROW);
+        // the rows: DONE, REDUCED MOTION, SOUND, NAME, LINK, MY PLAYER ID, DELETE, PRIVACY (S6D: one more); the note (why LINK, MY PLAYER ID and DELETE are off) is under PRIVACY, in the card
+        expect(geo.card.h, at).toBe(18 + 8 * geo.step + 4 + geo.noteLines.length * NOTE_ROW);
         expect(geo.noteLines.join(" "), at).toBe(a.on ? "" : a.why);
       }
     }
