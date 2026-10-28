@@ -79,4 +79,4 @@ https://beltbattles.fly.dev/support
 
 ## Contact email (on the support page; App Review contact information)
 
-[[SUPPORT_EMAIL]]
+micah@crewport.ai

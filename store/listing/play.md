@@ -67,7 +67,7 @@ https://beltbattles.fly.dev/support
 
 ## Contact email (Store settings, Store listing contact details, Email address; required)
 
-[[SUPPORT_EMAIL]]
+micah@crewport.ai
 
 ## Data deletion URL (App content, Data safety: the web link where users can ask for their data to be deleted)
 
