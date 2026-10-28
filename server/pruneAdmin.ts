@@ -149,7 +149,11 @@ export async function readInventory(store: AdminStore, ident: AdminIdentity | nu
     if (!store.rulesVersions) throw new Error("this store cannot list rules versions");
     for (const rules of await store.rulesVersions()) {
       const h = await store.read(rules, true);
-      for (const record of h.records) if (record.kind === "upload") inv.uploads.push({ rules, record });
+      for (const record of h.records) {
+        if (record.kind !== "upload") continue;
+        if (store.kind === "tigris") record.text = ""; // Tigris removes by key, so the body is not needed again: the weekly run holds every upload, and a body is a few KB
+        inv.uploads.push({ rules, record });
+      }
     }
   }
   if (parts.links) {
@@ -449,7 +453,11 @@ async function findPlayerCommand(args: AdminArgs, store: AdminStore, ident: Admi
     const dead = inv.tombstoned.has(row.id);
     out(`  player ${row.id}  tag ${nameTag(row.id)}  code ${playerCode(row.id)}  uploads ${row.ups.length}  newest ${row.newest > 0 ? iso(row.newest) : "unknown"}  heroes ${heroes.join(",")}  rules ${versions.join(",")}  tombstoned ${dead ? "yes" : "no"}${link ? `  linked to player ${link.player}` : ""}`);
   }
-  if (rows.length === 0) out("  no stored upload carries that name (a player who never uploaded a ghost, or whose ghosts are older than the retention period, has none: ask for their player ID)");
+  if (rows.length === 0) {
+    out(args.tag !== undefined
+      ? "  no stored upload with that name carries that tag: leave --tag out to see every player with the name"
+      : "  no stored upload carries that name (a player who never uploaded a ghost, or whose ghosts are older than the retention period, has none: ask for their player ID)");
+  }
   return 0;
 }
 

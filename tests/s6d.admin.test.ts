@@ -389,8 +389,10 @@ describe.each(KINDS)("find-player on %s", (kind) => {
     expect(rows(r.out).map((x) => x.id).sort()).toEqual(all.filter((x) => x.tag === tag).map((x) => x.id).sort());
     expect(rows(r.out).map((x) => x.id)).toContain(P);
     expect(r.out[1]).toContain(`--tag ${tag}`);
-    const none = await admin(w, ["find-player", "ANNA", "--tag", tag === "00" ? "01" : "00"]);
+    const other = all.map((x) => x.tag).includes("00") ? "01" : "00";
+    const none = await admin(w, ["find-player", "ANNA", "--tag", other === tag ? "02" : other]);
     expect(rows(none.out).every((x) => x.tag !== tag)).toBe(true);
+    if (rows(none.out).length === 0) expect(none.text).toContain("no stored upload with that name carries that tag");
   });
 
   it("its code is the one delete-player takes", async () => {
