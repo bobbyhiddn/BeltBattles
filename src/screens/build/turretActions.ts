@@ -8,7 +8,8 @@ import { buyOffer, installFromCargo, moveInstalled, sellInstalled, storeTurret }
 import { intakeToast } from "../../game/run"; // SHAPES-1 S5b: the intake sweep's toast
 import { REFIT_NO_SHOP, shopShut } from "../../game/run"; // NPC-1 (REQ-BFG-077)
 import { ITEMS } from "../../sim/content";
-import { deadEndsAt, turretSlots, type TurretOpResult } from "../../sim/deck";
+import { canSellTurret, deadEndsAt, turretSlots, type TurretOpResult } from "../../sim/deck";
+import { sellAsk } from "./apply"; // ENCHANT-1 (REQ-BFG-085, E4): selling a turret that holds a word asks first
 import { C } from "../../render/palette";
 import { inside } from "../../ui/ui";
 import type { Carry, Ctx } from "./actions";
@@ -100,6 +101,8 @@ export function sellTurretAt(ctx: Ctx, t: number): boolean {
     ctx.invalid(REFIT_NO_SHOP);
     return false;
   }
+  const tu = turretSlots(ctx.run.build)[t]?.turret;
+  if (tu && canSellTurret(tu) && sellAsk(ctx, { kind: "turret", slot: t })) return false; // ENCHANT-1 (REQ-BFG-085, E4): a turret that holds a word asks first; a second press sells
   const v = sellInstalled(ctx.run, t);
   if (v <= 0) {
     ctx.invalid(turretSlots(ctx.run.build)[t]?.turret ? "A STARTING TURRET AT 1 STAR CAN'T BE SOLD" : "THIS TURRET SLOT IS EMPTY");

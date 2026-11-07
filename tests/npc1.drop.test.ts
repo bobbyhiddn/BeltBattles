@@ -45,10 +45,13 @@ describe("NPC-1 the switch (REQ-BFG-077, REQ-BFG-078)", () => {
 });
 
 describe("NPC-1 the drop table (REQ-BFG-078)", () => {
-  it("the class mapping from ItemKind and Rarity: supplies, signature factories and legendary parts never drop", () => {
+  it("the class mapping from ItemKind and Rarity: supplies, signature factories and legendary parts never drop", () => { // BUMP-1F: and the GATES converters (a GATE never drops)
     for (const d of Object.values(ITEMS)) {
       const c = dropClass(d.id);
       if (d.kind === "supply" || SIGNATURES.has(d.id) || d.rarity === "legendary") expect(c, d.id).toBeNull();
+      // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 78 and named question (d)): GATES ships on, so the three converters (FUSER, SCATTER MILL, SMELTER; kind "converter", GATES-1 REQ-BFG-052) are in ITEMS and fell to the
+      // "gear" branch below (the FUSER's rarity is "rare", gates.ts); npcDay.ts dropClass returns null for a converter ("a GATE never drops", before the rarity is read), so it is mapped here to never, ahead of every rarity branch
+      else if (d.kind === "converter") expect(c, d.id).toBeNull();
       else if (d.kind === "turret" || d.kind === "factory") expect(c, d.id).toBe("turret");
       else if (d.rarity === "epic") expect(c, d.id).toBe("epic");
       else if (d.kind === "gate") expect(c, d.id).toBe(d.rarity === "rare" ? "rare" : "common");

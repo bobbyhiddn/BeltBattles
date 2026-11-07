@@ -1,25 +1,27 @@
 // Deck machinery for any facing: turret intakes, conveyor belts (animated by real travel),
-// chunky ammunition riding them, factories with output chutes, and processing gates.
+// chunky ammunition riding them, converters standing on belt tiles (GATES-1), factories with output chutes, and processing gates.
 
-import { AMMO, AMMO_SPACING, BELT_SPEED, CELL, GRID } from "../sim/content";
-import { DX, DY, defOf, hero, kx, ky, opposite, payloadDamage, routeDirs, type Build, type Dir, type RouteDef } from "../sim/deck";
+import { AMMO, AMMO_SPACING, BELT_SPEED, CELL, GRID, ITEMS, TICK } from "../sim/content";
+import { DX, DY, defOf, hero, key, kx, ky, opposite, payloadDamage, routeDirs, type Build, type Dir, type RouteDef } from "../sim/deck";
 import { dirBetween } from "../sim/deck"; // 0.6.2j: the pending join's direction
-import type { GateState } from "../sim/battle";
+import type { GateState, Payload } from "../sim/battle";
 import { starsOf } from "../sim/stars";
 import type { FactoryState } from "../sim/battle"; // 0.6.1c: read-only render state (frame index)
-import { C } from "./palette";
-import { frame as frameRect, rect, type G } from "./pixel";
+import type { ConverterState } from "../sim/convert"; // GATES-1 (REQ-BFG-052): read-only render state of a converter
+import { C, RARITY_COLOR } from "./palette";
+import { frame as frameRect, makeCanvas, rect, type G } from "./pixel";
 import { drawText } from "./font";
 import { footX, footY, localRect, sdir, sx, sy, type Box, type DeckFrame } from "./frame";
 import {
-  BELT_PERIOD, beltCorner, beltStopper, beltStraight, boltIcon, factoryFlashSil, factorySprite, gateSil,
-  gateSprite, rigNozzle, rigTip, speedTint, turntable, wrenchIcon, type ArrowState, type BeltTint,
+  BELT_PERIOD, beltCorner, beltStopper, beltStraight, boltIcon, converterBays, factoryFlashSil, factorySprite, gateChevron,
+  gateSil, gateSprite, rigNozzle, rigTip, speedTint, turntable, wrenchIcon, type ArrowState, type BeltTint,
 } from "./sprites";
 import { heatTier, payloadHalo, payloadSprite } from "./ammo";
 import { raceChuteMouth } from "./raceArt"; // 0.8.0 H1
 import { stokeFlare, wave3ChuteMouth, wave3FactoryArt, wave3GateSprite } from "./wave3Art"; // 0.8.0 A1; I1 M4: the moments
 import { factoryMoment, rigMoment, stokedNow } from "./wave3Moments"; // 0.8.0 I1 M4: A1's battle moments, from P1's sim
 import { drawLevelMarks } from "./levelMark"; // bb-0.8.3 (REQ-BFG-043 D11): the hero factory's FACTORY level
+import { drawEnchantMachinery } from "./enchantMarks"; // ENCHANT-1 (REQ-BFG-085): the words' board marks
 import type { CruiserView, RigModel } from "./cruiser";
 import { skinOf, type BeltId } from "./styles"; // CUSTOM-1 (REQ-BFG-072) hook; CUSTOM-2a: the board's belt style (its view's skin)
 import { cellsOf, type Placed, type RigArrow } from "../sim/deck"; // SHAPES-1 (REQ-BFG-086 S8)
@@ -583,6 +585,92 @@ function drawShapedRig(g: G, v: CruiserView, p: Placed, d: ItemDef): void {
   if (v.survivorUid === p.uid) drawSurvivorRing(g, x - 1, y - 1, w + 2, h + 2, v.t);
 }
 
+// ---------------------------------------------------------------- converters (GATES-1, BRIEF-GATES1 G4)
+
+/** A slug at 4x4, for a converter's bay or its exit queue: its belt sprite (7x7, as drawAmmo draws it) at nearest-neighbour,
+ *  which keeps an ink rim and a 2x2 body in the slug's own colours. Cached by kind and heat tier. */
+const MINI = new Map<string, HTMLCanvasElement>();
+function miniSlug(p: Payload): HTMLCanvasElement {
+  const ad = AMMO[p.ammo];
+  const tier = heatTier(payloadDamage(p.base ?? ad.base, ad.rideScale, p.ride, p.mult, p.flat + (p.heatBonus ?? 0)));
+  const kind = p.preset ?? p.ammo;
+  const k = `${kind}:${tier}`;
+  let c = MINI.get(k);
+  if (!c) {
+    const [cv, cg] = makeCanvas(4, 4);
+    cg.drawImage(payloadSprite(kind, tier), 0, 0, 7, 7, 0, 0, 4, 4);
+    MINI.set(k, c = cv);
+  }
+  return c;
+}
+
+/** The top-left of the 4x4 slug standing `v` px in from the edge a belt leaves a converter's tile by, in the middle of that
+ *  tile, for a belt leaving toward screen direction `d` (the queue of its output waiting to go back on the belt). */
+function queueAt(d: number, v: number): [number, number] {
+  return d === 0 ? [4, v] : d === 2 ? [4, 8 - v] : d === 1 ? [8 - v, 4] : [v, 4];
+}
+
+/**
+ * GATES-1 (REQ-BFG-052; BRIEF-GATES1 G4): the converters (kind "converter": FUSER, SCATTER MILL, SMELTER), each on its belt
+ * tile, over the belt and the slugs riding it (the housing covers the tile; slugs waiting at its upstream edge go half under
+ * it). In the build view (no sim) the idle sprite with its arrowheads: IN on the edge the belt comes in by and OUT on the edge it
+ * leaves by (the belt's din and dout there, so a corner has them at right angles; none while that belt is hidden for
+ * redrawing). In battle (sim.converters): the sprite works while a conversion runs (not while STUNned: the crackle), flashes
+ * white as one finishes, the slugs it holds sit in its bays (a FUSER's two on the diagonal, 1 filled and 1 empty while it waits
+ * for its partner), its output waits in a queue of beads behind the exit door (at most 3 shown), and a thin line across the top
+ * of its body fills while it works. Stars, the ★3 brass frame and the survivor ring as a rig's.
+ */
+export function drawConverters(g: G, v: CruiserView): void {
+  const f = v.frame;
+  const items = v.build.items;
+  const routes = v.model.routes;
+  for (let n = 0; n < items.length; n++) {
+    const p = items[n];
+    const d = ITEMS[p.def];
+    if (!d || d.kind !== "converter" || p.uid === v.hideItem) continue;
+    const k = key(p.x, p.y);
+    let ri = -1, ci = -1;
+    for (let r = 0; r < routes.length && ri < 0; r++) {
+      const i = routes[r].cells.indexOf(k);
+      if (i >= 0) { ri = r; ci = i; }
+    }
+    if (ri < 0) continue; // off every belt it does nothing (the editor and the validator refuse it)
+    const rm = routes[ri];
+    const x = Math.round(footX(f, p.x, p.y)), y = Math.round(footY(f, p.x, p.y));
+    let c: ConverterState | undefined;
+    if (v.sim?.converters) for (const q of v.sim.converters) if (q.uid === p.uid) c = q;
+    const stunned = !!c && (c.disrupted > 0 || c.frozen > 0);
+    const active = !!c && c.left > 0 && !stunned;
+    g.drawImage(gateSprite(d.id, Math.floor(v.t * 8), active), x, y);
+    if (c && c.flash > 0) {
+      g.globalAlpha = Math.min(0.6, c.flash * 3);
+      g.drawImage(gateSil(d.id), x, y);
+      g.globalAlpha = 1;
+    }
+    const gstars = animStars(v, p.uid, starsOf(p));
+    const sout = sdir(f, rm.dout[ci]);
+    if (c) {
+      const bays = converterBays(c.spec.in);
+      for (let i = 0; i < c.buf.length && i < bays.length; i++) g.drawImage(miniSlug(c.buf[i]), x + bays[i][0], y + bays[i][1]);
+      // a FUSER holding one slug waits for its partner: the empty bay's rim lights, slowly blinking
+      if (c.buf.length > 0) for (let i = c.buf.length; i < bays.length; i++) frameRect(g, x + bays[i][0], y + bays[i][1], 4, 4, Math.floor(v.t * 3) % 2 ? C.slate4 : C.slate3);
+      for (let i = Math.min(3, c.out.length) - 1; i >= 0; i--) { // the one to leave first stands in front
+        const [qx, qy] = queueAt(sout, 2 + 3 * i);
+        g.drawImage(miniSlug(c.out[i]), x + qx, y + qy);
+      }
+      if (active) rect(g, x + 2, y + 2, Math.max(1, Math.ceil(8 * (1 - c.left / Math.max(1, Math.round(c.spec.secs / TICK))))), 1, C.fire4);
+    }
+    if (gstars >= 3) frameRect(g, x, y, 12, 12, C.brass3);
+    if (ri !== v.hideRoute) {
+      g.drawImage(gateChevron("in", sdir(f, rm.din[ci]), C.ice), x, y);
+      g.drawImage(gateChevron("out", sout, d.rarity === "common" ? C.bone : RARITY_COLOR[d.rarity] ?? C.ice), x, y);
+    }
+    if (c && c.disrupted > 0) shock(g, x, y, v.t);
+    drawPips(g, x + 1, y + 9, 10, gstars);
+    if (v.survivorUid === p.uid) drawSurvivorRing(g, x - 1, y - 1, 14, 14, v.t);
+  }
+}
+
 /** 0.6.1d2: the merge animation's pip override for `uid` (Math.max(1, step.stars - 1) pre-pop, the
  *  real value once popped or when nothing is animating on this uid). */
 function animStars(v: CruiserView, uid: number, real: number): number {
@@ -625,6 +713,8 @@ export function drawMachinery(g: G, v: CruiserView): void {
   if (v.ghost) drawGhost(g, v);
   drawArrowTips(g, v); // 0.6.2 BELTSIDE: arrowheads on the belt tiles, under the payloads riding past
   if (v.sim) drawAmmo(g, v);
+  drawConverters(g, v); // GATES-1 (REQ-BFG-052): the gates standing on belt tiles, over the slugs at their edges (nothing with GATES off)
   drawFactories(g, v);
   drawRigs(g, v);
+  drawEnchantMachinery(g, v); // ENCHANT-1 (REQ-BFG-085): a word's spark and GROWING's counter on the rigs and factories (nothing with the switch off)
 }

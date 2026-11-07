@@ -31,7 +31,7 @@ import { validateUpload } from "../src/net/validate";
 import type { Identity } from "../src/net/identity";
 import { createGhostServer, type GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import { testIdentity, TEST_NAME } from "./netIdentity";
 
 const NOSTATS = {} as SideStats;
@@ -331,7 +331,7 @@ describe("online end to end (the in-process server, signed uploads open, the see
     await seedStore(app.store);
     device = await testIdentity(3);
     setPlayerName(TEST_NAME); // PACKS M2 (REQ-BFG-063): the device has a player name, so its uploads carry it
-  });
+  }, 120_000); // BUMP-1F (RULING-BUMP1F-R1 R1.2 and RULING-BUMP1F-R11 R11.4; CACHE-1 finding 1): this hook's first seedStore builds the pool check the import-time build no longer warms: 120 s, was the 10-s hook default (13.9 s alone); the vite.config default is untouched
 
   afterAll(async () => {
     await app.close();

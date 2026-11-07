@@ -11,6 +11,7 @@ import { abilityText, hasAbilityText } from "../src/ui/abilityText";
 import { PLAIN_RIG_IDS } from "../src/sim/plainRigs"; // BUMP-1D (PLAIN_RIGS on): the twelve plain stat rigs have a face and no ability text
 import { SHAPES2_IDS } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on)
 import { SCALE_IDS, SCALE_RIGS } from "../src/sim/scale"; // BUMP-1E (SCALE_RIGS on): the seven scaling rigs the catalogue sells now
+import { GATES_IDS, gatesRules } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052): the three gates have a face and no ability text, like the plain twelve (with GATES on)
 import { textWidth } from "../src/render/font";
 import { wrapText } from "../src/ui/richText";
 import { STARS, SUPPLIES, banned, numbers, sentencesOf, starsOf } from "./textRules";
@@ -37,7 +38,7 @@ const KEPT: Record<string, string[]> = {
 const SOLD = [...buyableModules(), ...SUPPLIES];
 /** BUMP-1D (PLAIN_RIGS and SHAPES2 on): the twelve plain stat rigs the catalogue sells now. Each is a stat row (a face, faces.ts) and
  *  no ability line: no ability text (abilityText.ts ENTRIES), and no KEPT_FLAVOUR row, since flavour() shows none for a face. */
-const PLAIN12: string[] = [...PLAIN_RIG_IDS, ...SHAPES2_IDS];
+const PLAIN12: string[] = [...PLAIN_RIG_IDS, ...SHAPES2_IDS, ...(gatesRules() ? GATES_IDS : [])]; // GATES-1: and, with GATES on, the three gates
 /** The landscape details column's text widths (layout.ts: LAND_MIN_W to the capped column) and the phone band's. */
 const WIDTHS: [number, "5" | "3"][] = [[102, "5"], [109, "5"], [116, "5"], [102, "3"], [109, "3"], [116, "3"], [151, "3"]];
 
@@ -68,7 +69,8 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     expect(SCALE_RIGS).toBe(true);
     expect(SCALE_IDS.length).toBe(7);
     for (const id of SCALE_IDS) expect(SOLD.some((d) => d.id === id && d.kind === "gate"), id).toBe(true);
-    expect(byKind).toEqual({ gate: 52 /* BUMP-1E: was 45 */, factory: 16, core: 15, mod: 14, turret: 13, supply: 2 });
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): + the three converters (FUSER, SCATTER MILL, SMELTER: kind "converter", sold by the tinker and the alchemist); the other kinds as before
+    expect(byKind).toEqual({ gate: 52 /* BUMP-1E: was 45 */, factory: 16, core: 15, mod: 14, turret: 13, supply: 2, converter: 3 /* BUMP-1F: new */ });
   });
 
   it("0.6.2rel2: each turret's kept claim holds against the TurretDefs at every star (and FB-B's four keep nothing)", () => {
@@ -112,8 +114,9 @@ describe("0.6.2t2 F1: the kept-flavour table", () => {
     // row: flavour() shows none): 275 -> 311
     // BUMP-1E: the seven scaling rigs' 21 module-stars (7 rigs x 3 stars) join, none with flavour (each keeps no sentence: the loop above
     // pins flavour() at [] for them at every star and class factor), so only the module-stars move: 311 -> 332; withFlavour and sentences stay 16
-    expect(counts).toEqual({ moduleStars: 332 /* BUMP-1E: was 311 */, withFlavour: 16, sentences: 16 });
-    expect(counts.moduleStars - 311).toBe(SCALE_IDS.length * 3); // BUMP-1E: the whole +21 is the seven new rigs' three stars each
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default): + the three converters' 3 stars each (they keep no flavour sentence: the face builds their line from the numbers): 332 -> 341; withFlavour and sentences stay 16
+    expect(counts).toEqual({ moduleStars: 341 /* BUMP-1F: was 332 */, withFlavour: 16, sentences: 16 }); // BUMP-1E: was 311
+    expect(counts.moduleStars - 311).toBe((SCALE_IDS.length + GATES_IDS.length) * 3); // BUMP-1F (cause: GATES default): the whole +30 is the seven new rigs' and the three converters' three stars each; BUMP-1E: was SCALE_IDS.length * 3 (+21)
   });
 
   it("a kept sentence is one whole sentence under T2's rules and quotes no number", () => {

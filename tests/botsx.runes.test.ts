@@ -22,6 +22,7 @@ import { buildCost, validateBuild } from "../src/net/validate";
 import { CAPTAIN_RUNES, captainRunesOn } from "../src/sim/rivalBuilds";
 import { withNpcDay } from "../src/sim/npcDay"; // AZ-BUMP (the flip): the switch-off world of the caravanCand test
 import { RIVALS, RIVAL_IDS, rivalBuild, rivalLoadout, type RivalId } from "../src/sim/rivals";
+import { withNpcWords } from "../src/sim/npcWords"; // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2): the rivals' own words, off for the plan comparisons
 import {
   HERO_STYLE, RUNES, RUNE_HEROES, RUNE_LIST, SUSTAIN_RUNE_LIST, boardThemeCount, botRuneList, botRunePick, runeGrants, runeList,
   runeOffer, runeProblem, type RuneOffer,
@@ -65,7 +66,9 @@ const digest = (x: unknown): string => createHash("sha256").update(JSON.stringif
 // BUMP-1E (the pools, R1 19ae423): the stand-in pool regenerated ONCE under bb-0.12.0 (every switch on, the seven scaling rigs in the shop; days 1-16, the same 192
 // decks' shape, src/sim/standInPoolData.ts rules bb-0.12.0), so POOL_DIGEST is that pool's reads, taken on bump1e (was
 // 0429c5ab7ac2209a0218c8e3d704000cbe862f0ab51eb9a227b2bfd040e95f09 on bump 605f220). V11_DIGEST (the v1.1 fixture) is unchanged: it holds exactly
-const POOL_DIGEST = "0d62d25f8a62aa147393045ef7781a4492b6a5f0c6aad90a8a895b73091eb36d";
+// BUMP-1F (the pools, R1 a9be2ad; RULING-BUMP1F-R5 R5.2 (1), R7.3): the stand-in pool regenerated ONCE under bb-0.13.0 (GATES and ENCHANT on: the bots hold converters and words in the codes; days 1-16, the same 192
+// decks' shape, src/sim/standInPoolData.ts rules bb-0.13.0), so POOL_DIGEST is that pool's reads, taken on bump1f (was 0d62d25f8a62aa14... on bump1e). V11_DIGEST (the v1.1 fixture) is unchanged (checked: it reads the same).
+const POOL_DIGEST = "e7325a2784f7775372272c4da5280402abc1b9080597ddf17ca3065e63df2f33";
 const V11_DIGEST = "89b371a4b0720d4686dc934273c9033448b239bc5dc8f99d68b1fddd3abe15a2";
 /** Rune-less codes the encoders wrote on bx e1e1004 (see "a rune-less deck encodes byte for byte as on bx"). */
 const RICH_CODE = "18 0 u23/kiln64 press66 slagpot88/1:544434241404 2:68584838281808 3:79695949>48//scrapcannon0! carronade1";
@@ -298,7 +301,9 @@ describe("BOTS-X caravanCand costs the bought deck, as caravanDeck does (RUNES-2
 // ---------------------------------------------------------------- 3. CAPTAIN_RUNES and rivalBuild
 
 describe("BOTS-X CAPTAIN_RUNES and rivalBuild (RUNES-2a 3 step 5's code)", () => {
-  it("CAPTAIN_RUNES holds every captain's 10 runes (step 4.3), so every captain's rivalBuild(id, d), d = 1..10, is its plan's build holding the first d (captainRunesOn)", () => {
+  // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2; REPORT R4.4): the road deck is read without the rival's own words (withNpcWords false; was rivalBuild as it stands): from day 5 it carries the captain's word (sootjaw d5: `ench: "fiery"` on a TEMPER,
+  // npcWords.ts captainWordsOn) and the plan loadout the test compares it with is the wordless plan; tests/enchant2.npcwords proves the rivals' words on every rival x day
+  it("CAPTAIN_RUNES holds every captain's 10 runes (step 4.3), so every captain's rivalBuild(id, d), d = 1..10, is its plan's build holding the first d (captainRunesOn)", () => withNpcWords(() => {
     // FLIP-X2 step 4.3 (b7ab24a): the table is filled (was: CAPTAIN_RUNES {} and rivalBuild exactly the plan's build)
     expect(Object.keys(CAPTAIN_RUNES).sort()).toEqual([...RIVAL_IDS].sort());
     let n = 0;
@@ -317,9 +322,11 @@ describe("BOTS-X CAPTAIN_RUNES and rivalBuild (RUNES-2a 3 step 5's code)", () =>
     expect(captainRunesOn(b, undefined, 5)).toBe(b);
     expect(captainRunesOn(b, [], 5)).toBe(b);
     expect(captainRunesOn(b, ["iron_skin"], 0)).toBe(b);
-  });
+  }, false));
 
-  it("a sample list (botRuneList on the captain's seed): rivalBuild on day d holds exactly the first d runes, their HULL and BELT, and passes runeProblem with that seed", () => {
+  // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2; REPORT R4.4): the road deck is read without the rival's own words (withNpcWords false; was rivalBuild as it stands): from day 5 it carries the captain's word (sootjaw d5: `ench: "fiery"` on a TEMPER,
+  // npcWords.ts captainWordsOn) and the plan loadout the test compares it with is the wordless plan; tests/enchant2.npcwords proves the rivals' words on every rival x day
+  it("a sample list (botRuneList on the captain's seed): rivalBuild on day d holds exactly the first d runes, their HULL and BELT, and passes runeProblem with that seed", () => withNpcWords(() => {
     const sample = HEROES4.map((hero) => RIVAL_IDS.find((id) => RIVALS[id].hero === hero)!);
     expect(new Set(sample.map((id) => RIVALS[id].hero)).size).toBe(4);
     const table = CAPTAIN_RUNES as Partial<Record<RivalId, readonly string[]>>;
@@ -360,7 +367,7 @@ describe("BOTS-X CAPTAIN_RUNES and rivalBuild (RUNES-2a 3 step 5's code)", () =>
     expect([1, 2, 3, 4, 10].map(hull)).toEqual([skin, skin, skin + spare, skin + spare, skin + spare]);
     expect([1, 2, 3, 4, 10].map(belt)).toEqual([0, tar, tar, tar, tar]);
     expect(captainRunesOn(plan, list, 10).runes).toEqual(rq(...list));
-  });
+  }, false));
 });
 
 // ---------------------------------------------------------------- 4. botRunePick reads runeList()

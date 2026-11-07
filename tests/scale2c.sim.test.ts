@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { ITEMS, WAVE3_ITEMS, buyableModules, withWave3, type ItemDef, type ReadSpec } from "../src/sim/content";
 import { Battle, type Payload, type Projectile, type SideState, type SimEvent } from "../src/sim/battle";
+import { GATES_IDS } from "../src/sim/gates"; // BUMP-1F (GATES default): the three converters stand behind the seven in the canonical order
 import { SCALE_DEFS, SCALE_IDS, SCALE_ITEMS, SCALE_PIECES, SCALE_RIGS, buildReads, burnStacks, isScalePiece, scaleRules, withScaleRigs } from "../src/sim/scale";
 import { effectAt } from "../src/sim/stars";
 import { drakeConvert, pressureBonus } from "../src/sim/cores";
@@ -120,7 +121,9 @@ describe("SCALE-2c: with the switch off, everything is as at M0", () => {
       expect(Object.keys(ITEMS)).toEqual(KEYS0); // the same keys in the same order
       expect(isScalePiece("riveter")).toBe(false); // cap's F4: RIVETER stays as it is
     }, false); // BUMP-1E: the off half, was bare
-    expect(Object.keys(ITEMS)).toEqual([...KEYS0, ...NEW_IDS]); // and the switch is back on: the seven last, in SCALE_IDS order
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; the canonical order, src/sim/itemsKeep.ts ITEM_RANK: scale 4, gates 5): was `[...KEYS0, ...NEW_IDS]` (the seven last); KEYS0 holds the three converters now
+    // (GATES ships on), which stand behind the seven: the seven go in at their rank, before them
+    expect(Object.keys(ITEMS)).toEqual([...KEYS0.filter((id) => !GATES_IDS.includes(id)), ...NEW_IDS, ...GATES_IDS]); // and the switch is back on: the seven, in SCALE_IDS order, then the three
   });
 
   it("the 5 reworks fight exactly as before a switch round trip (the same events, the same end)", () => {
@@ -177,8 +180,11 @@ describe("SCALE-2c: the 12 defs with the switch on", () => {
   it("the 7 new ids join ITEMS after every other def, one cell, arrows by rarity, and the catalogue (buyableModules)", () => {
     withScaleRigs(() => {
       const keys = Object.keys(ITEMS);
-      expect(keys.slice(-NEW_IDS.length)).toEqual(NEW_IDS);
-      expect(keys.slice(0, -NEW_IDS.length)).toEqual(KEYS0);
+      // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; canonical order): the seven stand just before the three converters (the last keys; KEYS0 holds them); was `keys.slice(-NEW_IDS.length)` equal to NEW_IDS
+      // and `keys.slice(0, -NEW_IDS.length)` equal to KEYS0
+      const nG = GATES_IDS.length;
+      expect(keys.slice(-(NEW_IDS.length + nG), -nG)).toEqual(NEW_IDS);
+      expect([...keys.slice(0, -(NEW_IDS.length + nG)), ...keys.slice(-nG)]).toEqual(KEYS0);
       for (const id of NEW_IDS) {
         expect(ITEMS[id]).toBe(SCALE_ITEMS[id]);
         expect(ITEMS[id].shape).toBeUndefined(); // content.ts RARITY_SHAPE: common I, rare II, epic T

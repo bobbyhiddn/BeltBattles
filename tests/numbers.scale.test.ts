@@ -30,6 +30,7 @@ import { withShapes2 } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on): the s
 import { withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): RETUNE-1's rows, off and on
 import { withOpenRunes } from "../src/sim/openRunes"; // HULL-ON (the flip, OPEN_RUNES): THE LONG ROAD's rewrite, off and on
 import { withFreeJoins } from "../src/sim/freeJoins"; // HULL-ON run 6 (FREE_JOINS_HULL): WEAVER's hull, off and on
+import { GATES, setGates } from "../src/sim/gates"; // BUMP-1F (GATES on in bb-0.13.0): the record is the world before the three converters too
 import { SCALE_RIGS, scaleRules, setScaleRigs, withScaleRigs } from "../src/sim/scale"; // BUMP-1E (SCALE_RIGS on): the record is the switch-off world's; the shipped world has its own describe
 
 interface Row { file: string; id: string; rule: "x10" | "same"; base: number; now: number; rounded?: boolean }
@@ -487,8 +488,10 @@ function scanIds(): string[] {
 describe("NUM-1 scripted x10 (tests/fixtures/num1-base-values.json)", () => {
   // BUMP-1E: the record and its classification maps describe the 0.9.11 catalogue (SCALE_RIGS off), so every test of this describe reads that
   // world; the shipped value goes back after each (the describe below reads it). The switch is the outermost state of every nest in here
-  beforeEach(() => setScaleRigs(false));
-  afterEach(() => setScaleRigs(SCALE_RIGS));
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): and the record has no converter either (FUSER, SCATTER MILL, SMELTER were born after NUM-1's script ran: their 19 numeric fields are no fixture
+  // row, and the scan met them as missing), so the record's world also has GATES off, the outermost of the nest (its three are the last keys of ITEMS: off first, back last). Was: beforeEach(() => setScaleRigs(false)); afterEach(() => setScaleRigs(SCALE_RIGS))
+  beforeEach(() => { setGates(false); setScaleRigs(false); });
+  afterEach(() => { setScaleRigs(SCALE_RIGS); setGates(GATES); });
 
   it("the fixture is the script's record: x10 rows are 10x the base, whole; same rows are the base", () => {
     expect(fixture.sentinel.FRAY_BONUS).toBe(0.2);

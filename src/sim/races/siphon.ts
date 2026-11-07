@@ -40,6 +40,7 @@ export function sumpProduce(ctx: SimCtx, s: SideState, f: FactoryState, dt: numb
       prior: 0, factory: f.uid, copy: false,
     };
     if (spec.base !== undefined) p.base = spec.base; // bb-0.8.3 (REQ-BFG-042 D2): a ★2-3 SUMP's level, as Battle.stamp
+    ctx.made?.(f, p); // ENCHANT-1 (REQ-BFG-085): a word on the SUMP changes each leech it stamps
     r.ammo.push({ p, s: 0, processed: -1, blocked: false });
     f.rr = (f.rr + k + 1) % n;
     f.timer += secPer(spec.speed); // NUM-2 (REQ-BFG-047): 30 / speed, carrying the remainder (was a reset to the interval)

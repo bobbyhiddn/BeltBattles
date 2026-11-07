@@ -3,6 +3,68 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.14: gates and enchantments
+
+New battle rules: bb-0.13.0. Ghosts and uploads from bb-0.12.0 and older no longer meet this release's players. The
+stand-in and seed pools were rebuilt for the new rules and again cover days 1 to 16 (192 ghosts in the seed pool), and the
+AI decks now buy gates and enchantments.
+- **Three gates stand on a belt:** FUSER (rare, 6 gold), SCATTER MILL (common, 4 gold) and SMELTER (rare, 5 gold). A gate
+  spends 1 second on each conversion. The FUSER takes two slugs and puts out one that deals both plus 50% (75% at two
+  stars, 150% at three), so rigs before a FUSER count twice and rigs after it once. The SCATTER MILL turns one slug into
+  three at half damage each (60% at two stars; four at half at three stars). The SMELTER adds BURN to a slug: +2, +5 or +8
+  at one, two and three stars.
+- **Placing a gate:** drop it on a belt tile and the belt splits around it. The label over the carried gate reads like
+  SPLITS IT: 2 TILES IN, 3 TILES OUT, or says why the tile is refused (DROP IT ON A BELT, NEEDS BELT ON BOTH SIDES), and
+  the gate's notes say the outlined tiles are the belt after it. A rig's arrow aimed at a gate's tile idles. Where two belts
+  meet at a gate, it takes slugs from both in turn, and a belt can be drawn into a gate on another belt to join it there.
+  The belt panel's numbers count the gates. If the belt under a gate goes, the gate goes back to cargo.
+- **Gates in the shop and in battle:** from day 2 on (never day 1) all three can be on sale: the FUSER and SCATTER MILL at
+  the tinker, the SMELTER at the alchemist. An enemy STUN can stall a gate like a factory, and LODESTONE counts a stalled
+  gate like a stalled factory.
+- **Gates on a small screen:** a gate's tap panel now shows its own numbers in the one-line effect at the top (the FUSER's
+  2 slugs in and 1 out with its 50%, the SCATTER MILL's 1 in and 3 out, the SMELTER's +2 BURN), as a plain rig's does; the
+  three showed no effect line there before.
+- **Eight enchantments:** FIERY, RISING, GROWING, ECHOING, MASSIVE, SWIFT, WIDE and BRACED. Each adds one effect to a rig,
+  a factory or a turret and prints its word before the part's name, in its colour. MASSIVE goes on turrets only and SWIFT
+  on factories only. A part holds one: a new one replaces it (the game asks first: REPLACES FIERY), selling the part loses
+  it (SELL? FIERY IS LOST), and it stays when you move the part.
+- **The ENCHANTER:** a new merchant rides the caravan on days 3, 5, 7, 9 and every odd day after, with two different
+  enchantments for 4 gold each. Buying one means putting it on a part.
+- **Free picks:** your first win over a Hard warlord from day 5 on, and the win over the Iron Matriarch, each let you pick
+  one of two enchantments (NO THANKS skips it). LAST CHANCE's part card can come enchanted.
+- **Merging:** when two parts with different enchantments merge, you choose which one the merged part keeps; when only one
+  has an enchantment, the merge keeps it. A factory whose extra belt from WIDE is in use keeps WIDE: another enchantment
+  is refused on it (TAKE ITS EXTRA BELT OFF FIRST) and a merge keeps WIDE.
+- **What a word cannot go on:** FIERY, RISING, GROWING and ECHOING are refused on a rig whose arrows hit no slug (IT HITS
+  NO SLUGS), and ECHOING on a rig with nothing in its hit to double, such as TOLLBOOTH, BRACE FRAME or BALLAST (NOTHING TO
+  DOUBLE).
+- **GROWING** adds damage after each dusk fight (a win, a loss or a draw) and shows its count: a white number in a green
+  frame. **FIERY** reads ADDS +1 BURN TO EACH HIT (TO ITS SLUGS on a factory, TO EACH SHOT on a turret), and a part's notes
+  say which numbers are the part's own and which the enchantment changed.
+- **Rival captains carry enchantments of their own:** one from day 5, a second from day 8, a third from day 12. A part a
+  captain drops keeps its enchantment; the drop list and the victory card show it in colour before the part's name, and
+  the victory card spells the star (STAR 2).
+- **The ASH SHRINE** is a new road event. It offers an enchantment for some of your max hull or for one part from your
+  cargo, and you choose which part gets it. Its second card says how many parts it takes (1x TEMPER); with nothing in
+  cargo, that card is greyed and shows what it would cost and give (1x CARGO PART) instead of FREE and NOTHING, and the
+  red reason stays.
+- **Clearer cards:** RISING's and GROWING's lines give the damage for the day you are on, the same numbers as the stat
+  row, on a part's panel and on every enchantment card in a run (on day 6 a one-star growing part adds 10 after each dusk
+  fight, not 5). A warlord victory with a bounty reads like +13 GOLD: 3 WIN, 10 BOUNTY. An enemy part's panel says whose
+  part it is (SPARKFANG'S HEAVY TURRET IN SLOT 1).
+- **POISON is weaker:** each POISON now takes 2 hull damage every second (was 3).
+- **CINDER MAIL's SHIELD counts:** a hull whose only SHIELD comes from CINDER MAIL now counts as shielded in the belt
+  panel's damage estimate for rigs that spend your SHIELD, and the battle screen shows your SHIELD strip.
+- **Captain decks:** BRASSWICK (Easy) builds his second factory on day 7 (was day 5), OLD BULWARK (Hard) brings GREASE
+  WORKS to his warlord fights from day 3 (was day 6), and RATCHET (Easy) carries BRACED on his kiln from day 8.
+- **Softer field:** two of the three seed ghosts each hero has on a day are picked to beat the AI's decks of the day 15% of
+  the time (was 25%).
+- **ENDLESS:** THE GOD gains 1500 hull per endless win (was 250).
+
+The battle rules are now bb-0.13.0, so players of 0.9.14 meet only 0.9.14's ghosts; a run saved on 0.9.13 carries on under
+the new rules, keeps the one foe it had already drawn for its day, and can find the gates and the ENCHANTER in its later
+shops.
+
 ## 0.9.13: rigs that count, POISON and ENDLESS
 
 New battle rules: bb-0.12.0. Ghosts and uploads from bb-0.11.0 and older no longer meet this release's players (a run

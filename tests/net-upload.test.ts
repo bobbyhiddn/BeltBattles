@@ -6,9 +6,12 @@ import { MATRIARCH_DAY, maxGoldByDay as rivalsGold, warlordPool, DIFFICULTIES } 
 import { STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES, STAND_IN_POOL_RULES, standInPool } from "../src/sim/standInPool"; // BUMP-1D: + STAND_IN_POOL_DAYS (16)
 import { loadGhostPool } from "../src/net/fallback";
 import { samplePoolJson } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache"; // CACHE-1: the cached twin (samplePoolJson() alone would build the pool for real: its default is generateSamplePool())
 import { randomBuild } from "../src/sim/harness/gen";
 import { HARNESS_HEROES } from "../src/sim/harness/heroes";
-import { EVENTS, EVENT_IDS, SWAP_TIER, UPGRADE, salvagePool, smugglerPool, type Delta, type EventId, type EventState } from "../src/game/eventDefs";
+import { EVENTS, EVENT_IDS, SWAP_TIER, UPGRADE, eventIds, salvagePool, smugglerPool, type Delta, type EventId, type EventState } from "../src/game/eventDefs";
+import { withEnchant } from "../src/sim/enchant"; // ENCHANT-2 (REQ-BFG-085, T3): the ASH SHRINE is a road event only under ENCHANT
+import { SHRINE_HULL } from "../src/game/shrine"; // BUMP-1F (RULING-BUMP1F-R3.1): the shrine's OFFER HULL card costs this much max hull (100): a hull sum the player mode takes
 import { blockReason } from "../src/game/events";
 import { MATRIARCH_GOLD, ROAD_PICKS, rewardGold, warlordDeck, warlordDeckDay, warlordReward } from "../src/game/road";
 import { newRun, pendingRune, rollShop, storePlaced, takeRune } from "../src/game/run"; // BUMP-1D: + rollShop (the price test)
@@ -249,16 +252,26 @@ describe("roadCap: the player budget, derived from the live tables (D2)", () => 
 
 describe("player hull and belt rules (D3)", () => {
   // NUM-1: x10 (was [0, 20, -10, 10] and % 25)
-  const reachable = (h: number, day: number) =>
+  // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2: ENCHANT ships on and the ASH SHRINE is a road event whose OFFER HULL card costs SHRINE_HULL, 100 max hull, as RIDE THROUGH does):
+  // this is the ENCHANT-off world's model, the one sum list the file had (reachableOff, used under withEnchant(.., false)); the shipped world's is `reachable` below
+  const reachableOff = (h: number, day: number) =>
     [0, DOCK, RIDE, DOCK + RIDE].some((r, i) => h - r >= 0 && (h - r) % PLATE === 0 && (i < 3 || day >= 2)); // dock + storm need 2 road stops
+  // BUMP-1F: the shipped world's: every sum of the dock (+200), the storm (-100) and the shrine (-SHRINE_HULL), each with the road stops it takes (one a day):
+  // the shrine alone -100 (one stop), dock + shrine 100 and storm + shrine -200 (two), all three 0 (three); measured against the validator, days 1, 2, 3 and 10
+  const SUMS: [number, number][] = [[0, 0], [DOCK, 1], [RIDE, 1], [DOCK + RIDE, 2], [-SHRINE_HULL, 1], [DOCK - SHRINE_HULL, 2], [RIDE - SHRINE_HULL, 2], [DOCK + RIDE - SHRINE_HULL, 3]];
+  const reachable = (h: number, day: number) => SUMS.some(([r, stops]) => h - r >= 0 && (h - r) % PLATE === 0 && stops <= day);
 
-  it("accepts exactly the hullBonus values an honest run can reach by the day (plates, dock +200, ride-through -100)", () => {
-    for (const day of [1, 2, 10]) {
-      for (let h = -400; h <= 1600; h += 50) { // NUM-1: x10 (was -40..160 step 5)
-        const e = up(deck([], 0, 0, h), day).errors; // FLIP-X2: with its day's runes
-        expect(e.some((x) => x.startsWith("supply: hullBonus")), `day ${day} hull ${h}: ${e.join(" | ")}`).toBe(!reachable(h, day));
+  it("accepts exactly the hullBonus values an honest run can reach by the day (plates, dock +200, ride-through -100; with ENCHANT the shrine's -100 too)", () => { // BUMP-1F (RULING-BUMP1F-R3.1): was without "; with ENCHANT the shrine's -100 too"
+    const sweep = (reach: (h: number, day: number) => boolean) => {
+      for (const day of [1, 2, 10]) {
+        for (let h = -400; h <= 1600; h += 50) { // NUM-1: x10 (was -40..160 step 5)
+          const e = up(deck([], 0, 0, h), day).errors; // FLIP-X2: with its day's runes
+          expect(e.some((x) => x.startsWith("supply: hullBonus")), `day ${day} hull ${h}: ${e.join(" | ")}`).toBe(!reach(h, day));
+        }
       }
-    }
+    };
+    sweep(reachable); // BUMP-1F (RULING-BUMP1F-R3.1): the shipped world, the shrine in the bag (was sweep(reachableOff), the only sweep: day 2 hull -200 was "not reachable")
+    withEnchant(() => sweep(reachableOff), false); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2)): and the world the file was made in, ENCHANT off, as before
   });
 
   it("the HULL_FLOOR is events.ts's HULL TOO WEAK", () => {
@@ -302,7 +315,15 @@ describe("player hull and belt rules (D3)", () => {
   it("the mixes: every combination of the road's hull and belt choices, costed by the plans that take them", () => {
     const keys = roadMixes().map((m) => m.key).sort();
     // NUM-1: the hull parts x10 (were dock(20,0) and storm(-10,0))
-    expect(keys).toEqual(["", "cache(0,4)", "cache(0,4) dock(200,0)", "cache(0,4) dock(200,0) storm(-100,0)", "cache(0,4) storm(-100,0)", "dock(200,0)", "dock(200,0) storm(-100,0)", "storm(-100,0)"]);
+    // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2: the ASH SHRINE's OFFER HULL card is a hull choice like RIDE THROUGH): with ENCHANT on the four events with a hull or belt choice (cache, dock, storm
+    // and the shrine) make 2^4 = 16 mixes (the keys in a mix list by event in the roadOptions order: cache, dock, storm, shrine); the eight of the ENCHANT-off world, which the file pinned, are
+    // checked under withEnchant(.., false) beside them. Measured with the shipped switches
+    expect(keys).toEqual([
+      "", "cache(0,4)", "cache(0,4) dock(200,0)", "cache(0,4) dock(200,0) shrine(-100,0)", "cache(0,4) dock(200,0) storm(-100,0)", "cache(0,4) dock(200,0) storm(-100,0) shrine(-100,0)",
+      "cache(0,4) shrine(-100,0)", "cache(0,4) storm(-100,0)", "cache(0,4) storm(-100,0) shrine(-100,0)", "dock(200,0)", "dock(200,0) shrine(-100,0)", "dock(200,0) storm(-100,0)",
+      "dock(200,0) storm(-100,0) shrine(-100,0)", "shrine(-100,0)", "storm(-100,0)", "storm(-100,0) shrine(-100,0)",
+    ]);
+    withEnchant(() => expect(roadMixes().map((m) => m.key).sort()).toEqual(["", "cache(0,4)", "cache(0,4) dock(200,0)", "cache(0,4) dock(200,0) storm(-100,0)", "cache(0,4) storm(-100,0)", "dock(200,0)", "dock(200,0) storm(-100,0)", "storm(-100,0)"]), false); // BUMP-1F: the old eight
     for (const m of roadMixes()) {
       for (let d = 1; d <= RUN_DAYS; d++) {
         const c = roadCapFor(d, m);
@@ -315,12 +336,20 @@ describe("player hull and belt rules (D3)", () => {
 
 describe("adversarial decks (M3): each refused by the player mode with the right category", () => {
   it("1 gold over maxHonestSpend is refused on budget; exactly maxHonestSpend passes", () => {
-    for (let d = 1; d <= RUN_DAYS; d++) {
-      const at = deckCosting(maxHonestSpend(d)), over = deckCosting(maxHonestSpend(d) + 1);
-      expect(buildCost(at).total).toBe(maxHonestSpend(d));
-      expect(up(at, d), `day ${d}`).toEqual({ ok: true, errors: [] }); // FLIP-X2: with its day's runes
-      expect(cats(over, d), `day ${d}`).toEqual(["budget"]);
-    }
+    // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2: the ASH SHRINE costs 100 max hull): with the shrine in the bag, DOCK (+200) + STORM (-100) + SHRINE (-100) is a mix whose hull is 0, a
+    // plate-only deck's, so the player mode takes a plate-only deck at the best of the mixes that explain its hull, and on day 10 the forced three pay more than the unforced
+    // roadCap(10): the ceiling of a plate-and-crate deck there is maxHonestSpend(10) + 3 = 253 (measured; days 1-9 are maxHonestSpend exactly). Was `top = maxHonestSpend(d)` on every day
+    const check = (extra: (d: number) => number) => {
+      for (let d = 1; d <= RUN_DAYS; d++) {
+        const top = maxHonestSpend(d) + extra(d);
+        const at = deckCosting(top), over = deckCosting(top + 1);
+        expect(buildCost(at).total).toBe(top);
+        expect(up(at, d), `day ${d}`).toEqual({ ok: true, errors: [] }); // FLIP-X2: with its day's runes
+        expect(cats(over, d), `day ${d}`).toEqual(["budget"]);
+      }
+    };
+    check((d) => (d === RUN_DAYS ? 3 : 0)); // the shipped world
+    withEnchant(() => check(() => 0), false); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2)): ENCHANT off, the world the pin was made in: maxHonestSpend exactly, every day
   });
 
   // BUMP-1D (PLAIN_RIGS and SHAPES2 on: the catalogue grew by twelve pieces, RASP at 4 G): the budget line prices a piece by its
@@ -353,9 +382,17 @@ describe("adversarial decks (M3): each refused by the player mode with the right
 
   it("a hull one step off the reachable set is refused on supply", () => {
     // NUM-1: x10 (were 30, 5, -20 and 10), so each is still the same step off the reachable set
-    expect(cats(deck([], 0, 0, 300), 5)).toEqual(["supply"]); // 300 = 250 + 50: no mix
-    expect(cats(deck([], 0, 0, 50), 10)).toEqual(["supply"]);
-    expect(cats(deck([], 0, 0, 2 * RIDE), 10)).toEqual(["supply"]); // below one RIDE THROUGH (-200)
+    // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2): the shrine's -100 makes 300 (STORM + SHRINE, -200, and two plates), 50 and -200 reachable by day 10 (and 300 by day 5), so those
+    // three steps are pinned in the ENCHANT-off world (withEnchant(.., false)) and the shipped world's steps follow: still off the 50 grid, or below the lowest sum (-200)
+    withEnchant(() => {
+      expect(cats(deck([], 0, 0, 300), 5)).toEqual(["supply"]); // 300 = 250 + 50: no mix
+      expect(cats(deck([], 0, 0, 50), 10)).toEqual(["supply"]);
+      expect(cats(deck([], 0, 0, 2 * RIDE), 10)).toEqual(["supply"]); // below one RIDE THROUGH (-200)
+    }, false);
+    expect(cats(deck([], 0, 0, 325), 5)).toEqual(["supply"]); // BUMP-1F: 325 = 250 + 75: no mix, the shrine or not (was 300)
+    expect(cats(deck([], 0, 0, 25), 10)).toEqual(["supply"]); // BUMP-1F: off the 50 grid (was 50)
+    expect(cats(deck([], 0, 0, 2 * RIDE - 50), 10)).toEqual(["supply"]); // BUMP-1F: below STORM + SHRINE (-200), the lowest sum (-250; was 2 * RIDE, one RIDE THROUGH's step below)
+    expect(cats(deck([], 0, 0, 2 * RIDE), 10)).toEqual([]); // BUMP-1F: -200 = STORM + SHRINE, two road stops, is reachable
     expect(cats(deck([], 0, 0, DOCK + RIDE), 1)).toEqual(["supply"]); // dock + storm: two road stops (100)
   });
 
@@ -443,10 +480,10 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
     expect(n).toBe(72);
     console.log(`BUMP-1D: the ${STAND_IN_POOL_RULES} stand-in pool, days 11-16: ${n} decks; ${carry.turrets} carry a turret list (${carry.bought} with a bought turret), ${carry.joined} a joined belt (${carry.joins} joins), ${carry.both} both`);
     expect(carry).toEqual(POOL_CARRIES_LONG);
-  });
+  }, 120_000); // BUMP-1F (RULING-BUMP1F-R8 R8.1): 120 s for this test, was vitest's 30-s default: it passes alone but times out at 30 s once the host's 1-minute load passes ~15; no body, count or expectation changed
 
   it("the bundled ghost pool (tools/samplePool.ts): the strict loader takes every snapshot and the player mode accepts each", () => {
-    const load = loadGhostPool(samplePoolJson());
+    const load = loadGhostPool(samplePoolJson(generateSamplePool())); // CACHE-1: was samplePoolJson() (its default argument, generateSamplePool(), run for real)
     expect(load.rejected).toEqual([]);
     expect(load.entries).toHaveLength(192); // 0.7.0a D5: 40 sample ghosts and 20 floor ghosts; 0.8.0 RC: 60 race ghosts (was 60). BUMP-1D: was 120 (days 1-10); days 1-16: 4 heroes x 16 days x 3 variants = 192
     let turrets = 0, joined = 0;
@@ -519,14 +556,14 @@ describe("game bugs found on the way (REPORT.md §7)", () => {
 
 describe("the D4 guard: new road content must update the ceiling on purpose", () => {
   /** Every Delta kind any event choice holds, under a broad set of states (empty, each held part, a deck rig). */
-  function liveKinds(): Set<string> {
+  function liveKinds(ids: readonly EventId[] = EVENT_IDS): Set<string> { // ENCHANT-2 (T3): `ids`, the rules world's events (default: the ten of the ENCHANT-off world)
     const kinds = new Set<string>();
     const runs = [newRun("furnace", 7), ...buyableModules().map((d) => {
       const r = newRun("weaver", 7);
       gainModule(r, d.id);
       return r;
     })];
-    for (const e of EVENT_IDS) {
+    for (const e of ids) {
       for (const run of runs) {
         for (let j = 0; j < 32; j++) {
           const ev: EventState = { day: 1, id: e, roll: 0, pick: (j + 0.5) / 32, picked: -1 };
@@ -538,8 +575,13 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
   }
 
   it("every event, Delta kind, fork pick and warlord reward field of the live content is modelled", () => {
-    expect([...EVENT_IDS].sort()).toEqual(Object.keys(MODELLED_EVENTS).sort());
+    expect([...EVENT_IDS].sort()).toEqual(Object.keys(MODELLED_EVENTS).filter((e) => e !== "shrine").sort()); // ENCHANT off: the ten events the game had
     for (const k of liveKinds()) expect(MODELLED_DELTAS, `Delta kind "${k}"`).toContain(k);
+    withEnchant(() => { // ENCHANT-2 (T3): ENCHANT on, the ASH SHRINE is the eleventh event and "ench" a Delta kind: both reviewed
+      expect([...eventIds()].sort()).toEqual(Object.keys(MODELLED_EVENTS).sort());
+      for (const k of liveKinds(eventIds())) expect(MODELLED_DELTAS, `Delta kind "${k}" (ENCHANT on)`).toContain(k);
+      expect(liveKinds(eventIds()).has("ench")).toBe(true);
+    });
     expect([...ROAD_PICKS]).toEqual([...MODELLED_PICKS]);
     for (let d = 1; d <= RUN_DAYS; d++) {
       for (const t of DIFFICULTIES) {
@@ -614,10 +656,15 @@ describe("the D4 guard: new road content must update the ceiling on purpose", ()
 // turrets 72, bought 31, joined 81, joins 185, both 51); days 11-16 are the twin test's (POOL_CARRIES_LONG)
 // BUMP-1E: the stand-in pool regenerated under bb-0.12.0 (R1, 19ae423: every switch on, the seven scaling rigs in the shop; 192 decks):
 // the same days 1-10 now measure turrets 62, bought 29, joined 82, joins 184, both 37 (was turrets 74, bought 38, joined 78, joins 191, both 52)
-const POOL_CARRIES = { turrets: 62, bought: 29, joined: 82, joins: 184, both: 37 };
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): the regenerated pool): the stand-in pool regenerated under bb-0.13.0 (src/sim/standInPoolData.ts: 192 decks, days 1-16, GATES and ENCHANT shipped on in the shop and
+// on the road): the same days 1-10 now measure turrets 92, bought 35, joined 78, joins 158, both 61 (the test's own console line, "v070-rel: the bb-0.13.0 stand-in pool: 120 decks"; was turrets 62,
+// bought 29, joined 82, joins 184, both 37)
+const POOL_CARRIES = { turrets: 92, bought: 35, joined: 78, joins: 158, both: 61 };
 /** BUMP-1D: the same five counts over the pool's days 11-16 (72 decks; the long run's: new, measured once on the final pool). BUMP-1E: turrets 55, bought 26,
  *  joined 52, joins 144, both 41 on the bb-0.12.0 pool (was turrets 51, bought 28, joined 53, joins 161, both 37) */
-const POOL_CARRIES_LONG = { turrets: 55, bought: 26, joined: 52, joins: 144, both: 41 };
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): the regenerated pool): the bb-0.13.0 pool's days 11-16 measure turrets 72, bought 39, joined 44, joins 118, both 44 (the twin test's console line, "BUMP-1D: the bb-0.13.0
+// stand-in pool, days 11-16: 72 decks"; was turrets 55, bought 26, joined 52, joins 144, both 41)
+const POOL_CARRIES_LONG = { turrets: 72, bought: 39, joined: 44, joins: 118, both: 44 };
 /** The bundled ghost pool's snapshots with a turret list and with a joined belt. */
 // 0.7.0a D5: the seed pool's 40 sample ghosts carry turret lists and joined belts; its 20 floor ghosts add theirs
 // (tests/seed.records.test.ts checks the split). 0.8.0 I1 M3 (oracle 64485b535a06683c): from the regrown pool, the sample
@@ -652,4 +699,4 @@ const POOL_CARRIES_LONG = { turrets: 55, bought: 26, joined: 52, joins: 144, bot
 // are the softer picks, 79 of 80 par-field runs' dusk decks (sample 22 and 23, floor 2 and 10 as before, race 19 and 30;
 // tests/seed.records.test.ts): was 51, 69
 // BUMP-1D (run 3): the seed pool regenerated for days 1-16 (192 ghosts; R3', server/seedPoolData.ts 0546f5afe4bab423): 108 carry a turret list, 106 a joined belt (was 43, 63 of 120)
-const GHOST_POOL_CARRIES = [114, 110]; // BUMP-1E: the seed pool regenerated under bb-0.12.0 (R3, 04fab9a: 192 ghosts) carries a turret list on 114 and a joined belt on 110 (was 108, 106). bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61; BUMP-1D: was 43, 63
+const GHOST_POOL_CARRIES = [145, 101]; // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): the regenerated pool): the seed pool regenerated under bb-0.13.0 (server/seedPoolData.ts: 192 ghosts, SOFT_TARGET 150) carries a turret list on 145 and a joined belt on 101 (the test's console line "v070-rel: the bundled ghost pool: 192 snapshots; 145 carry a turret list, 101 a joined belt"; was 114, 110). BUMP-1E: the seed pool regenerated under bb-0.12.0 (R3, 04fab9a: 192 ghosts) carries a turret list on 114 and a joined belt on 110 (was 108, 106). bb-0.8.6 (PACKS M4): the seed pool from the regenerated stand-in pool (was 26, 68); NUM-2: was 22, 62; NUM-3: was 22, 61; BUMP-1D: was 43, 63

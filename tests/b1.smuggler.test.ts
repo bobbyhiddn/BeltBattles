@@ -163,12 +163,17 @@ describe("the SMUGGLER's contraband rule (0.8.0 B1 M4, REQ-BFG-033)", () => {
     // [119] (was none), each blocked on 7 days x 4 picks = 28, so 10 x 28 = 280. The bb-0.11.0 world (the scaling switch off, everything else as shipped) reads
     // BUMP-1D's 112 exactly (the next line), so the seven are the cause and nothing else moved it. Still exact, and still a stop-and-ask for any later pool or tier
     // change; the 4% share bound of the 2,000-run test below is the line this world crosses (see there)
+    // BUMP-1F (RULING-BUMP1F-R11 R11.1; GATES ships on, bb-0.13.0): 196 (was 280). Two causes, both measured (kit-1f/r6wares.test.ts, fresh process each; output-bump1f/bisect/): (1) P2's F1 (6ce4bd82afe5, the
+    // canonical ITEMS key order) re-orders which ware each seed's draw lands on in EVERY world: with GATES, ENCHANT and SCALE as bb-0.12.0 had them the 120 seeds read 252 now (was 280, the pre-F1 parent 1459562
+    // read 280): 1,996 of the 2,000 table seeds draw different wares (the scaling switch on, the other two off), and each (ware, unlock day) count over the 2,000 is the base's within noise (306 cells, mean z^2 0.28, max |z| 2.28), so the odds did not move;
+    // (2) the three gates join the buyable modules (113, was 110), so the draw covers a smaller share again. Of these 120 seeds 5 draw no SHOCK ware now, TABLE_SEEDS[23], [37], [52], [68] and [82], and 2 draw no
+    // BURN ware, [8] and [26] (was 8 and 2), each blocked on 7 days x 4 picks = 28, so 7 x 28 = 196. Still exact, and still a stop-and-ask for any later pool or tier change
     expect(SCALE_RIGS).toBe(true);
-    expect(blocked).toBe(280); // BUMP-1E: was 112
-    expect(withScaleRigs(blockedOf120, false)).toBe(112); // BUMP-1E: the bb-0.11.0 world keeps BUMP-1D's count
+    expect(blocked).toBe(196); // BUMP-1F: was 280 (BUMP-1E: was 112)
+    expect(withScaleRigs(blockedOf120, false)).toBe(112); // BUMP-1E: the bb-0.11.0 world keeps BUMP-1D's count. BUMP-1F: unchanged by luck (GATES on and the canonical order: 112 again; with GATES off the order alone reads 140)
     // BUMP-1D: the bb-0.10.0 world (SHAPES on; PLAIN_RIGS and SHAPES2 off) keeps SHAPES-1's count, the one seed of the 120
     // BUMP-1E: (world() reads it with the scaling rules off too, the outermost switch of its nest)
-    expect(world(blockedOf120, true)).toBe(28);
+    expect(world(blockedOf120, true)).toBe(0); // BUMP-1F (R11.1): was 28 (TABLE_SEEDS[37] drew no SHOCK ware there; in the canonical order, with the three gates among the buyable modules, none of these 120 does)
     // a run that drew no SHOCK ware: SHOCK is blocked on every day, BURN is not
     // BUMP-1D: TABLE_SEEDS[7] is itself one of the four above now (the filter below takes out nothing from its wares); the
     // made-up run and the real one are the same run, and the check is the same
@@ -183,7 +188,9 @@ describe("the SMUGGLER's contraband rule (0.8.0 B1 M4, REQ-BFG-033)", () => {
     expect(smugglerStock("SHOCK", { wares: noShock, day: 10 })).toEqual([]);
     // BUMP-1D: and the other way round, now that a real run exists for it: TABLE_SEEDS[929] draws no BURN ware (the only one of the
     // 2,000 table seeds; it holds 3 SHOCK wares): BURN is blocked on every day, SHOCK is not
-    const noBurn = drawWares(TABLE_SEEDS[929]);
+    // BUMP-1F (RULING-BUMP1F-R11 R11.1): TABLE_SEEDS[8] (it holds 3 SHOCK wares; the first of the 18 table seeds that draw no BURN ware now; [929] draws BURN wares in the canonical order and with the three gates among the
+    // buyable modules: ['bellows', 'rasp']). The check below is the same
+    const noBurn = drawWares(TABLE_SEEDS[8]);
     expect(drawnOf(noBurn, "BURN")).toEqual([]);
     expect(drawnOf(noBurn, "SHOCK").length).toBeGreaterThan(0);
     for (let day = 1; day <= RUN_DAYS; day++) for (const pick of PICKS) {
@@ -316,10 +323,12 @@ describe("the SMUGGLER's blocked rate under the rule (2,000 runs, tests/wares.te
     // (6.55%), SHOCK 471 (23.55%) (was [29, 335]). The same cause as BUMP-1D's, a bigger catalogue (the seven rigs of SCALE_IDS: 110 buyable modules; the
     // bb-0.11.0 world, the scaling switch off, reads [29, 335] exactly, below). Measured on days 1-10, BURN 131, 131, 131, 131, 131, 61, 61, 22, 22, 22 and SHOCK
     // 471, 471, 206, 206, 206, 136, 136, 104, 104, 104: from day 8, the last restock, no unlocked ware means none drawn, the [noneB, noneS] pinned below
-    expect([tally.emptyB[0], tally.emptyS[0]]).toEqual([131, 471]); // BUMP-1E: was [29, 335]
+    // BUMP-1F (RULING-BUMP1F-R11 R11.1; GATES ships on, and P2's F1 re-orders the draw, 6ce4bd82afe5): BURN with no unlocked ware on day 1 111 (5.55%), SHOCK 384 (19.20%) (was [131, 471]); the same two causes as
+    // b1.smuggler's first test above: the canonical ITEMS order alone reads [123, 467] with GATES off (was [131, 471]; the pre-F1 parent reads [131, 471]), the three gates among the buyable modules take it to [111, 384]
+    expect([tally.emptyB[0], tally.emptyS[0]]).toEqual([111, 384]); // BUMP-1F: was [131, 471] (BUMP-1E: was [29, 335])
     expect(SCALE_RIGS).toBe(true);
     const day1 = (ws: Wares[]): number[] => [ws.filter((x) => !openOf(x, "BURN", 1).length).length, ws.filter((x) => !openOf(x, "SHOCK", 1).length).length];
-    expect(withScaleRigs(() => day1(TABLE_SEEDS.map((s) => drawWares(s))), false)).toEqual([29, 335]); // BUMP-1E: the bb-0.11.0 world keeps BUMP-1D's pair
+    expect(withScaleRigs(() => day1(TABLE_SEEDS.map((s) => drawWares(s))), false)).toEqual([33, 242]); // BUMP-1E: the bb-0.11.0 world keeps BUMP-1D's pair. BUMP-1F (R11.1): [33, 242] with GATES on and the canonical order (was [29, 335]; GATES off: [30, 351])
     // about 2% expected (VERIFIED-I1's call 4): a run drew none of an effect's three rigs. REDO-X (cap's ruling
     // 9bbe787110a51646): I1's ~2% has been 0 since 74e14a1 (FIX-ABE's stand-ins: ALCHEMIST's rare tier always holds at least
     // 4 of COIL, VENOM, BELLOWS, QUENCH TANK and STATIC BRUSH). A tripwire: if a later pool or tier change makes a no-BURN or
@@ -343,19 +352,19 @@ describe("the SMUGGLER's blocked rate under the rule (2,000 runs, tests/wares.te
     // BUMP-1E (the brief's (a)(ii); the same cause): 22 of the 2,000 runs (1.10%) draw no BURN ware and 104 (5.20%) draw no SHOCK ware, so [22, 104] (was [1, 60]).
     // The bb-0.11.0 world (the scaling switch off) reads [1, 60] exactly (below). The SHOCK share bound above went from 0.04 to 0.06 by cap's ruling (oracle b648372ad6c78cb6; C8's numbers
     // there): about 1 run in 19 now sees no SHOCK ware on offer at all (live 0.9.12: 3.00%). The SHOCK source stays a later design call for the pieces lane, for the next rules release
-    expect([noneB, noneS]).toEqual([22, 104]); // BUMP-1E: was [1, 60]
+    expect([noneB, noneS]).toEqual([18, 77]); // BUMP-1F (R11.1): 18 of the 2,000 runs (0.90%) draw no BURN ware and 77 (3.85%) draw no SHOCK ware (was [22, 104], 5.20%; the SHOCK bound 0.06 above stands). BUMP-1E: was [1, 60]
     // BUMP-1D: and the bb-0.10.0 world (SHAPES on; PLAIN_RIGS and SHAPES2 off) keeps SHAPES-1's numbers exactly: day 1 [26, 165]
     // (BURN, SHOCK with no unlocked ware) and [noneB, noneS] [0, 7]
     const none = (ws: Wares[]): number[] => [ws.filter((x) => !drawnOf(x, "BURN").length).length, ws.filter((x) => !drawnOf(x, "SHOCK").length).length];
     const wasPair = withScaleRigs(() => none(TABLE_SEEDS.map((s) => drawWares(s))), false);
-    expect(wasPair).toEqual([1, 60]); // BUMP-1E: the bb-0.11.0 world keeps BUMP-1D's pair
+    expect(wasPair).toEqual([3, 32]); // BUMP-1E: the bb-0.11.0 world keeps BUMP-1D's pair. BUMP-1F (R11.1): [3, 32] (the canonical order and the three gates; was [1, 60])
     expect(wasPair[0] / n).toBeLessThan(0.04); // BUMP-1E: and its 4% bounds (the shipped world's SHOCK bound is 0.06 above)
     expect(wasPair[1] / n).toBeLessThan(0.04);
     const was10 = world(() => {
       const ws = TABLE_SEEDS.map((s) => drawWares(s));
       return { day1: [ws.filter((x) => !openOf(x, "BURN", 1).length).length, ws.filter((x) => !openOf(x, "SHOCK", 1).length).length], none: none(ws) };
     }, true);
-    expect(was10).toEqual({ day1: [26, 165], none: [0, 7] });
+    expect(was10).toEqual({ day1: [19, 83], none: [0, 0] }); // BUMP-1F (R11.1): was { day1: [26, 165], none: [0, 7] } (the canonical order and the three gates among the buyable modules)
     // and the old-rules world (SHAPES, SHAPES2 and PLAIN_RIGS off; was SHAPES off alone) keeps its tripwire: no run draws none of an effect
     const offNone = world(() => none(TABLE_SEEDS.map((s) => drawWares(s))), false);
     expect(offNone).toEqual([0, 0]);

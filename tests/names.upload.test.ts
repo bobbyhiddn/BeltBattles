@@ -22,7 +22,7 @@ import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
 import { uploadProblems, type StoredRecord } from "../server/ghostAdmin";
-import { floorGhosts, generateSamplePool, sampleGhosts } from "../tools/samplePool";
+import { floorGhosts, generateSamplePool, sampleGhosts } from "./helpers/poolCache";
 import { storeBackends } from "./netStores";
 import { signedHeaders, testIdentity } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";

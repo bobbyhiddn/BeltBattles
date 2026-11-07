@@ -11,6 +11,7 @@ import { installRaster, fresh, G } from "./raster.helpers";
 import { newRun, type Run } from "../src/game/run";
 import { buyableModules } from "../src/sim/content";
 import { SCALE_IDS } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the seven new rigs
+import { GATES_IDS } from "../src/sim/gates"; // BUMP-1F (GATES on, bb-0.13.0): the three converters join the buyable modules
 import { itemByUid, key as K, rotField, setTurretList, turretSlots, type Placed } from "../src/sim/deck";
 import { fusible } from "../src/sim/stars";
 import { UI, type Rect } from "../src/ui/ui";
@@ -282,8 +283,10 @@ describe("ZOOM-1: the band sized for 90% of the panels (REQ-BFG-080 acceptance 2
     // BUMP-1D: the six plain stat rigs and the six more shaped rigs join the buyable modules, 13 panels each: 938 + 12 x 13 = 1094
     // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0): the seven new scaling rigs (SCALE_IDS) join the buyable modules, 13 panels each (an offer, and
     // at each of 3 stars a cargo panel and 3 placed ones): 1094 + 7 x 13 = 1185
-    expect(all.length).toBe(1185); // BUMP-1E: was 1094
-    expect(all.length - 1094).toBe(SCALE_IDS.length * 13); // BUMP-1E: the growth is the seven new rigs' panels and nothing else (7 x 13 = 91)
+    // BUMP-1F (GATES on, bb-0.13.0; RULING-BUMP1F-R5 R5.2 (2)): the three converters (GATES_IDS: FUSER, SCATTER MILL, SMELTER) join the buyable modules: a converter is fusible and neither a rig, a
+    // factory, gear, a core nor a turret, so its panels are an offer and a cargo panel at each of 3 stars, 4 each, 3 x 4 = 12 (no placed panel): 1185 + 12 = 1197
+    expect(all.length).toBe(1197); // BUMP-1F (GATES on): was 1185 (BUMP-1E: was 1094)
+    expect(all.length - 1094).toBe(SCALE_IDS.length * 13 + GATES_IDS.length * 4); // BUMP-1F: was SCALE_IDS.length * 13 (BUMP-1E: the growth is the seven new rigs' panels and nothing else, 7 x 13 = 91); now + the converters' 12
     // SPACE-1 (REQ-BFG-087, D6): the re-pinned table's steps (238, 240, 246, 248, 250) and either side of each; was 186, 235,
     // 236, 237, 238, 241, 245, 246, 247, 248, 258, 315, 340
     const widths = [186, 235, 236, 237, 238, 239, 240, 241, 245, 246, 247, 248, 249, 250, 258, 315, 340], rows: string[] = [];

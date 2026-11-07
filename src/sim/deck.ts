@@ -21,6 +21,12 @@ import { canonicalRot, footOf, footOffsets, footOnDeck, footprintCells } from ".
 import { shapesRules } from "./shapes";
 import "./shapes2"; // SHAPES-2 (REQ-BFG-114): loads SHAPES2's switch, so its six defs are in ITEMS whenever it is on (after SHAPES' three)
 import { scaleRules } from "./scale"; // SCALE-2d (REQ-BFG-110): the walk keeps FOR EACH DMG apart while SCALE_RIGS is on
+// BUMP-1F (PACKET-BUMP-0130 section 5): ./scale loads BEFORE ./gates, so ITEMS' key order is the base's ids, SCALE's seven, then GATES' three
+import { gatesRules } from "./gates"; // GATES-1 (REQ-BFG-052): loads GATES's switch, so its three converters are in ITEMS whenever it is on (after SHAPES2's six)
+import { isConverterItem, splitProblem } from "./split"; // GATES-1 (REQ-BFG-057): where a converter may stand (a leaf: no cycle)
+// GATES-1b (REQ-BFG-052 B3): the belt panel's walk through a gate. convert.ts imports this file too: a cycle that is safe, each side
+// reads the other only inside a function (never at load), the way battle.ts and this file already meet
+import { convertCells, convertTicks, convertWalk } from "./convert";
 // re-exported, so the portable stand-in loader and beltside.ts keep importing only ./content and ./deck
 // (tests/standInPool.gen.test.ts)
 export { footOf, footOnDeck, footprintCells, footTurns, isShaped } from "./foot";
@@ -28,6 +34,11 @@ export { RESHAPED_IDS, shapesRules } from "./shapes";
 // SHAPES-2 (REQ-BFG-114): re-exported too, so faces.ts imports it from ../sim/deck (tests/faceText.test.ts: no string literal of faces.ts may hold a
 // digit, an import path included, and shapes2's name does)
 export { isShapes2Piece, shapes2Rules } from "./shapes2";
+export { gatesRules, isGatesPiece } from "./gates"; // GATES-1 (REQ-BFG-052): re-exported, as SHAPES2's are
+export { isConverterItem } from "./split"; // GATES-1 (REQ-BFG-057): beltside.ts imports only ./content and ./deck
+// ENCHANT-1 (REQ-BFG-085): the enchantments' switch and fields; re-exported so the portable stand-in loader (standInPool.ts) imports only ./content and ./deck
+import { enchantField, enchantRate, enchantRules, freeSides, type EnchantFields } from "./enchant";
+export { enchantCodeOf, enchantIdOfCode, enchantField, enchantRules } from "./enchant";
 
 export type Dir = 0 | 1 | 2 | 3;
 export const DX = [0, 1, 0, -1];
@@ -45,7 +56,9 @@ export interface Placed {
   // SHAPES-1 (REQ-BFG-086 R1): also a shaped factory's, in its lowest form that gives the same cells (foot.ts
   // canonicalRot: a 2x3 or I3 factory 1, a 2x2 never). (x, y) is the top-left of the turned footprint's bounding box.
   rot?: number;
-  grow?: number; // RUNES-1 (snapshot v3): GROW-1's counter; refused by both snapshot checks until GROW-1 switches it on
+  grow?: number; // RUNES-1 (snapshot v3): GROW-1's counter; refused by both snapshot checks until GROW-1 switches it on. ENCHANT-1: and taken on a piece holding GROWING (enchant.ts), under ENCHANT's rules world
+  ench?: string; // ENCHANT-1 (REQ-BFG-085): the piece's enchantment, an enchant.ts ENCHANT_IDS id; absent when none (a rig, a factory), written after the other keys
+  enchDir?: number; // ENCHANT-1: WIDE on a rig: the added arrow's side at rotation 0 (0-3, a side with no arrow); absent otherwise
 }
 
 export interface RouteDef {
@@ -94,7 +107,8 @@ export interface BuildTurret {
   uid: number;
   stars?: number; // 2 or 3 after a merge; absent = 1 (never written as 1)
   free?: boolean; // S7: true when it contains the hull's starting copy; absent = false (never written as false)
-  grow?: number; // RUNES-1 (snapshot v3): GROW-1's counter; refused until GROW-1 switches it on
+  grow?: number; // RUNES-1 (snapshot v3): GROW-1's counter; refused until GROW-1 switches it on. ENCHANT-1: and taken on a turret holding GROWING
+  ench?: string; // ENCHANT-1 (REQ-BFG-085): the turret's enchantment (an ENCHANT_IDS id); absent when none
 }
 
 /** A turret copy anywhere (a slot's or cargo's): what S7's value and selling read. */
@@ -103,6 +117,8 @@ export interface TurretCopy {
   def: string;
   stars?: number;
   free?: boolean;
+  ench?: string; // ENCHANT-1 (REQ-BFG-085): a copy keeps its word and its GROWING counter (enchantField)
+  grow?: number;
 }
 
 export const key = (x: number, y: number) => y * GRID + x;
@@ -211,7 +227,25 @@ export function dirBetween(a: number, b: number): number {
   return -1;
 }
 
-/** R1 (0.6.2 BELTSIDE): no belt runs through machinery of any kind; the old gate-cell exception is gone. */
+/**
+ * GATES-1 (REQ-BFG-052): the pre-0.6.2 gate-cell exception, back for kind "converter" ONLY. The belt may run through cell
+ * `i` of route `r` when the machinery there is a converter that has belt on both sides: not the route's first cell (next to
+ * its factory) or its last (the turret intake, or a joining belt's end), and no other converter on the cell before or
+ * after it. The route stays ONE RouteDef: the converter is a Placed item on one of its cells. `occ` is occupancy(b).
+ */
+export function converterCellOk(b: Build, r: RouteDef, i: number, occ: Occ[]): boolean {
+  const on = (j: number): Placed | undefined => {
+    const u = occ[r.cells[j]]?.item ?? -1;
+    return u < 0 ? undefined : itemByUid(b, u);
+  };
+  const p = on(i);
+  if (!p || !isConverterItem(p)) return false;
+  const nb = (j: number): boolean => { const q = on(j); return !!q && isConverterItem(q); };
+  return i > 0 && i < r.cells.length - 1 && !nb(i - 1) && !nb(i + 1);
+}
+
+/** R1 (0.6.2 BELTSIDE): no belt runs through machinery of any kind; the old gate-cell exception is gone (GATES-1: but for a
+ *  converter, converterCellOk). */
 export function routeWellFormed(b: Build, r: RouteDef): boolean {
   if (!r.cells.length) return false;
   const f = itemByUid(b, r.factory);
@@ -224,7 +258,7 @@ export function routeWellFormed(b: Build, r: RouteDef): boolean {
     if (k < 0 || k >= GRID * GRID || seen.has(k)) return false;
     seen.add(k);
     if (i > 0 && dirBetween(r.cells[i - 1], k) < 0) return false;
-    if (occ[k].item >= 0) return false;
+    if (occ[k].item >= 0 && !converterCellOk(b, r, i, occ)) return false; // GATES-1 (REQ-BFG-052): a converter may stand on a belt tile
   }
   return true;
 }
@@ -251,9 +285,21 @@ export function rigArrows(def: string | ItemDef, rot = 0): Dir[] {
   return SHAPE_ARROWS[shape].map((d) => ((d + r) % 4) as Dir);
 }
 
-/** A placed rig's arrows (absolute deck-local directions); [] for anything that is not a rig. */
+/** A placed rig's arrows (absolute deck-local directions); [] for anything that is not a rig. ENCHANT-1: WIDE adds one more
+ *  (wideDir), after the rig's own. */
 export function arrowsOf(p: Placed): Dir[] {
-  return rigArrows(p.def, rotOf(p));
+  const a = rigArrows(p.def, rotOf(p));
+  const w = wideDir(p); // ENCHANT-1 (REQ-BFG-085)
+  return w === undefined ? a : [...a, w];
+}
+
+/** ENCHANT-1 (REQ-BFG-085, E3): the absolute side of a WIDE rig's added arrow: its enchDir (the side at rotation 0) turned with
+ *  the rig, or undefined. Only a 1-cell rig with that side free takes it (enchant.ts freeSides: not a shaped rig, an X rig or
+ *  a side that carries an arrow), and only with the switch on; a forged side adds nothing here (the validators refuse it). */
+export function wideDir(p: Placed): Dir | undefined {
+  if (p.ench !== "wide" || p.enchDir === undefined || !enchantRules()) return undefined;
+  if (!freeSides(Object.prototype.hasOwnProperty.call(ITEMS, p.def) ? ITEMS[p.def] : undefined).includes(p.enchDir)) return undefined;
+  return ((p.enchDir + rotOf(p)) % 4) as Dir;
 }
 
 /** The rot to store for a rig: undefined for 0 and for an X rig (D1: absent means 0). SHAPES-1 (R1): for any deck piece,
@@ -363,9 +409,11 @@ export function rigArrowCells(def: string | ItemDef, x: number, y: number, rot =
   return out;
 }
 
-/** SHAPES-1 (R2): a placed rig's arrows (rigArrowCells at its own cell and rot). */
+/** SHAPES-1 (R2): a placed rig's arrows (rigArrowCells at its own cell and rot). ENCHANT-1: WIDE's added arrow after them. */
 export function arrowCellsOf(p: Placed): RigArrow[] {
-  return rigArrowCells(p.def, p.x, p.y, rotOf(p));
+  const a = rigArrowCells(p.def, p.x, p.y, rotOf(p));
+  const w = wideDir(p); // ENCHANT-1 (REQ-BFG-085): a 1-cell rig only (WIDE is refused on a shaped rig)
+  return w === undefined ? a : [...a, { from: inGrid(p.x, p.y) ? key(p.x, p.y) : -1, dir: w, to: arrowCell(p.x, p.y, w) }];
 }
 
 /**
@@ -381,6 +429,9 @@ export function rigHits(b: Build): RigHit[][][] {
   const out: RigHit[][][] = b.routes.map((r) => r.cells.map(() => []));
   const where = new Map<number, number>(); // cell -> route * 1024 + tile (the last route wins, like occupancy)
   b.routes.forEach((r, ri) => r.cells.forEach((k, ti) => where.set(k, ri * 1024 + ti)));
+  // GATES-1 (REQ-BFG-052): a converter's tile is no belt tile for a rig's arrow: arrows aimed at it idle (R5; a shaped rig
+  // loses only that one hit). Every other tile's hits act on what the converter puts out
+  if (gatesRules()) for (const p of b.items) if (isConverterItem(p)) where.delete(key(p.x, p.y));
   for (const p of b.items) {
     const d = ITEMS[p.def];
     if (!d || d.kind !== "gate") continue;
@@ -645,14 +696,19 @@ export interface TimelineHit {
  * 0.8.0 P1: does the deck plate its hull (E1)? A BASTION (its bulwark slugs), or any wave-3 plating source: a rig or
  * factory whose effect plates (PLATE ROLLER, SHIELD WALL, ARMOR PRESS) or SEAM WELDER gear. The walk counts PLATE
  * BREAKER's big number on such a deck and its floor on any other; the rating reads it for ANVIL and STEAM BREECH.
+ * BUMP-1F (F4, BUMP-1E REPORT section 11): and a `reads` line whose give is plate (CINDER MAIL, with SCALE_RIGS on: the seven's rigs and the
+ * reworks are in ITEMS only then) plates the hull too, so a deck plated only by CINDER MAIL is plated for the walk, the inspector's estimate and the rating.
  */
 export function platedDeck(b: Build): boolean {
   if (b.hero === "bastion") return true;
   for (const p of b.items) {
     const d = ITEMS[p.def] ? effectAt(p.def, starsOf(p)) : undefined;
-    if (d?.gate?.plate || d?.factory?.plate) return true;
+    if (d?.gate?.plate || d?.factory?.plate || d?.gate?.reads?.give === "plate") return true; // BUMP-1F (F4): and a reader that gives PLATE (CINDER MAIL)
   }
-  return b.mods.some((m) => !!(ITEMS[m.def] && effectAt(m.def, starsOf(m)).mod?.seam));
+  return b.mods.some((m) => {
+    const e = ITEMS[m.def] ? effectAt(m.def, starsOf(m)).mod : undefined;
+    return !!(e?.seam || e?.reads?.give === "plate"); // BUMP-1F (F4): a gun part's reader that gives PLATE plates too
+  });
 }
 
 /** One belt tile with hits, in the walk's order; `speed` is the belt's speed state from this tile on. */
@@ -696,7 +752,13 @@ export interface RouteWalk {
  */
 /** 0.8.0 B1 M2 (G1's F1): `unplated` walks the belt as a deck that never plates its hull would (every PLATE BREAKER at its
  *  floor), for the build screen's second DMG number. */
-export interface WalkOpts { unplated?: boolean }
+export interface WalkOpts {
+  unplated?: boolean;
+  /** GATES-1b (REQ-BFG-052 B3): walk THROUGH the gates standing on the belt (convert.ts convertWalk): the belt panel's DMG, BURN,
+   *  TIME and COPIES. Off (the default) the walk is blind to a converter, as the bots' rating and estimates read it (G6's table
+   *  prices a gate); a deck with no converter (GATES off) walks the same either way. */
+  gates?: boolean;
+}
 
 export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpts = {}): RouteWalk {
   const info = routeInfo(b, index, undefined, undefined, hits);
@@ -706,6 +768,8 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
   const fs = f ? effectAt(f.def, gradeOf(b, f)).factory : undefined; // 0.6.1p: at its stars (STAMP PRESS dies); bb-0.8.3: grade
   const ammo = fs ? AMMO[f?.def === "mimic" ? HEROES[b.hero].ammo : fs.ammo] : AMMO.plain;
   const base = fs?.base ?? ammo.base;
+  const gates = o.gates ? convertCells(b) : undefined; // GATES-1b (REQ-BFG-052 B3): the gates on the belt, when the panel asks (undefined: blind, as before)
+  let idle = 0; // GATES-1b B3: ticks the slug waits inside gates (no ride, no HEAT: it isn't on the belt)
   const locked = speedLocked(b.hero); // races: METRONOME belts ignore speed states
   const timeline: TimelineRow[] = [];
   // 0.6.1c SLAG: rides at its fixed speed whatever the speed gates (Battle.transport). beltside-062c (DESIGN §12
@@ -754,10 +818,10 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
   // the ride at 1x + (1 - keep) x the real ride, as Battle.transport), and the one before the last centre crossed
   let keep = 0, keepBefore = 0;
   const ticksOn = new Map<number, number>(); // ticked: the ticks the slug sits on each belt (Y3: SURGE's pulses)
-  const move = (ri: number, to: number, tol: number): void => {
+  const move = (ri: number, to: number, tol: number, clamp?: number): void => { // GATES-1b B3: `clamp` stops a move at a gate's edge (default: the leg's end)
     while (pos < to - tol) {
       const v = BELT_SPEED * (pos > past ? speed : before);
-      const ns = Math.min(pos + v * TICK, end);
+      const ns = Math.min(pos + v * TICK, clamp ?? end);
       if (!(ns > pos)) break; // no way on (a 0 speed; never on a walked belt)
       const k = pos > past ? keep : keepBefore;
       const r = k > 0 ? k * ((ns - pos) / BELT_SPEED) + (1 - k) * ((ns - pos) / v) : (ns - pos) / v;
@@ -768,9 +832,16 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
       pos = ns;
     }
   };
+  // GATES-1b (REQ-BFG-052 B3): the slug through a gate (convert.ts convertWalk: the engine's own payload rules)
+  const through = (spec: Parameters<typeof convertWalk>[1]): void => {
+    // BUMP-1F (PACKET-BUMP-0130 section 5): `each` (SCALE-2a's FOR EACH DMG; 0 with SCALE_RIGS off) goes through with `flat`
+    ({ ride, mult, flat, each, burn, shock, prior, heat, heatBonus, copies } = convertWalk(
+      { ammo: (f?.def === "mimic" ? HEROES[b.hero].ammo : fs?.ammo) ?? "plain", base, ride, mult, flat, each, burn, shock, prior, heat, heatBonus, copies }, spec));
+  };
   for (let i = 0; i < n; i++) {
     const { route: ri, tile } = path[i];
     const cells = b.routes[ri].cells;
+    const gate = gates?.get(cells[tile]); // GATES-1b B3: a gate stands on this tile (only when the panel asks)
     if (i > 0 && path[i - 1].route !== ri) { // 0.6.2j: the join tile of main belt ri
       joins.push({ route: ri, tile, cell: cells[tile], row: timeline.length });
       if (fixed === undefined && !locked) { // J4, J15: from here on the main belt's speed state (slag keeps `fixed`)
@@ -787,7 +858,19 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
         // its end: a joining belt's at its join tile's side (CELL x tiles); the chain's last belt's, as routeLength
         end = path[n - 1].route === ri ? (cells.length - 1) * CELL + CELL / 2 + (info.connected ? CELL : 0) : CELL * cells.length;
       }
+      if (gate) { // GATES-1b B3: it stops at the gate's upstream edge, waits inside (no ride, no HEAT), and comes out at the downstream edge
+        move(ri, tile * CELL, 0, tile * CELL);
+        through(gate);
+        idle += convertTicks(gate);
+        pos = (tile + 1) * CELL; // the gate's own tile isn't ridden; a gate has no hits (arrows aimed at it idle)
+        if (i === n - 1 || path[i + 1].route !== ri) move(ri, end, 1e-6); // (a gate is never a leg's last tile: the editor refuses it)
+        continue;
+      }
       move(ri, tile * CELL + CELL / 2, 0); // Battle.transport: a tile's hits apply once a move reaches its centre
+    } else if (gate) { // GATES-1b B3 (the continuous walk): no half cells; the slug waits `secs` inside the gate
+      through(gate);
+      time += gate.secs;
+      continue;
     } else {
       const inHalf = CELL / 2 / (BELT_SPEED * speed);
       time += inHalf;
@@ -934,7 +1017,7 @@ export function walkRoute(b: Build, index: number, hits = rigHits(b), o: WalkOpt
     timeOn.set(ri, (timeOn.get(ri) ?? 0) + outT);
   }
   if (ticked) { // LADDER_FIX: the stamp's tick to the load's; the seconds on each belt, whole ticks
-    time = Math.max(0, moves - 1) * TICK;
+    time = (Math.max(0, moves - 1) + idle) * TICK; // GATES-1b B3: + the ticks waited inside gates (0 without)
     for (const [ri, k] of ticksOn) timeOn.set(ri, k * TICK);
   }
   // Y3 (DESIGN-Y row 28): each SURGE VALVE with an arrow on a belt the slug rides (any tile, before or after the slug's own
@@ -977,6 +1060,11 @@ export function estimateRoute(b: Build, index: number, hits = rigHits(b)): Route
 export function canPlaceItem(b: Build, defId: string, x: number, y: number, ignoreUid = -1, rot = 0): { ok: boolean; reason?: string } {
   const def = ITEMS[defId];
   if (!def) return { ok: false, reason: "UNKNOWN" };
+  if (def.kind === "converter") { // GATES-1 (REQ-BFG-057): a converter goes only ON a belt tile (split.ts splitProblem)
+    if (!footOnDeck(def, x, y, rot)) return { ok: false, reason: "OFF THE DECK" };
+    const why = splitProblem(b, defId, key(x, y), ignoreUid);
+    return why ? { ok: false, reason: why } : { ok: true };
+  }
   if (def.kind !== "gate" && def.kind !== "factory") return { ok: false, reason: "NOT DECK EQUIPMENT" };
   // SHAPES-1 (REQ-BFG-086 R1): every cell of the turned footprint on the deck (a 1-cell rig or a 2x2: 0.9.9's bounds)
   if (!footOnDeck(def, x, y, rot)) return { ok: false, reason: "OFF THE DECK" };
@@ -1098,7 +1186,11 @@ export function canExtend(b: Build, factoryUid: number, pending: number[], k: nu
   }
   const occ = occupancy(b);
   const o = occ[k];
-  if (o.item >= 0) return { ok: false, reason: "MACHINE IN THE WAY" }; // B3: every machine blocks a belt (R1)
+  // GATES-1 (REQ-BFG-057): a gate (converter) standing on ANOTHER belt's tile is part of that belt, not a machine in the way: a
+  // belt drawn into it meets BELTS CAN'T CROSS below, so the editor may join it there (canJoin), as it may join the belt's other
+  // tiles ("either order gives the same deck"). A belt redrawn through its own gate's tile is still refused as before.
+  const gateOnBelt = o.item >= 0 && o.route >= 0 && o.route !== replacing && isConverterItem(itemByUid(b, o.item) ?? { def: "" });
+  if (o.item >= 0 && !gateOnBelt) return { ok: false, reason: "MACHINE IN THE WAY" }; // B3: every machine blocks a belt (R1)
   if (o.route >= 0 && o.route !== replacing) return { ok: false, reason: "BELTS CAN'T CROSS" };
   const used = beltUsed(b, replacing) + pending.length + 1;
   if (used > b.beltCap) return { ok: false, reason: "OUT OF BELT" };
@@ -1264,10 +1356,14 @@ function resolveSlots(heroId: HeroId, list: readonly BuildTurret[], level = 1): 
     if (!t) return { slot: i, col0: s.col0, width: s.width, ...(s.start ? { start: s.start } : {}), intakes: [], gearSlots: 0 };
     const td0 = turretDefIn(s, t.def, starsOf(t));
     // bb-0.8.3 (REQ-BFG-043 D10): TURRET SPEED: a starting turret (it holds the free copy) fires at its level's share
-    const td = t.free && level > 1 ? { ...td0, speed: levelSpeed(td0.speed, level, TURRET_SPEED) } : td0; // NUM-2: whole steps
+    const td1 = t.free && level > 1 ? { ...td0, speed: levelSpeed(td0.speed, level, TURRET_SPEED) } : td0; // NUM-2: whole steps
+    // ENCHANT-1 (REQ-BFG-085, E3): MASSIVE halves and SWIFT doubles the turret's own rate (enchant.ts enchantRate), so the battle and the
+    // panel read one number; WIDE adds a gear slot. Off, or with no word: the very same objects as before
+    const live = enchantRules() && t.ench !== undefined;
+    const td = live && (t.ench === "massive" || t.ench === "swift") ? { ...td1, speed: enchantRate(t.ench, td1.speed) } : td1;
     return {
       slot: i, col0: s.col0, width: s.width, ...(s.start ? { start: s.start } : {}), turret: { ...t }, td,
-      intakes: td.connectors, gearSlots: gearSlotsOf(t.def, starsOf(t)),
+      intakes: td.connectors, gearSlots: gearSlotsOf(t.def, starsOf(t)) + (live && t.ench === "wide" ? 1 : 0), // ENCHANT-1: WIDE
     };
   });
 }
@@ -1368,7 +1464,7 @@ export function canFitGear(b: Build, t: number, def: string, exceptUid = -1): { 
 
 function normTurret(t: BuildTurret): BuildTurret {
   const s = starsOf(t);
-  return { slot: t.slot, def: t.def, uid: t.uid, ...(s > 1 ? { stars: s } : {}), ...(t.free ? { free: true } : {}) };
+  return { slot: t.slot, def: t.def, uid: t.uid, ...(s > 1 ? { stars: s } : {}), ...(t.free ? { free: true } : {}), ...enchantField(t) }; // ENCHANT-1: ench, grow
 }
 
 /** S8/S11: set the installed turrets (any order). Stored in slot order; the field is dropped when the list IS the
@@ -1394,7 +1490,7 @@ const opFail = (reason: string): TurretOpResult => ({ ok: false, reason, turrets
 
 const copyOfTurret = (t: BuildTurret): TurretCopy => {
   const s = starsOf(t);
-  return { uid: t.uid, def: t.def, ...(s > 1 ? { stars: s } : {}), ...(t.free ? { free: true } : {}) };
+  return { uid: t.uid, def: t.def, ...(s > 1 ? { stars: s } : {}), ...(t.free ? { free: true } : {}), ...enchantField(t) }; // ENCHANT-1: the word rides along
 };
 
 /** An emptied slot holds no core and no gear (S4): take them off, last placed first. */
@@ -1428,7 +1524,7 @@ export function installTurret(b: Build, c: TurretCopy, t: number): TurretOpResul
   if (list.some((x) => x.uid === c.uid)) return opFail("ALREADY INSTALLED");
   const old = list.find((x) => x.slot === t);
   const next = list.filter((x) => x.slot !== t);
-  next.push({ slot: t, def: c.def, uid: c.uid, ...(c.stars ? { stars: c.stars } : {}), ...(c.free ? { free: true } : {}) });
+  next.push({ slot: t, def: c.def, uid: c.uid, ...(c.stars ? { stars: c.stars } : {}), ...(c.free ? { free: true } : {}), ...enchantField(c) }); // ENCHANT-1: ench, grow
   setTurretList(b, next);
   return { ok: true, turrets: old ? [copyOfTurret(old)] : [], mods: trimGear(b, t) };
 }
@@ -1459,6 +1555,22 @@ export function removeTurret(b: Build, t: number): TurretOpResult {
   if (!a) return opFail("EMPTY TURRET SLOT");
   setTurretList(b, list.filter((x) => x !== a));
   return { ok: true, turrets: [copyOfTurret(a)], mods: stripSlot(b, t) };
+}
+
+/**
+ * ENCHANT-1 (REQ-BFG-085, E3/E4): put a word on the turret in slot t (`fields`: enchantField's keys, `{}` for none), replacing any
+ * it holds. WIDE gives a gear slot, so losing it (a replace, a merge's pick) sends the gear beyond the slots left back for cargo, last
+ * placed first, exactly as trimGear does for a turret that shrinks. Fails on an empty slot.
+ */
+export function setTurretWord(b: Build, t: number, fields: EnchantFields): TurretOpResult {
+  const list = turretList(b);
+  const a = list.find((x) => x.slot === t);
+  if (!a) return opFail("EMPTY TURRET SLOT");
+  delete a.ench;
+  delete a.grow;
+  Object.assign(a, enchantField(fields));
+  setTurretList(b, list);
+  return { ok: true, turrets: [], mods: trimGear(b, t) };
 }
 
 /** S2/S5: the belts whose last tile sits under slot t's columns but that no intake takes any more (dead ends that

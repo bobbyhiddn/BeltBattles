@@ -18,11 +18,17 @@
 // FIX-ABE (REQ-BFG-069; cap's ruling 207816b18a9fbfdb): a ware held past its slot's day by a hold of its own (a sustain
 // piece before SUSTAIN_FIRST_DAY) never holds a merchant's ware slot: the slot goes to a stand-in from the same shuffle,
 // open with the slot, and the held ware joins on its own day, so a run holds DRAW.active wares plus one per such slot.
+//
+// GATES-1 (REQ-BFG-052; BRIEF-GATES1 G5): with GATES on, the three gates are wares of their merchants' rig slots like any rig,
+// held to the first unlock step after day 1 (GATES_FIRST_DAY: never in day 1's shop) by the same hold and the same stand-ins.
+// A gate (kind "converter") is in none of the draw's kinds, so it never waits for a restock: it opens on GATES_FIRST_DAY in
+// every run that holds it. The offer lever (holdGates, GATES_ODDS.minStock) keeps at least that many of the three in the wares.
 
 import { hashSeed, Rng } from "../core/rng";
 import { ITEMS, RARITIES, buyableModules, type MerchantId } from "../sim/content";
 import { SUSTAIN_FIRST_DAY, isSustain } from "../sim/content"; // BOTS-X (REQ-BFG-069): the day-3 hold
 import { SHAPES2_ODDS, isShapedRig, shapes2Rules } from "../sim/shapes2"; // SHAPES-2 (REQ-BFG-114 S3): the offer lever b
+import { GATES_ODDS, gatesRules, isGatesPiece } from "../sim/gates"; // GATES-1 (REQ-BFG-052 G5): the day hold and the offer lever b
 
 /** The draw's rule: `active` wares a run, `late` of them held back for two restocks; the unlock ladder. */
 export interface DrawRule {
@@ -35,10 +41,14 @@ export interface DrawRule {
 }
 export const DRAW: DrawRule = { active: 62, late: 12, lateDays: [6, 8], epicDay: 2, arcaneDay: 3, legendaryDay: 4 };
 
+/** GATES-1 (REQ-BFG-052; BRIEF-GATES1 G5): the first day a gate is on sale, the first unlock step after day 1 (DRAW.epicDay, 2). */
+export const GATES_FIRST_DAY = DRAW.epicDay;
+
 /** A run's wares: each module the run's caravan and road can ever offer, with the day (1-10) it unlocks. */
 export type Wares = Record<string, number>;
 
-/** The draw's kinds (a rig is "gate" in ITEMS), in D1's order: the restocks are stratified by them. */
+/** The draw's kinds (a rig is "gate" in ITEMS), in D1's order: the restocks are stratified by them. GATES-1: a gate (kind
+ *  "converter") is in none of them, so it never waits for a restock and never moves the strata (it opens on GATES_FIRST_DAY). */
 const KINDS = ["rig", "factory", "core", "mod", "turret"] as const;
 const kindOf = (id: string): (typeof KINDS)[number] => (ITEMS[id].kind === "gate" ? "rig" : (ITEMS[id].kind as (typeof KINDS)[number]));
 
@@ -70,18 +80,20 @@ export function seatDay(id: string, rule: DrawRule = DRAW): number {
   return d.merchant === "arcane" ? Math.max(u, rule.arcaneDay) : u;
 }
 
-/** The day a ware unlocks: its seat's (seatDay), a hold of its own (a sustain piece's first day), and a late restock day
- *  when it waits for one. */
+/** The day a ware unlocks: its seat's (seatDay), a hold of its own (a sustain piece's first day, a gate's), and a late
+ *  restock day when it waits for one. */
 export function unlockDay(id: string, late: number | undefined, rule: DrawRule = DRAW): number {
   let u = seatDay(id, rule);
   // BOTS-X (REQ-BFG-069): the sustain pieces from the first sustain day (switch off: no draw lists one, so never read)
   if (isSustain(id)) u = Math.max(u, SUSTAIN_FIRST_DAY);
+  // GATES-1 (REQ-BFG-052): the three gates from the first unlock step after day 1, never in day 1's shop (switch off: none in ITEMS, so never read)
+  if (isGatesPiece(id)) u = Math.max(u, GATES_FIRST_DAY);
   if (late !== undefined) u = Math.max(u, late);
   return u;
 }
 
-/** FIX-ABE (cap's ruling 207816b18a9fbfdb): is `id` held past its seat's day by a hold of its own (today a sustain piece
- *  before SUSTAIN_FIRST_DAY)? Such a ware never holds a merchant's ware slot (drawWares). */
+/** FIX-ABE (cap's ruling 207816b18a9fbfdb): is `id` held past its seat's day by a hold of its own (a sustain piece
+ *  before SUSTAIN_FIRST_DAY; GATES-1: a gate before GATES_FIRST_DAY)? Such a ware never holds a merchant's ware slot (drawWares). */
 export const heldPast = (id: string, rule: DrawRule = DRAW): boolean => unlockDay(id, undefined, rule) > seatDay(id, rule);
 
 /**
@@ -115,6 +127,7 @@ export function drawWares(seed: number, rule: DrawRule = DRAW): Wares {
     });
   });
   if (shapes2Rules() && SHAPES2_ODDS.minStock > 0) holdShaped(seed, all, picked, standIns, rule); // SHAPES-2 (REQ-BFG-114 S3, lever b)
+  if (gatesRules() && GATES_ODDS.minStock > 0) holdGates(seed, all, picked); // GATES-1 (REQ-BFG-052, G5 lever b)
   const eligible = all.filter((id) => picked.has(id) && ITEMS[id].rarity !== "legendary" && ITEMS[id].merchant !== "arcane");
   const byKind = KINDS.map((k) => eligible.filter((id) => kindOf(id) === k));
   const lq = quotas(byKind.map((l) => l.length), Math.min(rule.late, eligible.length), new Rng(hashSeed(seed, "late-quota")));
@@ -162,6 +175,23 @@ function holdShaped(seed: number, all: readonly string[], picked: Set<string>, s
     picked.delete(rng.pick(pool));
     picked.add(id);
   }
+}
+
+/**
+ * GATES-1 (REQ-BFG-052; BRIEF-GATES1 G5, lever b): with GATES on, the per-run draw keeps at least GATES_ODDS.minStock of the
+ * three gates among the run's wares (all of them when the catalogue holds fewer). Each missing gate (a seeded shuffle of them,
+ * on its own stream `wares-gates`, so no other draw moves) is ADDED to the wares and opens on GATES_FIRST_DAY, and nothing is
+ * displaced: a gate is held past its seat's day, so a swap in holdShaped's form would give it the seat of a drawn piece that
+ * opens on day 1, and a held ware never holds a merchant's ware slot (FIX-ABE). Since a gate is in none of the draw's kinds,
+ * the restocks read the same wares: every other ware keeps its day. The run holds the wares it drew and the gates it lacked
+ * (at most three more). Called only with the switch on; the draw is untouched with it off.
+ */
+function holdGates(seed: number, all: readonly string[], picked: Set<string>): void {
+  const gates = all.filter((id) => isGatesPiece(id));
+  const need = Math.min(GATES_ODDS.minStock, gates.length) - gates.filter((id) => picked.has(id)).length;
+  if (need <= 0) return;
+  const rng = new Rng(hashSeed(seed, "wares-gates"));
+  for (const id of rng.shuffle(gates.filter((o) => !picked.has(o))).slice(0, need)) picked.add(id);
 }
 
 /**

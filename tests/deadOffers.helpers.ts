@@ -22,7 +22,7 @@
 
 import { Battle, type BeltAmmo, type Payload } from "../src/sim/battle";
 import { bestSpot, spotForTile, stokeSpots } from "../src/sim/beltside";
-import { HEROES, ITEMS, type HeroId, type ItemDef } from "../src/sim/content";
+import { GRID, HEROES, ITEMS, type HeroId, type ItemDef } from "../src/sim/content";
 import {
   arrowCell, cloneBuild, commitRoute, deadEndsAt, footprint, installTurret, key, kx, ky, occupancy, rigHits, routeInfo,
   setTurretList, turretList, turretSlots, type Build, type Dir,
@@ -31,6 +31,7 @@ import { Rng } from "../src/core/rng";
 import { blockedCells, freeConnectors, randomPath, shortestTiles, startCells } from "../src/sim/harness/path";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { validateBuild } from "../src/net/validate";
+import { splitProblem } from "../src/sim/split"; // BUMP-1F (GATES default): where a converter may stand
 import { starsOf } from "../src/sim/stars";
 import { gainInto, previewMerge } from "../src/sim/harness/merge";
 import type { GainAt } from "../src/game/fuse";
@@ -44,6 +45,7 @@ const UID = 9901;
 /** Where the audited module went. */
 export type Place =
   | { k: "rig"; route: number; tile: number }
+  | { k: "conv"; route: number; tile: number } // BUMP-1F (GATES default, REQ-BFG-052): a converter ON a belt tile
   | { k: "stoke"; x: number; y: number; factories: number } // 0.8.0 I1: a STOKER beside the factories it works
   | { k: "intake"; col: number; tiles: number }
   | { k: "join"; route: number; tile: number; tiles: number }
@@ -74,6 +76,27 @@ function rigCandidates(before: Build, id: string): { after: Build; place: Place 
       const b = cloneBuild(before);
       b.items.push({ uid: UID, def: id, x: spot.x, y: spot.y, rot: spot.rot });
       if ((rigHits(b)[ri]?.[ti] ?? []).some((h) => h.uid === UID)) out.push({ after: b, place: { k: "rig", route: ri, tile: ti } });
+    }
+  }
+  return out;
+}
+
+/**
+ * BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052, REQ-BFG-057): the three converters (FUSER, SCATTER MILL, SMELTER: kind "converter") are
+ * buyable modules, and a converter is neither a rig beside the belt nor a gun part: it stands ON one tile of a belt that has belt on both sides (split.ts
+ * splitProblem). Every way to stand one on a connected belt, each belt, each tile from the factory end. Was no such branch: the audit took a converter for gear
+ * (modCandidates), no engine acts on a converter held as a mod, and the three read inert on every hero, days 1-10, for that reason alone.
+ */
+function converterCandidates(before: Build, id: string): { after: Build; place: Place }[] {
+  const out: { after: Build; place: Place }[] = [];
+  for (let ri = 0; ri < before.routes.length; ri++) {
+    if (!routeInfo(before, ri).connected) continue;
+    const cells = before.routes[ri].cells;
+    for (let ti = 0; ti < cells.length; ti++) {
+      if (splitProblem(before, id, cells[ti]) !== null) continue;
+      const b = cloneBuild(before);
+      b.items.push({ uid: UID, def: id, x: cells[ti] % GRID, y: Math.floor(cells[ti] / GRID) });
+      out.push({ after: b, place: { k: "conv", route: ri, tile: ti } });
     }
   }
   return out;
@@ -275,6 +298,7 @@ export function candidates(before: Build, d: ItemDef): Candidate[] {
     return [{ after, place: { k: "merge", where: pv.where, toStars: pv.toStars } }];
   }
   if (d.kind === "gate") return rigCandidates(before, d.id);
+  if (d.kind === "converter") return converterCandidates(before, d.id); // BUMP-1F (GATES default): was modCandidates (a converter is no mod)
   if (d.kind === "turret") return turretCandidates(before, d.id);
   if (d.kind === "factory") {
     const after = cloneBuild(before);
@@ -287,6 +311,7 @@ export function candidates(before: Build, d: ItemDef): Candidate[] {
 /** Why nothing takes a part of this kind on this deck (the audit's `none`). */
 const NOWHERE: Record<string, string> = {
   gate: "no free cell beside a connected belt tile",
+  converter: "no belt tile with belt on both sides and nothing else on it", // BUMP-1F (GATES default)
   turret: "no fed gun's slot takes it without leaving a belt dead-ended",
   mod: "no fed gun takes it",
   core: "no fed gun takes it",

@@ -11,6 +11,7 @@ import {
   rotField, turretForColumn, type Build, type Dir, type Placed,
 } from "./deck";
 import { cellsOf, pruneJoins, rigArrowCells, rotOf } from "./deck"; // SHAPES-1 (REQ-BFG-086 R1-R2, S6): cells; per-cell arrows
+import { gatesRules, isConverterItem } from "./deck"; // GATES-1 (REQ-BFG-052): beltIndex leaves a converter's tile out (deck.ts re-exports both)
 // SHAPES-1: the footprint engine (foot.ts) and the switch (shapes.ts), through deck.ts: this file imports only ./content
 // and ./deck (the stand-in loader's portability, tests/standInPool.gen.test.ts)
 import { RESHAPED_IDS, footOf, footOnDeck, footprintCells, footTurns, shapesRules } from "./deck";
@@ -353,9 +354,11 @@ export interface WouldHit {
 /** Belt cell -> [route, tile] for routes accepted by `only` (default: every route). */
 export function beltIndex(b: Build, only?: (ri: number) => boolean): Map<number, [number, number]> {
   const m = new Map<number, [number, number]>();
+  // GATES-1 (REQ-BFG-052): a converter's tile takes no rig's arrow (R5; deck.ts rigHits), so a ghost, the auto-aim and the bots never promise a hit there
+  const conv = gatesRules() ? new Set(b.items.filter(isConverterItem).map((p) => key(p.x, p.y))) : undefined;
   b.routes.forEach((r, ri) => {
     if (only && !only(ri)) return;
-    r.cells.forEach((k, ti) => m.set(k, [ri, ti]));
+    r.cells.forEach((k, ti) => { if (!conv?.has(k)) m.set(k, [ri, ti]); });
   });
   return m;
 }

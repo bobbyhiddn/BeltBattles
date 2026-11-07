@@ -15,6 +15,8 @@ import { LUCK_HEROES, LUCK_Q, LUCK_SEEDS, MEASURES, luckCapsTable, type LuckCaps
 import { maxGoldByDay } from "../src/sim/rivals";
 import { flag } from "./workers";
 import { scaleRules, setScaleRigs } from "../src/sim/scale"; // BUMP-1E P2e (REQ-BFG-098): the scaling world held on while the caps are read
+import { gatesRules, setGates } from "../src/sim/gates"; // BUMP-1F P2 (REQ-BFG-052): the three converters held on while the caps are read
+import { enchantRules, setEnchant } from "../src/sim/enchant"; // BUMP-1F P2 (REQ-BFG-085): the ENCHANTER's words held on while the caps are read
 
 export const DATA = "src/sim/harness/luckCapsData.ts";
 
@@ -85,10 +87,16 @@ function main(): void {
 // BUMP-1E P2e (SCALE-2d F6; SCALE-2e carry-over 9): the caps are read from the par player's runs with the scaling world on: setScaleRigs(true)
 // held inside try/finally for the whole run (never withScaleRigs(async ...)). SCALE_RIGS is true in the code now, so this does nothing
 // there; it makes the table independent of the constant.
-const wasScale = scaleRules();
+// BUMP-1F P2: and the same for GATES and ENCHANT (both true in the code since BUMP-1F's flip): the par player buys and places the three gates and
+// the words, so the caps are read with both on. setGates/setEnchant(true) inside the try/finally, never withGates/withEnchant(async ...) (SCALE-2d F6).
+const wasScale = scaleRules(), wasGates = gatesRules(), wasEnchant = enchantRules();
 setScaleRigs(true);
+setGates(true);
+setEnchant(true);
 try {
   main();
 } finally {
+  setEnchant(wasEnchant);
+  setGates(wasGates);
   setScaleRigs(wasScale);
 }

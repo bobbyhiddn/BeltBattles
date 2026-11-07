@@ -25,6 +25,10 @@ import { boxRect } from "../../render/frame";
 import { disc, ring } from "../../render/pixel";
 import { canTurn, machineryArrows, shapedPiece, shapeTag, turnsOf } from "./shapeEdit";
 import { pieceRect, screenMask, shapedFactorySprite, shapedRigBody } from "../../render/shapeArt"; // SHAPES-1: the ghost's body
+import { previewSplit, splitTag, suggestSplit } from "../../sim/splitPreview"; // GATES-1 (REQ-BFG-057): the drop-to-split preview
+import { textWidth } from "../../render/font"; // GATES-1: the tag is kept on the hull
+import { key as cellKey } from "../../sim/deck"; // GATES-1
+import { drawBoardSpark, drawSparkAt, pieceMarkAt } from "../../render/enchantMarks"; // ENCHANT-1 (REQ-BFG-085, E7): the carried piece's word spark
 
 /** A deck cell; for a rig, with the rotation it would take there. */
 type Cell = { x: number; y: number; rot?: number };
@@ -33,6 +37,10 @@ type Cell = { x: number; y: number; rot?: number };
  *  that land the most arrows on belts (H2, beltside.ts bestSpot), else any free cell; free space for factories. */
 export function suggestCell(b: Build, defId: string): Cell | null {
   const def = ITEMS[defId];
+  if (def.kind === "converter") { // GATES-1 (REQ-BFG-057): a legal belt tile (the second-last before a heavy gun for a FUSER; splitPreview.ts)
+    const s = suggestSplit(b, defId);
+    return s ? { x: s.x, y: s.y } : null;
+  }
   if (def.kind === "gate") {
     // 0.8.0 P1 (E3): a STOKER works factories, so it is suggested beside the most of them
     const s = def.gate?.stoke ? stokeSpots(b, defId)[0] ?? null : bestSpot(b, defId);
@@ -148,6 +156,34 @@ function ghostSprite(defId: string, t: number): HTMLCanvasElement {
 }
 
 /**
+ * GATES-1 (REQ-BFG-057; BRIEF-GATES1 G3; the mock ref/r1d/mock/r1d-2-drop-to-split-op.png): the drop-to-split preview, in the
+ * carrier's space. A gate carried over belt tile (x, y): its art on the tile (80%, a white frame), the tiles after it outlined
+ * 1 px in its rarity colour (its own output path), and a tag over it, `SPLITS IT: 2 TILES IN, 3 TILES OUT`, with `1 ARROW IDLES` under
+ * it when rig arrows aim at the tile. A refused tile has a red frame (blinking) and the reason, the way a refused join is marked.
+ * The tag is kept on the hull. Returns the preview.
+ */
+export function drawSplitGhost(g: G, L: BuildLayout, b: Build, defId: string, x: number, y: number, ignoreUid: number, t: number, alpha = 0.8): ReturnType<typeof previewSplit> {
+  const f = L.frame, d = ITEMS[defId], p = previewSplit(b, defId, cellKey(x, y), ignoreUid);
+  const gx = Math.round(footX(f, x, y)), gy = Math.round(footY(f, x, y));
+  if (p.ok) {
+    const col = RARITY_COLOR[d.rarity] ?? C.white;
+    for (const ck of p.outCells) frame(g, Math.round(footX(f, kx(ck), ky(ck))), Math.round(footY(f, kx(ck), ky(ck))), 12, 12, col);
+  }
+  g.globalAlpha = alpha;
+  g.drawImage(ghostSprite(defId, t), gx, gy);
+  g.globalAlpha = 1;
+  frame(g, gx - 1, gy - 1, 14, 14, p.ok ? C.white : Math.floor(t * 8) % 2 === 1 ? C.red : C.maroon);
+  const hb = hullBox(f);
+  const lines = splitTag(p).split(" · "); // the splits line, then (if any) the idled arrows
+  lines.forEach((line, i) => {
+    const w = textWidth(line, "3");
+    const cx = Math.max(hb.x + w / 2 + 1, Math.min(hb.x + hb.w - w / 2 - 1, gx + 6));
+    drawText(g, line, cx, gy - 7 - 7 * (lines.length - 1 - i), p.ok ? (i ? C.amber : C.lime) : C.red, { font: "3", align: "center", outline: C.ink });
+  });
+  return p;
+}
+
+/**
  * 0.6.2 BELTSIDE (B1): a rig's arrows as they would stand at `cell` at rotation `rot`: for every arrow that
  * would work a belt tile, a bright nozzle and arrowhead, and that tile shaded and pulsing; a dim nozzle for
  * every idle arrow. Returns the number of hits.
@@ -234,7 +270,7 @@ function liftedArrows(L: BuildLayout, b: Build, c: Carry, cell: Cell | null): Li
 /** The picked-up item at 2x: a bolted tile (1 px ink outline, bevel, rarity strip) with the
  *  icon doubled, hovering `lift` px above the contact point (x, y), which gets an ink shadow.
  *  0.6.2 BELTSIDE: a rig shows its arrows at 2x on the tile, and its hits (or IDLE) above it. */
-export function drawLifted(g: G, defId: string, x: number, y: number, lift: number, alpha = 1, arrows?: LiftedArrows): void {
+export function drawLifted(g: G, defId: string, x: number, y: number, lift: number, alpha = 1, arrows?: LiftedArrows, mark?: string): void {
   const ix = Math.round(x - LIFT_W / 2), iy = Math.round(y - lift - LIFT_H);
   // contact shadow on the ground under the item (tighter and darker than the tile)
   g.globalAlpha = 0.5 * alpha;
@@ -249,6 +285,7 @@ export function drawLifted(g: G, defId: string, x: number, y: number, lift: numb
     arrows.dirs.forEach((d, k) => g.drawImage(rigNozzle(d, arrows.states[k]), 0, 0, 12, 12, ix + 2, iy + 2, 24, 24));
     if (arrows.label) drawText(g, arrows.label, x, iy - 7, arrows.color, { font: "3", align: "center", outline: C.ink });
   }
+  if (mark) drawSparkAt(g, ix + LIFT_W - 5, iy + 1, mark); // ENCHANT-1 (REQ-BFG-085, E7): the carried piece's word spark, at the tile's top-right corner
   g.globalAlpha = 1;
 }
 
@@ -256,7 +293,7 @@ export function drawLifted(g: G, defId: string, x: number, y: number, lift: numb
  *  cell, which keeps its bracket and a faint 1x ghost of the exact footprint. 0.6.2 BELTSIDE (B1): a
  *  carried rig shows its arrows at the snap cell (drawRigPreview) at the rotation the editor aims it to,
  *  and hovers one cell higher, so the tile its forward arrow would work stays in sight. */
-export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, py: number, t: number, turretAt: (x: number, y: number) => number, screen?: { W: number; tap: number }): Rect | null {
+export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, py: number, t: number, turretAt: (x: number, y: number) => number, screen?: { W: number; tap: number }, mark?: string): Rect | null {
   const def = ITEMS[c.def];
   const bob = Math.floor(t * 4) % 2;
   const lift = Math.min(8, Math.round(3 + 30 * Math.min(0.15, t)));
@@ -271,12 +308,22 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
       inCarrier(g, L, () => {
         sg = drawShapeGhost(g, L, b, c.def, tg.x, tg.y, tg.rot, tg.ok, c.src.from === "deck" ? c.uid : -1, t, 0.7);
         drawShapeTag(g, c.def, sg, tg.ok, tg.reason);
+        if (mark) { const m = pieceMarkAt(L.frame, { uid: -1, def: c.def, x: tg.x, y: tg.y, ...(tg.rot ? { rot: tg.rot } : {}) }); drawBoardSpark(g, m.spark.x, m.spark.y, mark); } // ENCHANT-1 (REQ-BFG-085, E7): the ghost's word spark, as the board draws it
       });
       if (c.touch && screen && sg && canTurn(c.def)) {
         const r = rotateButtonRect(screenRect(L, (sg as ShapeGhost).box), px, screen.W, screen.tap);
         drawRotateButton(g, r);
         return r;
       }
+      return null;
+    }
+  }
+  // GATES-1 (REQ-BFG-057): a gate over the deck: the drop-to-split preview where carryTarget says it lands (above a finger,
+  // snapped to a legal belt tile); the tile under the pointer, off the deck, is the lifted tile below
+  if (def.kind === "converter" && inside(L.hull, px, py)) {
+    const tg = carryTarget(L, b, c, px, py);
+    if (tg) {
+      inCarrier(g, L, () => drawSplitGhost(g, L, b, c.def, tg.x, tg.y, c.src.from === "deck" ? c.uid : -1, t));
       return null;
     }
   }
@@ -290,7 +337,7 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
         drawGhostAt(g, L, b, c.def, at, c.src.from === "deck" ? c.uid : -1, t, 0.55);
         const half = (def.size * 12) / 2;
         drawLifted(g, c.def, footX(L.frame, cell.x, cell.y, def.size) + half, footY(L.frame, cell.x, cell.y, def.size) + half,
-          half + 4 + bob + (rig ? 12 : 0), 1, rig ? liftedArrows(L, b, c, at) : undefined);
+          half + 4 + bob + (rig ? 12 : 0), 1, rig ? liftedArrows(L, b, c, at) : undefined, mark);
       });
       return null;
     }
@@ -319,7 +366,7 @@ export function drawCarry(g: G, L: BuildLayout, b: Build, c: Carry, px: number, 
   }
   if (def.kind === "supply" && inside(L.hull, px, py)) frame(g, L.hull.x - 2, L.hull.y - 2, L.hull.w + 4, L.hull.h + 4, C.lime);
   // lifted: the 2x tile above the pointer, contact shadow under the pointer
-  drawLifted(g, c.def, px, py, 4 + lift + bob, 1, rig ? liftedArrows(L, b, c, null) : undefined);
+  drawLifted(g, c.def, px, py, 4 + lift + bob, 1, rig ? liftedArrows(L, b, c, null) : undefined, mark);
   return null;
 }
 
@@ -349,6 +396,10 @@ export function drawSuggestion(g: G, L: BuildLayout, b: Build, defId: string, t:
   const cell = suggestCell(b, defId);
   if (!cell) return;
   const pulse = 0.35 + 0.25 * Math.sin(t * 6);
+  if (def.kind === "converter") { // GATES-1 (REQ-BFG-057): the suggested belt tile, as a carried gate would show it
+    drawSplitGhost(g, L, b, defId, cell.x, cell.y, -1, t, 0.55 + 0.25 * Math.sin(t * 6));
+    return;
+  }
   drawGhostAt(g, L, b, defId, cell, -1, t, pulse);
   if (shapedPiece(defId)) return; // SHAPES-1 (S2): a shaped ghost is its own preview (its body, arrows and tag)
   // the selected item is "picked up": the same 2x lifted tile bobs over the suggested cell (0.6.2: a rig with

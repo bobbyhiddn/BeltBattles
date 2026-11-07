@@ -18,7 +18,7 @@ import { HEARTS_START } from "../src/sim/hearts"; // HULL-ON (the flip, HEARTS):
 import { key as K, type Build } from "../src/sim/deck";
 import { simulate } from "../src/sim/battle";
 import { warlordBuild } from "../src/sim/ai";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";
 

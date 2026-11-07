@@ -26,7 +26,7 @@ import { withLongRun } from "../src/sim/longRun";
 import { SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the scaling switch is the outermost call of every nest that turns SHAPES2 or PLAIN_RIGS off (ITEMS' key order)
 import { SNAPSHOT_V3, decodeSnapshot, encodeSnapshot } from "../src/net/snapshot";
 import { validateUpload } from "../src/net/validate";
-import { generateSamplePool, raceGhosts } from "../tools/samplePool";
+import { generateSamplePool, raceGhosts } from "./helpers/poolCache";
 
 afterEach(() => setShapes2(SHAPES2));
 const SIX = [...SHAPES2_IDS];

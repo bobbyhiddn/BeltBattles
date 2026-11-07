@@ -17,6 +17,7 @@ import type { Skin } from "./styles"; // CUSTOM-2a (REQ-BFG-072): a board's styl
 import { CRYSTAL_RAMP, HEAT_RAMP, TS, TURRET_TIP, glowRect, turretArt } from "./turret";
 import { RACE_PIP, isArtRace, isRaceAmmo, pipColumn, raceTurretLook } from "./raceArt"; // 0.8.0 H1: FOUNDRY's and BASTION's art
 import { drawLevelMarks } from "./levelMark"; // bb-0.8.3 (REQ-BFG-043 D11): TURRET SPEED on the starting turrets
+import { drawEnchantTurrets } from "./enchantMarks"; // ENCHANT-1 (REQ-BFG-085): the words' board marks
 import { CLANK_FRAMES, CLANK_TIME, FUSE_FRAMES, FUSE_TIME, flashFrame, fuseFlash, platingClank, syncIcon } from "./raceFx"; // 0.8.0 H1 M3
 import { syncedTurrets } from "../sim/syncEstimate"; // 0.8.0 H1 M3: the deck's SYNC mark
 import { coreFor, stokeHits } from "../sim/deck"; // 0.6.1b: the core socket; 0.8.0 I1: a STOKER's factory hits
@@ -337,6 +338,7 @@ export function drawTurrets(g: G, v: CruiserView): void {
   // bb-0.8.3 (REQ-BFG-043 D11): the TURRET SPEED level (2-4) on each starting turret, capping its chamber pips, drawn
   // after every gun so a neighbour's art never covers it (levelMark.ts; nothing at level 1)
   drawLevelMarks(g, v.build, f, "turret");
+  drawEnchantTurrets(g, v); // ENCHANT-1 (REQ-BFG-085): a word's spark and GROWING's counter on the installed turrets (nothing with the switch off)
 }
 
 /** 0.8.0 H1 M3: the SYNC mark's centre, turret-local: on the bow, left of the barrel, clear of the gear boxes. */

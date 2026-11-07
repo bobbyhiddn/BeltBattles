@@ -14,6 +14,7 @@
 import { describe, expect, it } from "vitest";
 import { RUN_DAYS, START_LIVES } from "../src/sim/content";
 import { withHearts } from "../src/sim/hearts";
+import { withEnchant } from "../src/sim/enchant"; // BUMP-1F (ENCHANT on): the tool's ten-event bag model is read against the ENCHANT-off world's eventSequence
 import { withLongRun } from "../src/sim/longRun";
 import { standInFoe } from "../src/game/ghosts";
 import {
@@ -151,12 +152,15 @@ describe("--survival: the DOCK's day (eventSequence's first bag)", () => {
     expect(odds.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 12);
   });
 
-  it("the bag model equals eventSequence on run seeds 1-3000", () => {
+  // BUMP-1F (ENCHANT on, bb-0.13.0; RULING-BUMP1F-R3.1): was a plain body. With ENCHANT on, eventSequence draws its bags from bagIds(): the ten events plus the ASH SHRINE (an 11-event bag, ENCHANT-2 T3), while the
+  // tool's bag model (tools/scorecard/survival.ts checkBag) reads BAG_IDS, the ENCHANT-off world's ten (eventDefs.ts: "every consumer that does not ask the rules world reads this list and sees no shrine"), so all
+  // 3000 seeds differed. The model covers the ten-event bag, so the run code is read in that world (withEnchant(.., false), synchronously), as offHearts does for the 5-lives model
+  it("the bag model equals eventSequence on run seeds 1-3000", () => withEnchant(() => {
     const c = checkBag(3000, "dock");
     expect(c.mismatches).toEqual([]);
     const odds = eventDayOdds(BAG_IDS, "dock", WARLORD_EVENT_IDS);
     for (let d = 0; d < RUN_DAYS; d++) expect(Math.abs(c.freq[d] - odds[d])).toBeLessThan(0.025);
-  });
+  }, false));
 });
 
 describe("--survival: one par run's dusks are the game's own", () => {

@@ -13,6 +13,7 @@ import { buyableModules } from "../src/sim/content";
 import { key as K, rotField, setTurretList, turretSlots, type Placed } from "../src/sim/deck";
 import { fusible } from "../src/sim/stars";
 import { SCALE_IDS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the seven new rigs; the 0.9.11 world with it off
+import { GATES, GATES_IDS, withGates } from "../src/sim/gates"; // BUMP-1F (GATES on, bb-0.13.0): the three converters join the buyable modules; the 0.9.11 world turns the switch off too
 import { computeView, type View } from "../src/core/io";
 import { UI, type Rect } from "../src/ui/ui";
 import { PHONE_CSS, isPhone } from "../src/ui/tap";
@@ -502,9 +503,13 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
       // star a cargo panel and 3 placed ones): 938 + 12 x 13 = 1094
       // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0): the seven new scaling rigs (SCALE_IDS) join the buyable modules, 13 panels each (an offer, and
       // at each of 3 stars a cargo panel and 3 placed ones): 1094 + 7 x 13 = 1185 (the five reworks and VENOM DRIP change a panel's text, never the number of panels)
+      // BUMP-1F (GATES on, bb-0.13.0; RULING-BUMP1F-R5 R5.2 (2)): the three converters (GATES_IDS: FUSER, SCATTER MILL, SMELTER) join the buyable modules (buyableModules(): a
+      // merchant, a price, not a supply). A converter is fusible and neither a rig, a factory, gear, a core nor a turret, so its panels are an offer and a cargo panel at each of
+      // 3 stars: 4 each, 3 x 4 = 12 (no placed panel): 1185 + 12 = 1197
       expect(SCALE_RIGS).toBe(true);
-      expect(all.length).toBe(1185); // BUMP-1E: was 1094
-      expect(all.length - 1094).toBe(SCALE_IDS.length * 13); // BUMP-1E: the growth is the seven new rigs' panels and nothing else (7 x 13 = 91)
+      expect(GATES).toBe(true);
+      expect(all.length).toBe(1197); // BUMP-1F (GATES on): was 1185 (BUMP-1E: was 1094)
+      expect(all.length - 1094).toBe(SCALE_IDS.length * 13 + GATES_IDS.length * 4); // BUMP-1F: was SCALE_IDS.length * 13 (BUMP-1E: the growth is the seven new rigs' panels and nothing else, 7 x 13 = 91); now + the three converters' 3 x 4 = 12
       // the band at 390x844 holds every panel in its fullest form; at 430x739 every one in the band; the shortest views'
       // band can't hold the longest turret panels (a THUNDERER ★3's full text needs 144 px): they take the fallback
       // (grown at 390x660 and 390x664: 30 installed turrets with a core and gear and 8 ★2 rigs and factories, 38 of 885; at
@@ -561,20 +566,27 @@ describe("zoom D3: on the phone views every touch panel shows its full descripti
         // [122, 1184, 1184], 430x739 and 390x844 [141, 1094, 1094] -> [141, 1185, 1185]); the bands and the grown panels (8, 8, 1, 0, 0: the same
         // turrets with a core and gear, checked below) unchanged. The five reworks and VENOM DRIP's POISON words move no panel out of the band or
         // its fullest form: the 0.9.11 world, read below with the switch off, still gives the old numbers
-        "390x660": [104, 1173, 1177], "390x664": [106, 1173, 1177], "402x690": [122, 1184, 1184], "430x739": [141, 1185, 1185], "390x844": [141, 1185, 1185],
+        // BUMP-1F (GATES on), measured: 1197 panels (the three converters' 12 in: 3 x 4), the 12 all in the band in their fullest form at every view: fullest and in the band +12 each
+        // (390x660 and 390x664 [.., 1173, 1177] -> [.., 1185, 1189], 402x690 [122, 1184, 1184] -> [122, 1196, 1196], 430x739 and 390x844 [141, 1185, 1185] -> [141, 1197, 1197]); the
+        // bands and the grown panels (8, 8, 1, 0, 0) unchanged
+        "390x660": [104, 1185, 1189], "390x664": [106, 1185, 1189], "402x690": [122, 1196, 1196], "430x739": [141, 1197, 1197], "390x844": [141, 1197, 1197], // BUMP-1F (GATES on): was [104, 1173, 1177], [106, 1173, 1177], [122, 1184, 1184], [141, 1185, 1185], [141, 1185, 1185]
       };
       expect([band, fullestN, inBand], `${w}x${h}: band, fullest, in the band (grown: ${grown.join(" | ")}; flavour gave way: ${flavour.join(" | ")})`).toEqual(want[`${w}x${h}`]);
       // BUMP-1E: the seven new rigs' panels are all in the band in their fullest form, so the growth over the 0.9.11 world's numbers is exactly theirs (7 x 13 = 91)
       const wantOff: Record<string, [number, number, number]> = { "390x660": [104, 1082, 1086], "390x664": [106, 1082, 1086], "402x690": [122, 1093, 1093], "430x739": [141, 1094, 1094], "390x844": [141, 1094, 1094] }; // BUMP-1E: the old pins
-      expect([band, fullestN - SCALE_IDS.length * 13, inBand - SCALE_IDS.length * 13], `${w}x${h}: the growth is the seven new rigs' panels`).toEqual(wantOff[`${w}x${h}`]);
+      // BUMP-1F (GATES on): + the three converters' 12 panels (3 x 4, all in the band in their fullest form), so the growth over the 0.9.11 world is the seven new rigs' 91 and the converters' 12 (was the 91 alone)
+      const grew = SCALE_IDS.length * 13 + GATES_IDS.length * 4; // BUMP-1F: was SCALE_IDS.length * 13
+      expect([band, fullestN - grew, inBand - grew], `${w}x${h}: the growth is the seven new rigs' and the three converters' panels`).toEqual(wantOff[`${w}x${h}`]);
       // the 0.9.11 world, read with the scaling switch off (synchronously; its panels built in it): the same sweep, every per-panel assertion, and the old pins
-      withScaleRigs(() => {
+      // BUMP-1F (GATES on): the 0.9.11 world has the three converters out too (GATES is a bb-0.13.0 switch), so withGates(.., false) around the scaling switch's off call (was withScaleRigs alone; the
+      // converters would make it 1106 panels); the switches turn back in the reverse order of turning them off (itemsKeep.ts: the scaling switch first, then GATES)
+      withGates(() => withScaleRigs(() => {
         const old = panels();
         expect(old.length, "the 0.9.11 world's panels").toBe(1094);
         const o = sweep(old, w, h);
         expect([o.band, o.fullestN, o.inBand], `${w}x${h} (0.9.11 world): band, fullest, in the band (grown: ${o.grown.join(" | ")}; flavour gave way: ${o.flavour.join(" | ")})`).toEqual(wantOff[`${w}x${h}`]);
         expect(o.grown, `${w}x${h} (0.9.11 world): grown`).toEqual(grown); // the same grown panels (8, 8, 1, 0, 0 of them: turrets with a core and gear)
-      }, false);
+      }, false), false);
     }, 120_000);
   }
 });

@@ -9,13 +9,14 @@
 // - the pools with the switch on and off (catalogue, merchants, LAST CHANCE's epic parts) and the per-run draw's size;
 // - merge and sell; the multiplying-rig guard (SPLITTER, SORTING ARM, OVERCLOCKER, LONG HAUL and PINCER stay 1 cell);
 // - the rules gate (SHAPES2_RULES, shapes2GateProblem, shapes2World, inShapes2World) and the validator's verdicts.
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { GRID, ITEMS, RULES_VERSION, buyableModules, itemsSoldBy, rigShape, sellValue, type MerchantId } from "../src/sim/content";
 import { canPlaceItem, key as K, rigArrowCells, rigArrows, rigHits, type Build, type Placed } from "../src/sim/deck";
 import { footBox, footOf, footOnDeck, footprintCells } from "../src/sim/foot";
 import { hitsIfPlaced } from "../src/sim/beltside";
 import { SHAPES2, SHAPES2_DEFS, SHAPES2_IDS, SHAPES2_PATCHES, isShapes2Piece, setShapes2, shapes2Rules, withShapes2 } from "../src/sim/shapes2";
 import { SHAPES_IDS, shapesRules, withShapes } from "../src/sim/shapes";
+import { GATES, GATES_IDS, setGates } from "../src/sim/gates"; // BUMP-1F (the flip, GATES): this file's world is the one before the three converters
 import { SCALE_IDS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the seven scaling rigs are in the catalogue (SCALE_RIGS ships on); the 0.9.11 one is read under withScaleRigs(fn, false)
 import { withPlainRigs, PLAIN_RIG_IDS, PLAIN_RIGS, plainRigsRules } from "../src/sim/plainRigs";
 import { effectAt, fusible, valueOf } from "../src/sim/stars";
@@ -25,10 +26,18 @@ import { SHAPES2_RULES, SHAPES_RULES, rulesAtLeast, shapes2Features, shapes2Gate
 import { inShapes2World, inShapesWorld, validateBuild, validateUpload } from "../src/net/validate";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 
-afterEach(() => setShapes2(SHAPES2)); // the shipped value (on since BUMP-1D); a test that needs it off sets it itself (withShapes2(fn, false))
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: GATES default; REQ-BFG-052): GATES ships on (bb-0.13.0), and this file's counts and ITEMS tails are the world before the three converters (SHAPES2's six, then the
+// seven, last), so every test runs with GATES off, as its pins were measured; gates off first in the beforeEach, back last in the afterEach (its three are the last keys of ITEMS). Was only the afterEach (setShapes2)
+beforeEach(() => setGates(false));
+afterEach(() => { setShapes2(SHAPES2); setGates(GATES); }); // the shipped value (on since BUMP-1D); a test that needs it off sets it itself (withShapes2(fn, false)); BUMP-1F: + GATES (on), last
 
 const SIX = ["elbowguard", "sawbar", "sparkcomb", "cinderhook", "jawcrusher", "pickaxe"];
 const ids = (l: { id: string }[]) => l.map((d) => d.id);
+// BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: the canonical order, BUMP-1F P2 F1, src/sim/itemsKeep.ts ITEM_RANK: ... shapes2 3, scale 4, gates 5): a switch adds its ids at their rank, so the six go in
+// BEFORE the seven scaling rigs (SCALE_RIGS ships on) and the three converters, not behind them. `withSix(keys)`: `keys` (a world without the six) with the six put in at their rank; was `[...keys, ...SIX]`
+const LATER: readonly string[] = [...SCALE_IDS, ...GATES_IDS];
+const withIds = (keys: string[], add: string[]): string[] => [...keys.filter((id) => !LATER.includes(id)), ...add, ...keys.filter((id) => LATER.includes(id))];
+const withSix = (keys: string[]): string[] => withIds(keys, SIX);
 
 describe("SHAPES-2 S1: the switch", () => {
   // BUMP-1D: was "ships off: nothing sees the six" (SHAPES2 false). The release turns it on (with PLAIN_RIGS and LONG_RUN, bb-0.11.0),
@@ -66,7 +75,7 @@ describe("SHAPES-2 S1: the switch", () => {
       expect(Object.keys(ITEMS)).toEqual(keys0);
       withShapes2(() => {
         expect(shapes2Rules()).toBe(true);
-        expect(Object.keys(ITEMS)).toEqual([...keys0, ...SIX]);
+        expect(Object.keys(ITEMS)).toEqual(withSix(keys0)); // BUMP-1F: was [...keys0, ...SIX]
         for (const id of SIX) expect(ITEMS[id], id).toBe(SHAPES2_DEFS[id]);
       });
       expect(shapes2Rules()).toBe(false);
@@ -81,10 +90,10 @@ describe("SHAPES-2 S1: the switch", () => {
     }, false);
     // BUMP-1D: the shipped state (on) comes back after the off world, and after a throw out of it, the six after every other def
     expect(shapes2Rules()).toBe(true);
-    expect(Object.keys(ITEMS)).toEqual([...keys0, ...SIX]);
+    expect(Object.keys(ITEMS)).toEqual(withSix(keys0)); // BUMP-1F: was [...keys0, ...SIX]
     expect(() => withShapes2(() => { throw new Error("x"); }, false)).toThrow("x");
     expect(shapes2Rules()).toBe(true);
-    expect(Object.keys(ITEMS)).toEqual([...keys0, ...SIX]);
+    expect(Object.keys(ITEMS)).toEqual(withSix(keys0)); // BUMP-1F: was [...keys0, ...SIX]
   });
 
   it("works with PLAIN_RIGS off and with both on (1D ships both): the 15 pieces are all there, in either order", () => {
@@ -106,11 +115,13 @@ describe("SHAPES-2 S1: the switch", () => {
     // both on, in either order: the plain rigs first (the order this test pinned), then the six after them; and the six first
     bothOff(() => withPlainRigs(() => withShapes2(() => {
       for (const id of [...SIX, ...PLAIN_RIG_IDS]) expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true);
-      expect(Object.keys(ITEMS).slice(-12)).toEqual([...PLAIN_RIG_IDS, ...SIX]);
+      // BUMP-1F (canonical order): the tail before the seven is the plain six, SHAPES' three, then the six (ITEM_RANK: plain 1, shapes 2, shapes2 3), whatever the order they are turned on in; was .slice(-12) equal to [...PLAIN_RIG_IDS, ...SIX]
+      expect(Object.keys(ITEMS).slice(-(15 + SCALE_IDS.length), -SCALE_IDS.length)).toEqual([...PLAIN_RIG_IDS, ...SHAPES_IDS, ...SIX]);
     })));
     bothOff(() => withShapes2(() => withPlainRigs(() => {
       for (const id of [...SIX, ...PLAIN_RIG_IDS]) expect(Object.prototype.hasOwnProperty.call(ITEMS, id), id).toBe(true);
-      expect(Object.keys(ITEMS).slice(-12)).toEqual([...SIX, ...PLAIN_RIG_IDS]);
+      // BUMP-1F (canonical order): the same tail with the six turned on first: each switch adds its ids at their rank, so the order is the same either way; was .slice(-12) equal to [...SIX, ...PLAIN_RIG_IDS]
+      expect(Object.keys(ITEMS).slice(-(15 + SCALE_IDS.length), -SCALE_IDS.length)).toEqual([...PLAIN_RIG_IDS, ...SHAPES_IDS, ...SIX]);
     })));
     // and the world before 1D has neither
     bothOff(() => {
@@ -468,7 +479,7 @@ describe("SHAPES-2 S3: the pools, in both switch states", () => {
       for (const id of SIX) expect(off, id).not.toContain(id);
       withShapes2(() => {
         const on = buyableModules();
-        expect(ids(on)).toEqual([...off, ...SIX]);
+        expect(ids(on)).toEqual(withSix(off)); // BUMP-1F (canonical order): was [...off, ...SIX]
         expect(on.filter((d) => SIX.includes(d.id)).map((d) => [d.id, d.rarity, d.kind])).toEqual([
           ["elbowguard", "common", "gate"], ["sawbar", "common", "gate"], ["sparkcomb", "common", "gate"],
           ["cinderhook", "rare", "gate"], ["jawcrusher", "rare", "gate"], ["pickaxe", "epic", "gate"],
@@ -477,10 +488,10 @@ describe("SHAPES-2 S3: the pools, in both switch states", () => {
         // every merchant's stock grows by exactly its own rigs
         for (const [m, list] of Object.entries(stockOff)) {
           const mine = SIX.filter((id) => ITEMS[id].merchant === m);
-          expect(byMerchant(m as MerchantId), m).toEqual([...list, ...mine]);
+          expect(byMerchant(m as MerchantId), m).toEqual(withIds(list, mine)); // BUMP-1F (canonical order, the seven come after the six): was [...list, ...mine]
         }
         // PICKAXE is an epic rig: LAST CHANCE draws an epic part evenly from the catalogue, so it joins that list (and nothing else does)
-        expect(ids(lastChanceParts())).toEqual([...lcOff, "pickaxe"]);
+        expect(ids(lastChanceParts())).toEqual(withIds(lcOff, ["pickaxe"])); // BUMP-1F (canonical order, TROPHY CHAIN (an epic rig of the seven) comes after the six): was [...lcOff, "pickaxe"]
       });
       expect(ids(buyableModules())).toEqual(off);
       expect(ids(lastChanceParts())).toEqual(lcOff);
@@ -577,7 +588,7 @@ describe("SHAPES-2 S1: SHAPES2_RULES and the validator's verdicts", () => {
     expect(SHAPES2_RULES).toBe("bb-0.11.0");
     // BUMP-1E: was expect(SHAPES2_RULES).toBe(RULES_VERSION) (both bb-0.11.0). SHAPES2_RULES is a literal gate (the rules that brought the six) and stays
     // bb-0.11.0; this build's rules are bb-0.12.0 (content.ts RULES_VERSION), the version after it, so they have the six
-    expect(RULES_VERSION).toBe("bb-0.12.0");
+    expect(RULES_VERSION).toBe("bb-0.13.0"); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: label bb-0.12.0 -> bb-0.13.0): was bb-0.12.0
     expect(SHAPES2_RULES).not.toBe(RULES_VERSION);
     expect(rulesAtLeast(RULES_VERSION, SHAPES2_RULES)).toBe(true);
     expect(SHAPES_RULES).toBe("bb-0.10.0");
@@ -614,7 +625,7 @@ describe("SHAPES-2 S1: SHAPES2_RULES and the validator's verdicts", () => {
       expect(inShapesWorld("bb-0.9.7", () => [shapesRules(), shapes2Rules(), Object.prototype.hasOwnProperty.call(ITEMS, "pickaxe")])).toEqual([false, false, false]);
       expect(inShapesWorld(RULES_VERSION, () => [shapesRules(), shapes2Rules()])).toEqual([true, true]);
       expect([shapesRules(), shapes2Rules()]).toEqual([true, true]);
-      expect(Object.keys(ITEMS).slice(-6)).toEqual(SIX); // and ITEMS keeps its order through the swap
+      expect(Object.keys(ITEMS).slice(-(6 + SCALE_IDS.length), -SCALE_IDS.length)).toEqual(SIX); // and ITEMS keeps its order through the swap (BUMP-1F, canonical order: the seven stand behind the six; was .slice(-6))
     });
     expect(withShapes2(() => shapes2World(RULES_VERSION), false)).toBe(false);
   });

@@ -19,6 +19,7 @@ import { REMINDER, faceAt, hasFace, heroPlaystyle } from "../src/ui/faces";
 import { BALLAST_LINE, CARRY_LINE, cardEffect, plainNotes } from "../src/ui/faces"; // PLAIN-1F (M3): (r) for the six
 import { PLAIN_RIG_IDS, withPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1F (M3)
 import { SCALE_IDS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E: the switch ships on; the seven new rigs (SCALE_IDS)
+import { GATES_IDS } from "../src/sim/gates"; // BUMP-1F (GATES on, bb-0.13.0): the three converters join the buyable modules
 import { abilityText, cardText, gist, hasAbilityText, heroTrick, nextStarText } from "../src/ui/abilityText";
 import { flavour } from "../src/screens/build/flavour";
 import { GLOSSARY, RUNE_NOTE, RUNE_REMINDER, glossaryEntry, glossaryText, keywordRow } from "../src/ui/glossary";
@@ -543,8 +544,10 @@ describe("CARD-3 (b, c): the phone band (REQ-BFG-080) and the first-run band (RE
     // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0): the seven new scaling rigs (SCALE_IDS) join the buyable modules, 13 panels each (an offer,
     // and at each of 3 stars a cargo panel and 3 placed ones): 1094 + 7 x 13 = 1185 (their count is the whole of the growth: the five
     // reworks and VENOM DRIP change a panel's text, never the number of panels)
-    expect(all.length).toBe(1185); // BUMP-1E: was 1094
-    expect(all.length - 1094).toBe(SCALE_IDS.length * 13); // BUMP-1E: the growth is the seven new rigs' panels and nothing else (7 x 13 = 91)
+    // BUMP-1F (GATES on, bb-0.13.0; RULING-BUMP1F-R5 R5.2 (2)): the three converters (GATES_IDS: FUSER, SCATTER MILL, SMELTER) join the buyable modules: a converter is fusible and neither a rig, a
+    // factory, gear, a core nor a turret, so its panels are an offer and a cargo panel at each of 3 stars, 4 each, 3 x 4 = 12 (no placed panel): 1185 + 12 = 1197
+    expect(all.length).toBe(1197); // BUMP-1F (GATES on): was 1185 (BUMP-1E: was 1094)
+    expect(all.length - 1094).toBe(SCALE_IDS.length * 13 + GATES_IDS.length * 4); // BUMP-1F: was SCALE_IDS.length * 13 (BUMP-1E: the growth is the seven new rigs' panels and nothing else, 7 x 13 = 91); now + the converters' 12
     const counts: Record<string, number> = {};
     for (const mode of ["done", "new"] as const) {
       setTipsForTests(mode);

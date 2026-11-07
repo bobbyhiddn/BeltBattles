@@ -3,7 +3,7 @@ import { hashSeed } from "../src/core/rng";
 import { startingBuild, warlordBuild } from "../src/sim/ai";
 import { Battle, simulate, type BattleRecord } from "../src/sim/battle";
 import { battleRecordFor, outcomeOf, replay, replayBattle, RulesMismatchError } from "../src/net/replay";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 
 const POOL = generateSamplePool();
 

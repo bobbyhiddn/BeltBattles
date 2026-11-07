@@ -17,6 +17,9 @@
 // rows (scale-signed, FURNACE's day-1 deck plus one GRUDGE ROD, follows longrun-nolosses) and 8 decks are expected. The first nine rows'
 // bytes carry the new rules string, so both digests moved with it and with it alone: put bb-0.11.0 back into their text and recompute their
 // ghost ids and each reproduces BUMP-1D's pin (the flip moves none of the nine rows; so they are the same with the scaling switch off).
+// BUMP-1F (RULING-BUMP1F-R13 R13.3; REQ-BFG-059, ENDLESS-1): the four ENDLESS rows of the kit probe of 0.9.13 follow the 17th row: three POSTs in the plan (endless-honest 201, endless-wins-cap 400,
+// endless-norecord 422: twenty rows, ten decks expected) and the GET endless-match (200, an endless ghost) that runProbe sends after them: twenty-one checks. The first nine rows are untouched,
+// so both digests below stand as BUMP-1F's bump left them (the endless rows come last).
 import { describe, expect, it } from "vitest";
 import { probeLastChance } from "../server/ghostProbe"; // HULL-ON (HEARTS): the hearts rule's LAST CHANCE row
 import { withHearts } from "../src/sim/hearts"; // HULL-ON: the pre-hearts plan (the off check)
@@ -43,6 +46,10 @@ const THIRTEEN = [...ELEVEN, "npcday-signed", "npcday-forged"];
 const FIFTEEN = [...THIRTEEN, "longrun-signed", "longrun-nolosses"];
 // BUMP-1E (the bump to bb-0.12.0; REQ-BFG-098): the scale row follows the long run's
 const SIXTEEN = [...FIFTEEN, "scale-signed"];
+// BUMP-1F (REQ-BFG-052, REQ-BFG-085; the probe's 17th row, server/ghostProbe.ts gatesDusk: a signed FURNACE day-3 deck with a FUSER and a WHETSTONE holding one word, 201): follows the scale row
+const SEVENTEEN = [...SIXTEEN, "gates-signed"];
+// BUMP-1F (RULING-BUMP1F-R13 R13.3; REQ-BFG-059, ENDLESS-1): the three endless POSTs follow the 17th row (the fourth endless check, the GET endless-match, is no plan row: runProbe sends it after them)
+const TWENTY = [...SEVENTEEN, "endless-honest", "endless-wins-cap", "endless-norecord"];
 const NOW = 1_790_000_000_000;
 const rows = (plan: ReturnType<typeof probePlan>) => plan.map((p) => [p.name, p.text, p.signed, p.expected]);
 const ctx = (s: GhostSnapshot) => ({ seed: s.seed, ...(s.lastChance ? { lastChance: s.lastChance } : {}) });
@@ -64,7 +71,11 @@ const digest = (x: unknown): string => createHash("sha256").update(JSON.stringif
 // BUMP-1E (the bump): the nine rows' bytes carry this build's rules, now bb-0.12.0, so the digest moved once more with the rules string
 // alone; was c3acba61... under bb-0.11.0 (BUMP-1D's pin). The plan is still taken with the long run off (preFlipPlan), so no row states
 // `losses`; the nine rows are otherwise as before, in order
-const PRE_FLIP_NINE = "970c168f833c197554be2dd4cae21151ee29612615099693796bb2b8b21cb52b";
+// BUMP-1F (the bump to bb-0.13.0; label bb-0.12.0 -> bb-0.13.0, PROBE_RULES): the nine rows' bytes carry the new rules string, so the digest moved with it
+// alone; was 970c168f... under bb-0.12.0 (BUMP-1E's pin). Checked as BUMP-1E checked its own: put bb-0.12.0 back into the nine rows' text and expected lines
+// (the 400 rows name the rules too) and recompute their ghost ids, and the digest of the rows reproduces 970c168f833c197554be2dd4cae21151ee29612615099693796bb2b8b21cb52b
+// (the GATES and ENCHANT flips move none of the nine rows: start decks and reference decks hold no converter and no word)
+const PRE_FLIP_NINE = "55df8822ce23c8f03079bd6cede02a55d66c9719cf835ef397b1f2a93d96f5ea";
 /** HULL-ON (the flip, HEARTS and OPEN_RUNES; ruling 12a42239093fb6ec): digest(rows(plan.slice(0, 9))) with every switch on:
  *  the start rows at 10 hearts (HEARTS: was 5 lives) and BASTION's, METRONOME's and SIPHON's dawn runes from the open
  *  offers (OPEN_RUNES). With HEARTS alone off it reads 3c5741a1...; with both off, PRE_FLIP_NINE.
@@ -72,27 +83,30 @@ const PRE_FLIP_NINE = "970c168f833c197554be2dd4cae21151ee29612615099693796bb2b8b
  *  each row's `losses` (0 on the start rows; the "losses" field right after the seed), so the digest moved again; was
  *  9db13026... under bb-0.10.0 without them (AZ-BUMP's pin). The nine rows are otherwise as before, in order.
  *  BUMP-1E (the bump to bb-0.12.0): the nine rows' bytes carry the new rules string, so the digest moved with it alone (their `losses`
- *  and everything else are as BUMP-1D left them); was 58060ce6... under bb-0.11.0 (BUMP-1D's pin). */
-const FLIP_NINE = "5fc4f91d1edda0a64e0f2295d1d18148c4ffa0902390e12161a5209ef4c0dfd4";
+ *  and everything else are as BUMP-1D left them); was 58060ce6... under bb-0.11.0 (BUMP-1D's pin).
+ *  BUMP-1F (the bump to bb-0.13.0; label bb-0.12.0 -> bb-0.13.0, PROBE_RULES): the nine rows' bytes carry the new rules string, so the digest moved with it
+ *  alone; was 5fc4f91d... under bb-0.12.0 (BUMP-1E's pin). Put bb-0.12.0 back into the nine rows' text and expected lines, recompute their ghost ids, and the
+ *  digest of the rows reproduces 5fc4f91d1edda0a64e0f2295d1d18148c4ffa0902390e12161a5209ef4c0dfd4 (the GATES and ENCHANT flips move none of the nine rows). */
+const FLIP_NINE = "a08800600bec0fa9fa90f38d0c90212ed6e217432558a5587dfeafd7889eebb1";
 /** HULL-ON (the off check): the plan with HEARTS and OPEN_RUNES off, the probe's rows as before the flip.
  *  BUMP-1D: and with the long run off (no row states `losses`: the decoder refuses the field there), so these are still the
  *  rows as they were before the flip, but for the rules string. */
 const preFlipPlan = () => withLongRun(() => withHearts(() => withOpenRunes(() => probePlan("p-zprep", NOW), false), false), false);
 
 describe("Z-PREP: the probe's LAST CHANCE rows", () => {
-  it("the plan: the nine rows it had before the flip first (in order, byte for byte, none carries a lastChance), then the two LAST CHANCE rows, the NPC day's two (AZ-BUMP), the long run's two (BUMP-1D) and the scale row (BUMP-1E); 8 decks are expected", () => { // BUMP-1E: the bump (was 7 decks, without the scale row)
+  it("the plan: the nine rows it had before the flip first (in order, byte for byte, none carries a lastChance), then the two LAST CHANCE rows, the NPC day's two (AZ-BUMP), the long run's two (BUMP-1D), the scale row (BUMP-1E), the gates row (BUMP-1F) and the three endless POSTs (BUMP-1F, R13.3); 10 decks are expected", () => { // BUMP-1F (RULING-BUMP1F-R13 R13.3: the endless POSTs, one of which stores a deck): was 9 decks, without the endless rows. BUMP-1F (the 17th row, gates-signed): was 8 decks, without the gates row. BUMP-1E: the bump (was 7 decks, without the scale row)
     const plan = probePlan("p-zprep", NOW);
-    expect(plan.map((p) => p.name)).toEqual(SIXTEEN); // BUMP-1E (the bump): was FIFTEEN. BUMP-1D (the bump): was THIRTEEN. AZ-BUMP (the bump): was ELEVEN. Z-BUMP (the flip): was NINE, the whole plan with the switch off
+    expect(plan.map((p) => p.name)).toEqual(TWENTY); // BUMP-1F (RULING-BUMP1F-R13 R13.3): was SEVENTEEN. BUMP-1F (the 17th row): was SIXTEEN. BUMP-1E (the bump): was FIFTEEN. BUMP-1D (the bump): was THIRTEEN. AZ-BUMP (the bump): was ELEVEN. Z-BUMP (the flip): was NINE, the whole plan with the switch off
     const nine = plan.slice(0, 9);
     expect(digest(rows(nine))).toBe(FLIP_NINE); // HULL-ON (the flip, HEARTS and OPEN_RUNES): was PRE_FLIP_NINE. Z-BUMP: the first nine, byte for byte the plan before the flip
     expect(digest(rows(preFlipPlan().slice(0, 9)))).toBe(PRE_FLIP_NINE); // HULL-ON: with HEARTS and OPEN_RUNES off, byte for byte as before (BUMP-1D: and the long run off)
     expect(nine.some((p) => p.snapshot.lastChance !== undefined || p.text.includes("lastChance"))).toBe(false);
-    expect([probeStored(), PROBE_STORED]).toEqual([8, 4]); // BUMP-1E (the bump): was [7, 4] (the scale row's honest deck stores one more). BUMP-1D (the bump): was [6, 4] (the long run's honest row stores one more). AZ-BUMP (the bump): was [5, 4] (the NPC day's honest row stores one more). Z-BUMP (the flip): was [4, 4]; the nine rows still store 4
+    expect([probeStored(), PROBE_STORED]).toEqual([10, 4]); // BUMP-1F (RULING-BUMP1F-R13 R13.3: the endless honest deck stores one more; the other endless rows and the match store none): was [9, 4]. BUMP-1F (the 17th row's honest deck stores one more): was [8, 4]. BUMP-1E (the bump): was [7, 4] (the scale row's honest deck stores one more). BUMP-1D (the bump): was [6, 4] (the long run's honest row stores one more). AZ-BUMP (the bump): was [5, 4] (the NPC day's honest row stores one more). Z-BUMP (the flip): was [4, 4]; the nine rows still store 4
   });
 
   it("the nine rows unchanged, then the two flip rows; the honest one passes POST's checks, the forged one fails only the record", () => {
     const on = probePlan("p-zprep", NOW);
-    expect(on.map((p) => p.name)).toEqual(SIXTEEN); // BUMP-1E (the bump): was FIFTEEN. BUMP-1D (the bump): was THIRTEEN. AZ-BUMP (the bump): was ELEVEN
+    expect(on.map((p) => p.name)).toEqual(TWENTY); // BUMP-1F (RULING-BUMP1F-R13 R13.3): was SEVENTEEN. BUMP-1F (the 17th row): was SIXTEEN. BUMP-1E (the bump): was FIFTEEN. BUMP-1D (the bump): was THIRTEEN. AZ-BUMP (the bump): was ELEVEN
     expect(digest(rows(on.slice(0, 9)))).toBe(FLIP_NINE); // HULL-ON (the flip, HEARTS and OPEN_RUNES): was PRE_FLIP_NINE. The first nine, byte for byte (Z-BUMP: was rows(off), the switch-off plan)
     const [h, f] = on.slice(9, 11); // AZ-BUMP: LAST CHANCE's two rows (the NPC day's two follow)
     // HULL-ON (the flip, HEARTS; ruling 12a42239093fb6ec): the hearts rule's LAST CHANCE: a run that loses every dusk holds
@@ -119,10 +133,10 @@ describe("Z-PREP: the probe's LAST CHANCE rows", () => {
     expect(isReachable(7, 0, 1, { lastChance: 3, losses: 6 })).toBe(false); // BUMP-1D (RUN-1): with its six losses too
     // BUMP-1D (RUN-1): the server's record error names the row's losses ("... 1 lives and 6 losses is no record ...")
     expect([f.signed, f.expected]).toEqual([true, "422 record: 0W 1 lives and 6 losses is no record a run carries into dusk 7 after a LAST CHANCE on day 3"]); // HULL-ON (HEARTS): was "0W 2 lives ... dusk 6 ..."
-    expect(probeStored()).toBe(8); // BUMP-1E: the bump (was 7; the scale row's honest deck). BUMP-1D: the bump (was 6; the long run's honest row). AZ-BUMP: the bump (was 5; the NPC day's honest row)
+    expect(probeStored()).toBe(10); // BUMP-1F (RULING-BUMP1F-R13 R13.3: the endless honest deck): was 9. BUMP-1F (the 17th row's honest deck): was 8. BUMP-1E: the bump (was 7; the scale row's honest deck). BUMP-1D: the bump (was 6; the long run's honest row). AZ-BUMP: the bump (was 5; the NPC day's honest row)
   });
 
-  it("end to end: sixteen checks as expected against a fresh server, which stores eight decks (BUMP-1E: was fifteen and seven; BUMP-1D: was thirteen and six; AZ-BUMP: was eleven and five)", async () => {
+  it("end to end: twenty-one checks as expected against a fresh server, which stores ten decks (BUMP-1F, RULING-BUMP1F-R13 R13.3: was seventeen and nine; BUMP-1F, the 17th row: was sixteen and eight; BUMP-1E: was fifteen and seven; BUMP-1D: was thirteen and six; AZ-BUMP: was eleven and five)", async () => {
     const dir = mkdtempSync(join(tmpdir(), "bb-zprep-probe-"));
     const store = new JsonlStore(join(dir, "data"));
     store.load();
@@ -130,13 +144,22 @@ describe("Z-PREP: the probe's LAST CHANCE rows", () => {
     try {
       const base = `http://127.0.0.1:${await app.listen(0)}`;
       const r = await runProbe(base, () => {}, 15_000, NOW);
-      expect(r.checks.map((c) => [c.name, c.ok])).toEqual(SIXTEEN.map((n) => [n, true])); // BUMP-1E: was FIFTEEN. BUMP-1D: was THIRTEEN. AZ-BUMP: was ELEVEN
+      expect(r.checks.map((c) => [c.name, c.ok])).toEqual([...TWENTY, "endless-match"].map((n) => [n, true])); // BUMP-1F (RULING-BUMP1F-R13 R13.3: the twenty POSTs and the endless match): was SEVENTEEN.map(...). BUMP-1F (the 17th row): was SIXTEEN. BUMP-1E: was FIFTEEN. BUMP-1D: was THIRTEEN. AZ-BUMP: was ELEVEN
       expect(r.checks[9].got).toMatch(/^201 \{"id":"g[0-9a-f]{14}"\}$/);
       expect(r.checks[10].got).toBe("422 record: 0W 1 lives and 6 losses is no record a run carries into dusk 7 after a LAST CHANCE on day 3"); // BUMP-1D (RUN-1): the row states its 6 losses. HULL-ON (the flip, HEARTS): was "0W 2 lives ... dusk 6 ..."
       expect(r.checks[13].got).toMatch(/^201 \{"id":"g[0-9a-f]{14}"\}$/); // BUMP-1D: the honest day-12 deck is stored
       expect(r.checks[14].got).toBe("422 losses: a long run's upload states the dusks the run lost (snapshot.losses is missing; day - 1 = wins + losses + draws needs it)"); // BUMP-1D: and the same without its losses is refused by RUN-1's upload check
       expect(r.checks[15].got).toMatch(/^201 \{"id":"g[0-9a-f]{14}"\}$/); // BUMP-1E: the honest scale row (FURNACE's day-1 deck plus one GRUDGE ROD) is stored
-      expect([r.ok, r.stored, probeStored()]).toEqual([true, 8, 8]); // BUMP-1E: the bump (was [true, 7, 7]). BUMP-1D: the bump (was [true, 6, 6]). AZ-BUMP: the bump (was [true, 5, 5])
+      expect(r.checks[16].got).toMatch(/^201 \{"id":"g[0-9a-f]{14}"\}$/); // BUMP-1F (the 17th row): the honest gates row (FURNACE's day-3 deck plus a FUSER and a WHETSTONE holding one word) is stored
+      // BUMP-1F (RULING-BUMP1F-R13 R13.3): the endless rows. The honest day-14 endless deck is stored; the same with endlessWins 30 is refused by the strict decode (400) and the same with 3 endless wins
+      // and 2 hearts by the endless record check (422), each with the server's own words; the GET gets the honest deck back, an endless ghost (200), and is no deck (r.stored counts the POSTs)
+      expect(r.checks[17].got).toMatch(/^201 \{"id":"g[0-9a-f]{14}"\}$/);
+      expect(r.checks[18].got).toBe("400 snapshot.endlessWins: expected an integer in 0..29");
+      expect(r.checks[19].got).toBe("422 record: 3 endless wins and 2 hearts is no record a run won on day 10 carries into endless dusk 14");
+      expect(r.checks[20].got).toBe(`200 {"id":"${/^201 \{"id":"(g[0-9a-f]{14})"\}$/.exec(r.checks[17].got)?.[1]}"}`);
+      expect(r.checks[20].status).toBe(200); // the match's 200 is no deck: the ten decks are the ten 201s of the POSTs, and `stored` is counted before the match
+      expect(r.checks.filter((c) => c.status === 201)).toHaveLength(10);
+      expect([r.ok, r.stored, probeStored()]).toEqual([true, 10, 10]); // BUMP-1F (RULING-BUMP1F-R13 R13.3): was [true, 9, 9]. BUMP-1F (the 17th row): was [true, 8, 8]. BUMP-1E: the bump (was [true, 7, 7]). BUMP-1D: the bump (was [true, 6, 6]). AZ-BUMP: the bump (was [true, 5, 5])
     } finally {
       await app.close();
       rmSync(dir, { recursive: true, force: true });

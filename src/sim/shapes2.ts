@@ -30,6 +30,7 @@
 import { ITEMS, type ItemDef } from "./content";
 import { SHAPES_ITEMS } from "./shapes"; // run 2: NAIL STRIP's number patch (SHAPES2_PATCHES); shapes.ts imports nothing of this file
 import { clearStarCache } from "./stars";
+import { ITEM_RANK, addRanked, registerRanked } from "./itemsKeep"; // BUMP-1F P2 (F1): the canonical order of the ids a switch adds
 
 /** THE switch (REQ-BFG-114): on since bb-0.11.0 (BUMP-1D turned it on with PLAIN_RIGS and LONG_RUN). */
 export const SHAPES2: boolean = true;
@@ -132,6 +133,7 @@ function swapPatches(on: boolean): void {
 
 /** The six ids, in the order they join ITEMS. */
 export const SHAPES2_IDS: readonly string[] = Object.keys(SHAPES2_DEFS);
+registerRanked(ITEM_RANK.shapes2, SHAPES2_IDS); // BUMP-1F P2 (F1)
 
 /**
  * THE OFFER LEVER (BRIEF-SHAPES2 S3; REQ-BFG-114 (2): a typical run sees at least 5 shaped-rig offers across its shops, bar:
@@ -165,10 +167,8 @@ export function isShapes2Piece(id: string): boolean {
 export function setShapes2(on: boolean): void {
   if (on === s2On) return;
   const items = ITEMS as Record<string, ItemDef>;
-  for (const id of SHAPES2_IDS) {
-    if (on) items[id] = SHAPES2_DEFS[id];
-    else delete items[id];
-  }
+  if (on) addRanked(ITEM_RANK.shapes2, SHAPES2_DEFS, SHAPES2_IDS); // BUMP-1F P2 (F1): at its rank, not at the end
+  else for (const id of SHAPES2_IDS) delete items[id];
   swapPatches(on);
   clearStarCache();
   s2On = on;

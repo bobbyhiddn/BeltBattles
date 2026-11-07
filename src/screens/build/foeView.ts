@@ -154,7 +154,8 @@ export class FoeView {
       return q.h >= INFO_FREE_MIN ? q : null;
     };
     // CNT-DAY (REQ-BFG-082, REQ-BFG-079): the face on the run's day (s.run is the game's run: tonight's dusk is on it)
-    this.faces.drawOn(g, s.game, foe.build, { area: R.area, band: R.band }, free, DEFAULT_SKIN.panel, null, s.run.day);
+    // ENCHANT-2W (REQ-BFG-085; W5): every part here is the foe's, so each face's sub line names its owner (the foe's name: faceText's `owner`)
+    this.faces.drawOn(g, s.game, foe.build, { area: R.area, band: R.band }, free, DEFAULT_SKIN.panel, null, s.run.day, foe.name);
     this.last = { card: R.cardHit, back: R.backHit, area: R.area };
   }
 

@@ -31,7 +31,8 @@ import { RIG_SENTENCE } from "../src/ui/faces";
 import { plainRigStats } from "../src/ui/faces"; // MERGE-099D (BRIEF-MERGE-099D 1f): (k6) at the LAST CHANCE offer's star
 import { BALLAST_LINE, CARRY_LINE, faceAt, plainNotes } from "../src/ui/faces"; // PLAIN-1F (M3): (k6) for the six
 import { PLAIN_RIG_IDS, withPlainRigs } from "../src/sim/plainRigs"; // PLAIN-1F (M3)
-import { partInfo, partLines } from "../src/screens/lastChancePicker"; // PLAIN-1F (M3): the PART card at each star
+import { lcWord, partInfo, partLines } from "../src/screens/lastChancePicker"; // PLAIN-1F (M3): the PART card at each star; BUMP-1F: lcWord, the word a PART card arrives with
+import { withEnchant } from "../src/sim/enchant"; // BUMP-1F (ENCHANT on): the box with ENCHANT off is the old text
 import { statRow } from "../src/ui/icons"; // MERGE-099D (1f)
 import type { Ctx } from "../src/screens/build/actions";
 import type { DuskFoe } from "../src/game/run";
@@ -500,7 +501,16 @@ describe("CARD-2 (k6): the plain rigs' faces on LAST CHANCE's PART card and the 
       if ((o0.partStars ?? 1) === 1 && run.day === 1) expect(statRow(plainRigStats(id, 1, 1)!), id).toBe(want[id]);
       lc.info.add(lines.findIndex((t) => t.boon === "part"));
       const info = (lc as unknown as { texts(r: Run, o: unknown, w: number): { boon: string; info: { t: string }[][][] }[] }).texts(run, lc.offer(sc.s as never), 300).find((t) => t.boon === "part")!.info;
-      expect(info.flat().map((l) => l.map((s) => s.t).join("")).join(" "), id).toMatch(/^EACH ARROW THAT POINTS AT A BELT TILE GIVES ITS STATS TO EVERY SLUG ON THAT TILE\. ONE ARROW, ONE HIT\. /);
+      const RIG_LEAD = /^EACH ARROW THAT POINTS AT A BELT TILE GIVES ITS STATS TO EVERY SLUG ON THAT TILE\. ONE ARROW, ONE HIT\. /;
+      // BUMP-1F (ENCHANT on, bb-0.13.0; RULING-BUMP1F-R5 R5.2 (2)): was `expect(info.flat()....join(" "), id).toMatch(RIG_LEAD)` alone. A PART that arrives enchanted prints its word first, as its own item
+      // (lastChancePicker.ts partInfo: `ENCHANTED: BRACED. THE FIRST 6 STUNS ...`, ENCHANT-1 E5c/E7), then the NOTES: the rig sentence still LEADS THE NOTES, so the box is the word's item, if the card has one
+      // (lcWord: re-derived from the run's seed and the day), and then the old text. The old-world half is the same box with ENCHANT off: no word item, the rig sentence leads the box, as before
+      const items = info.map((it) => it.map((l) => l.map((s) => s.t).join("")).join(" "));
+      const word = lcWord(run, { day: o0.day, part: id });
+      if (word) expect(items[0], `${id}: the word's item first`).toMatch(/^ENCHANTED: /);
+      expect((word ? items.slice(1) : items).join(" "), id).toMatch(RIG_LEAD);
+      const infoOff = withEnchant(() => (lc as unknown as { texts(r: Run, o: unknown, w: number): { boon: string; info: { t: string }[][][] }[] }).texts(run, lc.offer(sc.s as never), 300).find((t) => t.boon === "part")!.info, false);
+      expect(infoOff.flat().map((l) => l.map((s) => s.t).join("")).join(" "), `${id} (ENCHANT off)`).toMatch(RIG_LEAD);
     }
   });
 

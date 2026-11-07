@@ -21,6 +21,7 @@ import { ITEMS, type ItemDef, type ReadCount } from "./content";
 import { WAVE3_ITEMS, onSetWave3, type ReadSpec } from "./content"; // SCALE-2c (REQ-BFG-098): the reworks' wave-3 hook, the reader lines
 import type { Build } from "./deck";
 import { clearStarCache, effectAt, starsOf } from "./stars";
+import { ITEM_RANK, addRanked, registerRanked } from "./itemsKeep"; // BUMP-1F P2 (F1): the canonical order of the ids a switch adds
 import { livesCap, startLives } from "./hearts"; // SCALE-2c M0 (REQ-BFG-098): the RETUNE-1 hearts swap (startHearts)
 // SCALE-2c (REQ-BFG-098): ladderFix.ts swaps QUENCH TANK's def too (its ★1 40 a BURN) and builds its fixed def from what
 // ITEMS holds when it loads; loading it first means the switch (on at this module's load once BUMP-1E flips it) always
@@ -151,6 +152,7 @@ export const SCALE_ITEMS: Readonly<Record<string, ItemDef>> = {
 
 /** SCALE-2c: the seven new ids, in the order they join ITEMS. */
 export const SCALE_IDS: readonly string[] = Object.keys(SCALE_ITEMS);
+registerRanked(ITEM_RANK.scale, SCALE_IDS); // BUMP-1F P2 (F1)
 
 /** SCALE-2c: is `id` one of the seven new scaling rigs (whatever the switch)? */
 export function isScalePiece(id: string): boolean {
@@ -195,10 +197,8 @@ export function setScaleRigs(on: boolean): void {
     items[id] = on ? SC_ON.get(id)! : SC_BASE.get(id)!;
   }
   // SCALE-2c (REQ-BFG-098): the seven new ids join ITEMS after every other def, or leave it (shapes.ts setShapes's form)
-  for (const id of SCALE_IDS) {
-    if (on) items[id] = SCALE_ITEMS[id];
-    else delete items[id];
-  }
+  if (on) addRanked(ITEM_RANK.scale, SCALE_ITEMS, SCALE_IDS); // BUMP-1F P2 (F1): at its rank (after SHAPES2's six, before GATES' three), not at the end
+  else for (const id of SCALE_IDS) delete items[id];
   clearStarCache();
   scOn = on;
   for (const fn of afterScale) fn(on);

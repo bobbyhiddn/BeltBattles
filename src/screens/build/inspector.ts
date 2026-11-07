@@ -84,6 +84,8 @@ import { skinOf, type PanelId } from "../../render/styles"; // CUSTOM-2a (REQ-BF
 import { drawPortrait, tag } from "../../ui/captain";
 import { buy, deleteRoute, rotate, selectGain, sell, sellPrice, store, unfitCore, unfitMod, upgrade, type Ctx } from "./actions";
 import { fusible, gradeOf, outputsAt, starsOf, starText, upgradeLevel } from "../../sim/stars";
+import { enchantRules, wideSlots } from "../../sim/enchant"; // ENCHANT-1 (REQ-BFG-085): WIDE on a factory is +1 belt slot
+import { sellLabelFor, wordSpec } from "./apply"; // ENCHANT-1 (REQ-BFG-085, E4, E5): the armed SELL label, a word card's panel
 import { factoryNext, levelLine, turretSpeedRow, upgradeLabel } from "../../ui/upgradeText"; // bb-0.8.3 (REQ-BFG-043 D11)
 import { nextUpgrade, upgradeShown } from "../../game/run"; // bb-0.8.3 (D11)
 import { shopShut } from "../../game/run"; // AZ-PREP (REQ-BFG-077; REVIEW-NPC1 Q4): no SELL button in REFIT (NPC_DAY on)
@@ -124,11 +126,19 @@ import { GAP, GAP_MIN } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the g
 import { hintShows } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a hint shows until its first-run tip is done
 import { turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' kind lines (PLAIN-1F M3: the rig sentence comes through plainNotes)
 import { shapeNotes } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-089): the shaped rigs' NOTES
+import { gateNotes } from "../../ui/faces"; // GATES-1 (REQ-BFG-089): a gate's NOTES: the gate rule, the wait, the FUSER's order
+import { beltTile } from "../../sim/split"; // GATES-1 (REQ-BFG-057): the belt a placed gate stands on
+import { key } from "../../sim/deck"; // GATES-1: its cell
 import { shapeLines } from "../../ui/faces"; // PLAIN-1F (M4): a placed long rig's UP TO n HITS, said by its arrows line
 import { plainNotes } from "../../ui/faces"; // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead (was isPlainRig's rig sentence)
 import { cardEffect } from "../../ui/faces"; // BUMP-1D P6: the offer panel's header-only one-line effect: cardText, else a plain rig's stat row (the twelve have no ability text)
 import { scaleNotes } from "../../ui/faces"; // SCALE-2c (REQ-BFG-089): the 12 readers' NOTES line, SCALE_RIGS on only
 import { shapePic } from "../../ui/shapePic"; // SHAPES-1 (REQ-BFG-086.1): the panel face's shape picture
+import { enchantNotes, wordTurretRow } from "../../ui/faces"; // ENCHANT-1 (REQ-BFG-085, E7): an enchanted piece's NOTES, an installed turret's row with its word
+import { enchantedTitle, nameSpans, wordColour, wordOn, type WordOn } from "../../ui/enchantFaces"; // ENCHANT-1 (E7): the word first in the title, the piece's word as the faces read it
+import { wordLineBlocks, wordOnSentences } from "./faceBlocks"; // ENCHANT-1 (E7): the word's line; a faceless piece's word
+import { slotWord } from "./turretPanel"; // ENCHANT-1 (E7): the word an installed turret holds
+import type { EnchantId } from "../../sim/enchant"; // ENCHANT-1: PanelText.ench
 
 /** SHAPES-1 (REQ-BFG-086.1, S8): a panel's header picture: a shaped piece's shape with its arrows (ui/shapePic.ts), in the
  *  header's 16x16 box where every other piece keeps its icon. */
@@ -138,6 +148,10 @@ function panelIcon(def: string): HTMLCanvasElement {
 
 /** 0.6.1a: an inspect title with its stars in the 5x7 ★ glyph ("TEMPER ★★"); 1 star shows none. */
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
+
+/** ENCHANT-1 (REQ-BFG-085, E7): a panel's title and its word: `{ title }` for a plain piece (no `ench` key), `{ title: "FIERY WHETSTONE ★★",
+ *  ench }` for one holding a word: the word first (the title's colour is the piece's rarity; the word's is drawn by fitTitle). */
+const enchTitle = (w: WordOn | undefined, title: string): { title: string; ench?: EnchantId } => (w ? { title: enchantedTitle(w.id, title), ench: w.id } : { title });
 
 /** 0.6.1r N4: the class factor a core in this run's cargo or shop would fire at: the hero's turrets (all of one
  *  class today: FURNACE heavy k 1, WEAVER light k 0.55), as resolveCore scales it once fitted. */
@@ -205,6 +219,9 @@ export interface Block {
   /** CARD-2 (REQ-BFG-081, K4): a turret's labelled stat row (faceBlocks.ts turretRow): its pairs never split; one line where
    *  the row fits, else one pair a line (the desk column). */
   pairs?: boolean;
+  /** ENCHANT-1 (REQ-BFG-085, E7): a stat row's numbers (0-based, in reading order) that an enchantment added or changed, drawn in the
+   *  word's `colour` instead of white (FIERY's `{BURN}+1`, MASSIVE's RATE and DMG, WIDE's slots, GROWING's grown DMG). */
+  hue?: { colour: string; nums: number[] };
 }
 
 /** Each role's base colour and whether it always takes the small (3x5) face: the flavour dimmer than the ability text,
@@ -235,11 +252,12 @@ const LABEL = C.slate4;
  *  (SIFTER; the signature CLOCKWORKS and SUMP have no stars) no longer draws its star's perk name after the sentence it
  *  names, nor keeps that sentence for it (was "★2 POLISH" after its opening): the name shows in the ⓘ LEVELS view only
  *  (levels.ts levelLines), as every face's (faceBlocks.ts perkInfoOnly). */
-function abilityBlocks(def: string, stars: number, o: TextOpts): Block[] {
-  const face = faceBlocks(def, stars, o); // U2a (REQ-BFG-046): a piece with a new face draws it
+function abilityBlocks(def: string, stars: number, o: TextOpts, w?: WordOn): Block[] {
+  const face = faceBlocks(def, stars, o, w); // U2a (REQ-BFG-046): a piece with a new face draws it; ENCHANT-1 (REQ-BFG-085): `w`, its word
   if (face) return face;
   const at = abilityText(def, stars, o);
-  return at.sentences.map((text, i): Block => ({ role: "ability", text, keep: i === 0, rank: 2, chain: "ability" }));
+  const sentences = at.sentences.map((text, i): Block => ({ role: "ability", text, keep: i === 0, rank: 2, chain: "ability" }));
+  return w ? wordOnSentences(sentences, def, stars, o, w) : sentences; // ENCHANT-1: a faceless piece's word
 }
 
 /** 0.6.2t (T6): a compact form of a panel for a short band (the phone), fullest first: its body; a header sub line in
@@ -326,10 +344,14 @@ export function explainPanel(t: PanelText, def?: string): PanelText {
   // shape or size rule (faces.ts shapeNotes): default rules text, behind the hover or tap
   // SCALE-2c (REQ-BFG-089; BRIEF-SCALE2c section 3): a scaling piece's count line (faces.ts scaleNotes, REPORT-SCALE1 3.2's
   // hover line) joins them, behind the hover or tap; [] for every other piece and with SCALE_RIGS off
-  const shaped: Block[] = def ? [...shapeNotes(def), ...scaleNotes(def)].map((text) => ({ role: "ability", text, note: "rig" } as Block)) : [];
+  // BUMP-1F (PACKET-BUMP-0130 section 4): shapeNotes, gateNotes, scaleNotes, in that order
+  const shaped: Block[] = def ? [...shapeNotes(def), ...gateNotes(def), ...scaleNotes(def)].map((text) => ({ role: "ability", text, note: "rig" } as Block)) : []; // GATES-1: and a gate's rule, its wait and the FUSER's order
   // PLAIN-1F (REQ-BFG-089, M3): a plain rig's NOTES lead is faces.ts plainNotes: the rig sentence (as before for every
   // plain rig with PLAIN_RIGS off), SCALE GUARD's carry line after it, BALLAST's own line in its place
-  const extra: Block[] = [...(def ? plainNotes(def).map((text) => ({ role: "ability", text, note: "rig" } as Block)) : []), ...shaped, ...(t.notes ?? [])];
+  // ENCHANT-1 (REQ-BFG-085, E7): an enchanted piece's NOTES (faces.ts enchantNotes: what an enchantment is, that a new one replaces it), "kind"
+  // lines like a turret's: true of every enchanted piece, hidden from the face, in the ⓘ view and the desk hover. [] for a plain piece
+  const enchanted: Block[] = enchantNotes(t.ench).map((text) => ({ role: "ability", text, note: "kind" } as Block));
+  const extra: Block[] = [...(def ? plainNotes(def).map((text) => ({ role: "ability", text, note: "rig" } as Block)) : []), ...shaped, ...(t.notes ?? []), ...enchanted];
   const hidden = t.body.filter((b) => !!b.note || b.role === "flavour" || b.role === "hint");
   const notes = [...extra, ...hidden].map((b, i) => ({ b, i })).sort((p, q) => noteOrder(p.b) - noteOrder(q.b) || p.i - q.i).map((x) => x.b);
   return {
@@ -338,10 +360,18 @@ export function explainPanel(t: PanelText, def?: string): PanelText {
   };
 }
 
+/** GATES-1 (REQ-BFG-057): a gate's place hints: on a mouse (tap a belt tile, or drag) and on a finger (a drag only; it snaps to a belt tile). */
+export const GATE_TAP = "TAP A BELT TILE: THE BELT SPLITS AROUND IT";
+export const GATE_DRAG = "DRAG IT ONTO A BELT: THE BELT SPLITS AROUND IT.";
+/** GATES-1: a placed gate's move hint (its panel): it moves along belts, and TO CARGO puts the belt whole again. */
+export const GATE_MOVE = "DRAG IT TO ANOTHER BELT TILE. TO CARGO JOINS THE BELT.";
+
 /** 0.6.2 BELTSIDE: the hint for placing a part from the shop (`drag`: it can be dragged there too) or cargo.
  *  shoptap (D2): `touch`: a touch tap never places (it reads), so on a phone a part is dragged where it goes. */
 function placeHint(kind: string, drag: boolean, def?: string, touch = false): string {
   if (kind === "turret") return turretHint(drag, touch); // 0.6.2s (S5): a turret goes into a TURRET SLOT
+  // GATES-1 (REQ-BFG-057): a gate goes ON a belt tile, and the belt splits around it (tips.ts PLACE lists these)
+  if (kind === "converter") return touch ? GATE_DRAG : drag ? `${GATE_TAP}, OR DRAG IT THERE.` : `${GATE_TAP}.`;
   if (touch) {
     return kind === "mod" || kind === "core" ? "DRAG IT ONTO A TURRET TO FIT IT."
       : kind === "gate" && def && ITEMS[def]?.gate?.stoke ? "DRAG IT BESIDE A FACTORY: ITS ARROWS WORK THE FACTORIES THEY POINT AT."
@@ -424,7 +454,14 @@ function hitLines(hits: readonly RigHit[]): { full: string[]; compact: string; s
 export interface PanelText {
   title: string;
   color: string;
+  /** ENCHANT-1 (REQ-BFG-085, E7): the word an enchanted piece holds (an enchant.ts ENCHANT_IDS id; only while the switch is on): `title`
+   *  then starts with it (`FIERY WHETSTONE`), drawn in the word's colour with the name in `color` (titleSpans, fitTitle); explainPanel adds
+   *  the NOTES (faces.ts enchantNotes). Absent for every plain piece. */
+  ench?: EnchantId;
   sub: string;
+  /** ENCHANT-2W (REQ-BFG-085; W5): a FOE's part panel (battleScout.ts faceText's `owner`): the possessive that starts `sub` and `subShort` (`SPARKFANG'S`). Where the desk column is too
+   *  narrow for the whole sub, planPanel puts the owner on a line of its own and the rest of the sub under it, so the sub is never cut; absent for every other panel. */
+  subOwner?: string;
   subColor?: string; // 0.6.2 BELTSIDE: an IDLE rig's sub line warns
   subShort?: string; // 0.6.2 BELTSIDE: the sub line where `sub` doesn't fit beside the portrait strip's buttons
   /** A header-only strip's text (the 360x640 portrait): the fullest that fits, on up to two lines (0.6.2 BELTSIDE's
@@ -461,6 +498,7 @@ export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null 
   const d = defOf(p);
   if (d.kind !== "gate") return null;
   const stars = starsOf(p);
+  const w = wordOn(p, d, stars); // ENCHANT-1 (REQ-BFG-085, E7): the word the rig holds (none with the switch off)
   const hits = hitsOfRig(run.build, p.uid);
   const arrows = shapedPiece(d.id) ? arrowCellsOf(p).length : arrowsOf(p).length, x = rigShape(d) === "X"; // SHAPES-1: per cell
   // 0.8.0 P1 (E3): a STOKER works factories, not belts: its factory hits take off the IDLE mark and lead its panel
@@ -491,7 +529,7 @@ export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null 
     : hits.length > 1 ? [{ role: "hits", text: hl.compact, keep: true }] : lead;
   const upTo = shaped ? shapeLines(d.id, stars).map((r) => r.text) : []; // PLAIN-1F (M4): said by the arrows line
   const rest = [
-    ...abilityBlocks(d.id, stars, textOpts(run)).filter((b) => !upTo.includes(b.text)),
+    ...abilityBlocks(d.id, stars, textOpts(run), w).filter((b) => !upTo.includes(b.text)), // ENCHANT-1: w, its word's stat and line
     ...flavourBlocks(d.id, stars, 1),
     hintBlock(x ? "FACES EVERY SIDE. DRAG TO MOVE." : touch ? TOUCH_TURN : "TAP TO TURN (OR R). DRAG TO MOVE."),
   ];
@@ -501,7 +539,7 @@ export function rigPanel(run: Run, uid: number, touch = false): RigPanel | null 
     : [...new Set([`RIG ${hl.compact}`, `RIG ${hl.short}`])].map((sub) => ({ sub }));
   const forms = (body: Block[], tight: boolean): Variant[] => [...heads.map((h) => ({ body, ...h, tight })), { body: [...leadTight, ...body], tight }];
   return {
-    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
+    ...enchTitle(w, starred(d.name, stars)), color: RARITY_COLOR[d.rarity], // ENCHANT-1: the word first in the title
     sub: idle ? "RIG · IDLE" : `RIG · ${on}/${arrows} ARROWS ON BELTS`,
     subShort: idle ? undefined : `RIG · ${on}/${arrows} HIT`,
     subColor: idle ? C.amber : undefined,
@@ -537,14 +575,16 @@ function stokerPanel(run: Run, uid: number, factories: number[], arrows: number,
   const names = factories.map((f) => `THE ${ITEMS[itemByUid(run.build, f)!.def].name}`);
   const lead: Block[] = names.map((n, i): Block => ({ role: "hits", text: `→ STOKES ${n}`, keep: true, ...(i ? { tie: true } : {}) })); // SPACE-1: one list
   const compact = `→ STOKES ${andList(names)}`;
+  const w = wordOn(p, d, stars); // ENCHANT-1 (REQ-BFG-085, E7): the word the STOKER holds, its stat and line around the ability text
+  const ability = stokerAbility(run, d.id, stars, factories);
   const rest = [
-    ...stokerAbility(run, d.id, stars, factories),
+    ...(w ? wordOnSentences(ability, d.id, stars, textOpts(run), w) : ability),
     ...flavourBlocks(d.id, stars, 1),
     hintBlock(touch ? TOUCH_TURN : "TAP TO TURN (OR R). DRAG TO MOVE."), // shoptap (D2)
   ];
   const tight: Block[] = [{ role: "hits", text: compact, keep: true }];
   return {
-    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
+    ...enchTitle(w, starred(d.name, stars)), color: RARITY_COLOR[d.rarity], // ENCHANT-1: the word first in the title
     sub: `RIG · ${factories.length}/${arrows} ARROWS ON FACTORIES`, subShort: `RIG · ${factories.length}/${arrows} ON`,
     body: [...lead, ...rest],
     variants: [
@@ -711,10 +751,11 @@ export function cargoPanel(run: Run, uid: number, touch = false): PanelText | nu
   const it = run.inventory.find((i) => i.uid === uid);
   if (!it) return null;
   const d = ITEMS[it.def], stars = starsOf(it), opts = textOpts(run);
+  const w = wordOn(it, d, stars); // ENCHANT-1 (REQ-BFG-085, E7): the word the cargo piece holds (it keeps it in cargo)
   // 0.6.2s (S6): a turret sells for turretSellValue, and a hull's free starting copy can't be sold at 1 star
   const turret = d.kind === "turret", sellable = !turret || canSellTurret(it);
   const body: Block[] = [
-    ...abilityBlocks(d.id, stars, opts),
+    ...abilityBlocks(d.id, stars, opts, w),
     ...(turret && it.free ? [{ role: "ability", text: freeNote(sellable), rank: 3 } as Block] : []),
     ...flavourBlocks(d.id, stars, opts.k ?? 1),
     hintBlock(placeHint(d.kind, false, d.id, touch)),
@@ -723,7 +764,7 @@ export function cargoPanel(run: Run, uid: number, touch = false): PanelText | nu
     // WORDS-1 (REQ-BFG-081): a core's or gear's kind in plain words (shop.ts KIND_SUB; was TURRET CORE, TURRET GEAR)
     // (a core's or gear's own words alone: "... · IN CARGO" is 132-138 px of 3x5, past the 113 px a 320x568 phone's sub
     // line holds, where fitHead would cut it; its SELL button says it is cargo)
-    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity], sub: KIND_SUB[d.kind] ?? `${describe(d)} · IN CARGO`,
+    ...enchTitle(w, starred(d.name, stars)), color: RARITY_COLOR[d.rarity], sub: KIND_SUB[d.kind] ?? `${describe(d)} · IN CARGO`, // ENCHANT-1: the word first in the title
     subShort: `${KIND_SUB[d.kind] ?? KIND_WORD[d.kind] ?? "PART"}${KIND_SUB[d.kind] ? "" : " · IN CARGO"}`, // T6: the rarity gives way first (the title shows it in colour)
     body,
     variants: tightForms(body),
@@ -733,7 +774,7 @@ export function cargoPanel(run: Run, uid: number, touch = false): PanelText | nu
 
 /** The kind as the panels name it (shop.ts describe, without the rarity). */
 const KIND_WORD: Record<string, string> = {
-  gate: "RIG", factory: "FACTORY", mod: "TURRET GEAR", core: "TURRET CORE", supply: "SUPPLY", turret: "TURRET",
+  gate: "RIG", factory: "FACTORY", mod: "TURRET GEAR", core: "TURRET CORE", supply: "SUPPLY", turret: "TURRET", converter: "GATE", // GATES-1
 };
 
 /** A placed deck item: a rig (rigPanel), or a factory with its outputs at its stars (GANTRY PRESS ★2 THIRD ARM feeds 3)
@@ -745,14 +786,16 @@ export function itemPanel(run: Run, uid: number, touch = false): PanelText | nul
   if (!p) return null;
   const d = defOf(p);
   if (d.kind === "gate") return rigPanel(run, uid, touch);
+  if (d.kind === "converter") return gatePanel(run, uid, touch); // GATES-1 (REQ-BFG-052): a gate has its own panel
   const stars = starsOf(p);
   const sig = !fusible(d.id);
   // bb-0.8.3 (REQ-BFG-043, REQ-BFG-044 D10, D11): the hero's own factory reads at its FACTORY level (stars.ts gradeOf: its
   // ability text, its belts) and shows that level, its next level in one line and the UPGRADE button with its price
   const grade = gradeOf(run.build, p), level = sig ? upgradeLevel(run.build, "factory") : 0;
+  const w = wordOn(p, d, grade); // ENCHANT-1 (REQ-BFG-085, E7): the word the factory holds; its numbers multiply by its stars (a signature factory's grade)
   const body: Block[] = [
     ...joinPaceBlocks(run.build, p.uid), // 0.6.2rel3 (TUNE-M, RULE JOIN PACE): a joined factory leads with its pace
-    ...(hasAbilityText(d.id) || hasFace(d.id) ? abilityBlocks(d.id, grade, textOpts(run)) : []), // U2a: KILN and LOOM's faces too; 0.8.5: at the factory's grade
+    ...(hasAbilityText(d.id) || hasFace(d.id) ? abilityBlocks(d.id, grade, textOpts(run), w) : w ? wordOnSentences([], d.id, grade, textOpts(run), w) : []), // U2a: KILN and LOOM's faces too; 0.8.5: at the factory's grade
     ...(sig ? upgradeBlocks("factory", level, factoryNext(d.id, level)) : []), // U2e step 4: NEXT★ is the ⓘ view's
     ...(sig && touch ? [{ role: "note", text: SIGNATURE_ABOARD, keep: true } as Block] : []),
     ...flavourBlocks(d.id, stars, 1),
@@ -760,12 +803,41 @@ export function itemPanel(run: Run, uid: number, touch = false): PanelText | nul
   ];
   const up = sig ? upgradeLabel(level) : null;
   return {
-    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
-    sub: `FACTORY · BELTS ${routesOf(run.build, p.uid).length}/${outputsAt(d.id, grade) || 1}`,
+    ...enchTitle(w, starred(d.name, stars)), color: RARITY_COLOR[d.rarity], // ENCHANT-1: the word first in the title
+    sub: `FACTORY · BELTS ${routesOf(run.build, p.uid).length}/${(outputsAt(d.id, grade) || 1) + wideSlots(p)}`, // ENCHANT-1 (REQ-BFG-085): + WIDE's slot
     body,
     variants: tightForms(body),
     // SHAPES-1 (REQ-BFG-086 S2): a shaped factory that turns (2x3, I3) has ROTATE first, as a rig's panel does
     labels: sig ? (up ? [up] : []) : [...(shapedPiece(d.id) && canTurn(d.id) ? ["ROTATE"] : []), "TO CARGO", ...(touch ? [sellLabel(d.id, stars)] : [])],
+  };
+}
+
+/**
+ * GATES-1 (REQ-BFG-052, REQ-BFG-089, REQ-BFG-087; PIECES-1 6.3): a placed gate's panel, beside rigPanel. Its kind line says GATE and
+ * which belt it splits (`GATE · BELT 1`), its own line is always visible (the face: slugs in and out, what it adds), and the
+ * stat row, the star line and the rest follow as for any part; the gate rule, the wait and the FUSER's order are NOTES (behind the
+ * hover or tap). TO CARGO (and SELL on touch) take it off: the belt is whole again with no merge code. No ROTATE: a gate has no
+ * arrows. Exported for tests; null unless `uid` is a placed gate.
+ */
+export function gatePanel(run: Run, uid: number, touch = false): PanelText | null {
+  const p = itemByUid(run.build, uid);
+  if (!p) return null;
+  const d = defOf(p);
+  if (d.kind !== "converter") return null;
+  const stars = starsOf(p);
+  const at = beltTile(run.build, key(p.x, p.y));
+  const body: Block[] = [
+    ...abilityBlocks(d.id, stars, textOpts(run)),
+    ...flavourBlocks(d.id, stars, 1),
+    hintBlock(GATE_MOVE),
+  ];
+  return {
+    title: starred(d.name, stars), color: RARITY_COLOR[d.rarity],
+    sub: at ? `GATE · BELT ${at[0] + 1}` : "GATE · NO BELT", subShort: "GATE",
+    subColor: at ? undefined : C.amber,
+    body,
+    variants: tightForms(body),
+    labels: ["TO CARGO", ...(touch ? [sellLabel(d.id, stars)] : [])],
   };
 }
 
@@ -840,7 +912,7 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   const b = run.build;
   if (!b.routes[index]) return null;
   const info = routeInfo(b, index);
-  const w = walkRoute(b, index);
+  const w = walkRoute(b, index, undefined, { gates: true }); // GATES-1b (REQ-BFG-052 B3): DMG, BURN, TIME and COPIES through a gate on the belt
   const belt = beltKind(w);
   const est = w.estimate;
   // 0b.4: the walk counts SURGE VALVE's pulse damage on a SLAG belt, where the sim never pays it
@@ -853,7 +925,7 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   // B1's m2/platemean: a plated hull holds no plating at 53-63% of its shots). On a deck that plates its hull the walk
   // counts the big number, so DMG shows both: the floor's total, then the big number's ("DMG 9.1-12.1")
   const breakers = w.timeline.some((row) => row.hits.some((h) => h.breaker));
-  const low = breakers && platedDeck(b) ? walkRoute(b, index, undefined, { unplated: true }) : null;
+  const low = breakers && platedDeck(b) ? walkRoute(b, index, undefined, { unplated: true, gates: true }) : null; // GATES-1b B3: gates too
   const floorDmg = low ? fmtDmg(dmgShown(low.estimate.dmg - slagPulseExtra(low.timeline, belt), run.day)) : big; // HULL-1d: x D(d)
   const dmg = floorDmg !== big ? `${floorDmg}-${big}` : big;
   const hitCount = w.timeline.reduce((n, row) => n + row.hits.length, 0);
@@ -1026,11 +1098,18 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   // on, the interval of this RATE), so the row and the sim can't drift; the same number whatever the switch
   const salvo = tc.bought && tc.routine === "salvo" && !!tc.spec.reloadMul;
   const rate = salvo ? salvoSpeed(tu.speed, tc.spec.reloadMul!) : tu.speed;
+  // ENCHANT-1 (REQ-BFG-085, E7): the word the turret holds. Its row is the battle's own numbers (MASSIVE's and SWIFT's RATE and WIDE's gear
+  // slot are in them already: deck.ts resolveSlots) with the word's stat at the end (FIERY, GROWING's grown DMG), the numbers the word
+  // added or changed in its colour; its one line (a LINE word) goes under the row, in every form below, kept
+  const wt = slotWord(b, index);
+  const trow = wt ? wordTurretRow([speedPair(rate), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(gearSlots)]], wt) : null;
+  const wl = wordLineBlocks(wt, run.day); // ENCHANT-2 (REQ-BFG-085; T6 fix round): RISING's and GROWING's damage amounts on the run's day
   const stats: Block[] = [
     // NUM-4 (REQ-BFG-047): the RATE pair is the SPEED the battle uses (TurretState.speed: every gear piece, the core, the
     // long belt and the TURRET SPEED level, rounded once); Y1: a SALVO RACK's, its volley pace (above)
     // CARD-2 (REQ-BFG-081, K4): in words, its own numbers (faceBlocks.ts turretRow: RATE n  HOLDS n  GEAR SLOTS n)
-    { role: "ability", text: turretRow([speedPair(rate), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(gearSlots)]]), keep: true, pairs: true },
+    trow ? { role: "ability", text: turretRow(trow.row), keep: true, pairs: true, ...(trow.nums.length ? { hue: { colour: wordColour(wt!.id), nums: trow.nums } } : {}) }
+      : { role: "ability", text: turretRow([speedPair(rate), ["SLUG", fmtCount(tu.window)], ["GEAR", fmtCount(gearSlots)]]), keep: true, pairs: true },
     ...(note ? [{ role: "note", text: icons(note), keep: true } as Block] : []),
   ];
   // a clash (a piece of gear that does nothing here) and the shield. 0.6.2rel2 (the rehearsal's nit 1): the desk column
@@ -1063,6 +1142,7 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   const body: Block[] = [
     ...warn(false),
     ...stats, // U2c step 4: the stat row first, then the CORE and GEAR rows as now
+    ...wl, // ENCHANT-1: the word's line under the stat row
     ...socketLines(b, index, coreName).flatMap((s, i) =>
       [rowOf(s), ...own(i === 0 ? (tc.bought ? first(tc.def, tc.stars, tc.k) : []) : s.def ? first(s.def, s.stars ?? 1, 1) : [])]),
     ...rest,
@@ -1072,7 +1152,7 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
   // U2c step 4: the last form lists the gear on one row; there the stat row and its note give way where room is short
   // (rank 2, a chain), as the stat sentences it replaces did, so the shortest band never cuts a kept row
   const statsLast: Block[] = stats.map((x) => ({ ...x, keep: undefined, rank: 2, chain: "stats" }));
-  const forms = [[...warn(false), ...stats, ...gists, ...rest], [...warn(true), ...stats, ...gists, ...rest], [...warn(true), ...statsLast, ...list, ...rest]];
+  const forms = [[...warn(false), ...stats, ...wl, ...gists, ...rest], [...warn(true), ...stats, ...wl, ...gists, ...rest], [...warn(true), ...statsLast, ...wl, ...list, ...rest]]; // ENCHANT-1: ...wl, the word's line, kept in each
   // 0.6.2rel2 (the release owner's answer d957272806131146): the desk's last rungs, for a turret whose one-row gear list
   // leaves no room for the whole clash sentences: that list with each clash's short line; then the gear as a count of
   // its pieces with the short lines (the names give way before the warning); the shield in each only if it fits. Last,
@@ -1085,12 +1165,12 @@ export function turretPanel(run: Run, index: number, touch = false): PanelText |
     const short = gatlingClash(b, index, tc.routine, true).map((text): Block => ({ role: "warn", text, rank: 1, deskKeep: true }));
     const after = [...(tu.intakeGuard > 0 ? [{ role: "ability", text: shieldLine(tu.intakeGuard), rank: 2 } as Block] : []), ...rest.filter((x) => !x.deskKeep)];
     const pieces = gearOn(b, index).slice(0, turretSlots(b)[index]?.gearSlots ?? 0).length;
-    forms.push([...warn(true), ...statsLast, ...list, ...short, ...after]);
-    if (short.length) forms.push([...warn(true), ...statsLast, list[0], rowOf({ label: "GEAR", text: plural(pieces, "PIECE") }), ...short, ...after]);
+    forms.push([...warn(true), ...statsLast, ...wl, ...list, ...short, ...after]);
+    if (short.length) forms.push([...warn(true), ...statsLast, ...wl, list[0], rowOf({ label: "GEAR", text: plural(pieces, "PIECE") }), ...short, ...after]);
     forms.push(optional(forms[2]));
   }
   return {
-    title: slotTitle(b, index), color: slotColor(b, index), sub: slotSub(b, index),
+    title: slotTitle(b, index), color: slotColor(b, index), sub: slotSub(b, index), ...(wt ? { ench: wt.id } : {}), // ENCHANT-1: the word first in the title
     body,
     variants: [{ body, tight: true }, ...forms.flatMap((f) => [{ body: f }, { body: f, tight: true }])],
     labels: [...(startTurret && upgradeLabel(tl) ? [upgradeLabel(tl)!] : []), ...(tc.bought ? ["REMOVE CORE"] : []), ...(gm ? ["REMOVE GEAR"] : []), ...slotLabels(b, index)],
@@ -1167,6 +1247,8 @@ function layBlock(b: Block, width: number, main: FontId, cols: Cols, tight = fal
       const label = ic ? p.slice(1, at) : p.slice(0, at);
       return [...(ic ? [{ t: icon, c: ic }] : []), { t: `${label} `, c: base }, { t: p.slice(at + 1), c: NUMBER_COLOUR }];
     });
+    // ENCHANT-1 (REQ-BFG-085, E7): a pair whose number a word added or changed draws that number in the word's colour (Block.hue)
+    if (b.hue) ps.forEach((s, i) => { if (b.hue!.nums.includes(i)) ps[i] = s.map((sp) => (sp.c === NUMBER_COLOUR ? { ...sp, c: b.hue!.colour } : sp)); });
     const one = ps.flatMap((s, i) => (i ? [{ t: PAIR_GAP, c: base }, ...s] : s));
     if (lineWidth(one, font) <= width) return [{ spans: one, font, block: b, pitch }];
     return ps.map((spans) => ({ spans, font, block: b, pitch }));
@@ -1184,6 +1266,7 @@ function layBlock(b: Block, width: number, main: FontId, cols: Cols, tight = fal
   } else if (b.role === "flavour") spans = colourize(b.text, base, base); // its numbers stay dim; its keywords keep their colours
   else if (b.role === "hint" || b.role === "note") spans = [{ t: b.text, c: base }];
   else spans = colourize(b.text, base);
+  if (b.hue) spans = hueSpans(spans, b.hue); // ENCHANT-1 (REQ-BFG-085, E7): the numbers a word added or changed, in its colour
   if (b.perk) spans.push({ t: " ", c: base }, { t: b.perk, c: PERK_COLOUR, whole: true });
   return wrapRich(spans, width, font).map((s) => ({ spans: b.perk ? ownPerk(s, b.perk, base) : s, font, block: b, pitch }));
 }
@@ -1194,6 +1277,13 @@ function layBlock(b: Block, width: number, main: FontId, cols: Cols, tight = fal
 function ownPerk(line: Span[], perk: string, base: string): Span[] {
   return line.flatMap((s): Span[] => (s.c === PERK_COLOUR && s.t !== perk && s.t.endsWith(perk) && !s.t.slice(0, -perk.length).trim()
     ? [{ t: s.t.slice(0, -perk.length), c: base }, { t: perk, c: PERK_COLOUR }] : [s]));
+}
+
+/** ENCHANT-1 (REQ-BFG-085, E7): a stat row's spans with the numbers a word added or changed (`hue.nums`, 0-based in reading order: each
+ *  number is one span drawn in NUMBER_COLOUR by colourize) in the word's colour; the icons keep their own (drawText tints each glyph). */
+export function hueSpans(spans: readonly Span[], hue: NonNullable<Block["hue"]>): Span[] {
+  let n = 0;
+  return spans.map((s) => (s.c === NUMBER_COLOUR && /\d/.test(s.t) && hue.nums.includes(n++) ? { ...s, c: hue.colour } : s));
 }
 
 /** Lay out blocks: a panel's stat labels share one value column (each group its own), its grid rows two label columns. */
@@ -1383,6 +1473,27 @@ export function fitHead(g: G, s: string, x: number, y: number, max: number, colo
   drawText(g, t, x, title ? y + 1 : y, color, title ? { font: "3", outline: C.ink } : { font: "3" });
 }
 
+/** ENCHANT-1 (REQ-BFG-085, E7): a panel's title as spans: an enchanted piece's WORD first in its colour, then its name (and stars) in its
+ *  rarity colour (`FIERY` WHETSTONE: enchantFaces.ts nameSpans); a plain piece's title is one span in `color`, as fitHead draws it. */
+export function titleSpans(t: Pick<PanelText, "title" | "color" | "ench">): Span[] {
+  return t.ench ? nameSpans(t.ench, t.title, t.color) : [{ t: t.title, c: t.color }];
+}
+
+/** ENCHANT-1 (REQ-BFG-085, E7): drawDetails' title (and the battle face's): fitHead for a plain piece, as before; for an enchanted one the
+ *  word and the name in their two colours, in the same steps (the 5x7 face where it fits `max`, else the 3x5 face cut short with a dot). */
+export function fitTitle(g: G, t: Pick<PanelText, "title" | "color" | "ench">, x: number, y: number, max: number): void {
+  if (!t.ench) return fitHead(g, t.title, x, y, max, t.color, true);
+  const [word, name] = titleSpans(t);
+  let s = t.title;
+  const big = textWidth(s) <= max;
+  while (!big && s.length > 1 && textWidth(s, "3") > max) s = `${s.slice(0, -2).trimEnd()}.`;
+  const at = Math.min(s.length, word.t.length);
+  let cx = x;
+  for (const [txt, c] of [[s.slice(0, at), word.c], [s.slice(at), name.c]] as const) {
+    if (txt) cx += drawText(g, txt, cx, big ? y : y + 1, c, big ? { outline: C.ink } : { font: "3", outline: C.ink }) + 1;
+  }
+}
+
 /**
  * 0.6.1r F7 (review-061; the Prime's layout call): in portrait the 1-2 action buttons never cover the panel's
  * title or sub-line. They keep the top-right row when it can hold them right of both texts (at the old even width,
@@ -1405,9 +1516,12 @@ export function portraitButtons(title: string, sub: string, labels: string[], r:
     }
     return out;
   };
+  // ENCHANT-1 (REQ-BFG-085, E4): an armed SELL's label (`SELL? FIERY IS LOST`, 75 px of the 3x5 face) is wider than the 64 px a button keeps in
+  // the top row: with the switch on a label wider than its button takes the row under the sub line, where the buttons share the panel's width
+  const overflows = (ws: number[]): boolean => enchantRules() && labels.some((l, i) => textWidth(l, "3") + 4 > ws[i]);
   for (const ws of [labels.map(() => even), sized]) {
     const rects = place(ws, r.x + r.w - 4, r.y + 4);
-    if (rects[0].x >= clear) return { rects, shift: 0 };
+    if (rects[0].x >= clear && !overflows(ws)) return { rects, shift: 0 };
   }
   // the row: y+21..y+33, 1 px under the icon box (y+4..y+19) and 3 px under the sub-line (y+13..y+17). The body
   // text, which began at y+25, starts 3 px under the row (y+37): a 12 px shift keeps 4 lines of the 3x5 face in
@@ -1566,6 +1680,13 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
   return o.gaps === false ? planIn(sp, area, families, o, true) : s;
 }
 
+/** ENCHANT-2W (REQ-BFG-085; W5): a sub line as one line, or as two where it is wider than `max` and has a " · " (broken after the last one, as planIn breaks a sub on the desk column) or a full stop. */
+function breakSub(s: string, max: number): string[] {
+  const cut = s.lastIndexOf(" · "), stop = s.lastIndexOf(". ");
+  if (textWidth(s, "3") <= max || (cut <= 0 && stop <= 0)) return [s];
+  return cut > 0 ? [s.slice(0, cut + 2), s.slice(cut + 3)] : [s.slice(0, stop + 1), s.slice(stop + 2)];
+}
+
 /** planPanel's plan; `small` (CARD-3, B's lever 3): the body in the 3x5 face only (planBody's `small`). */
 function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean }, small: boolean): PanelPlan {
   const column = !o.band && area.h >= 70; // landscape column: size to content, the buttons under the text
@@ -1584,10 +1705,15 @@ function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { 
   // 0.6.1r (item 11): a sub-line wider than the desk column breaks after its last " · " onto a second line; 0.6.2rel:
   // or after its last full stop (a joining belt's "JOINS BELT 1. FEEDS TURRET 1.")
   const cut = sp.sub.lastIndexOf(" · "), stop = sp.sub.lastIndexOf(". ");
-  const subs = column && (cut > 0 || stop > 0) && textWidth(sp.sub, "3") > area.w - 27
-    ? cut > 0 ? [sp.sub.slice(0, cut + 2), sp.sub.slice(cut + 3)] : [sp.sub.slice(0, stop + 1), sp.sub.slice(stop + 2)]
-    : [sp.sub];
-  const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 : 0);
+  // ENCHANT-2W (REQ-BFG-085; W5): a foe's sub line that is wider than the column (`SPARKFANG'S HEAVY TURRET IN SLOT 1`, 134 px) puts the owner on a line of its own and the rest of
+  // the sub under it (itself broken at its last " · " or full stop where that is wider than the column too): the sub is never cut, the owner never given way. Any other panel: as before.
+  const wideSub = textWidth(sp.sub, "3") > area.w - 27;
+  const ownerLine = column && wideSub && !!sp.subOwner && sp.sub.startsWith(`${sp.subOwner} `) ? sp.subOwner : null;
+  const subs = ownerLine !== null ? [ownerLine, ...breakSub(sp.sub.slice(ownerLine.length + 1), area.w - 27)]
+    : column && (cut > 0 || stop > 0) && wideSub
+      ? cut > 0 ? [sp.sub.slice(0, cut + 2), sp.sub.slice(cut + 3)] : [sp.sub.slice(0, stop + 1), sp.sub.slice(stop + 2)]
+      : [sp.sub];
+  const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 + 6 * (subs.length - 2) : 0); // a third sub line (the owner's, then a broken sub) takes its 6 px more
   const extra = labels.length ? btnRows * pitch + 3 : 4;
   const headRight = !column && port && !port.shift ? port.rects[0].x - 3 : area.x + area.w - 4;
   const subMax = headRight - (area.x + 23);
@@ -1697,10 +1823,13 @@ function spec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
   const s = baseSpec(ctx, show, hovering);
   if (!s) return null;
   const sp = { ...s, text: explainPanel(s.text, shownDef(ctx.run, show)) };
+  const ask = sellLabelFor(ctx, show); // ENCHANT-1 (REQ-BFG-085, E4): the armed SELL button reads SELL? FIERY IS LOST (apply.ts; null otherwise)
+  if (ask) sp.actions = sp.actions.map((a) => (SELL_ACTIONS.has(a.id) ? { ...a, label: ask } : a));
   return shopShut(ctx.run) ? { ...sp, actions: sp.actions.filter((a) => !SELL_ACTIONS.has(a.id)) } : sp;
 }
 
 function baseSpec(ctx: Ctx, show: Sel, hovering: boolean): Spec | null {
+  if (show.kind === "word") return wordSpec(ctx, show); // ENCHANT-1 (REQ-BFG-085, E5): a word card's tap panel (apply.ts; null with the switch off)
   const { run } = ctx;
   const b = run.build;
   const touch = !!ctx.touch; // shoptap (D2): the last press was a finger or a pen
@@ -1990,7 +2119,7 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
     }));
     acts.forEach((_, i) => hits.push(tap ? tapRect(plan.rects![i], tap, r) : plan.rects![i]));
   }
-  fitHead(g, t.title, r.x + 23, r.y + 4, plan.subMax, t.color, true);
+  fitTitle(g, t, r.x + 23, r.y + 4, plan.subMax); // ENCHANT-1 (REQ-BFG-085, E7): fitHead(t.title, t.color) for a plain piece; an enchanted piece's word in its own colour
   const subColor = t.subColor ?? C.slate4;
   if (plan.headerOnly) {
     // the header-only strip (360x640): the header text in place of the sub line (a belt's readout; an offer's effect)

@@ -4,7 +4,8 @@
 // and taken out again. The real ROT GAUGE and LEECH COIL are SCALE-2c's.
 // BUMP-1E: the switch ships ON from bb-0.12.0 (SCALE_RIGS = true; it shipped off when this was written), so every "off" half below asks
 // for the 0.9.11 world outright with withScaleRigs(fn, false), synchronously (it was a bare Battle or a bare read); the on halves are unchanged.
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { putItemsBack, snapshotItems, type ItemsSnapshot } from "../src/sim/itemsKeep"; // BUMP-1F (R5.5 (b)): each test puts ITEMS back as it found it
 import { BURN_DPS, BURN_TIME, ITEMS, POISON_DPS, type ItemDef, type ReadSpec } from "../src/sim/content";
 import { Battle, type Payload, type Projectile, type SideState, type SimEvent, type Target, type TurretState } from "../src/sim/battle";
 import { SCALE_DEFS, SCALE_RIGS, scaleRules, withScaleRigs } from "../src/sim/scale";
@@ -42,6 +43,13 @@ afterAll(() => {
   for (const id of Object.keys(TEST_DEFS)) delete ITEMS_RW[id];
   clearStarCache();
 });
+// BUMP-1F (RULING-BUMP1F-R5 R5.5 (b); the suite guard, tests/setup/itemsGuard.ts): was no hook. The test-only ids above are the LAST keys of ITEMS (beforeAll appends them), and an
+// off/on call of the scaling switch takes the seven out and brings them back at their rank, AFTER the test-only ids: so a test that asks for the 0.9.11 world (withScaleRigs(fn, false))
+// left Object.keys(ITEMS) permuted (key 112: cindermail became a test id). Each test now keeps ITEMS as it found it (src/sim/itemsKeep.ts: snapshotItems, putItemsBack); the guard's
+// afterEach runs after this one, so it sees ITEMS unchanged.
+let kept: ItemsSnapshot;
+beforeEach(() => { kept = snapshotItems(); });
+afterEach(() => { putItemsBack(kept); });
 
 // ---------------------------------------------------------------------------------------------- helpers
 
@@ -145,18 +153,19 @@ describe("SCALE-2b (a): POISON lands at impact, beside the hit's BURN", () => {
 // ---------------------------------------------------------------------------------------------- (b) the tick
 
 describe("SCALE-2b (b): the tick, once a second", () => {
-  it("3 x the stacks at each whole second, one poison event a tick, SideStats.damage and poisonDealt take it", () => {
-    expect(POISON_DPS).toBe(3);
+  // BUMP-1F P3 D2 (RULING-BUMP1F-R2 R2.3): POISON_DPS 3 -> 2. Every number below that was 3 x the stacks is 2 x them now: dmg 12 -> 8, 60 -> 40.
+  it("2 x the stacks at each whole second, one poison event a tick, SideStats.damage and poisonDealt take it", () => { // BUMP-1F: was "3 x the stacks"
+    expect(POISON_DPS).toBe(2); // BUMP-1F: was 3
     const bt = quiet(), foe = bt.sides[1];
     foe.hull.poison = 4;
     const hp = foe.hull.hp;
     const got = ticks(bt, 5);
     expect(got.map((g) => g.at)).toEqual([60, 120, 180, 240, 300]); // whole seconds on the integer tick count
-    for (const g of got) expect(g.e).toEqual({ type: "poison", side: 1, dmg: 12 });
-    expect(foe.hull.hp).toBe(hp - 60);
-    expect(bt.sides[0].stats.damage).toBe(60); // the POISON's owner (side 0) dealt it, as BURN's tick counts
+    for (const g of got) expect(g.e).toEqual({ type: "poison", side: 1, dmg: 8 }); // BUMP-1F: was dmg 12
+    expect(foe.hull.hp).toBe(hp - 40); // BUMP-1F: was hp - 60
+    expect(bt.sides[0].stats.damage).toBe(40); // the POISON's owner (side 0) dealt it, as BURN's tick counts. BUMP-1F: was 60
     expect(bt.sides[0].stats.burnDealt).toBe(0); // not BURN's
-    expect(bt.sides[0].poisonDealt).toBe(60); // the tally lives off SideStats
+    expect(bt.sides[0].poisonDealt).toBe(40); // the tally lives off SideStats. BUMP-1F: was 60
     expect(Object.keys(bt.sides[0].stats).some((k) => /poison/i.test(k))).toBe(false); // never a SideStats key
   });
 
@@ -168,8 +177,8 @@ describe("SCALE-2b (b): the tick, once a second", () => {
     const got = ticks(bt, 10);
     expect(got.length).toBe(10);
     for (const g of got) expect(Number.isInteger(g.e.dmg)).toBe(true);
-    expect(got.reduce((n, g) => n + g.e.dmg, 0)).toBe(Math.floor((10 * 12 * tenths) / 10)); // 120 x D, rounded down once
-    expect(got[0].e.dmg).toBe(Math.floor((12 * tenths) / 10));
+    expect(got.reduce((n, g) => n + g.e.dmg, 0)).toBe(Math.floor((10 * 8 * tenths) / 10)); // 80 x D, rounded down once. BUMP-1F: was 120 x D (10 * 12)
+    expect(got[0].e.dmg).toBe(Math.floor((8 * tenths) / 10)); // BUMP-1F: was 12 * tenths
   });
 
   it("no decay through a long fight; the next battle starts at 0", () => {
@@ -177,7 +186,7 @@ describe("SCALE-2b (b): the tick, once a second", () => {
     foe.hull.poison = 2;
     const got = ticks(bt, 60);
     expect(got.length).toBe(60);
-    for (const g of got) expect(g.e.dmg).toBe(6); // 2 x 3 every second, the 25 s wind or not
+    for (const g of got) expect(g.e.dmg).toBe(4); // 2 x 2 every second, the 25 s wind or not. BUMP-1F: was 6 (2 x 3)
     expect(foe.hull.poison).toBe(2);
     expect(quiet().sides[1].hull.poison).toBeUndefined(); // a new Battle's hull: 0
   });
@@ -201,13 +210,13 @@ describe("SCALE-2b (c): past the soak layer, and WARD never blocks a tick", () =
     foe.hull.poison = 5;
     const hp = foe.hull.hp;
     ticks(bt, 1);
-    expect(foe.hull.hp).toBe(hp - 15);
+    expect(foe.hull.hp).toBe(hp - 10); // BUMP-1F: was hp - 15 (5 x 3; POISON_DPS is 2 now: 5 x 2)
     expect(foe.plate.plate).toBe(100); // untouched
     expect(foe.plate.absorbed).toBe(0);
     foe.hull.burns.push({ dps: 1, t: 3 }); // the contrast: BURN's tick goes through the plate
     ticks(bt, 2);
     expect(foe.plate.plate).toBe(100 - BURN_DPS);
-    expect(foe.hull.hp).toBe(hp - 30);
+    expect(foe.hull.hp).toBe(hp - 20); // BUMP-1F: was hp - 30 (two poison ticks of 15; now 10 each)
   });
 
   it("a SHIELD (WARD) is never spent on a tick; SPALL CATCHER takes no charge from it (as the wind)", () => {
@@ -218,7 +227,7 @@ describe("SCALE-2b (c): past the soak layer, and WARD never blocks a tick", () =
     ticks(bt, 3);
     expect(foe.shield).toBe(2);
     expect(foe.blocked).toBeUndefined();
-    expect(foe.hull.hp).toBe(hp - 27);
+    expect(foe.hull.hp).toBe(hp - 18); // BUMP-1F: was hp - 27 (3 stacks x 3 ticks x 3; POISON_DPS is 2 now)
     // a SPALL CATCHER-charge side (the live def's charge, under its test id s2bspall: with the switch on `spallcatcher` is
     // SCALE-2c's hits-taken reader): POISON on its hull charges nothing; a BURN tick does
     const sp = withScaleRigs(() => new Battle(barge(), withMod(furnaceBench(), 40, "s2bspall", GUN), SEED));
@@ -267,7 +276,7 @@ describe("SCALE-2b (d): HEAL and the % runes", () => {
       }
     }
     expect(burn).toBe(BURN_DPS); // x2 x0.5: the runes are live on BURN's tick
-    expect(poison).toBe(18); // 6 x 3, untouched
+    expect(poison).toBe(12); // 6 x 2, untouched. BUMP-1F: was 18 (6 x 3)
   });
 });
 

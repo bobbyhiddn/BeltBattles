@@ -12,6 +12,7 @@ import { flavour, KEPT_FLAVOUR } from "../src/screens/build/flavour";
 import { hasFace } from "../src/ui/faces"; // BUMP-1D: the twelve plain stat rigs' stat-row faces
 import { PLAIN_RIG_IDS } from "../src/sim/plainRigs"; // BUMP-1D (PLAIN_RIGS on)
 import { SHAPES2_IDS } from "../src/sim/shapes2"; // BUMP-1D (SHAPES2 on)
+import { GATES_IDS, gatesRules } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052): the three gates have a face and no ability text, like the plain twelve (with GATES on)
 
 /** The descs TXT-096 emptied: (b)3's named ones (SCRAPPER, TOLLBOOTH, FLAK SCREEN) and every other HARASS-tagged def but the
  *  test-pinned LIMPET WORKS and LODESTONE and the put-back BRACE FRAME (TWIN TRIGGER, (b)3's too, is put back as well). */
@@ -23,7 +24,7 @@ const own = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.c
 /** BUMP-1D (PLAIN_RIGS and SHAPES2 on): the twelve plain stat rigs. Each is born with desc [] (a stat-row face and no ability line,
  *  faces.ts), not emptied by TXT-096, and has no KEPT_FLAVOUR row: flavour() returns [] for a piece with a face, so the empty
  *  desc is never read. */
-const PLAIN12: string[] = [...PLAIN_RIG_IDS, ...SHAPES2_IDS];
+const PLAIN12: string[] = [...PLAIN_RIG_IDS, ...SHAPES2_IDS, ...(gatesRules() ? GATES_IDS : [])]; // GATES-1: and, with GATES on, the three gates
 
 describe("TXT-096 (b): the dead desc arrays (REQ-BFG-046; ruling fd56a6c372070b6d)", () => {
   it("the emptied descs are [], each def keeps its KEPT_FLAVOUR row, and the HARASS-tagged ones left are the two test-pinned and BRACE FRAME", () => {

@@ -24,6 +24,7 @@ import { heartsWord } from "../../ui/stakes"; // RETUNE-1 run 2 (REQ-BFG-096): P
 import { heartsRun } from "../../sim/hearts"; // RETUNE-1 run 2: the run's mark
 import { deltaIcon, deltaText, drawChoiceCard, itemName, type CardView } from "./cards";
 import { drawReveal } from "./reveal";
+import { drawInfoButton, drawWordInfo, infoButton } from "./wordInfo"; // ENCHANT-2 (REQ-BFG-085, T3): a word's rows behind a tap
 import { storedFoe } from "../../game/day";
 import { eventLayout, eventScale, type EventLayout } from "./layout";
 import { duskScreen } from "../battle"; // 0.7.0a: the dusk gate (offline: 0.6.2's BattleScreen at once)
@@ -31,6 +32,8 @@ import { BuildScreen } from "../build/build";
 import { TitleScreen } from "../title";
 import { npcDayRules } from "../../sim/npcDay"; // NPC-1 (REQ-BFG-077): REFIT before every dusk
 import { hullShown } from "../../sim/hullScale"; // HULL-1a (REQ-BFG-079): a hull gain on the day's hull
+import { ENCHANT_DEFS, isEnchantId } from "../../sim/enchant"; // ENCHANT-2 (REQ-BFG-085, T3): the shrine's word in its own colour
+import { shrineOffer } from "../../game/shrine"; // ENCHANT-2W (REQ-BFG-085, W2): word B of the shrine's offer, for its blocked card's would-be line (read only)
 
 const AUTO = 1.9; // seconds after a pick before rolling on to the battle (no REFIT decision)
 /** NPC-1 (REQ-BFG-077; NPC_DAY on): the event's one way on, REFIT before dusk. */
@@ -50,8 +53,12 @@ export class EventScreen implements Screen {
   won = true;
   outcome: [string, string] = ["", C.bone];
   deckItem: string | undefined;
+  /** ENCHANT-2 (REQ-BFG-085, T3): the word the ASH SHRINE's chosen card gave (it waits in REFIT as a free pick; this offers REFIT even with NPC_DAY off). */
+  word: string | undefined;
   /** SCOUT's SPY: tonight's dusk deck is shown over the scene (then REFIT / FIGHT NOW). */
   reveal = false;
+  /** ENCHANT-2 (T3): the card whose word's own card (its ON A ... rows) is open over the panel, or -1. */
+  info = -1;
   private shake = { i: -1, t: 0 };
   private flies: Fly[] = [];
   private readonly flash: Record<AnchorKind, number> = { gold: 0, lives: 0, hull: 0, belt: 0, cargo: 0 };
@@ -84,6 +91,7 @@ export class EventScreen implements Screen {
       if (c) this.outcome = outcomeText(c, this.won, this.run.day, heartsRun(this.run)); // HULL-1a: the day's hull (RETUNE-1 run 2: HEART)
       this.deckItem = ev.item;
       this.reveal = !!ev.reveal;
+      this.word = wordOf(c); // ENCHANT-2 (T3)
     }
     this.L = this.layout();
   }
@@ -118,6 +126,7 @@ export class EventScreen implements Screen {
     if (this.phase !== "choose" || this.menu || this.game.transitioning) return;
     const c = this.choices[i];
     if (!c) return;
+    this.info = -1; // ENCHANT-2 (T3)
     const res = pickChoice(this.run, i);
     if (!res.ok) {
       this.shake = { i, t: 0.32 };
@@ -129,6 +138,7 @@ export class EventScreen implements Screen {
     this.pt = 0;
     this.won = !!res.won;
     this.deckItem = res.deckItem;
+    this.word = this.won ? wordOf(c) : undefined; // ENCHANT-2 (T3)
     this.reveal = !!this.run.event?.reveal;
     this.outcome = outcomeText(c, this.won, this.run.day, heartsRun(this.run)); // HULL-1a: the day's hull (RETUNE-1 run 2: HEART)
     const r = this.L.cards[i];
@@ -152,7 +162,7 @@ export class EventScreen implements Screen {
 
   refit(): void {
     // NPC-1 (REQ-BFG-077): with NPC_DAY on, REFIT comes before every dusk (0.9.7: only after a deck part or SCOUT's spy)
-    if (this.phase !== "result" || !(npcDayRules() || this.deckItem || this.reveal)) return;
+    if (this.phase !== "result" || !(npcDayRules() || this.deckItem || this.reveal || this.word)) return; // ENCHANT-2 (T3): + a shrine word waits in REFIT
     this.run.stage = "refit";
     this.go(new BuildScreen(this.game));
   }
@@ -183,7 +193,7 @@ export class EventScreen implements Screen {
     }
     this.ufx.update(dt);
     // NPC-1: with NPC_DAY on nothing rolls on by itself (REFIT is the one button)
-    if (this.phase === "result" && !npcDayRules() && !this.deckItem && !this.reveal && this.pt >= AUTO) this.fight();
+    if (this.phase === "result" && !npcDayRules() && !this.deckItem && !this.reveal && !this.word && this.pt >= AUTO) this.fight(); // ENCHANT-2 (T3): + !this.word
   }
 
   draw(g: G): void {
@@ -203,6 +213,8 @@ export class EventScreen implements Screen {
     this.drawHeader(g);
     // choice cards (after a pick: the chosen card slides to the first slot, the rest give way)
     const cv = this.cv;
+    // ENCHANT-2W (REQ-BFG-085; W2): the ASH SHRINE's blocked card 2 draws the line it would have; it needs word B, which the shrine's own offer names (read only). Every other event: none.
+    cv.shrineWord = ev.id === "shrine" ? shrineOffer(run.seed, ev.day)[1] : undefined;
     for (let i = 0; i < this.choices.length; i++) {
       const id = CARD_IDS[i];
       let r = L.cards[i];
@@ -223,6 +235,21 @@ export class EventScreen implements Screen {
       cv.day = run.day; // HULL-1a (REQ-BFG-079): a hull amount on the day's hull
       drawChoiceCard(g, r, this.choices[i], i, cv);
       if (this.phase === "choose") ui.add({ id, r, onTap: this.onPick[i], block: true });
+      // ENCHANT-2 (REQ-BFG-085, T3): a card that offers a word has a `?` of its own (registered after the card, so it wins): the word's rows behind the tap
+      const word = this.phase === "choose" ? wordOf(this.choices[i]) : undefined;
+      if (word && isEnchantId(word)) {
+        const b = infoButton(r, this.game.view.scale / this.game.view.dpr);
+        drawInfoButton(g, b.btn, ENCHANT_DEFS[word].color, this.info === i);
+        ui.add({ id: `info${i}`, r: b.hit, onTap: () => { this.info = this.info === i ? -1 : i; }, block: true });
+      }
+    }
+    if (this.phase === "choose" && this.info >= 0) { // ENCHANT-2 (T3): the open word card, over the panel; a tap on it closes it
+      const word = wordOf(this.choices[this.info]);
+      if (word) {
+        const pr = { x: L.panel.x + 2, y: L.panel.y + 2, w: L.panel.w - 4, h: L.panel.h - 4 };
+        drawWordInfo(g, pr, word, run.day); // ENCHANT-2W (W3): the run's day: RISING's and GROWING's amounts are the day's, as the part's panel gives them
+        ui.add({ id: "wordinfo", r: pr, onTap: () => { this.info = -1; }, block: true });
+      }
     }
     if (this.phase === "result" && this.pt > 0.3) this.drawOutcome(g);
     drawRunBar(g, this.game, run, this.flash, this.anchors, this.onMenu);
@@ -288,7 +315,7 @@ export class EventScreen implements Screen {
     const stack = L.portrait || r.w < 240;
     const bh = 19;
     const spied = this.reveal ? storedFoe(this.run) : null;
-    const sub = this.deckItem ? `${itemName(this.deckItem)} IS IN CARGO` : spied ? `DUSK: ${spied.name}` : "";
+    const sub = this.deckItem ? `${itemName(this.deckItem)} IS IN CARGO` : spied ? `DUSK: ${spied.name}` : this.word ? "PICK ITS PART IN REFIT" : ""; // ENCHANT-2 (T3): the shrine's word
     const blockH = 7 + (sub ? 10 : 0) + 6 + bh; // stacked: text, sub line, buttons
     const top = r.y + Math.max(4, Math.floor((r.h - blockH) / 2));
     const by = stack ? top + blockH - bh : r.y + Math.floor((r.h - bh) / 2);
@@ -299,7 +326,7 @@ export class EventScreen implements Screen {
       if (sub) drawText(g, sub, stack ? r.x + r.w / 2 : r.x + 8, ty + 11, C.slate4, { font: "3", align: stack ? "center" : "left" });
       const bw = stack ? r.w - 12 : 96;
       button(ui, g, "refit", { x: stack ? r.x + 6 : r.x + r.w - bw - 8, y: by, w: bw, h: bh }, REFIT_LABEL, { primary: true, onTap: this.onRefit });
-    } else if (this.deckItem || this.reveal) {
+    } else if (this.deckItem || this.reveal || this.word) { // ENCHANT-2 (T3): + a shrine word
       drawText(g, sub, stack ? r.x + r.w / 2 : r.x + 8, ty + 11, C.slate4, { font: "3", align: stack ? "center" : "left" });
       const bw = stack ? Math.floor((r.w - 16) / 2) : 68;
       const x0 = stack ? r.x + 6 : r.x + r.w - 2 * bw - 12;
@@ -315,7 +342,8 @@ export class EventScreen implements Screen {
   }
 
   key(k: string): void {
-    if (k === "Escape") this.menu = !this.menu;
+    if (k === "Escape" && this.info >= 0) this.info = -1; // ENCHANT-2 (T3): Escape closes a word's card first
+    else if (k === "Escape") this.menu = !this.menu;
     else if (this.menu) return;
     else if (k === "1" || k === "2" || k === "3") this.pick(Number(k) - 1);
     else if ((k === "r" || k === "R") && this.pt > 0.3) this.refit();
@@ -330,6 +358,12 @@ function slide(a: Rect, b: Rect, k: number, out: Rect): Rect {
   out.w = a.w;
   out.h = a.h;
   return out;
+}
+
+/** ENCHANT-2 (REQ-BFG-085, T3): the word a choice gives (the ASH SHRINE's cards), or undefined. */
+function wordOf(c: Choice | undefined): string | undefined {
+  const d = c?.gain.find((q) => q.k === "ench");
+  return d && d.k === "ench" ? d.word : undefined;
 }
 
 function gainItem(c: Choice | undefined): string | undefined {
@@ -347,6 +381,7 @@ export function outcomeText(c: Choice, won: boolean, day?: number, hearts = fals
   if (!d) return ["YOU MOVE ON", C.bone];
   switch (d.k) {
     case "item": return [`GOT ${itemName(d.def)}`, C.lime]; // the outcome panel adds "<PART> IS IN CARGO"
+    case "ench": return [`GOT ${isEnchantId(d.word) ? ENCHANT_DEFS[d.word].name : d.word.toUpperCase()}`, isEnchantId(d.word) ? ENCHANT_DEFS[d.word].color : C.lime]; // ENCHANT-2 (T3): in the word's colour; the panel adds "PICK ITS PART IN REFIT"
     case "gold": return [`+${d.n} GOLD`, C.yellow];
     case "hull": return [`+${hullShown(d.n, day)} MAX HULL`, C.lime];
     case "lives": return [`+${d.n} ${hearts ? heartsWord(d.n) : "LIFE"}`, C.lime]; // RETUNE-1 run 2: `hearts`, a hearts run's PATCH UP
@@ -364,6 +399,6 @@ function sfxFor(c: Choice, won: boolean): Sfx {
   if (c.odds !== undefined) return won ? "win" : "lose";
   const d = c.gain[0];
   if (!d) return "whoosh";
-  return d.k === "item" ? "pickup" : d.k === "gold" || d.k === "discount" || d.k === "reroll" ? "coin" : d.k === "bounty" ? "horn"
+  return d.k === "item" || d.k === "ench" ? "pickup" : d.k === "gold" || d.k === "discount" || d.k === "reroll" ? "coin" : d.k === "bounty" ? "horn"
     : d.k === "sabotage" ? "stamp" : d.k === "reveal" ? "whoosh" : "repair";
 }

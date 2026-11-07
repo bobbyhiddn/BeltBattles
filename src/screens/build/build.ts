@@ -6,6 +6,7 @@ import type { Skin } from "../../render/styles"; // CUSTOM-2a
 import type { Game, Screen } from "../../game/game";
 import { reroll, saveRun, type DuskFoe, type Run } from "../../game/run";
 import { buyPack } from "../../game/run"; // bb-0.8.6 (REQ-BFG-051 P5)
+import { releaseStranded } from "../../game/run"; // GATES-1 (REQ-BFG-057): a gate whose belt is gone goes back to cargo
 import { fightRefusal } from "../../game/run"; // RUNES-2a (REQ-BFG-058): no fight while a rune pick is pending
 import type { PackId } from "../../sim/content";
 import { duskFoe, refundNotice, storedFoe } from "../../game/day";
@@ -62,6 +63,11 @@ import { RuneBar, runeRowFits, runeRowH, shiftLayout } from "../../ui/runeBar"; 
 import { RunePicker } from "../runePicker"; // RUNES-1: the dawn rune picker
 import { LastChancePicker } from "../lastChancePicker"; // LC-1 (REQ-BFG-073): the LAST CHANCE pick, before the dawn rune
 import { FoeView } from "./foeView"; // SCOUT-1c (REQ-BFG-082): a SCOUT-revealed foe from the NEXT BATTLE card
+// ENCHANT-1 (REQ-BFG-085): the words' interaction (apply.ts: APPLY, the picks, the sell confirm) and what it draws (enchantStrip.ts)
+import { applyState, applyTick, backApply, onSelect, setWordHover, wagonSlide, wagonUp } from "./apply";
+import { applyCancelPress, applyDown, applyUp, drawApplyGlow, itemBox, pickView, targetAt, wagonView, wordCardAt, wordLayout, type WordCardView } from "./enchantStrip";
+import { enchantRules } from "../../sim/enchant";
+import type { Placed } from "../../sim/deck";
 
 /** 0.6.1d2 (ARSENAL.md §8.3): 0.5s per merge step normally; reduced motion collapses lift/arc/ring/
  *  sparkle to just the flash, so its "impact" beat comes almost immediately. */
@@ -272,7 +278,41 @@ export class BuildScreen implements Screen, EditHost {
     // TAP-093 (backlog #340): a portrait phone's top bar grows to a finger's target where the screen spares it with a rune
     // row (layout.ts phoneBarLift: the same with or without a rune held); 0 elsewhere, as before
     const lift = phone ? phoneBarLift(W, H, offers, this.packTap, runeRowH(view, 1)) : 0;
-    return shiftLayout(buildLayout(W, H - row, portrait, offers, phone, this.packTap, lift, grid), row, H);
+    // ENCHANT-1 (REQ-BFG-085, E4, E5a): the ENCHANTER's wagon's place, and a landscape column under the merge pick's prompt (wordLayout:
+    // the very same layout with the switch off, no wagon today and no merge pick)
+    return wordLayout(shiftLayout(buildLayout(W, H - row, portrait, offers, phone, this.packTap, lift, grid), row, H), this.run, this.packTap);
+  }
+
+  /** ENCHANT-1 (REQ-BFG-085): a phone's finger target in logical px at this scale (0 on a desk): the word cards' and the prompt's targets. */
+  get fingerPx(): number {
+    return this.packTap;
+  }
+
+  /** ENCHANT-1 (REQ-BFG-085, E5): the word card (the ENCHANTER's, or the warlord pick's) under a press, or null. */
+  wordCardAt(x: number, y: number): WordCardView | null {
+    return wordCardAt(this, x, y);
+  }
+
+  /** ENCHANT-1 tooling (read only; scripts/touchcheck.mjs apply, the tests): the word cards' tap targets as drawn now (logical px). */
+  wordTargets(): { pick: boolean; i: number; id: string; hit: Rect; rect: Rect }[] {
+    return [...(wagonView(this)?.cards ?? []), ...(pickView(this)?.cards ?? [])].map((c) => ({ pick: c.pick, i: c.i, id: c.id, hit: { ...c.hit }, rect: { ...c.rect } }));
+  }
+
+  /** ENCHANT-1 tooling (read only): the open APPLY's word, step, line and whether the line is a refusal; null with none open. */
+  applyInfo(): { word: string; step: string; line: string; bad: boolean; sides: number[] } | null {
+    const a = enchantRules() ? applyState(this) : null;
+    return a ? { word: a.word, step: a.step, line: a.line, bad: a.bad, sides: [...(a.sides ?? [])] } : null;
+  }
+
+  /** ENCHANT-1 tooling (read only): the part an APPLY press at (x, y) would land on (the editor's own hit test, then a finger's
+   *  nearest part), or null. */
+  applyTargetAt(x: number, y: number): { kind: string; uid?: number; slot?: number } | null {
+    return targetAt(this, x, y);
+  }
+
+  /** ENCHANT-1 (REQ-BFG-085): a placed piece's box on screen (through the carrier's zoom): APPLY's nearest-part test reads it. */
+  itemScreenRect(p: Placed): Rect {
+    return screenRect(this.L, itemBox(this.L.frame, p));
   }
 
   /** ZOOM-1 tooling (read only; scripts/touchcheck.mjs, zoom1shots.mjs): a deck cell's centre on screen (logical px),
@@ -327,7 +367,8 @@ export class BuildScreen implements Screen, EditHost {
       this.caravan.park();
       this.game.toast("REFIT · CARAVAN GONE", C.yellow, "pickup");
     } else {
-      this.caravan.arrive(this.offers().length);
+      wagonSlide(this, true); // ENCHANT-1 (REQ-BFG-085): the ENCHANTER's wagon rolls in with the dawn's caravan
+      this.caravan.arrive(this.offers().length + this.wagonCount());
       this.game.audio.play("horn");
       const sh = this.run.shop;
       const scout = sh.discount > 0 || sh.free > 0 ? (sh.discount > 0 ? `SCOUT: PRICES -${sh.discount}` : `SCOUT: ${sh.free} FREE REROLL`) : "";
@@ -342,14 +383,29 @@ export class BuildScreen implements Screen, EditHost {
         completeNotice("rename107");
       }
     }
+    this.releaseGates(); // GATES-1 (REQ-BFG-057): a gate stranded while this screen was away (a merge outside it took a factory and its belts)
     saveRun(this.run);
   }
 
   select(s: Sel): void {
+    onSelect(this, this.sel, s); // ENCHANT-1 (REQ-BFG-085): another selection closes APPLY and disarms an armed SELL
     this.sel = s;
   }
 
+  /** GATES-1 (REQ-BFG-057): a belt that goes (rerouted, deleted, gone with its factory) strands the gates on it: back to cargo,
+   *  with a toast naming them (one gate: ITS BELT; several: THEIR BELTS). A deck without gates: nothing. */
+  private releaseGates(): void {
+    const gone = releaseStranded(this.run);
+    if (gone.length) this.game.toast(`${gone.join(" AND ")} BACK IN CARGO: ${gone.length > 1 ? "THEIR BELTS ARE" : "ITS BELT IS"} GONE`, C.yellow);
+  }
+
+  /** ENCHANT-1 (REQ-BFG-085): the ENCHANTER's cards riding in with the caravan (0 with the switch off or no wagon today). */
+  private wagonCount(): number {
+    return wagonUp(this.run) ? this.run.shop.enchanter!.offers.length : 0;
+  }
+
   touched(): void {
+    this.releaseGates();
     this.model = cruiserModel(this.run.build);
     this.view.model = this.model;
     saveRun(this.run);
@@ -424,8 +480,8 @@ export class BuildScreen implements Screen, EditHost {
     return screenRect(this.L, this.deckTurretRect(i)); // ZOOM-1 (REQ-BFG-080): on screen, through the carrier's zoom
   }
 
-  /** ZOOM-1: TURRET SLOT i's box in the carrier's space (the selection frame draws there). */
-  private deckTurretRect(i: number): Rect {
+  /** ZOOM-1: TURRET SLOT i's box in the carrier's space (the selection frame draws there). ENCHANT-1: public, APPLY's glow draws there too. */
+  deckTurretRect(i: number): Rect {
     const s = turretSlots(this.run.build)[i];
     const x = turretPivotX(this.L.frame, s.col0, s.width), y = turretPivotY(this.L.frame, s.col0, s.width);
     const r = !s.td || s.td.kind === "heavy" ? 12 : 9;
@@ -447,8 +503,9 @@ export class BuildScreen implements Screen, EditHost {
     this.ufx.popup(this.coinX, 12, free ? "FREE" : `-${REROLL_COST}`, free ? C.lime : C.yellow);
     this.game.audio.play("coin");
     if (this.sel.kind === "offer") this.sel = { kind: "none" };
+    wagonSlide(this, false); // ENCHANT-1 (REQ-BFG-085): a REROLL leaves the ENCHANTER's wagon where it is
     this.caravan.leave(() => {
-      this.caravan.arrive(this.offers().length);
+      this.caravan.arrive(this.offers().length + this.wagonCount());
       this.game.audio.play("horn");
     });
     saveRun(this.run);
@@ -509,6 +566,7 @@ export class BuildScreen implements Screen, EditHost {
     this.blockT = Math.max(0, this.blockT - dt);
     this.thunkT = Math.max(0, this.thunkT - dt);
     this.caravan.update(dt);
+    applyTick(this, dt); // ENCHANT-1 (REQ-BFG-085): an armed SELL runs down, APPLY's glow clock runs
     this.ed.update(dt);
     this.wfx.update(dt);
     this.ufx.update(dt);
@@ -569,6 +627,7 @@ export class BuildScreen implements Screen, EditHost {
       this.drawBroken(g);
       drawTurrets(g, v);
       this.drawSelection(g);
+      drawApplyGlow(g, this); // ENCHANT-1 (REQ-BFG-085, E5): APPLY: every part that takes the word glows (nothing unless APPLY is open)
       // bb-0.8.3 (REQ-BFG-043 D11): the board's level marks (drawn with the deck) once more over the selection, so a selected
       // gun's frame never cuts its plate (nothing at level 1)
       for (const m of levelMarks(this.run.build, L.frame, v.hideItem ?? -1)) drawLevelMark(g, m);
@@ -823,6 +882,7 @@ export class BuildScreen implements Screen, EditHost {
   down(x: number, y: number, kind: PointerKind = "mouse"): void {
     if (this.foeView.open) return this.foeView.press(this, x, y); // SCOUT-1c: a part of the foe's carrier opens its face
     if (this.modalUp()) return; // RUNES-1: nothing under the rune picker moves (LC-1: nor the LAST CHANCE picker)
+    if (applyDown(this, x, y, kind)) return; // ENCHANT-1 (REQ-BFG-085): a word card, or in APPLY a part to apply to (apply.ts)
     this.skipFuseAnim(); // 0.6.1d2: a tap anywhere skips the merge animation to its end
     this.ed.down(x, y, kind);
   }
@@ -848,14 +908,20 @@ export class BuildScreen implements Screen, EditHost {
     if (this.modalUp()) return; // RUNES-1: no hover or drag under the rune picker (LC-1: nor the LAST CHANCE picker)
     this.ed.move(x, y);
     this.hover = this.game.ui.pointer.down ? null : this.offerAt(x, y);
+    if (enchantRules()) { // ENCHANT-1 (REQ-BFG-085): the desk's mouse over a word card lifts it
+      const c = this.game.ui.pointer.down ? null : this.wordCardAt(x, y);
+      setWordHover(this, c ? { kind: "word", pick: c.pick, i: c.i } : null);
+    }
   }
 
   up(x: number, y: number): void {
     if (this.foeView.open) return; // SCOUT-1c
+    if (applyUp(this, x, y)) return; // ENCHANT-1 (REQ-BFG-085): the tap a word-card or APPLY press ends in
     this.ed.up(x, y);
   }
 
   cancel(): void {
+    applyCancelPress(this); // ENCHANT-1 (REQ-BFG-085)
     this.ed.cancel();
   }
 
@@ -882,6 +948,7 @@ export class BuildScreen implements Screen, EditHost {
     if (k === "Escape") {
       if (this.menu) this.menu = false;
       else if (this.ed.busy) this.ed.cancel();
+      else if (enchantRules() && backApply(this)) return; // ENCHANT-1 (REQ-BFG-085): Escape backs out of APPLY (a step, then APPLY)
       else this.sel = { kind: "none" };
     } else if (this.menu) return;
     else if (k === "f" || k === "F" || k === "Enter") this.fight();

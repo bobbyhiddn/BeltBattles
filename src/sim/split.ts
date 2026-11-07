@@ -1,0 +1,101 @@
+// GATES-1 (REQ-BFG-057; BRIEF-GATES1 G3): WHERE A GATE MAY STAND. A converter (FUSER, SCATTER MILL, SMELTER; gates.ts) goes
+// only ON a belt tile; the belt is then split around it with no redrawing (the route stays ONE RouteDef: the tiles before
+// the gate are its input, the tiles after it its own output path). splitProblem is the one rule: deck.ts canPlaceItem asks
+// it for kind "converter" (the editor's carried ghost, the harness and the validator all go through canPlaceItem).
+// Refusals, each a short reason the carried ghost shows:
+//  - off a belt:                        DROP IT ON A BELT;
+//  - a route's first tile (next to its factory), its last tile (the turret intake, or a joining belt's end), or a tile right
+//    next to another gate on the same belt (no belt between them):  NEEDS BELT ON BOTH SIDES.
+// A corner is fine (in from one side, out the other). Belts never cross, so there is no crossing case. A join tile is fine
+// too (a belt that joins here feeds the gate's buffer: convert.ts). The preview (previewSplit: the tiles in and out, the rig
+// arrows that go idle) reads the rig hits, so it lives with the editor (splitPreview.ts): this file is a leaf, which deck.ts
+// imports (a cycle otherwise). Pure and dependency-light (content.ts and foot.ts only; deck.ts types).
+
+import { GRID, ITEMS } from "./content";
+import { footprintCells } from "./foot";
+import type { Build, Placed } from "./deck";
+
+/** A converter dropped off a belt. */
+export const SPLIT_OFF_BELT = "DROP IT ON A BELT";
+/** A converter on a route's first or last tile, or next to another converter on the same belt. */
+export const SPLIT_NO_BELT = "NEEDS BELT ON BOTH SIDES";
+
+const cellKey = (x: number, y: number): number => y * GRID + x;
+
+/** The belt tile k as [route index, tile index] (the first route holding it), or null off a belt. */
+export function beltTile(b: Pick<Build, "routes">, k: number): [number, number] | null {
+  for (let ri = 0; ri < b.routes.length; ri++) {
+    const ti = b.routes[ri].cells.indexOf(k);
+    if (ti >= 0) return [ri, ti];
+  }
+  return null;
+}
+
+/** Is `p` a placed converter? (A def the switch has taken out of ITEMS is none.) */
+export function isConverterItem(p: Pick<Placed, "def">): boolean {
+  return (Object.prototype.hasOwnProperty.call(ITEMS, p.def) ? ITEMS[p.def] : undefined)?.kind === "converter";
+}
+
+/** The cells piece `p` covers (a 1x1 converter: its one cell), without deck.ts. */
+function coverOf(p: Placed): number[] {
+  const d = Object.prototype.hasOwnProperty.call(ITEMS, p.def) ? ITEMS[p.def] : undefined;
+  if (!d) return [];
+  const r = typeof p.rot === "number" && Number.isInteger(p.rot) && p.rot >= 0 && p.rot <= 3 ? p.rot : 0;
+  return footprintCells(d, p.x, p.y, r);
+}
+
+/**
+ * Why a converter `defId` can't stand on cell `k` of `b`, or null when it can (BRIEF-GATES1 G3; REQ-BFG-057). `ignoreUid`:
+ * the piece being moved or checked in place (its own cell is its own). The reasons are player text.
+ */
+export function splitProblem(b: Pick<Build, "items" | "routes">, defId: string, k: number, ignoreUid = -1): string | null {
+  if (!Number.isInteger(k) || k < 0 || k >= GRID * GRID) return "OFF THE DECK";
+  const at = beltTile(b, k);
+  if (!at) return SPLIT_OFF_BELT;
+  for (const p of b.items) {
+    if (p.uid !== ignoreUid && coverOf(p).includes(k)) return "OCCUPIED";
+  }
+  const [ri, ti] = at;
+  const cells = b.routes[ri].cells;
+  if (ti <= 0 || ti >= cells.length - 1) return SPLIT_NO_BELT;
+  for (const nb of [cells[ti - 1], cells[ti + 1]]) {
+    if (b.items.some((p) => p.uid !== ignoreUid && isConverterItem(p) && cellKey(p.x, p.y) === nb)) return SPLIT_NO_BELT;
+  }
+  return null;
+}
+
+/**
+ * TOUCH (BRIEF-GATES1 G3): a deck cell is under 44 CSS px on a phone, so a finger's drop of a gate snaps to the nearest legal
+ * belt tile within 1 cell (the 3x3 block round the cell it landed on: a catch area of three cells across: 60 CSS px at 20 px
+ * cells, 72 at the phone's measured 24, ZOOM-1's carrier zoom; scripts/touchcheck.mjs gatesplit). The cell itself first, then its four neighbours, then the diagonals (nearest first; ties up, left, right, down), as
+ * shapeEdit.ts snapAnchor does for a shaped piece. null: no legal tile in reach. `ignoreUid`: the piece being moved.
+ */
+export function snapSplit(b: Pick<Build, "items" | "routes">, defId: string, x: number, y: number, ignoreUid = -1): { x: number; y: number } | null {
+  const order: [number, number][] = [[0, 0]];
+  const near: [number, number][] = [];
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) near.push([dx, dy]);
+  near.sort((a, c) => Math.abs(a[0]) + Math.abs(a[1]) - (Math.abs(c[0]) + Math.abs(c[1])) || a[1] - c[1] || a[0] - c[0]);
+  order.push(...near);
+  for (const [dx, dy] of order) {
+    const cx = x + dx, cy = y + dy;
+    if (cx < 0 || cy < 0 || cx >= GRID || cy >= GRID) continue;
+    if (splitProblem(b, defId, cellKey(cx, cy), ignoreUid) === null) return { x: cx, y: cy };
+  }
+  return null;
+}
+
+/**
+ * The converters of `b` that no longer stand on a legal belt tile (the belt under them was rerouted, deleted, or went with its
+ * factory), in item order, found one at a time so two neighbours release only one. The editor puts them back in cargo
+ * (run.ts releaseStranded); the sim treats one that is left as inert, and the validator refuses it (DROP IT ON A BELT).
+ */
+export function strandedConverters(b: Pick<Build, "items" | "routes">): Placed[] {
+  const gone: Placed[] = [];
+  let items = b.items;
+  for (;;) {
+    const bad = items.find((p) => isConverterItem(p) && splitProblem({ items, routes: b.routes }, p.def, cellKey(p.x, p.y), p.uid) !== null);
+    if (!bad) return gone;
+    gone.push(bad);
+    items = items.filter((p) => p !== bad);
+  }
+}

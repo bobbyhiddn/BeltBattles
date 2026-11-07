@@ -52,6 +52,18 @@
 //                       dusk 1 at no win and the start's lives, `losses` 0                                           -> 201 and its ghost id
 // A server of an older build refuses the id as an unknown item, so the 201 proves the live server is the build with the twelve.
 // Under rules before SCALE_RULES (or with the switch off) the plan would be exactly the fifteen rows above.
+// BUMP-1F (RULING-BUMP1F-R13 R13.3; REQ-BFG-059, ENDLESS-1): the four ENDLESS rows of the release lane's kit probe (endlessprobe.mjs of 0.9.13), ported, follow
+// gates-signed, under PROBE_RULES with endless (the rules gate endlessFor: the switch on AND rules at or after ENDLESS_RULES, bb-0.12.0). All three POSTs hold
+// FURNACE's day-14 reference deck with its fourteen dawn runes, its seed and no road log, as the dusk of day 14 of a run won on day 10 that went on into endless
+// (10 wins, `losses` 0, mode "endless", victoryDay 10, 3 endless wins and 3 hearts, `lives` 3):
+//   endless-honest      the snapshot as it stands                                                                    -> 201 and its ghost id
+//   endless-wins-cap    the same with endlessWins 30, the win that ends endless (the decoder takes 0..29)            -> 400, snapshot.endlessWins
+//   endless-norecord    the same with 3 endless wins and 2 hearts (`lives` 2), a record no endless leads to           -> 422, endlessRecordProblem's record error
+//   endless-match       GET /v1/ghosts/match?rules=<PROBE_RULES>&runs=5&day=14&wins=2&lives=3&player=other-player&mode=endless
+//                                                                                                                   -> 200, a ghost whose snapshot.mode is "endless"
+// The fourth is no POST and no deck: runProbe sends it after the POSTs and before the profile rows, and the stored count is taken before it. It serves the first
+// row's own deck (the only endless ghost of day 14 unless real players' are about). Under rules before ENDLESS_RULES (or with the switch off) the plan would be
+// exactly the seventeen rows above and there is no fourth check.
 // PROFILE-UP (REQ-BFG-074 clause 4, backlog #371): `--profile` (opt-in; anywhere among the arguments) adds two PUT /v1/profile rows
 // after the POSTs, from the same fresh identity, and nothing else changes without the flag:
 //   profile-signed      a minimal profile (1 run, 1 dusk win, best day 2, FURNACE won; no unlocks), signed in the profile
@@ -60,15 +72,16 @@
 // The profile rows store one record, profiles/<probe player id>.json on Tigris (<data>/profiles/<id>.json on jsonl), which
 // ghost-admin's remove-player does not know: delete that object by hand after a --profile probe. The deck count below counts
 // decks only.
-// Exactly eight decks are stored, each its own record under the probe's player: FURNACE, WEAVER, FOUNDRY, BASTION,
-// FURNACE's LAST CHANCE deck, WEAVER's NPC-day deck, FURNACE's day-12 deck (BUMP-1D) and FURNACE's GRUDGE ROD deck (BUMP-1E; seven
+// Exactly ten decks are stored (BUMP-1F R13.3: was eight, a count the later rows had left behind), each its own record under the probe's player: FURNACE, WEAVER, FOUNDRY, BASTION,
+// FURNACE's LAST CHANCE deck, WEAVER's NPC-day deck, FURNACE's day-12 deck (BUMP-1D), FURNACE's GRUDGE ROD deck (BUMP-1E), FURNACE's FUSER-and-word deck (BUMP-1F) and
+// FURNACE's endless day-14 deck (BUMP-1F, R13.3; ten decks in all, nine under rules without endless, eight under rules without the gates and the words, seven
 // under rules without the scaling pieces, six without the long run, five without the NPC day, four without LAST CHANCE).
 // Built by `npm run build:server` beside ghost-admin.mjs:  node server/dist/ghost-probe.mjs <base-url> <id-file>
 // It writes the probe's player id to <id-file> before the first POST, so the clean-up (ghost-admin.mjs remove-player)
 // always has it, and it refuses an <id-file> that already holds an id (that earlier probe's player is not cleaned up yet).
 // It prints one line per check (PASS or FAIL, name, expected, got), then the player id, then a summary with the number of
 // decks the server stored for this player. Exit 0 only if every check matched; 1 if a check failed or got no answer; 2
-// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is PROBE_RULES (bb-0.12.0; BUMP-1E: was bb-0.11.0; BUMP-1D: was bb-0.10.0). There is no secret
+// for a usage error (nothing sent). It refuses to run unless this build's RULES_VERSION is PROBE_RULES (bb-0.13.0; BUMP-1F: was bb-0.12.0; BUMP-1E: was bb-0.11.0; BUMP-1D: was bb-0.10.0). There is no secret
 // to print: the key is non-extractable, and neither the public key nor a signature is printed. No network but the base
 // URL. Its expectations are written out here, not read from the code under test (the rules gate, the record model).
 
@@ -91,11 +104,20 @@ import { RUN_DAYS, START_LIVES } from "../src/sim/content";
 import { longRunFor } from "../src/net/rulesGate";
 // BUMP-1E (REQ-BFG-098): the scaling release's row: a deck holding one of the seven new pieces, under rules that have them
 import { scaleWorld } from "../src/net/rulesGate";
+// BUMP-1F (REQ-BFG-052, REQ-BFG-085): the gates-and-words row: a deck holding a FUSER and a rig with one word, under rules that have both
+import { enchantWorld, gatesWorld } from "../src/net/rulesGate";
+// BUMP-1F (RULING-BUMP1F-R13 R13.3; REQ-BFG-059): the ENDLESS rows: an honest endless dusk of a run won on day 10, under rules that have endless
+import { endlessFor } from "../src/net/rulesGate";
+import { splitProblem } from "../src/sim/split";
+import { bestSpot, placeRigAt } from "../src/sim/beltside";
+import { kx, ky } from "../src/sim/deck";
+import { enchanterWords } from "../src/sim/enchantSources";
+import { enchantProblem } from "../src/sim/enchant";
 
 /** The rules this probe's expectations are written for: the hull release's (bb-0.10.0, AZ-BUMP's bump, with the NPC day's
  *  two rows; release Z's bb-0.9.7 with LAST CHANCE's two rows, release Y's bb-0.9.3, BAL-2's bb-0.9.1, release X's
  *  bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6, BELTS's bb-0.8.3 and 0.8.0's bb-0.8.0 before, the same heroes). */
-export const PROBE_RULES = "bb-0.12.0"; // BUMP-1E (REQ-BFG-098): the scaling release (was bb-0.11.0); BUMP-1D (REQ-BFG-059, REQ-BFG-116): the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
+export const PROBE_RULES = "bb-0.13.0"; // BUMP-1F (REQ-BFG-052, REQ-BFG-085): GATES and ENCHANT ship on (was bb-0.12.0); BUMP-1E (REQ-BFG-098): the scaling release (was bb-0.11.0); BUMP-1D (REQ-BFG-059, REQ-BFG-116): the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
 /** FLIP-X2 (cap's ruling 5d6d83ef57d1494c): under bb-0.9.0 an upload holds exactly one rune a dawn (validateUpload's
  *  player mode). The probe's honest decks take theirs as the bots do (runes.ts botTakeRune at each dawn on this run seed:
  *  the grants on the build, every pick in its dawn's offer), and the snapshot carries the seed (v3), so the server
@@ -204,10 +226,42 @@ export const SCALE_CELL = { x: 5, y: 3 } as const;
 /** BUMP-1E: does the probe's rules version have the twelve scaling pieces (the rules gate: PROBE_RULES at or after SCALE_RULES, with
  *  the switch on, as the build ships)? Under older rules, or with the switch off, the new ids are unknown items: no scale row. */
 export const probeHasScale = (): boolean => scaleWorld(PROBE_RULES);
+/** BUMP-1F (REQ-BFG-052, REQ-BFG-085): the gates-and-words row. FURNACE's honest day-3 deck (dusk 3 after a win and a draw, the day of the ENCHANTER's
+ *  first wagon) plus a FUSER on a belt tile and a WHETSTONE beside the belt holding ONE word, one of the two the ENCHANTER offers on day 3 on the probe's
+ *  run seed (PROBE_SEED: the server re-derives the offers), signed: 201 under bb-0.13.0. It proves the live server knows the gate ids and the word
+ *  codes; a server of an older build answers 422 (unknown item "fuser"). */
+export const GATES_HERO: HeroId = "furnace";
+export const GATES_DUSK = HERO_DUSK;
+export const GATES_PIECE = "fuser";
+export const GATES_RIG = "whetstone";
+/** Does the probe's rules version have the three gates and the eight words (the rules gate: PROBE_RULES at or after GATES_RULES and ENCHANT_RULES, with
+ *  both switches on, as the build ships)? Under older rules, or with a switch off, the ids and the fields are refused: no gates row. */
+export const probeHasGates = (): boolean => gatesWorld(PROBE_RULES) && enchantWorld(PROBE_RULES);
+/** BUMP-1F (RULING-BUMP1F-R13 R13.3; REQ-BFG-059, ENDLESS-1): the four ENDLESS rows, written out: the kit probe's of 0.9.13 (W/ref/live0913/endlessprobe.mjs, whose
+ *  snapshot came from the game's own play), ported. A run won on its 10th dusk (victoryDay 10: ten wins and none lost, so `losses` 0) goes on into endless with
+ *  ENDLESS_LIVES (3) fresh hearts, wins the dusks of days 11, 12 and 13 and arrives at day 14 with 3 endless wins and its 3 hearts: the snapshot of that dusk says
+ *  `wins` 10 (the victory), `lives` 3 (the endless hearts; the decoder holds `lives` equal to `endlessLives`), mode "endless", endlessWins 3, endlessLives 3 and
+ *  victoryDay 10, after the seed and the losses. The deck is FURNACE's day-14 reference deck (heroRefBuild: a deck a player could own that day) with its fourteen
+ *  dawn runes (probeRunes), uploaded with its seed and without a road log (the log is optional). Rows 1-3 are POSTs (below), row 4 a GET (ENDLESS_MATCH). */
+export const ENDLESS_HERO: HeroId = "furnace";
+export const ENDLESS_DUSK = { day: 14, wins: 10, lives: 3, victoryDay: 10, endlessWins: 3, endlessLives: 3 } as const;
+/** Row 2's endless wins: ENDLESS_WIN_CAP (30), the win that ends endless, which no snapshot carries (the decoder takes 0..29). */
+export const ENDLESS_CAP_WINS = 30;
+/** Row 3's record: in the three endless dusks (days 11-13) 3 endless wins leave all 3 hearts, never 2 (`lives` follows the hearts). */
+export const ENDLESS_NORECORD = { endlessWins: 3, endlessLives: 2, lives: 2 } as const;
+/** The strict decode's answer to endlessWins 30 (snapshot.ts v3Fields: an integer in 0..ENDLESS_WIN_CAP - 1), written out. */
+export const ENDLESS_WINS_ERROR = "snapshot.endlessWins: expected an integer in 0..29";
+/** The server's answer to a record no endless leads to (records.ts endlessRecordProblem, POST step 6), written out: 3 endless wins and 2 hearts, a run won on day 10. */
+export const endlessRecordError = (r: { endlessWins: number; endlessLives: number }): string =>
+  `record: ${r.endlessWins} endless wins and ${r.endlessLives} hearts is no record a run won on day ${ENDLESS_DUSK.victoryDay} carries into endless dusk ${ENDLESS_DUSK.day}`;
+/** Does the probe's rules version have endless (the rules gate: PROBE_RULES at or after ENDLESS_RULES, with the switch on, as the build ships)? Under older rules, or with
+ *  the switch off, the decoder refuses the endless fields (400 on the server) and the match route refuses `mode=endless`: no endless rows. */
+export const probeHasEndless = (): boolean => endlessFor(PROBE_RULES);
 /** The decks the probe stores when every check passes: PROBE_STORED, the honest LAST CHANCE deck under rules with it, the
  *  honest NPC-day deck under rules with the NPC day (AZ-BUMP), the honest day-12 deck under rules with the long run
- *  (BUMP-1D), and the GRUDGE ROD deck under rules with the scaling pieces (BUMP-1E). */
-export const probeStored = (): number => PROBE_STORED + (probeHasLastChance() ? 1 : 0) + (probeHasNpcDay() ? 1 : 0) + (probeHasLongRun() ? 1 : 0) + (probeHasScale() ? 1 : 0);
+ *  (BUMP-1D), the GRUDGE ROD deck under rules with the scaling pieces (BUMP-1E), the FUSER-and-word deck under rules with the gates and the
+ *  words (BUMP-1F), and the honest endless deck under rules with endless (BUMP-1F, RULING-BUMP1F-R13 R13.3: only row 1 of the four stores a deck). */
+export const probeStored = (): number => PROBE_STORED + (probeHasLastChance() ? 1 : 0) + (probeHasNpcDay() ? 1 : 0) + (probeHasLongRun() ? 1 : 0) + (probeHasScale() ? 1 : 0) + (probeHasGates() ? 1 : 0) + (probeHasEndless() ? 1 : 0);
 export const PROBE_TIMEOUT_MS = 15_000;
 export const PROBE_USAGE = "usage: node server/dist/ghost-probe.mjs <base-url> <id-file> [--profile]   (base url: http(s)://host[:port], no path; an id file that holds no id yet; --profile also PUTs a profile)"; // PROFILE-UP: the opt-in flag
 /** The server's answer to a POST without the signing headers (identity.ts uploadHeaderError). */
@@ -253,7 +307,7 @@ export interface ProbeResult {
   playerId: string;
   checks: ProbeCheck[];
   ok: boolean;
-  /** Checks the server answered 201 or 200: decks it holds for this player. */
+  /** Checks the server answered 201 or 200: decks it holds for this player. BUMP-1F: the POST rows only (the endless match's 200 is no deck). */
   stored: number;
 }
 
@@ -284,8 +338,9 @@ const utf8 = (text: string): Uint8Array<ArrayBuffer> => new TextEncoder().encode
 
 /**
  * The canonical text of `s` as the game's encoder writes it (encodeSnapshot: the decoder's key order, the build as the
- * strict shape check copies it), built without the encoder's rules gates. Only for heroes the encoder refuses under these
- * rules; for every other snapshot it equals encodeSnapshot(s) (tests/ghost-probe.test.ts).
+ * strict shape check copies it), built without the encoder's rules gates. Only for what the encoder refuses under these
+ * rules (the heroes it does not take; BUMP-1F: and endlessWins 30, endless-wins-cap's row); for every other snapshot it
+ * equals encodeSnapshot(s) (tests/ghost-probe.test.ts).
  */
 export function canonicalText(s: GhostSnapshot): string {
   return JSON.stringify({
@@ -296,6 +351,12 @@ export function canonicalText(s: GhostSnapshot): string {
     // BUMP-1D (RUN-1; REQ-BFG-059): the dusks the run lost, right after the seed (snapshot.ts V3_SNAPSHOT_FIELDS: seed, losses, ...),
     // so the probe's own canonical bytes cover every row that states them as the encoder writes them
     ...(s.losses !== undefined ? { losses: s.losses } : {}),
+    // BUMP-1F (RULING-BUMP1F-R13 R13.3; ENDLESS-1): the endless group after the losses, in snapshot.ts V3_SNAPSHOT_FIELDS order (mode, endlessWins,
+    // endlessLives, victoryDay), so the probe's own canonical bytes cover its three endless rows as the encoder writes them (and the one it refuses)
+    ...(s.mode !== undefined ? { mode: s.mode } : {}),
+    ...(s.endlessWins !== undefined ? { endlessWins: s.endlessWins } : {}),
+    ...(s.endlessLives !== undefined ? { endlessLives: s.endlessLives } : {}),
+    ...(s.victoryDay !== undefined ? { victoryDay: s.victoryDay } : {}),
     // Z-BUMP (REQ-BFG-073, the flip): the taken LAST CHANCE, last of all { day, boon, id? } (snapshot.ts lastChanceField), so
     // the probe's own canonical bytes cover its two LAST CHANCE rows as the encoder writes them
     ...(s.lastChance !== undefined ? { lastChance: { day: s.lastChance.day, boon: s.lastChance.boon, ...(s.lastChance.id !== undefined ? { id: s.lastChance.id } : {}) } } : {}),
@@ -362,9 +423,40 @@ function scaleDusk(playerId: string, runId: string, now: number): GhostSnapshot 
   return dusk(playerId, SCALE_HERO, probeDusk({ ...SCALE_DUSK, losses: stated(0) }), build, runId, now);
 }
 
+/** BUMP-1F (REQ-BFG-052, REQ-BFG-085): FURNACE's honest day-3 deck (probeRunes of its start deck: the kiln and three dawn runes) plus a FUSER on the first belt tile
+ *  of its belt that splitProblem allows, and a WHETSTONE at the best spot beside the belt holding the first word of the day-3 ENCHANTER offer that goes on a
+ *  rig (WIDE needs a side, so it is left out), uploaded at GATES_DUSK with its `losses` (0: `stated`). The word is bought (4 G), the FUSER (6 G) and the rig
+ *  fit the day's gold. Only under rules with the gates and the words. */
+function gatesDusk(playerId: string, runId: string, now: number): GhostSnapshot {
+  const build = probeRunes(heroStartBuild(GATES_HERO), GATES_DUSK.day);
+  const cells = build.routes[0].cells;
+  const t = cells.findIndex((c) => splitProblem(build as never, GATES_PIECE, c) === null);
+  if (t < 0) throw new Error("ghost-probe: no belt tile takes the FUSER");
+  const word = enchanterWords(PROBE_SEED, GATES_DUSK.day).find((w) => w !== "wide" && enchantProblem(GATES_RIG, w) === null);
+  if (!word) throw new Error("ghost-probe: the day-3 ENCHANTER offers no word a rig takes");
+  let uid = Math.max(0, ...build.items.map((p) => p.uid)) + 1;
+  build.items.push({ uid: uid++, def: GATES_PIECE, x: kx(cells[t]), y: ky(cells[t]) });
+  const spot = bestSpot(build as never, GATES_RIG);
+  if (!spot) throw new Error("ghost-probe: no spot beside the belt takes the rig");
+  const rig = placeRigAt(build as never, uid++, GATES_RIG, spot);
+  rig.ench = word;
+  return dusk(playerId, GATES_HERO, probeDusk({ ...GATES_DUSK, losses: stated(0) }), build, runId, now);
+}
+
+/** BUMP-1F (RULING-BUMP1F-R13 R13.3; REQ-BFG-059): FURNACE's day-14 reference deck with its fourteen dawn runes (probeRunes), uploaded as the ENDLESS dusk of
+ *  ENDLESS_DUSK: the run won on day 10 (10 wins, `losses` 0: `stated`), `r` endless wins and hearts going into the fight (`lives` follows the hearts), mode
+ *  "endless" and the victory day. Only under rules with endless (the decoder refuses the fields otherwise); without a road log. */
+function endlessDusk(playerId: string, r: { endlessWins: number; endlessLives: number; lives: number }, runId: string, now: number): GhostSnapshot {
+  const build = probeRunes(heroRefBuild(ENDLESS_HERO, ENDLESS_DUSK.day), ENDLESS_DUSK.day);
+  return {
+    ...dusk(playerId, ENDLESS_HERO, { day: ENDLESS_DUSK.day, wins: ENDLESS_DUSK.wins, lives: r.lives, losses: stated(0) }, build, runId, now),
+    mode: "endless", endlessWins: r.endlessWins, endlessLives: r.endlessLives, victoryDay: ENDLESS_DUSK.victoryDay,
+  };
+}
+
 /** The nine POSTs, in order, for `playerId` at time `now` (eleven with LAST CHANCE; thirteen with the NPC day too, as
  *  bb-0.10.0 has both; fifteen with the long run, as bb-0.11.0 has, BUMP-1D; sixteen with the scaling pieces, as bb-0.12.0 has,
- *  BUMP-1E). Pure: no key, no network. */
+ *  BUMP-1E; seventeen with the gates and the words, as bb-0.13.0 has, BUMP-1F; twenty with endless, BUMP-1F R13.3). Pure: no key, no network. */
 export function probePlan(playerId: string, now: number): PlannedPost[] {
   const run = `probe-${now}`;
   const plan: PlannedPost[] = [];
@@ -445,8 +537,52 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
     const scid = ghostId(sc);
     plan.push({ name: "scale-signed", snapshot: sc, text: encodeSnapshot(sc), signed: true, expected: `201 {"id":"${scid}"}`, pass: (a) => a.status === 201 && a.id === scid });
   }
+  // 17. BUMP-1F (REQ-BFG-052, REQ-BFG-085): the gates-and-words row, under rules with both (the rules gate gatesWorld and enchantWorld): the honest day-3
+  // FURNACE deck plus a FUSER on its belt and a WHETSTONE holding one ENCHANTER word, signed, 201. A server of an older build answers 422.
+  if (probeHasGates()) {
+    const gt = gatesDusk(playerId, `${run}-gates`, now);
+    const gtid = ghostId(gt);
+    plan.push({ name: "gates-signed", snapshot: gt, text: encodeSnapshot(gt), signed: true, expected: `201 {"id":"${gtid}"}`, pass: (a) => a.status === 201 && a.id === gtid });
+  }
+  // 18-20. BUMP-1F (RULING-BUMP1F-R13 R13.3; REQ-BFG-059): the ENDLESS rows' three POSTs, under rules with endless (the rules gate endlessFor): the honest day-14
+  // endless dusk (a run won on day 10, 3 endless wins and 3 hearts), signed, 201; the same with endlessWins 30, which the decoder refuses (400, the field named; the
+  // encoder refuses it too, so its text is canonicalText's); and the same with 3 endless wins and 2 hearts, which the decoder takes and no endless leads to (422, the
+  // record). The fourth row, the endless match, is a GET (ENDLESS_MATCH; runProbe).
+  if (probeHasEndless()) {
+    const en = endlessDusk(playerId, ENDLESS_DUSK, `${run}-endless`, now);
+    const enid = ghostId(en);
+    plan.push({ name: "endless-honest", snapshot: en, text: encodeSnapshot(en), signed: true, expected: `201 {"id":"${enid}"}`, pass: (a) => a.status === 201 && a.id === enid });
+    const cap = { ...endlessDusk(playerId, ENDLESS_DUSK, `${run}-endless-wins-cap`, now), endlessWins: ENDLESS_CAP_WINS };
+    plan.push({
+      name: "endless-wins-cap", snapshot: cap, text: canonicalText(cap), signed: true, expected: `400 ${ENDLESS_WINS_ERROR}`,
+      pass: (a) => a.status === 400 && /^snapshot\.endlessWins: /.test(a.error ?? ""),
+    });
+    const nr = endlessDusk(playerId, ENDLESS_NORECORD, `${run}-endless-norecord`, now);
+    const nrErr = endlessRecordError(ENDLESS_NORECORD);
+    plan.push({ name: "endless-norecord", snapshot: nr, text: encodeSnapshot(nr), signed: true, expected: `422 ${nrErr}`, pass: (a) => a.status === 422 && a.error === nrErr });
+  }
   return plan;
 }
+
+/** BUMP-1F (RULING-BUMP1F-R13 R13.3): the fourth ENDLESS row, a GET and no deck: the match request of an endless dusk of day 14 (2 endless wins, 3 hearts) from another
+ *  player (`other-player`) who has finished runs (`runs=5`: not a new player, so the request reads the uploads and not the seed pool alone), under PROBE_RULES. An endless
+ *  request reads only endless ghosts, so the server serves row 1's own stored deck (the only endless ghost it holds for day 14, unless real players' are about: the check
+ *  asks only that the ghost it serves is an endless one). runProbe sends it after the POST rows and counts it for no deck. */
+export const ENDLESS_MATCH = {
+  name: "endless-match",
+  path: `/v1/ghosts/match?rules=${PROBE_RULES}&runs=5&day=${ENDLESS_DUSK.day}&wins=2&lives=3&player=other-player&mode=endless`,
+  expected: "200 an endless ghost (snapshot.mode endless)",
+  pass: (a: ProbeAnswer): boolean => {
+    if (a.status !== 200) return false;
+    try {
+      const served: unknown = JSON.parse(a.text);
+      const snap = typeof served === "object" && served !== null ? (served as { snapshot?: unknown }).snapshot : undefined;
+      return typeof snap === "object" && snap !== null && (snap as { mode?: unknown }).mode === "endless";
+    } catch {
+      return false; // not JSON
+    }
+  },
+};
 
 /** PROFILE-UP: the flag that adds the profile rows. */
 export const PROFILE_FLAG = "--profile";
@@ -476,6 +612,24 @@ export function profilePlan(now: number): PlannedPut[] {
   ];
 }
 
+/** The answer of `res`, read: its status, its text, and the id, error and errors a JSON object body carries (BUMP-1F: post's reading, taken out for get). */
+async function read(res: Response): Promise<ProbeAnswer> {
+  const text = await res.text();
+  let o: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) o = parsed as Record<string, unknown>;
+  } catch {
+    /* not JSON: shown as text */
+  }
+  return {
+    status: res.status, text,
+    id: typeof o.id === "string" ? o.id : undefined,
+    error: typeof o.error === "string" ? o.error : undefined,
+    errors: Array.isArray(o.errors) ? o.errors.filter((e): e is string => typeof e === "string") : undefined,
+  };
+}
+
 /** One request with these exact body bytes: POST /v1/ghosts unless told otherwise. Throws on no answer (a network error or the timeout). */
 async function post(
   base: string, body: Uint8Array<ArrayBuffer>, headers: Record<string, string>, timeoutMs: number, method = "POST", path = "/v1/ghosts",
@@ -484,20 +638,19 @@ async function post(
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try {
     const res = await fetch(`${base}${path}`, { method, headers: { "content-type": "application/json", ...headers }, body, signal: ctl.signal });
-    const text = await res.text();
-    let o: Record<string, unknown> = {};
-    try {
-      const parsed: unknown = JSON.parse(text);
-      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) o = parsed as Record<string, unknown>;
-    } catch {
-      /* not JSON: shown as text */
-    }
-    return {
-      status: res.status, text,
-      id: typeof o.id === "string" ? o.id : undefined,
-      error: typeof o.error === "string" ? o.error : undefined,
-      errors: Array.isArray(o.errors) ? o.errors.filter((e): e is string => typeof e === "string") : undefined,
-    };
+    return await read(res);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** BUMP-1F (RULING-BUMP1F-R13 R13.3): one GET, no body, no signing (the endless match). Throws on no answer (a network error or the timeout), as post does. */
+async function get(base: string, path: string, timeoutMs: number): Promise<ProbeAnswer> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${base}${path}`, { method: "GET", signal: ctl.signal });
+    return await read(res);
   } finally {
     clearTimeout(timer);
   }
@@ -511,7 +664,8 @@ function shown(a: ProbeAnswer): string {
 }
 
 /**
- * The checks of probePlan (nine before LAST CHANCE; BUMP-1D: fifteen) against `base`. `saveId` gets the probe's player id before the first POST. Resolves every check, each
+ * The checks of probePlan (nine before LAST CHANCE; BUMP-1D: fifteen) against `base`, then (BUMP-1F, RULING-BUMP1F-R13 R13.3) under rules with endless the GET of
+ * ENDLESS_MATCH, a fourth ENDLESS check that is no deck. `saveId` gets the probe's player id before the first POST. Resolves every check, each
  * with what was expected and what came back; a POST with no answer is a failed check. Throws only if no identity can be
  * made or `saveId` throws, before any POST.
  */
@@ -541,7 +695,21 @@ export async function runProbe(
     }
     checks.push({ name: p.name, expected: p.expected, got, ok, status });
   }
-  const stored = checks.filter((c) => c.status === 201 || c.status === 200).length; // decks only: counted before the profile rows
+  const stored = checks.filter((c) => c.status === 201 || c.status === 200).length; // decks only: counted before the endless match and the profile rows
+  // BUMP-1F (RULING-BUMP1F-R13 R13.3): the ENDLESS rows' fourth, a GET and no deck, after the POSTs (row 1 stored the endless ghost it asks for) and before the
+  // profile rows; it is counted after `stored`, so its 200 is no deck
+  if (probeHasEndless()) {
+    let got: string, ok = false, status: number | undefined;
+    try {
+      const a = await get(base, ENDLESS_MATCH.path, timeoutMs);
+      status = a.status;
+      got = shown(a);
+      ok = ENDLESS_MATCH.pass(a);
+    } catch (e) {
+      got = `no answer (${errText(e)})`;
+    }
+    checks.push({ name: ENDLESS_MATCH.name, expected: ENDLESS_MATCH.expected, got, ok, status });
+  }
   if (opts.profile) {
     // PROFILE-UP: PUT /v1/profile from the same identity, in the profile domain (the second row's signature is then broken)
     for (const p of profilePlan(now)) {

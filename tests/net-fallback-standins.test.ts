@@ -5,7 +5,7 @@ import { STAND_IN_POOL_DAYS, STAND_IN_POOL_HEROES, standInPick } from "../src/si
 import { STAND_IN_HEROES, fallbackGhost, offlineGhost, rivalHero } from "../src/net/fallback";
 import { buildCost, maxGoldByDay, validateBuild, validateUpload } from "../src/net/validate"; // S8c: + validateUpload (the player mode)
 import { npcDayRules, roadDropValue } from "../src/sim/npcDay"; // S8c: the budget line is left to the player mode only while NPC_DAY is on
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import { boughtCost } from "../src/sim/harness/standins";
 import { runeGrants } from "../src/sim/runes";
 import { pickLoss } from "./beltside.helpers";
@@ -104,7 +104,9 @@ describe("fallback stand-ins", () => {
     // requester's stand-in is still the WEAVER pick (loom, embertrough, sparkgap, plateroller: 11 as bought, its road's plateroller drop worth 3), and a WEAVER requester's is
     // now the FURNACE pick of kiln, whetstone and temper (8 as bought, a road with no drop), where it held a deck of 11 with 3 of drops. The shop's part is the full
     // purse, 8 of 8, in both (11 - 3, 8 - 0: the loop below); the strict and player-mode checks above pass for both
-    expect(days1).toEqual([[11, 3], [8, 0]]); // BUMP-1E: was [[11, 3], [11, 3]]. S8c (the pools): the deck as bought, its drops: was 8 (and no drops) for both
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): the stand-in pool regenerated under bb-0.13.0, src/sim/standInPoolData.ts, GATES and ENCHANT shipped on in the shop and on the road): day 1, seed 3: both requesters' stand-ins now hold
+    // 14 as bought with 6 of road drops (measured by this test; 14 - 6 = 8: the shop's part is still the full purse, the loop below); was [[11, 3], [8, 0]]
+    expect(days1).toEqual([[14, 6], [14, 6]]); // BUMP-1F: was [[11, 3], [8, 0]]. BUMP-1E: was [[11, 3], [11, 3]]. S8c (the pools): the deck as bought, its drops: was 8 (and no drops) for both
     for (const [value, drops] of days1) expect(value - drops, "the shop's part, the full purse").toBe(8);
   });
 

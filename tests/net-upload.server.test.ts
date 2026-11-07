@@ -86,7 +86,9 @@ describe("the player mode at its call sites (server upload, served ghost)", () =
     expect(decks).toHaveLength(12);
     // SHAPES-1 (RUN5-SHAPES1 3): the dusk set aside for its road log (measured, run 6), and it passes with that log and its
     // run seed, as the game's ghostOf sends them (tests/hull1a.server, hull1d.server read the driver's dusks the same way)
-    expect(needsLog.map((d) => `${d.hero} #${d.seed} d${d.day}`)).toEqual(["furnace #1 d1"]);
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2): GATES, ENCHANT and the F-fixes ship on, so the driver's seeded runs buy other decks): the dusks set aside for their road log are two now, seed 1's FURNACE and seed 2's WEAVER
+    // day-1 decks (measured by this test); each still passes with its log and run seed (the line below), so the pin is as strict as it was. Was ["furnace #1 d1"]
+    expect(needsLog.map((d) => `${d.hero} #${d.seed} d${d.day}`)).toEqual(["furnace #1 d1", "weaver #2 d1"]);
     for (const d of needsLog) expect(validateUpload(d.build, d.day, RULES_VERSION, { seed: d.runSeed, road: d.roadLog }).errors, `${d.hero} #${d.seed} d${d.day}`).toEqual([]);
     for (const s of decks) {
       expect(validateUpload(s.build, s.day).ok).toBe(true);
@@ -123,7 +125,9 @@ describe("the player mode at its call sites (server upload, served ghost)", () =
     expect([floorRecord(4).wins, lost4, isReachable(4, 0, lost4, { lastChance: null, rules: RULES_VERSION })]).toEqual([0, 7, true]);
     // FLIP-X2: served ghosts hold their day's runes, v3 (upSnap; were snap's rune-less v1 decks)
     const ride = upSnap({ day: 3, wins: 1, lives: ride3, build: { ...snap().build, hullBonus: RIDE_THROUGH } }); // NUM-1: -100 (was -10). BUMP-1E: lives 9 (was snap's 3)
-    const off = upSnap({ day: 4, wins: 0, lives: lost4, build: { ...snap().build, hullBonus: 300 } }); // NUM-1: x10 (was 30). BUMP-1E: lives 7 (was snap's 3)
+    // BUMP-1F (RULING-BUMP1F-R3.1, ENCHANT-2: the ASH SHRINE costs 100 hull like RIDE THROUGH): 300 is a hull a player reaches by day 4 now (STORM + SHRINE, -200, and two plates), so the server serves it; the off-grid 325 is
+    // still one a player cannot reach (tests/net-upload.test.ts pins the sums). Was hullBonus: 300
+    const off = upSnap({ day: 4, wins: 0, lives: lost4, build: { ...snap().build, hullBonus: 325 } }); // NUM-1: x10 (was 30). BUMP-1E: lives 7 (was snap's 3). BUMP-1F: 325 (was 300)
     const srv = createServer((q, s) => {
       s.setHeader("content-type", "application/json");
       s.end(JSON.stringify(q.url?.includes("day=3") ? { id: "gride", snapshot: ride } : { id: "goff", snapshot: off }));
@@ -137,7 +141,7 @@ describe("the player mode at its call sites (server upload, served ghost)", () =
       expect(g).toMatchObject({ source: "server", id: "gride" });
       const f = await fetchGhost(url, req({ day: 4, lives: lost4 }), 2000); // BUMP-1E: lives 7 (was req's 3)
       expect(f.source).toBe("fallback");
-      expect(f.error).toMatch(/ghost deck invalid: supply: hullBonus 300 is not a hull a player can reach by day 4/); // NUM-1: x10 (was 30)
+      expect(f.error).toMatch(/ghost deck invalid: supply: hullBonus 325 is not a hull a player can reach by day 4/); // NUM-1: x10 (was 30). BUMP-1F (RULING-BUMP1F-R3.1): 325 (was 300, reachable with the shrine)
     } finally {
       srv.closeAllConnections();
       await new Promise<void>((r) => srv.close(() => r()));

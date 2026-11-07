@@ -27,6 +27,8 @@ import { HEROES, ITEMS, type ItemDef } from "./content";
 import { turretList, type Build } from "./deck";
 import type { Difficulty } from "./rivals";
 import { valueOf } from "./stars";
+import type { EnchantId } from "./enchant";
+import { dropWordOf } from "./npcWords"; // ENCHANT-2 (REQ-BFG-085, T2): a drop keeps the word its rival's copy held
 
 /** THE switch (REQ-BFG-077, REQ-BFG-078): on, from AZ-BUMP's flip (the hull release). Its setter, withNpcDay and the off
  *  path stay this release, for older records and the tests that measure the off world. */
@@ -103,7 +105,7 @@ const SIGNATURES = new Set(Object.values(HEROES).map((h) => h.factory));
  */
 export function dropClass(def: string): DropClass | null {
   const d: ItemDef | undefined = Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined;
-  if (!d || d.kind === "supply" || SIGNATURES.has(d.id) || d.rarity === "legendary") return null;
+  if (!d || d.kind === "supply" || d.kind === "converter" || SIGNATURES.has(d.id) || d.rarity === "legendary") return null; // GATES-1 (REQ-BFG-052): a GATE never drops (NPC drops are out of scope)
   if (d.kind === "turret" || d.kind === "factory") return "turret";
   if (d.rarity === "epic") return "epic";
   if (d.kind === "gate") return d.rarity === "rare" ? "rare" : "common";
@@ -125,6 +127,16 @@ export interface DropLine {
   def: string;
   cls: DropClass | "legendary";
   odds: number;
+  /** ENCHANT-2 (REQ-BFG-085, T2): the word (and, WIDE on a rig, the side) the rival's copy of this part holds, so the drop arrives with it. Present only
+   *  with ENCHANT on and a word on the deck's copy, so every other table is what it was. */
+  ench?: EnchantId;
+  enchDir?: number;
+}
+
+/** ENCHANT-2 (T2): a line's word fields for `def` in `deck` ({} with ENCHANT off or no word). */
+export function dropLineWord(deck: Pick<Build, "hero" | "items" | "turrets">, def: string): { ench?: EnchantId; enchDir?: number } {
+  const w = dropWordOf(deck, def);
+  return w ? { ench: w.ench, ...(w.enchDir !== undefined ? { enchDir: w.enchDir } : {}) } : {};
 }
 
 /** A warlord's drop as the inspect panel shows it: the chance, then every part with its odds (the most likely first,
@@ -149,7 +161,7 @@ export function dropTable(tier: Difficulty, deck: Pick<Build, "hero" | "items" |
   const total = classes.reduce((s, c) => s + w[c.cls], 0);
   const chance = DROP_CHANCE[tier];
   const lines: DropLine[] = [];
-  for (const c of classes) for (const def of c.defs) lines.push({ def, cls: c.cls, odds: (chance * w[c.cls]) / total / c.defs.length });
+  for (const c of classes) for (const def of c.defs) lines.push({ def, cls: c.cls, odds: (chance * w[c.cls]) / total / c.defs.length, ...dropLineWord(deck, def) }); // ENCHANT-2 (T2): + the word the deck's copy holds
   const rank = (c: DropLine["cls"]) => (c === "legendary" ? -1 : DROP_CLASSES.indexOf(c));
   lines.sort((a, b) => b.odds - a.odds || rank(a.cls) - rank(b.cls) || (a.def < b.def ? -1 : a.def > b.def ? 1 : 0));
   // HULL-1b (REQ-BFG-078): the drop's star rides on the table (Hard: ★2), only when above 1 and something drops

@@ -3,7 +3,7 @@
 // that ships endless writes the literal) and endlessFor(rules); newRun's mark (Run.endless). Off, the game is byte for byte 0.9.11's.
 import { afterEach, describe, expect, it } from "vitest";
 import { ENDLESS, ENDLESS_LAST_DAY, ENDLESS_LIVES, ENDLESS_MAX_DRAWS, ENDLESS_WIN_CAP, endlessDusk, endlessMarked, endlessOffered, endlessRules, inEndless, setEndless, withEndless } from "../src/sim/endless";
-import { ENDLESS_RULES, LONG_RUN_RULES, endlessFor, longRunFor } from "../src/net/rulesGate";
+import { ENDLESS_RULES, LONG_RUN_RULES, endlessFor, longRunFor, rulesAtLeast } from "../src/net/rulesGate"; // BUMP-1F: + rulesAtLeast
 import { RULES_VERSION } from "../src/sim/content";
 import { newRun } from "../src/game/run";
 import { LONG_RUN, WIN_GOAL } from "../src/sim/longRun";
@@ -39,9 +39,13 @@ describe("ENDLESS-1 3.1: the switch (src/sim/endless.ts)", () => {
 });
 
 describe("ENDLESS-1 3.1: rulesGate.ts ENDLESS_RULES and endlessFor", () => {
+  // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 73 and named question (e)): the title keeps its key and names the BUMP-1E state ("this build's rules are it"); with bb-0.13.0 this build's rules are AT OR AFTER it
   it("ENDLESS_RULES is the literal bb-0.12.0 (BUMP-1E wrote it; it read RULES_VERSION until the bump that ships endless), and this build's rules are it", () => {
     expect(ENDLESS_RULES).toBe("bb-0.12.0"); // BUMP-1E: was expect(ENDLESS_RULES).toBe(RULES_VERSION)
-    expect(RULES_VERSION).toBe(ENDLESS_RULES);
+    // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 73): was expect(RULES_VERSION).toBe(ENDLESS_RULES). RULES_VERSION is bb-0.13.0 now (content.ts) and ENDLESS_RULES stays bb-0.12.0, the rules that turned ENDLESS on
+    // (BUMP-1E wrote the literal; BUMP-1F does not move it), so RULES_VERSION is no longer equal to it: it is pinned, and it is at or after ENDLESS_RULES
+    expect(RULES_VERSION).toBe("bb-0.13.0");
+    expect(rulesAtLeast(RULES_VERSION, ENDLESS_RULES)).toBe(true);
   });
 
   it("endlessFor(rules) = the switch on AND rules at or after ENDLESS_RULES: off, nothing is endless whatever the rules", () => {

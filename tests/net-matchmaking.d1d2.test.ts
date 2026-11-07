@@ -21,7 +21,7 @@ import { SCALE_RIGS } from "../src/sim/scale"; // BUMP-1E: the switch ships on; 
 import type { Identity } from "../src/net/identity";
 import type { GhostServer } from "../server/app";
 import { seedStore } from "../server/seed";
-import { generateSamplePool } from "../tools/samplePool";
+import { generateSamplePool } from "./helpers/poolCache";
 import { entry } from "./netHelpers";
 import { ownedBy, testIdentity } from "./netIdentity";
 import { storeBackends } from "./netStores";
@@ -226,7 +226,7 @@ describe.each(storeBackends())("the match route (D1, D2), $name store", (backend
     expect(uploads).toHaveLength(DAY * HEARTS_START);
     expect(posted).toBe(reachableRecords(DAY).length);
     expect(posted).toBeGreaterThan(0);
-  });
+  }, 120_000); // CACHE-1: 120 s (was the 10-s hook default). The first seedStore of a process checks the whole pool, and with SEED_POOL from the pool cache nothing has warmed what that check reads: 9 s or more on a loaded host, not 1 s. A host timeout, not the rule
 
   afterAll(async () => {
     await app.close();
