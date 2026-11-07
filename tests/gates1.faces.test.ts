@@ -177,7 +177,7 @@ describe("GATES-1 G4: NOTES, the type line and the panels", () => {
       const r = run();
       r.shop.wagons = [{ merchant: "tinker", offers: [{ def: "fuser", price: 6, sold: false }] }] as unknown as Run["shop"]["wagons"];
       const o = offerPanel(r, 0, 0)!;
-      expect(o.title).toBe("FUSER");
+      expect(o.title).toBe("FUSER ★"); // POLISH-3 (REQ-BFG-089; Q4, cap's ruling E): the offer's title carries its star at ★1, as every other panel's (was "FUSER"); the merge's ★2 stays on the button
       expect(o.sub).toBe("RARE GATE");
       expect(o.labels).toEqual(["BUY 6G"]);
       expect(o.body.map((b) => b.text)).toContain(icons("2 SLUGS IN, 1 OUT: IT DEALS BOTH, +50%."));

@@ -766,7 +766,9 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
     // WORDS-1 (REQ-BFG-081; READ-1 6.2: merchant names drew 40 "not understood" flags): no merchant's name on the panel (the
     // desk's wagon tags keep them), and a core's or gear's kind in plain words (shop.ts panelKind). Was `${describe(d)} ·
     // ${merchant}`, subShort describe(d)
-    title: d.name, color: RARITY_COLOR[d.rarity], sub: panelKind(d),
+    // POLISH-3 (REQ-BFG-089; Q4, the pieces lane's display list, item 1d; cap's ruling E): the offer's title carries its star at ★1, as every other panel's does since POLISH-1's P5a (`titled`): the
+    // offer is drawn at ★1 (its abilityBlocks take star 1); the merge's ★2 stays on the button (`MERGE ★2: 3G`)
+    title: titled(d.name, 1), color: RARITY_COLOR[d.rarity], sub: panelKind(d),
     subShort: KIND_SUB[d.kind] ?? describe(d), // T6: the rarity gives way first (the title shows it in colour)
     headerOnly: one ? { texts: [one], colour: C.bone } : undefined,
     body,
