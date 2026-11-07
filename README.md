@@ -6,8 +6,8 @@
 
 | | |
 |---|---|
-| Current release | **0.9.13**: rigs that count, POISON and ENDLESS ([changelog](docs/CHANGELOG.md)) |
-| Battle rules | `bb-0.12.0` |
+| Current release | **0.9.14**: gates and enchantments ([changelog](docs/CHANGELOG.md)) |
+| Battle rules | `bb-0.13.0` |
 | Runs on | any modern browser, desktop or phone |
 
 ---
@@ -15,7 +15,7 @@
 ## How a run works
 
 1. **Pick a hero.** Four heroes are open from the start: FURNACE, WEAVER, FOUNDRY and BASTION. Each hero brings a hull, starting turrets and a signature factory.
-2. **Dawn: the caravan.** Buy rigs, factories and turrets. Drop them on your deck and drag belts between them. Merging copies of a part raises its stars.
+2. **Dawn: the caravan.** Buy rigs, factories and turrets. Drop them on your deck and drag belts between them. Merging copies of a part raises its stars. From day 2 the caravan can also sell gates: a gate sits on a belt and fuses, splits or burns the slugs that pass. On day 3 and every odd day after, the ENCHANTER sells enchantments, and each one adds an effect to a part.
 3. **The road.** Each day you choose one stop: a road event, or a fight with a warlord at Easy, Medium or Hard.
 4. **Dusk: the ghost.** You fight another player's build from the same day of their own run. When none fits, a rival captain stands in, so the game also plays fully offline.
 5. **Win or lose.** A run is won at **10 wins**. There is no day limit: the days go on while you still have hearts. Lose your last heart and the run is over.
@@ -34,7 +34,7 @@ Battles play themselves. Your skill is in the build: what you buy, where it sits
 
 - **Client:** TypeScript and plain Canvas 2D and WebAudio, built with Vite into a single-file page of about 1 MB. All art is pixel art drawn in code, and all sound is synthesized in code.
 - **Ghost server:** a zero-dependency Node 22 process (`node:http`, WebCrypto) that serves the page and the API. It runs on [Fly.io](https://fly.io) (app `beltbattles`) and stores ghosts and profiles in a Tigris bucket.
-- **Tests:** Vitest. The full suite is about 470 files and 5,700 tests, covering the sim, the rules text, the server and the screens.
+- **Tests:** Vitest. The full suite is about 525 files and 6,400 tests, covering the sim, the rules text, the server and the screens.
 
 ## Getting started
 
@@ -79,7 +79,8 @@ Each release is staged and checked as described in `deploy/RUNBOOK.md`: the full
 
 ## What's next
 
-- **The next battle rules (`bb-0.13.0`):** gates and enchantments.
+- **0.9.14.1:** the server refuses endless uploads from past the days that online play covers, and part panels read more clearly.
+- **The next battle rules (`bb-0.14.0`, 0.9.15):** a SHOCK part and a BURN part in every run, and clearer panels.
 - **One player ID across devices:** link a phone, a PC or the web to the same player with a one-time code.
 - **Store builds:** iPhone and Android through Capacitor, Steam on desktop, and a free web version, most likely on itch.io.
 
