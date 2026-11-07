@@ -225,6 +225,11 @@ describe("POLISH-3 Q2 (b): a face keeps every one of its own rule lines wherever
       let low = 0, n = 0;
       for (const f of corpus(name).faces) {
         if (f.p === f.p0 || JSON.stringify(f.p) === JSON.stringify(f.p0)) continue; // planPanel's own plan
+        if ((name === "desk-1920x1080" || name === "land-844x390") && SIX.includes(f.tag.replace(`${name} `, ""))) { // POLISH-3b (P2, the review's N1): the one turret neither plan shows whole is drawn from the 3x5 plan, which gives away fewer ability blocks (tests/polish3b.sparkfang.test.ts)
+          expect(rulesWhole(f.p) || rulesWhole(f.small), `${f.tag}: neither plan is the full text`).toBe(false);
+          expect(JSON.stringify(f.p), `${f.tag}: the 3x5 plan`).toBe(JSON.stringify(f.small));
+          continue;
+        }
         n++;
         expect(rulesWhole(f.p) && !rulesWhole(f.p0), `${f.tag}: the 3x5 plan is the full text and the 5x7 plan was not`).toBe(true);
         if (!gapsAtLeast(f.p, f.p.gaps.min)) low++;

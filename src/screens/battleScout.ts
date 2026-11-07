@@ -162,12 +162,26 @@ export const CLOSE_LABEL = "CLOSE";
  * full one does not fit: CORE and GEAR rows without their rule lines) is not the full rule text (rulesWhole: fullText less the belt rows) and the same text planned with `small` (the 3x5 face: planPanel's option, PRESENT-2 F's rule
  * for a panel grown from the band) is, the face is drawn from that plan. Every other face (the band's, a plan that is the full text already, one the 3x5 face cannot make whole either) is planPanel's
  * own plan, as before. `tap`: a finger's target (tapPx). Pure (drawOn, tests).
+ * POLISH-3b (REQ-BFG-089; P2, the review's N1): and where NEITHER plan is the rule text whole, the face is drawn from the plan that gives away fewer ability blocks (abilityGone), the 3x5 plan on a tie or a win.
+ * SPARKFANG's RISING SCRAP CANNON (turret slot 0, days 8/12/16) gave away its stat row and `IT TAKES BELTS ON COLUMNS` in the 5x7 plan's shorter form (five ability blocks of its full text); the 3x5 plan gives away `SPEED: LEVEL 2/4.` only.
  */
 export function facePlan(t: PanelText, fa: { area: Rect; band: boolean }, families: Parameters<typeof planPanel>[2], tap: number): PanelPlan {
   const plan = planPanel(t, fa.area, families, { tap, band: fa.band });
   if (!plan.column || rulesWhole(plan)) return plan;
   const small = planPanel(t, fa.area, families, { tap, band: fa.band, small: true });
-  return rulesWhole(small) ? small : plan;
+  if (rulesWhole(small)) return small;
+  return abilityGone(t, small) <= abilityGone(t, plan) ? small : plan;
+}
+
+/**
+ * POLISH-3b (REQ-BFG-089; P2): how many ability blocks of a face's full text (variant 0: `t.body`) the plan does not draw whole. A block it leaves out, cuts, or draws in a shorter form (a compact variant's: the 5x7 plan's
+ * variant 6 has no rule lines of its own) counts as given away: a block is drawn when a block of the same role, words and label is shown and every one of its lines is within the plan's room. Pure (facePlan, tests).
+ */
+export function abilityGone(t: Pick<PanelText, "body">, plan: PanelPlan): number {
+  const drawn = new Set(visibleLines(plan).map((v) => v.line));
+  const keyOf = (b: Block): string => `${b.role}|${b.text}|${b.label ?? ""}`;
+  const shown = new Set(plan.body.shown.filter((l) => l.lines.length > 0 && l.lines.every((ln) => drawn.has(ln))).map((l) => keyOf(l.b)));
+  return t.body.filter((b) => b.role === "ability" && !shown.has(keyOf(b))).length;
 }
 
 /** The face's icon, as the build screen's panel draws it. */
