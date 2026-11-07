@@ -70,6 +70,15 @@ export const LC_STOP = "+1 LIFE";
 export const LC_LINE_HEARTS = `SAVED ON ${LAST_CHANCE_AT} HEART. PICK ONE. FREE.`;
 export const LC_STOP_HEARTS = "SAVED";
 export const lcLine = (run: { hearts?: boolean }): string => (heartsRun(run) ? LC_LINE_HEARTS : LC_LINE);
+/** POLISH-3 (REQ-BFG-087; the pieces lane's display list, item 3): the line under the title stays inside the title plate on every view. `max` is the room it has: the plate's width
+ *  less the 3 px its bevel takes at each edge (cardW - 6). The 5x7 face where the line fits, else the 3x5 face (the order of inspector.ts fitHead: 5x7, then 3x5, then cut short with a
+ *  dot, which no view reaches: the 3x5 line is 119 px against 154 on the narrowest). The words never change. At 280x653 the plate is 160 px and the 5x7 line is 173. */
+export function lcLineFit(line: string, max: number): { text: string; small: boolean } {
+  if (textWidth(line) <= max) return { text: line, small: false };
+  let text = line;
+  while (text.length > 1 && textWidth(text, "3") > max) text = `${text.slice(0, -2).trimEnd()}.`;
+  return { text, small: true };
+}
 export const lcStop = (run: { hearts?: boolean }): string => (heartsRun(run) ? LC_STOP_HEARTS : LC_STOP);
 /** The summary row's mark: the card taken (the rune's or part's name, or "+500 HULL"); "PICK" while it is pending. */
 export function lastChanceTag(lc: { boon?: Boon; id?: string }): string {
@@ -463,7 +472,8 @@ export class LastChancePicker {
     const cx = Math.round(W / 2);
     drawTitlePlate(g, W, L.top, L.cardW); // TXT-AZ (REVIEW-STAGE097 R5): a clean ground under the title, its line and the hint
     drawText(g, LC_TITLE, cx, L.top, C.yellow, { align: "center", outline: C.ink });
-    drawText(g, lcLine(s.run), cx, L.top + 11, C.lime, { align: "center" }); // RETUNE-1 run 2: a hearts run's words
+    const lcl = lcLineFit(lcLine(s.run), L.cardW - 6); // POLISH-3 (REQ-BFG-087): the line steps down to the 3x5 face where its 5x7 width would pass the plate (280x653, 300x640)
+    drawText(g, lcl.text, cx, L.top + 11 + (lcl.small ? 1 : 0), C.lime, lcl.small ? { font: "3", align: "center" } : { align: "center" }); // RETUNE-1 run 2: a hearts run's words
     drawText(g, lcHint(o.day), cx, L.top + 22, C.slate4, { font: "3", align: "center" });
     const texts = this.texts(s.run, o, L.cardW);
     const tap = runeTapOf(s); // CARD-4 (P1)
