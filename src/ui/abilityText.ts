@@ -1052,11 +1052,12 @@ const ENTRIES: Record<string, Entry> = {
     text: (e, x) => {
       const s = c(e, x);
       return [
-        `SHOTS THAT HIT AN ENEMY BELT OR RIG RIP OFF THE ${s.rip === 1 ? "NEAREST PAYLOAD" : `${s.rip} NEAREST PAYLOADS`} WITHIN ${plural(s.reach!, "TILE")}.`,
+        // POLISH-3 (REQ-BFG-089; the lane's display list, item 1b): DESTROY and SLUG(S), the verb and the noun the GRAPNEL GUN's face (faces.ts, SHOPCARD-1f F5) and its ⓘ ladder already say (was RIP OFF ... PAYLOAD(S))
+        `SHOTS THAT HIT AN ENEMY BELT OR RIG DESTROY THE ${s.rip === 1 ? "NEAREST SLUG" : `${s.rip} NEAREST SLUGS`} WITHIN ${plural(s.reach!, "TILE")}.`,
       ];
     },
-    gist: (e, x) => `RIPS ${plural(c(e, x).rip!, "PAYLOAD")} WITHIN ${plural(c(e, x).reach!, "TILE")}`,
-    card: () => "SHOTS RIP SLUGS OFF ENEMY BELTS", // WORDS-1 (REQ-BFG-081): PAYLOADS in plain words (was "SHOTS RIP ENEMY PAYLOADS")
+    gist: (e, x) => `DESTROYS ${plural(c(e, x).rip!, "SLUG")} WITHIN ${plural(c(e, x).reach!, "TILE")}`,
+    card: () => "SHOTS DESTROY ENEMY SLUGS", // WORDS-1 (REQ-BFG-081): PAYLOADS in plain words (was "SHOTS RIP ENEMY PAYLOADS"); POLISH-3 (item 1b): DESTROY, never RIP (was "SHOTS RIP SLUGS OFF ENEMY BELTS"; "SHOTS DESTROY SLUGS ON ENEMY BELTS" is 3 lines at a 69 px card, abilityText.test.ts :622 pins two)
   },
   tesla: {
     // Battle.impact: arcs to the nearest targets of the struck one (secondary impact at share, and a stall)
