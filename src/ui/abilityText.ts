@@ -341,8 +341,9 @@ const immunities = (e: ItemDef): string => {
 /** POLISH-1 (REQ-BFG-085; P3c, ENCHANT-2W's read: "looks cut off"): which belts' last tiles MANTLET guards. battle.ts makeSide flags the last `intakeGuard` tiles of every connected
  *  route INTO the turret that carries it (the belts that feed it, no others): `INTO IT`, IT the turret (it was `IN`, a sentence that ended on a preposition). */
 const BELT_INTO = "INTO IT";
-/** 0.6.2 FB-B: MANTLET ★2 FULL GUARD (NUM-3: was FULL PLATE) shields the last tile of each belt into its turret, ★3 BULWARK SKIRT the last 3
- *  (battle.ts makeSide: the last intakeGuard tiles of every connected route into it). Y7b2 (the flip): the rigs working
+/** 0.6.2 FB-B: MANTLET's tile guard (NUM-3: ★2 FULL GUARD was FULL PLATE) covers the last tile(s) of each belt into its turret (battle.ts makeSide: the last intakeGuard tiles of every
+ *  connected route into it). Y2 (release Y; DESIGN-Y row 14; folded at the flip, Y7b2): the guard is 1 tile at ★1, 2 at ★2 FULL GUARD and 3 at ★3 BULWARK SKIRT (content.ts :864-865,
+ *  intakeGuard 1/2/3; tests/fb062.mantlet.test.ts :221-223). POLISH-3 (item 1c): this comment said 1 tile at ★2 and 3 at ★3, the 0.6.2 numbers. Y7b2 (the flip): the rigs working
  *  those tiles are not guarded (was "a rig with an arrow on a shielded tile is shielded too (Battle.skirted)"). */
 const shielded = (n: number): string => (n === 1 // Y2 (release Y; DESIGN-Y row 14): not their rigs
   ? `, AND SO DOES THE LAST TILE OF EACH BELT ${BELT_INTO}` // TXT-096: a clause of the opening (was its own sentence, "SO DOES ... IN."); POLISH-1 (P3c): ... INTO IT (was ... IN)
