@@ -86,44 +86,22 @@ const BASE: Record<string, string> = {
  *  laptop 1 (to `x`: rig STOKER), desk 0; every one a ★1 panel whose title ends in " ★". Measured at T by a throwaway probe (kit09141/famprobe09141.mjs, never committed). The names yield to the star by
  *  PRESENT-2's own ladder (the marks rung is for a line too short for the words; the marks stay tappable and open the family's note). POLISH-2's title rule may give the names back: the table then shrinks. */
 const P5A_STAR1: Record<string, string> = {
+  // POLISH-3 (REQ-BFG-089; Q5, cap's ruling D): the NARROW step (inspector.ts portraitButtons: on a band under 176 px a lone trailing star does not move the buttons, and fitTitle steps the title down
+  // to the 3x5 face) gives 26 of the 33 phone panels their names back, in BASE's place (S): the table shrinks to the 7 whose names the star still pushes out to marks (their titles are wider than the
+  // band holds even in the 3x5 face, or the names have no other place): phone 6 and the laptop's STOKER. (Was 33 entries: phone 32, laptop 1.)
   "phone 47": "x", // placed assembly ★1 (BASE T)
   "phone 81": "x", // cargo frostbite ★1 spare0 (BASE T)
   "phone 82": "x", // cargo frostbite ★1 spare1 (BASE T)
   "phone 83": "x", // placed frostbite ★1 (BASE T)
-  "phone 131": "T", // rig whetstone ★1 1hit (BASE S)
-  "phone 132": "T", // rig whetstone ★1 idle (BASE S)
-  "phone 167": "T", // rig longhaul ★1 1hit (BASE S)
-  "phone 168": "T", // rig longhaul ★1 idle (BASE S)
-  "phone 191": "T", // rig splitter ★1 1hit (BASE S)
-  "phone 192": "T", // rig splitter ★1 idle (BASE S)
-  "phone 215": "T", // rig tollbooth ★1 1hit (BASE S)
-  "phone 216": "T", // rig tollbooth ★1 idle (BASE S)
   "phone 299": "x", // rig keg ★1 1hit (BASE T)
   "phone 300": "x", // rig keg ★1 idle (BASE T)
-  "phone 323": "T", // rig quench ★1 1hit (BASE S)
-  "phone 324": "T", // rig quench ★1 idle (BASE S)
-  "phone 347": "T", // rig lodestone ★1 1hit (BASE S)
-  "phone 348": "T", // rig lodestone ★1 idle (BASE S)
-  "phone 435": "x", // cargo pressure ★1 spare0 (BASE S)
-  "phone 436": "x", // cargo pressure ★1 spare1 (BASE S)
-  "phone 483": "x", // cargo capacitor ★1 spare0 (BASE S)
-  "phone 484": "x", // cargo capacitor ★1 spare1 (BASE S)
-  "phone 489": "x", // cargo compound ★1 spare0 (BASE S)
-  "phone 490": "x", // cargo compound ★1 spare1 (BASE S)
-  "phone 495": "x", // cargo lance ★1 spare0 (BASE S)
-  "phone 496": "x", // cargo lance ★1 spare1 (BASE S)
-  "phone 510": "x", // cargo rampart ★1 spare0 (BASE S)
-  "phone 511": "x", // cargo rampart ★1 spare1 (BASE S)
-  "phone 809": "T", // rig sparkgap ★1 1hit (BASE S)
-  "phone 810": "T", // rig sparkgap ★1 idle (BASE S)
-  "phone 989": "T", // rig rotgauge ★1 1hit (BASE S)
-  "phone 990": "T", // rig rotgauge ★1 idle (BASE S)
   "laptop 692": "x", // rig stoker ★1 stoke (BASE T)
 };
 const BANDS = [["phone", PHONE], ["desk", DESK], ["laptop", LAPTOP]] as const;
 /** The pins per view: [heads that print the explained words, heads that keep the plain names, heads that keep the marks] (names at base: phone 1,171, desk column 1,295, laptop column 1,295).
- *  STAGE-09141 (POLISH-1 P5a's ★1 star meets PRESENT-2's pin; cap, RULING-STAGE09141-R1): the phone was [939, 232, 132] (names 1,171) and is [909, 246, 148] (names 1,155: marks 132 -> 148); the laptop was [1157, 138, 8] (names 1,295) and is [1157, 137, 9] (names 1,294: marks 8 -> 9); the desk is unchanged. */
-const RUNGS: Record<string, [number, number, number]> = { phone: [909, 246, 148], desk: [1163, 132, 8], laptop: [1157, 137, 9] };
+ *  STAGE-09141 (POLISH-1 P5a's ★1 star meets PRESENT-2's pin; cap, RULING-STAGE09141-R1): the phone was [939, 232, 132] (names 1,171) and is [909, 246, 148] (names 1,155: marks 132 -> 148); the laptop was [1157, 138, 8] (names 1,295) and is [1157, 137, 9] (names 1,294: marks 8 -> 9); the desk is unchanged.
+ *  POLISH-3 (Q5, the narrow step): the phone is [927, 238, 138] (names 1,165; marks 148 -> 138); the desk and the laptop are as above. */
+const RUNGS: Record<string, [number, number, number]> = { phone: [927, 238, 138], desk: [1163, 132, 8], laptop: [1157, 137, 9] };
 
 describe("PRESENT-2 W (b): the family head says what it is, by a ladder: explained words, else the plain names, else the marks", () => {
   it("the base's placement is read from the same corpus: 1,303 panels, and every panel has a code", () => {
@@ -138,7 +116,7 @@ describe("PRESENT-2 W (b): the family head says what it is, by a ladder: explain
       expect(c.t.title.endsWith(" ★"), `${key} ${c.id}: its title ends in the star`).toBe(true);
       expect(P5A_STAR1[key], key).not.toBe(BASE[band][Number(idx)]);
     }
-    expect(moved).toEqual({ phone: 32, desk: 0, laptop: 1 });
+    expect(moved).toEqual({ phone: 6, desk: 0, laptop: 1 }); // POLISH-3 (Q5, the narrow step): was { phone: 32, desk: 0, laptop: 1 }
   });
 
   it("PER PANEL and per view: every head that printed names at base prints names still (the explained words or the plain), in the same place; marks and none stay as they were", () => {

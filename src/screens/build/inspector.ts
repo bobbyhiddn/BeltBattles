@@ -1572,7 +1572,12 @@ export function fitTitleRows(g: G, t: Pick<PanelText, "title" | "color" | "ench"
  */
 export function portraitButtons(title: string, sub: string, labels: string[], r: Rect, left = 0): { rects: Rect[]; shift: number } {
   const n = labels.length, gap = 3, h = 13;
-  const clear = r.x + 23 + Math.max(textWidth(title) + 2, textWidth(sub, "3")) + 3; // the title's outline, then a gap
+  // POLISH-3 (REQ-BFG-089; Q5, the pieces lane's display list, item 2; cap's ruling D): on a band under 176 px (280x653: 162 px, 300x640: 174 px, and the pre-ZOOM-1 phone scale of tests/present2.famhead:
+  // 161 px) a lone trailing star (POLISH-1's P5a: `WHETSTONE ★`, a space and a star wider) does not move the buttons: `clear` is measured on the title without it, and fitTitle steps the title down
+  // to the 3x5 face where the star would reach them. So the buttons keep the top row and the family head keeps its place under the sub line (the star pushed 32 of 33 phone panels' heads out, 26 of
+  // them back now). Two stars or more (a ★★ title) and every band of 176 px or more: as before.
+  const lone = r.w < 176 && / ★$/.test(title) ? title.slice(0, -2) : title;
+  const clear = r.x + 23 + Math.max(textWidth(lone) + 2, textWidth(sub, "3")) + 3; // the title's outline, then a gap
   const even = Math.min(64, Math.floor((r.w - 10 - gap * (n - 1)) / n));
   const sized = labels.map((l) => Math.min(even, Math.max(24, textWidth(l, "3") + 10)));
   const place = (ws: number[], right: number, y: number): Rect[] => {
