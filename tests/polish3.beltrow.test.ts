@@ -6,8 +6,8 @@
 //   Now a hit row given way is text given way (inspector.ts fullText): a finger's panel grows, as every other panel does before text gives way. The no-press band keeps the give-way rule.
 import { describe, expect, it } from "vitest";
 import { installRaster } from "./raster.helpers";
-import { corpus, framed, casesOf, type ViewSpec } from "./polish2.guestCorpus";
-import { fullText, gapsAtLeast, visibleLines, type PanelPlan } from "../src/screens/build/inspector";
+import { corpus, framed, casesOf, optsFor, type ViewSpec } from "./polish2.guestCorpus";
+import { fullText, gapsAtLeast, planPanel, visibleLines, type PanelPlan } from "../src/screens/build/inspector";
 import { lineText } from "../src/ui/richText";
 
 installRaster();
@@ -78,6 +78,66 @@ describe("POLISH-3 Q3 (phone): a belt panel keeps every hit row after a press, w
         expect(givenWay(c.withLine), `${spec.name} ${b.label} ${c.state}`).toBe(0);
         expect(noteOf(c.withLine)).toBeNull();
       }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------- the desk (cap's ruling A)
+// 1920x1080 (the build screen's desk column, 126 x 194), 844x390 (128 x 216) and 1280x800 (128 x 324); with the ENCHANTER's row up above the panel the column is 126 x 136. The rows were given way in
+// 25 of 75 plans at 1920x1080 (4 hits 5 of 10; 5 and 6 hits all), 15 at 844x390 (5 hits 5 of 10, 6 hits all), none at 1280x800; with the row up 47, 46 and 46 of 75 (2 hits 7 or 6 of 12; 3 hits and more all).
+// A column plan that gives hit rows away takes the 3x5 face (the band's own face) where that keeps every row (inspector.ts planRung, inside planIn); every other column panel keeps the 5x7 face.
+const DESKS: ViewSpec[] = [
+  { name: "desk 1920x1080", w: 1920, h: 1080, dpr: 1, runes: 0, main: false }, { name: "land 844x390 @3", w: 844, h: 390, dpr: 3, runes: 0, main: false }, { name: "desk 1280x800", w: 1280, h: 800, dpr: 1, runes: 0, main: true },
+];
+/** The belts that give rows away in the 5x7 face (planPanel's `rung: false`) at 1920x1080, 844x390 and 1280x800, and with the ENCHANTER's row up (the brief's numbers: 25, 15, 0 and 47, 46, 46; 16 each now). */
+const WAS: Record<string, number> = { "desk 1920x1080": 25, "land 844x390 @3": 15, "desk 1280x800": 0 };
+const ROW_UP = 136; // the column's height with the ENCHANTER's row up above the panel (126 x 136)
+
+describe("POLISH-3 Q3 (desk; cap's ruling A): a column belt panel keeps its hit rows in the 3x5 face where that keeps every one", () => {
+  for (const spec of DESKS) {
+    it(`${spec.name}: no belt of the corpus gives a hit row away in the column (it was ${WAS[spec.name]} of 75); a belt takes the 3x5 face exactly where its 5x7 plan gave rows away`, () => {
+      const f = framed(spec.w, spec.h, spec.dpr, spec.runes);
+      let rung = 0;
+      for (const b of corpus()) {
+        const c = casesOf(b, spec, f)[0], opts = optsFor(f, 0, c.t, c.area);
+        const on = planPanel(c.t, c.area, [], opts), off = planPanel(c.t, c.area, [], { ...opts, rung: false });
+        expect(givenWay(c.withLine), `${b.label}: rows given way`).toBe(0);
+        expect(noteOf(c.withLine), `${b.label}: no note`).toBeNull();
+        if (givenWay(off) > 0) {
+          rung++;
+          expect(on.body.font, `${b.label} (${b.hits} hits): the 3x5 face`).toBe("3");
+          expect(JSON.stringify(on), `${b.label}: the plan is the 3x5 plan`).toBe(JSON.stringify(planPanel(c.t, c.area, [], { ...opts, small: true })));
+          expect(givenWay(on), b.label).toBe(0);
+          expect(fullText(on), b.label).toBe(true);
+        } else expect(JSON.stringify(on), `${b.label}: a belt that keeps its rows keeps its plan`).toBe(JSON.stringify(off));
+      }
+      expect(rung, `${spec.name}: belts that take the 3x5 face (the rows the 5x7 face gave way)`).toBe(WAS[spec.name]);
+    });
+
+    it(`${spec.name} with the ENCHANTER's row up (${ROW_UP} px of column): only the belts whose 3x5 plan gives rows away too (5 and 6 hits: 16 of 75) still do, and the note counts only those`, () => {
+      const f = framed(spec.w, spec.h, spec.dpr, spec.runes);
+      const area = { ...f.L.info, h: ROW_UP };
+      let gave = 0;
+      for (const b of corpus()) {
+        const c = casesOf(b, spec, f)[0], opts = optsFor(f, 0, c.t, area);
+        const p = planPanel(c.t, area, [], opts), sm = planPanel(c.t, area, [], { ...opts, small: true });
+        if (givenWay(sm) === 0) expect(givenWay(p), `${b.label} (${b.hits} hits): the 3x5 plan keeps every row, so the panel does`).toBe(0);
+        if (givenWay(p) > 0) {
+          gave++;
+          expect(b.hits, `${b.label}: only 5 and 6 hits give rows away in the 3x5 face too`).toBeGreaterThanOrEqual(5);
+          expect(noteOf(p), `${b.label}: the note counts what still gives way`).toBe(givenWay(p));
+        } else expect(noteOf(p), b.label).toBeNull();
+        expect(gapsAtLeast(p, p.gaps.min), `${b.label}: gaps at least min`).toBe(true);
+      }
+      expect(gave, `${spec.name}: belts still giving rows away`).toBe(16);
+    });
+  }
+
+  it("the desk's belt panel with a rune held on 402x690 (the band, not a column) is not moved by the rung: its plans are the same with and without it", () => {
+    const f = framed(RUNE_402.w, RUNE_402.h, RUNE_402.dpr, RUNE_402.runes);
+    for (const b of corpus()) for (const c of casesOf(b, RUNE_402, f)) {
+      const opts = optsFor(f, 0, c.t, c.area);
+      expect(JSON.stringify(planPanel(c.t, c.area, [], opts)), `${b.label} ${c.state}`).toBe(JSON.stringify(planPanel(c.t, c.area, [], { ...opts, rung: false })));
     }
   });
 });

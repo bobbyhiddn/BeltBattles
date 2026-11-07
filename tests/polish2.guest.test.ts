@@ -65,8 +65,10 @@ const PIN: Record<string, [number, number, number]> = {
   "small 360x640 @2 press": [75, 73, 2],
   "phone 390x844 @3 band": [75, 71, 4],
   "phone 390x844 @3 press": [75, 71, 4],
-  "desk 1920x1080 band": [75, 61, 14],
-  "land 844x390 @3 band": [75, 67, 8],
+  // POLISH-3 (Q3 desk; cap's ruling A): a column belt panel that would give hit rows away takes the 3x5 face where that keeps every row (inspector.ts planRung, inside planIn: the plan with the line and the
+  // plan without it each take the rung, so they keep one face): more room, so more panels carry the line (was [75, 61, 14] and [75, 67, 8])
+  "desk 1920x1080 band": [75, 72, 3],
+  "land 844x390 @3 band": [75, 71, 4],
   "op690 402x690 @3, a rune band": [75, 0, 75],
   "op690 402x690 @3, a rune press": [75, 0, 75],
 };
@@ -155,9 +157,10 @@ const SCOUT_PIN: Record<string, [number, number, number, number]> = {
   "op-402x690": [632, 428, 152, 276],
   "phone-360x640": [632, 428, 406, 22],
   "phone-320x568": [632, 428, 416, 12],
-  "land-844x390": [632, 428, 326, 102],
-  "desk-1920x1080": [632, 428, 344, 84],
-  "desk-1280x800": [632, 428, 334, 94],
+  // POLISH-3 (Q3 desk; cap's ruling A): the foe's belt faces in the landscape columns take the 3x5 rung where it keeps every hit row (was 326/102, 344/84 and 334/94)
+  "land-844x390": [632, 428, 352, 76],
+  "desk-1920x1080": [632, 428, 374, 54],
+  "desk-1280x800": [632, 428, 400, 28],
 };
 
 describe("POLISH-2 R1: the scouted foes' belts (battleScout.ts faceText + the face area): 632 panels a view, seven views", () => {

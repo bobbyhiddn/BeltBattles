@@ -43,7 +43,7 @@ function parts(b: Build): PartSel[] {
   return out;
 }
 
-interface Face { tag: string; sel: PartSel; t: PanelText; p0: PanelPlan; p: PanelPlan; small: PanelPlan }
+interface Face { tag: string; sel: PartSel; t: PanelText; fam: ReturnType<typeof selFamilies>; p0: PanelPlan; p: PanelPlan; small: PanelPlan }
 const cache = new Map<ViewName, { fa: ReturnType<typeof faceArea>; tp: number; faces: Face[] }>();
 /** Every rival face on the view `name`: the text as the foe's face draws it, the plan planPanel makes (p0), the plan the face is drawn from (facePlan: p) and the 3x5 plan (small). */
 function corpus(name: ViewName) {
@@ -60,7 +60,7 @@ function corpus(name: ViewName) {
         const fam = selFamilies(faceRun(b, day), sel);
         const t = faceText(b, sel, "THIS FIGHT: 7422 DAMAGE IN 8 SHOTS.", day, owner)!;
         faces.push({
-          tag: `${name} ${id} ${maker} d${day} ${sel.kind}${"index" in sel ? sel.index : "uid" in sel ? sel.uid : ""}`, sel, t,
+          tag: `${name} ${id} ${maker} d${day} ${sel.kind}${"index" in sel ? sel.index : "uid" in sel ? sel.uid : ""}`, sel, t, fam,
           p0: planPanel(t, fa.area, fam, { tap: tp, band: fa.band }), p: facePlan(t, fa, fam, tp), small: planPanel(t, fa.area, fam, { tap: tp, band: fa.band, small: true }),
         });
       }
@@ -203,12 +203,19 @@ describe("POLISH-3 Q2 (b): a face keeps every one of its own rule lines wherever
     });
   }
 
-  it("1920x1080 and 1366x768: the counts the brief measured (236 and 183 faces had a rule line given way; the 3x5 plan shows all of them)", () => {
-    const base = (name: ViewName) => corpus(name).faces.filter((f) => !rulesWhole(f.p0));
-    expect(base("desk-1920x1080").length).toBeGreaterThanOrEqual(236); // 236 before the header wrapped, 296 with it (the taller header takes room from the 5x7 plan too)
-    expect(base("laptop-1366x768").length).toBe(183);
-    expect(base("desk-1280x800").length).toBe(16);
-    expect(base("land-844x390").length).toBe(180);
+  it("the faces planPanel's plan gave a rule line away: the brief measured 236 at 1920x1080, 183 at 1366x768, 16 at 1280x800 and 180 at 844x390; the 3x5 plan restores every one it can show whole", () => {
+    // 1920x1080: 236 before the header wrapped, 296 with it (the taller header takes room from the 5x7 plan too), 273 once Q3's rung (planRung) gives belt faces the 3x5 face; 1366x768: 183, 180 with the
+    // rung (three belt faces); 1280x800 (16) and 844x390 (180) as at the base
+    const FLOOR: Record<string, number> = { "desk-1920x1080": 236, "laptop-1366x768": 180, "desk-1280x800": 16, "land-844x390": 177 };
+    const got: Record<string, [number, number, number]> = {};
+    for (const name of Object.keys(FLOOR) as ViewName[]) {
+      const short = corpus(name).faces.filter((f) => !rulesWhole(f.p0));
+      const stuck = short.filter((f) => !rulesWhole(f.p));
+      expect(short.length, `${name}: faces short in planPanel's plan`).toBeGreaterThanOrEqual(FLOOR[name]);
+      expect(stuck.every((f) => !rulesWhole(f.small)), `${name}: what stays short is short in the 3x5 face too`).toBe(true);
+      got[name] = [short.length, short.length - stuck.length, stuck.length];
+    }
+    console.log(`POLISH-3 Q2 (b): faces short in planPanel's plan, restored by the 3x5 plan, still short: ${JSON.stringify(got)}`);
   });
 
   it("a swapped face is the full text where the plan it replaced was not (content first: SPACE-1 D3, the gap yields); at 1366x768 and 1280x800 every swapped face's gaps are at least min", () => {
@@ -224,6 +231,25 @@ describe("POLISH-3 Q2 (b): a face keeps every one of its own rule lines wherever
       }
       expect(n, name).toBeGreaterThan(0);
       expect(low, `${name}: swapped faces with gaps under min`).toBe(LOW[name]);
+    }
+  });
+
+  it("Q3's desk rung (inspector.ts planRung) moves only belt faces: every other face's plan is the same with and without it; a belt face moves only where its 5x7 plan gave hit rows away", () => {
+    for (const name of ["desk-1920x1080", "laptop-1366x768", "land-844x390", "desk-1280x800", "op-402x690", "phone-360x640"] as ViewName[]) {
+      const { fa, tp, faces } = corpus(name);
+      let moved = 0, belts = 0;
+      for (const f of faces) {
+        const on = planPanel(f.t, fa.area, f.fam, { tap: tp, band: fa.band }), off = planPanel(f.t, fa.area, f.fam, { tap: tp, band: fa.band, rung: false });
+        if (f.sel.kind === "route") belts++;
+        if (JSON.stringify(on) === JSON.stringify(off)) continue;
+        moved++;
+        expect(f.sel.kind, `${f.tag}: a plan the rung moved is a belt's`).toBe("route");
+        expect(off.body.dropped.some((b) => b.trim && !b.join), `${f.tag}: it gave hit rows away`).toBe(true);
+        expect(on.body.font, `${f.tag}: the rung is the 3x5 face`).toBe("3");
+        expect(on.body.dropped.some((b) => b.trim && !b.join), `${f.tag}: and keeps every row`).toBe(false);
+      }
+      if (name === "op-402x690" || name === "phone-360x640") expect(moved, `${name}: the band is not a column`).toBe(0);
+      else expect(moved, `${name}: belt faces the rung moved (of ${belts})`).toBeGreaterThan(0);
     }
   });
 

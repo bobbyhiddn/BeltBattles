@@ -1745,7 +1745,7 @@ const columnRows = (n: number, tap = 0): number => Math.ceil(n / (tap > 0 ? 2 : 
  *  PRESENT-2 F (REQ-BFG-081; PRESENT-1 Question 4 (d) (ii)): `o.small`, the band's face carried to a panel grown up from the band for a note
  *  (detailsPlanOf): the body in the 3x5 face only, as the band itself planned it. */
 export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [],
-  o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean; small?: boolean } = {}): PanelPlan {
+  o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean; small?: boolean; rung?: boolean } = {}): PanelPlan { // POLISH-3: `rung: false` plans without planRung's 3x5 rung (tests: what the rung moves)
   if (o.small) return planIn(sp, area, families, o, true);
   const p = planIn(sp, area, families, o, false);
   if (!o.inBand || p.column || p.headerOnly || p.body.font !== "5") return p;
@@ -1821,11 +1821,22 @@ function guestFits(p0: PanelPlan, p: PanelPlan): boolean {
  *  panel has spare, in the band and in a grown panel alike, and the panel's size and fit never depend on it (the same plan is fit or not fit, with or without it). Otherwise the panel is
  *  exactly the plan without it, and the words are in the panel's ⓘ view (routePanel's `notes`). (The rule is here, in the one place every plan goes through, and not in planPanel, so
  *  planPanel's own lines are the base's.) */
-function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean }, small: boolean): PanelPlan {
-  if (!sp.body.some((b) => b.hold)) return planOnce(sp, area, families, o, small);
-  const p0 = planOnce(withoutHold(sp), area, families, o, small); // today's panel
-  const p = planOnce(sp, area, families, o, small);
+function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean; rung?: boolean }, small: boolean): PanelPlan {
+  if (!sp.body.some((b) => b.hold)) return planRung(sp, area, families, o, small);
+  const p0 = planRung(withoutHold(sp), area, families, o, small); // today's panel
+  const p = planRung(sp, area, families, o, small);
   return guestFits(p0, p) ? p : p0;
+}
+
+/** POLISH-3 (REQ-BFG-089; Q3, the pieces lane's display list, item 4; cap's ruling A): a hit row of a belt is the belt's own text. Where a column's plan (the desk, the laptop, a landscape phone: the 5x7
+ *  face) gives hit rows away (`+N MORE HIT TILES`) and the same text planned in the 3x5 face (planOnce's `small`: the band's own face) keeps every one of them, the column takes the 3x5 plan. Only a plan that
+ *  gives hit rows away takes the rung: every other column panel keeps the 5x7 face, and the band (not a column) is as before. It sits INSIDE planIn, so POLISH-2's guest rule compares the plan with and
+ *  without its NOT COUNTED line like with like. */
+function planRung(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean; rung?: boolean }, small: boolean): PanelPlan {
+  const p = planOnce(sp, area, families, o, small);
+  if (small || o.rung === false || !p.column || !p.body.dropped.some((b) => b.trim && !b.join)) return p;
+  const sm = planOnce(sp, area, families, o, true);
+  return sm.body.dropped.some((b) => b.trim && !b.join) ? p : sm;
 }
 
 /** planIn's plan of `sp` as it stands. */

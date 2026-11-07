@@ -356,7 +356,15 @@ describe("0.6.2t T6: every inspect panel fits the phone band, the flavour whole 
       if (r.flavour === "whole") counts.flavourWhole++;
       else counts.flavourAbsent++;
     }
-    expect(small, small.join("; ")).toEqual([]); // the desk column's ability text never drops to the 3x5 face
+    // POLISH-3 (REQ-BFG-089; Q3, cap's ruling A): the desk column's ability text never drops to the 3x5 face, except for a BELT whose hit rows the 5x7 face would give way (`+N MORE HIT TILES`) and
+    // whose 3x5 face keeps every one of them (inspector.ts planRung: the rows are the belt's own text). Every other panel keeps the 5x7 face. The belts that take the 3x5 face here, listed: the busy
+    // join belt (a hit on every tile). Each keeps every hit row (nothing of its timeline is given way) and has two or more.
+    expect(small, small.join("; ")).toEqual(["belt busy route1"]);
+    for (const id of small) {
+      const t = PANELS.find((p) => p.id === id)!.t, p = planPanel(t, DESK);
+      expect(p.body.dropped.some((b) => b.trim && !b.join), `${id}: every hit row kept`).toBe(false);
+      expect(t.body.filter((b) => b.trim && !b.join).length, `${id}: its timeline`).toBeGreaterThanOrEqual(2);
+    }
     console.log(`desk fit: ${JSON.stringify(counts)}`);
   });
 
