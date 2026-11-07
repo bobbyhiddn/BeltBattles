@@ -1547,6 +1547,22 @@ export function fitTitle(g: G, t: Pick<PanelText, "title" | "color" | "ench">, x
   }
 }
 
+/** POLISH-3 (REQ-BFG-087; Q2 (a)): a foe's face title on the two 3x5 rows planOnce gave it (PanelPlan.titleRows): row 1 at y + 1 and row 2 six px under it (the 3x5 title's own offset and the sub rows'
+ *  pitch), in fitTitle's colours: an enchanted piece's word first in its colour, the rest of the title in the piece's. The words are the title's, whole: nothing is cut. */
+export function fitTitleRows(g: G, t: Pick<PanelText, "title" | "color" | "ench">, x: number, y: number, rows: readonly [string, string]): void {
+  const [word, name] = titleSpans(t);
+  const wordLen = t.ench ? word.t.length : 0;
+  let from = 0; // the index in t.title of the row's first character
+  rows.forEach((row, k) => {
+    const at = Math.max(0, Math.min(row.length, wordLen - from));
+    let cx = x;
+    for (const [txt, c] of [[row.slice(0, at), word.c], [row.slice(at), t.ench ? name.c : t.color]] as const) {
+      if (txt) cx += drawText(g, txt, cx, y + 1 + 6 * k, c, { font: "3", outline: C.ink }) + 1;
+    }
+    from += row.length + 1;
+  });
+}
+
 /**
  * 0.6.1r F7 (review-061; the Prime's layout call): in portrait the 1-2 action buttons never cover the panel's
  * title or sub-line. They keep the top-right row when it can hold them right of both texts (at the old even width,
@@ -1623,6 +1639,10 @@ export interface PanelPlan {
   shift: number;
   subs: string[];
   subMax: number;
+  /** POLISH-3 (REQ-BFG-087; Q2 (a)): a foe's face in the column (the text with `subOwner`) whose title is wider than `subMax` even in the 3x5 face: the title broken at a space onto
+   *  these two 3x5 rows (`RISING RAMPART` / `CANNON ★`), drawn by fitTitleRows at y + 5 and y + 11; the sub rows then start 6 px lower (y + 19) and `shift` holds those 6 px. Absent:
+   *  the title is one row, as drawn before (fitTitle). */
+  titleRows?: [string, string];
   body: BodyPlan;
   /** The body's top y and the last y a glyph may reach. */
   y: number;
@@ -1736,10 +1756,25 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
   return o.gaps === false ? planIn(sp, area, families, o, true) : s;
 }
 
-/** ENCHANT-2W (REQ-BFG-085; W5): a sub line as one line, or as two where it is wider than `max` and has a " · " (broken after the last one, as planIn breaks a sub on the desk column) or a full stop. */
+/** POLISH-3 (REQ-BFG-087; Q2 (a)): `s` broken at a space onto two rows of at most `max` px in `font`: the first as long as it can be, the rest after it. A count or a level stays with its
+ *  word: never a break before a number or a run of stars (`SLOT 1`, `CANNON ★★`). Null: no break gives two rows that fit (the caller's cut with a dot stands, as before). Pure (planOnce, tests). */
+export function wrapAt(s: string, max: number, font: FontId = "3"): [string, string] | null {
+  let at = -1;
+  for (let i = s.indexOf(" "); i > 0; i = s.indexOf(" ", i + 1)) {
+    const end = s.indexOf(" ", i + 1), next = s.slice(i + 1, end < 0 ? s.length : end);
+    if (next && !/^(\d+|★+)$/.test(next) && textWidth(s.slice(0, i), font) <= max) at = i;
+  }
+  if (at < 0) return null;
+  const rest = s.slice(at + 1);
+  return textWidth(rest, font) <= max ? [s.slice(0, at), rest] : null;
+}
+
+/** ENCHANT-2W (REQ-BFG-085; W5): a sub line as one line, or as two where it is wider than `max` and has a " · " (broken after the last one, as planIn breaks a sub on the desk column) or a full stop.
+ *  POLISH-3 (REQ-BFG-087; Q2 (a)): or, with neither, at a space (wrapAt: `HEAVY TURRET IN` / `SLOT 1`), so a foe's turret sub keeps its slot number where the column is 100 px wide. */
 function breakSub(s: string, max: number): string[] {
   const cut = s.lastIndexOf(" · "), stop = s.lastIndexOf(". ");
-  if (textWidth(s, "3") <= max || (cut <= 0 && stop <= 0)) return [s];
+  if (textWidth(s, "3") <= max) return [s];
+  if (cut <= 0 && stop <= 0) return wrapAt(s, max) ?? [s];
   return cut > 0 ? [s.slice(0, cut + 2), s.slice(cut + 3)] : [s.slice(0, stop + 1), s.slice(stop + 2)];
 }
 
@@ -1819,7 +1854,11 @@ function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: 
     : column && (cut > 0 || stop > 0) && wideSub
       ? cut > 0 ? [sp.sub.slice(0, cut + 2), sp.sub.slice(cut + 3)] : [sp.sub.slice(0, stop + 1), sp.sub.slice(stop + 2)]
       : [sp.sub];
-  const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 + 6 * (subs.length - 2) : 0); // a third sub line (the owner's, then a broken sub) takes its 6 px more
+  // POLISH-3 (REQ-BFG-087; Q2 (a)): a foe's face never cuts its title with a dot where the column is 100 px wide (1920x1080: the star and the slot's number were lost on 92 titles): a title wider than
+  // the column's text room in the 3x5 face too breaks at a space onto a second 3x5 row (`RISING RAMPART` / `CANNON ★`); the header takes that row's 6 px (`shift`) and the body starts under it.
+  // Only the plan with `subOwner` (a foe's face): every other panel, the build screen's desk column included, is as before.
+  const titleRows = column && !!sp.subOwner && textWidth(sp.title) > area.w - 27 && textWidth(sp.title, "3") > area.w - 27 ? wrapAt(sp.title, area.w - 27) : null;
+  const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 + 6 * (subs.length - 2) : 0) + (titleRows ? 6 : 0); // a third sub line (the owner's, then a broken sub) takes its 6 px more
   const extra = labels.length ? btnRows * pitch + 3 : 4;
   const headRight = !column && port && !port.shift ? port.rects[0].x - 3 : area.x + area.w - 4;
   const subMax = headRight - (area.x + 23);
@@ -1846,7 +1885,7 @@ function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: 
   // buttons under the sub line) had no place at all
   const byTitleTight = beside(sp.title, "5", titleFree, 2);
   const underSub = subs.length === 1 && !shift;
-  const famHead0: PanelPlan["famHead"] = !tags.length || strip || area.h < 28 ? null
+  const famHead0: PanelPlan["famHead"] = !tags.length || strip || area.h < 28 || titleRows ? null // POLISH-3: a two-row title has no place for the head (no title cut with a dot carries one at 1920x1080)
     : underSub && !body.tight && namesW <= area.w - 27 ? { at: "sub", tags, names: true }
     : bySub2(namesW) ? { at: "sub2", tags, names: true }
     : byTitle(namesW) ? { at: "title", tags, names: true }
@@ -1872,7 +1911,7 @@ function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: 
   const headerOnly = !column && r.y + 25 + shift + 5 > maxY && sp.headerOnly
     ? { lines: headerLines(sp.headerOnly.texts, subMax, r.w - 27), colour: sp.headerOnly.colour } : null;
   const gaps: PanelGaps = { before, slots, px: on && !headerOnly ? slotPx(body.lines, y, maxY, slots, G) : 0, G, min: GAP_MIN[body.font] };
-  return { r, column, rects: port?.rects ?? null, shift, subs: body.sub ? [body.sub] : subs, subMax, body, y, maxY, headerOnly, famHead, gaps };
+  return { r, column, rects: port?.rects ?? null, shift, subs: body.sub ? [body.sub] : subs, subMax, ...(titleRows ? { titleRows } : {}), body, y, maxY, headerOnly, famHead, gaps };
 }
 
 /** SPACE-1 (REQ-BFG-087, D4): a plan's gaps are at least `px` (or it has none to show). */
