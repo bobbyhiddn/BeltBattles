@@ -2308,8 +2308,17 @@ export function keptWhole(plan: PanelPlan): boolean {
 
 /** zoom (REQ-BFG-040, D3): a plan shows its panel's full description: its kept text whole (keptWhole), the full body's
  *  text (variant 0, or the same blocks at the tight pitch), every rule sentence (no ability sentence given way) and no
- *  header-only strip. Its flavour and its hint may give way. */
+ *  header-only strip. Its flavour and its hint may give way.
+ *  POLISH-3 (REQ-BFG-089; Q3, the pieces lane's display list, item 4): and no hit row of a belt's timeline given way (a `trim` block that is not a JOINS row: the rows `+N MORE HIT TILES` counts).
+ *  They were kept text by neither test, so a belt's finger panel on a phone with a rune held (57 px of band) stayed in the band after the press and gave its rows away (402x690: 104 of 150 plans,
+ *  every belt with two hits or more); it grows now, as every other panel does before text gives way. */
 export function fullText(plan: PanelPlan): boolean {
+  return rulesWhole(plan) && !plan.body.dropped.some((b) => b.trim && !b.join);
+}
+
+/** POLISH-3 (REQ-BFG-089): fullText as zoom's D3 had it before Q3: the rule text whole (the kept text whole, the full body, no ability sentence given way, no header-only strip), whatever
+ *  timeline rows gave way. A foe's face (battleScout.ts facePlan) asks this: its question is the CORE and GEAR rule lines, not a belt's rows. */
+export function rulesWhole(plan: PanelPlan): boolean {
   return keptWhole(plan) && !plan.headerOnly && plan.body.fullBody && !plan.body.dropped.some((b) => b.role === "ability");
 }
 

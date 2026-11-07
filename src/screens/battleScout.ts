@@ -30,7 +30,7 @@ import { tapPx } from "../ui/tap";
 import { fmtCount, fmtDmg } from "../ui/statFormat";
 import type { Sel } from "./build/layout";
 import {
-  columnButtons, drawFamHead, drawLine, fitHead, fitTitle, fitTitleRows, fullText, itemPanel, planPanel, routePanel, selFamilies, turretPanel, visibleLines,
+  columnButtons, drawFamHead, drawLine, fitHead, fitTitle, fitTitleRows, itemPanel, planPanel, routePanel, rulesWhole, selFamilies, turretPanel, visibleLines,
   explainPanel, type Block, type PanelPlan, type PanelText,
 } from "./build/inspector";
 import { slotIcon } from "./build/turretPanel";
@@ -159,15 +159,15 @@ export const CLOSE_LABEL = "CLOSE";
 
 /**
  * POLISH-3 (REQ-BFG-089; Q2 (b)): the plan a face is drawn from. A face keeps every one of its own rule lines: where the column's plan (the 5x7 face, with a shorter form of the same text where the
- * full one does not fit: CORE and GEAR rows without their rule lines) is not the full text (fullText) and the same text planned with `small` (the 3x5 face: planPanel's option, PRESENT-2 F's rule
+ * full one does not fit: CORE and GEAR rows without their rule lines) is not the full rule text (rulesWhole: fullText less the belt rows) and the same text planned with `small` (the 3x5 face: planPanel's option, PRESENT-2 F's rule
  * for a panel grown from the band) is, the face is drawn from that plan. Every other face (the band's, a plan that is the full text already, one the 3x5 face cannot make whole either) is planPanel's
  * own plan, as before. `tap`: a finger's target (tapPx). Pure (drawOn, tests).
  */
 export function facePlan(t: PanelText, fa: { area: Rect; band: boolean }, families: Parameters<typeof planPanel>[2], tap: number): PanelPlan {
   const plan = planPanel(t, fa.area, families, { tap, band: fa.band });
-  if (!plan.column || fullText(plan)) return plan;
+  if (!plan.column || rulesWhole(plan)) return plan;
   const small = planPanel(t, fa.area, families, { tap, band: fa.band, small: true });
-  return fullText(small) ? small : plan;
+  return rulesWhole(small) ? small : plan;
 }
 
 /** The face's icon, as the build screen's panel draws it. */

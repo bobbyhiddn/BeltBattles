@@ -12,7 +12,7 @@ import { G, fresh, installRaster } from "./raster.helpers";
 import { battleLayout, battleScale, laneLayout, battleGrid } from "../src/game/battleLayout";
 import { viewWithSub } from "../src/game/viewGrid";
 import { BattleFaces, facePlan, faceArea, faceRun, faceText, type PartSel } from "../src/screens/battleScout";
-import { fitTitleRows, fullText, gapsAtLeast, planPanel, selFamilies, visibleLines, wrapAt, type PanelPlan, type PanelText } from "../src/screens/build/inspector";
+import { fitTitleRows, gapsAtLeast, planPanel, rulesWhole, selFamilies, visibleLines, wrapAt, type PanelPlan, type PanelText } from "../src/screens/build/inspector";
 import { turretSlots, type Build } from "../src/sim/deck";
 import { ENCHANT, ENCHANT_DEFS, setEnchant, withEnchant } from "../src/sim/enchant";
 import { RIVAL_IDS, RIVALS, rivalBuild, rivalDays, standInBuild, type RivalId } from "../src/sim/rivals";
@@ -194,17 +194,17 @@ describe("POLISH-3 Q2 (b): a face keeps every one of its own rule lines wherever
   for (const name of ["desk-1920x1080", "laptop-1366x768", "land-844x390", "desk-1280x800"] as ViewName[]) {
     it(`${name}: every face whose 3x5 plan is the full text is drawn full (no rule line of a CORE or a GEAR given way); the rest is the one turret named below`, () => {
       const { faces } = corpus(name);
-      const left = faces.filter((f) => !fullText(f.p));
-      expect(left.filter((f) => fullText(f.small)).map((f) => f.tag), "a face drawn short although the 3x5 plan is whole").toEqual([]);
+      const left = faces.filter((f) => !rulesWhole(f.p));
+      expect(left.filter((f) => rulesWhole(f.small)).map((f) => f.tag), "a face drawn short although the 3x5 plan is whole").toEqual([]);
       // the faces neither face can show whole: SPARKFANG's turret with its SPEED level line (6 faces at 1920x1080 and at 844x390; its 3x5 plan is 6 px short in a 100 px column once the header wraps), none elsewhere
       expect(left.map((f) => f.tag.replace(`${name} `, "")), name).toEqual(name === "desk-1920x1080" || name === "land-844x390" ? SIX : []);
       // no ability sentence is given way in the plan a face draws wherever the 3x5 plan has them all
-      for (const f of faces) if (fullText(f.small)) expect(f.p.body.dropped.some((b) => b.role === "ability"), f.tag).toBe(false);
+      for (const f of faces) if (rulesWhole(f.small)) expect(f.p.body.dropped.some((b) => b.role === "ability"), f.tag).toBe(false);
     });
   }
 
   it("1920x1080 and 1366x768: the counts the brief measured (236 and 183 faces had a rule line given way; the 3x5 plan shows all of them)", () => {
-    const base = (name: ViewName) => corpus(name).faces.filter((f) => !fullText(f.p0));
+    const base = (name: ViewName) => corpus(name).faces.filter((f) => !rulesWhole(f.p0));
     expect(base("desk-1920x1080").length).toBeGreaterThanOrEqual(236); // 236 before the header wrapped, 296 with it (the taller header takes room from the 5x7 plan too)
     expect(base("laptop-1366x768").length).toBe(183);
     expect(base("desk-1280x800").length).toBe(16);
@@ -219,7 +219,7 @@ describe("POLISH-3 Q2 (b): a face keeps every one of its own rule lines wherever
       for (const f of corpus(name).faces) {
         if (f.p === f.p0 || JSON.stringify(f.p) === JSON.stringify(f.p0)) continue; // planPanel's own plan
         n++;
-        expect(fullText(f.p) && !fullText(f.p0), `${f.tag}: the 3x5 plan is the full text and the 5x7 plan was not`).toBe(true);
+        expect(rulesWhole(f.p) && !rulesWhole(f.p0), `${f.tag}: the 3x5 plan is the full text and the 5x7 plan was not`).toBe(true);
         if (!gapsAtLeast(f.p, f.p.gaps.min)) low++;
       }
       expect(n, name).toBeGreaterThan(0);
