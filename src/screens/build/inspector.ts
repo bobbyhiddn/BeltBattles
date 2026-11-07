@@ -1646,7 +1646,7 @@ export interface PanelPlan {
   shift: number;
   subs: string[];
   subMax: number;
-  /** POLISH-3 (REQ-BFG-087; Q2 (a)): a foe's face in the column (the text with `subOwner`) whose title is wider than `subMax` even in the 3x5 face: the title broken at a space onto
+  /** POLISH-3 (REQ-BFG-087; Q2 (a)): a foe's face in the column (the text with `subOwner`; POLISH-3b: or any battle face, planPanel's `wrap`) whose title is wider than `subMax` even in the 3x5 face: the title broken at a space onto
    *  these two 3x5 rows (`RISING RAMPART` / `CANNON ★`), drawn by fitTitleRows at y + 5 and y + 11; the sub rows then start 6 px lower (y + 19) and `shift` holds those 6 px. Absent:
    *  the title is one row, as drawn before (fitTitle). */
   titleRows?: [string, string];
@@ -1750,9 +1750,11 @@ const columnRows = (n: number, tap = 0): number => Math.ceil(n / (tap > 0 ? 2 : 
  *  face is chosen with the gaps on, whatever `o.gaps` asks, so the content is the same with the gaps off and on (SPACE-1's
  *  content first: the gaps never change what a plan shows).
  *  PRESENT-2 F (REQ-BFG-081; PRESENT-1 Question 4 (d) (ii)): `o.small`, the band's face carried to a panel grown up from the band for a note
- *  (detailsPlanOf): the body in the 3x5 face only, as the band itself planned it. */
+ *  (detailsPlanOf): the body in the 3x5 face only, as the band itself planned it.
+ *  POLISH-3b (REQ-BFG-087; P1, cap's ruling 1 on POLISH-3's question 1): `o.wrap`, a BATTLE face (battleScout.ts facePlan passes it for every face, yours and the foe's): in the column its title and its sub
+ *  wrap as a foe's text (the one with `subOwner`) always did, so no battle face is cut with a dot. The build screen's panels (detailsPlan, drawDetails) never pass it: their desk column is as before. */
 export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [],
-  o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean; small?: boolean; rung?: boolean } = {}): PanelPlan { // POLISH-3: `rung: false` plans without planRung's 3x5 rung (tests: what the rung moves)
+  o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean; small?: boolean; rung?: boolean; wrap?: boolean } = {}): PanelPlan { // POLISH-3: `rung: false` plans without planRung's 3x5 rung (tests: what the rung moves)
   if (o.small) return planIn(sp, area, families, o, true);
   const p = planIn(sp, area, families, o, false);
   if (!o.inBand || p.column || p.headerOnly || p.body.font !== "5") return p;
@@ -1828,7 +1830,7 @@ function guestFits(p0: PanelPlan, p: PanelPlan): boolean {
  *  panel has spare, in the band and in a grown panel alike, and the panel's size and fit never depend on it (the same plan is fit or not fit, with or without it). Otherwise the panel is
  *  exactly the plan without it, and the words are in the panel's ⓘ view (routePanel's `notes`). (The rule is here, in the one place every plan goes through, and not in planPanel, so
  *  planPanel's own lines are the base's.) */
-function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean; rung?: boolean }, small: boolean): PanelPlan {
+function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean; rung?: boolean; wrap?: boolean }, small: boolean): PanelPlan {
   if (!sp.body.some((b) => b.hold)) return planRung(sp, area, families, o, small);
   const p0 = planRung(withoutHold(sp), area, families, o, small); // today's panel
   const p = planRung(sp, area, families, o, small);
@@ -1839,7 +1841,7 @@ function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { 
  *  face) gives hit rows away (`+N MORE HIT TILES`) and the same text planned in the 3x5 face (planOnce's `small`: the band's own face) keeps every one of them, the column takes the 3x5 plan. Only a plan that
  *  gives hit rows away takes the rung: every other column panel keeps the 5x7 face, and the band (not a column) is as before. It sits INSIDE planIn, so POLISH-2's guest rule compares the plan with and
  *  without its NOT COUNTED line like with like. */
-function planRung(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean; rung?: boolean }, small: boolean): PanelPlan {
+function planRung(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean; rung?: boolean; wrap?: boolean }, small: boolean): PanelPlan {
   const p = planOnce(sp, area, families, o, small);
   if (small || o.rung === false || !p.column || !p.body.dropped.some((b) => b.trim && !b.join)) return p;
   const sm = planOnce(sp, area, families, o, true);
@@ -1847,7 +1849,7 @@ function planRung(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: 
 }
 
 /** planIn's plan of `sp` as it stands. */
-function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean }, small: boolean): PanelPlan {
+function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean; wrap?: boolean }, small: boolean): PanelPlan {
   const column = !o.band && area.h >= 70; // landscape column: size to content, the buttons under the text
   const labels = sp.labels;
   const pitch = columnButtonH(o.tap) + 3; // a row of buttons and the gap above it (0.6.1r: 16 + 3)
@@ -1868,14 +1870,18 @@ function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: 
   // the sub under it (itself broken at its last " · " or full stop where that is wider than the column too): the sub is never cut, the owner never given way. Any other panel: as before.
   const wideSub = textWidth(sp.sub, "3") > area.w - 27;
   const ownerLine = column && wideSub && !!sp.subOwner && sp.sub.startsWith(`${sp.subOwner} `) ? sp.subOwner : null;
+  // POLISH-3b (REQ-BFG-087; P1): a BATTLE face wraps (`o.wrap`: battleScout.ts facePlan passes it for every face; the foe's text, the one with `subOwner`, always did): your own turret's sub
+  // (`HEAVY TURRET IN SLOT 1`, 83 px against the 100 px column's 73) breaks at a space as the foe's rest does (breakSub); a sub with a ` · ` or `. ` breaks there, as before.
+  const wrap = o.wrap === true || !!sp.subOwner;
   const subs = ownerLine !== null ? [ownerLine, ...breakSub(sp.sub.slice(ownerLine.length + 1), area.w - 27)]
     : column && (cut > 0 || stop > 0) && wideSub
       ? cut > 0 ? [sp.sub.slice(0, cut + 2), sp.sub.slice(cut + 3)] : [sp.sub.slice(0, stop + 1), sp.sub.slice(stop + 2)]
+      : column && wrap && wideSub ? breakSub(sp.sub, area.w - 27)
       : [sp.sub];
   // POLISH-3 (REQ-BFG-087; Q2 (a)): a foe's face never cuts its title with a dot where the column is 100 px wide (1920x1080: the star and the slot's number were lost on 92 titles): a title wider than
   // the column's text room in the 3x5 face too breaks at a space onto a second 3x5 row (`RISING RAMPART` / `CANNON ★`); the header takes that row's 6 px (`shift`) and the body starts under it.
-  // Only the plan with `subOwner` (a foe's face): every other panel, the build screen's desk column included, is as before.
-  const titleRows = column && !!sp.subOwner && textWidth(sp.title) > area.w - 27 && textWidth(sp.title, "3") > area.w - 27 ? wrapAt(sp.title, area.w - 27) : null;
+  // POLISH-3b (P1): the same for every battle face (`wrap`): your own parts' faces too. Every other panel, the build screen's desk column included (tests/enchant1.faces.test.ts :765), is as before.
+  const titleRows = column && wrap && textWidth(sp.title) > area.w - 27 && textWidth(sp.title, "3") > area.w - 27 ? wrapAt(sp.title, area.w - 27) : null;
   const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 + 6 * (subs.length - 2) : 0) + (titleRows ? 6 : 0); // a third sub line (the owner's, then a broken sub) takes its 6 px more
   const extra = labels.length ? btnRows * pitch + 3 : 4;
   const headRight = !column && port && !port.shift ? port.rects[0].x - 3 : area.x + area.w - 4;

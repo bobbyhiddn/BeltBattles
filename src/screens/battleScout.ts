@@ -136,7 +136,7 @@ export function faceText(build: Build, sel: PartSel, line: string | null = null,
   const def = sel.kind === "item" ? itemByUid(build, sel.uid)?.def : undefined;
   // ENCHANT-2W (REQ-BFG-085; W5, E2-02's WHOSE rider): `owner`, a FOE's name (battle.ts VIEW BATTLEFIELD's foe side, foeView.ts the scouted foe): the sub line names whose part it is
   // (`SPARKFANG'S HEAVY TURRET IN SLOT 1`), and so does its short form. Absent (your own parts, the text sheet, every other caller): the sub lines exactly as before.
-  // The desk column breaks a sub wider than it after the owner (planPanel: PanelText.subOwner), so the sub is never cut.
+  // The desk column breaks a sub wider than it after the owner (planPanel: PanelText.subOwner), so the sub is never cut; POLISH-3b: your own parts' subs break at a space as well (facePlan's `wrap`).
   const sub = owner ? { sub: ownerSub(owner, t.sub), subOwner: `${owner}'S`, ...(t.subShort ? { subShort: ownerSub(owner, t.subShort) } : {}) } : {};
   const vsub = (v: { sub?: string }): { sub?: string } => (owner && v.sub ? { sub: ownerSub(owner, v.sub) } : {}); // a compact form's own sub line (a rig's IDLE warning) names the owner too
   return explainPanel({ ...t, ...sub, body: strip(t.body), variants: t.variants?.map((v) => ({ ...v, ...vsub(v), body: strip(v.body) })), labels: [CLOSE_LABEL] }, def);
@@ -164,11 +164,13 @@ export const CLOSE_LABEL = "CLOSE";
  * own plan, as before. `tap`: a finger's target (tapPx). Pure (drawOn, tests).
  * POLISH-3b (REQ-BFG-089; P2, the review's N1): and where NEITHER plan is the rule text whole, the face is drawn from the plan that gives away fewer ability blocks (abilityGone), the 3x5 plan on a tie or a win.
  * SPARKFANG's RISING SCRAP CANNON (turret slot 0, days 8/12/16) gave away its stat row and `IT TAKES BELTS ON COLUMNS` in the 5x7 plan's shorter form (five ability blocks of its full text); the 3x5 plan gives away `SPEED: LEVEL 2/4.` only.
+ * POLISH-3b (REQ-BFG-087; P1, cap's ruling 1 on POLISH-3's question 1): every battle face is planned with planPanel's `wrap`, yours as well as the foe's: in the column (the 100 px one at 1920x1080) a title wider than its room
+ * breaks onto a second 3x5 row (`RISING RAMPART` / `CANNON ★`) and a sub wider than its room breaks at a space (`HEAVY TURRET IN` / `SLOT 1`), so the star and the slot number show and nothing is cut with a dot.
  */
 export function facePlan(t: PanelText, fa: { area: Rect; band: boolean }, families: Parameters<typeof planPanel>[2], tap: number): PanelPlan {
-  const plan = planPanel(t, fa.area, families, { tap, band: fa.band });
+  const plan = planPanel(t, fa.area, families, { tap, band: fa.band, wrap: true });
   if (!plan.column || rulesWhole(plan)) return plan;
-  const small = planPanel(t, fa.area, families, { tap, band: fa.band, small: true });
+  const small = planPanel(t, fa.area, families, { tap, band: fa.band, small: true, wrap: true });
   if (rulesWhole(small)) return small;
   return abilityGone(t, small) <= abilityGone(t, plan) ? small : plan;
 }

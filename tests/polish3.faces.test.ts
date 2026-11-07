@@ -4,6 +4,7 @@
 //       (`HEAVY TURRET IN SL.`: the slot number lost) were cut with a dot. Now a title wider than the room in the 3x5 face breaks at a space onto a second 3x5 row (`RISING RAMPART` / `CANNON ★`:
 //       PanelPlan.titleRows, drawn by fitTitleRows) and a sub with no ` · ` or `. ` breaks at a space (`HEAVY TURRET IN` / `SLOT 1`: breakSub, wrapAt); the header grows by those rows (`shift`) and
 //       the body starts under it. Only the foe's face (the text with `subOwner`, cap's ruling B): the build screen's desk column keeps tests/enchant1.faces.test.ts :765.
+//       POLISH-3b (P1, cap's ruling 1 on this job's question 1): every BATTLE face wraps now, your own parts' too (planPanel's `wrap`, which facePlan passes: tests/polish3b.ownfaces.test.ts); the build screen's column still does not.
 //   (b) own abilities (REQ-BFG-089). Where the column's 5x7 plan cannot show every block, planPanel takes a shorter form of the same 5x7 face (CORE and GEAR rows without their rule lines) although the
 //       3x5 face shows the full text: 236 faces at 1920x1080, 183 at 1366x768, 180 at 844x390 (174 of them fixable), 16 at 1280x800. battleScout.ts facePlan draws the 3x5 plan where it is the full text and
 //       the 5x7 plan is not.
@@ -145,7 +146,7 @@ describe("POLISH-3 Q2 (a): at 1920x1080 no face's title or sub is cut with a dot
     expect(n).toBe(92);
   });
 
-  it("only the foe's face wraps: the same text without its `subOwner` (the build screen's desk column, an own part's face) plans as before, with no title rows", () => {
+  it("the wrap is a battle face's: the same text without its `subOwner` planned without planPanel's `wrap` (the build screen's desk column) plans as before, with no title rows (POLISH-3b: an own part's face wraps through facePlan's `wrap`)", () => {
     const { faces, fa } = corpus("desk-1920x1080");
     for (const f of faces.slice(0, 600)) {
       const plain = planPanel({ ...f.t, subOwner: undefined }, fa.area, [], {});

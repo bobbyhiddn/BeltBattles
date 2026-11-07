@@ -16,7 +16,7 @@ afterEach(() => setEnchant(ENCHANT));
 const drawnText = (p: PanelPlan): string[] => visibleLines(p).flatMap((v) => (v.line === "rule" ? [] : [plain(lineText(v.line.spans))]));
 const planOf = (f: Face, name: ViewName, side: 0 | 1, o: { small?: boolean } = {}): PanelPlan => {
   const { fa, tp } = viewOf(name, side);
-  return withEnchant(() => planPanel(f.t, fa.area, f.fam, { tap: tp, band: fa.band, ...o }));
+  return withEnchant(() => planPanel(f.t, fa.area, f.fam, { tap: tp, band: fa.band, wrap: true, ...o })); // facePlan plans every battle face with `wrap` (P1): the candidates are the wrap plans
 };
 const drawn = (f: Face, name: ViewName, side: 0 | 1): PanelPlan => { const { fa, tp } = viewOf(name, side); return withEnchant(() => facePlan(f.t, fa, f.fam, tp)); };
 const SIX_TAGS = ["rivalBuild d8", "rivalBuild d12", "rivalBuild d16", "standInBuild d8", "standInBuild d12", "standInBuild d16"].map((t) => `A sparkfang ${t} turret0`);
@@ -80,8 +80,8 @@ describe("POLISH-3b P2: the rule on a sweep of face areas (ties and losses inclu
       const { tp } = viewOf("desk-1920x1080", foe ? 1 : 0);
       for (const f of faces(foe).filter(isSix)) for (let w = 96; w <= 144; w += 4) for (let h = 100; h <= 230; h += 10) {
         const fa = { area: { x: 2, y: 2, w, h }, band: false };
-        const p = withEnchant(() => facePlan(f.t, fa, f.fam, tp)), plan = withEnchant(() => planPanel(f.t, fa.area, f.fam, { tap: tp, band: false }));
-        const sm = withEnchant(() => planPanel(f.t, fa.area, f.fam, { tap: tp, band: false, small: true }));
+        const p = withEnchant(() => facePlan(f.t, fa, f.fam, tp)), plan = withEnchant(() => planPanel(f.t, fa.area, f.fam, { tap: tp, band: false, wrap: true }));
+        const sm = withEnchant(() => planPanel(f.t, fa.area, f.fam, { tap: tp, band: false, small: true, wrap: true }));
         cells++;
         if (!plan.column || rulesWhole(plan)) { expect(JSON.stringify(p), `${f.tag} ${w}x${h}`).toBe(JSON.stringify(plan)); continue; }
         if (rulesWhole(sm)) { expect(JSON.stringify(p), `${f.tag} ${w}x${h}`).toBe(JSON.stringify(sm)); continue; }
