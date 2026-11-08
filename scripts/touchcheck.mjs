@@ -89,6 +89,7 @@ import { extname, join, normalize, resolve } from "node:path";
 import { VIEWS } from "./shots-list.mjs";
 import { settle, sleep } from "./playthrough.mjs";
 import { takeRuneCard } from "./runeTake.mjs"; // CARD-4 (REQ-BFG-081, P): the one scripted rune take
+import { BARE_TEXT, closeBare, isBare } from "./faceClose.mjs"; // POLISH-4c (REQ-BFG-089): a BARE face (no CLOSE: close null) closes by a press off any part
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const args = process.argv.slice(2);
@@ -2064,7 +2065,12 @@ async function scoutView(browsers, origin, vname) {
   for (const [side, kind] of [[1, "turret"], [0, "item"], [0, "turret"], [1, "item"]]) {
     const p = parts[side].find((q) => q.kind === kind) ?? parts[side][0];
     const under = !!s.face && p.x >= s.face.r.x && p.x < s.face.r.x + s.face.r.w && p.y >= s.face.r.y && p.y < s.face.r.y + s.face.r.h;
-    if (under) await press(page, cdp, centre(s.face.close));
+    if (under) {
+      if (isBare(s.face)) { // POLISH-4c: a bare face has no CLOSE: a press off any part (an empty board tile) closes it, checked (scripts/faceClose.mjs)
+        const r = await closeBare(page, "battle", (q) => press(page, cdp, q));
+        check(r.ok, `${V}: ${BARE_TEXT} (${r.where || r.why}); still in the view (before the ${p.name})`);
+      } else await press(page, cdp, centre(s.face.close));
+    }
     await press(page, cdp, p);
     s = await scoutState(page);
     // STAGE-0914 (ruling 8 and 24, scripts only): a rival's part can carry a WORD (ENCHANT-2, src/sim/npcWords.ts: one from day 5, the RISING LOOM of NETTLE, LACEWING, EMBERLYN, ...), and a part's
@@ -2072,13 +2078,20 @@ async function scoutView(browsers, origin, vname) {
     // starts with "LOOM". The title is read without a leading word (the eight words of src/sim/enchant.ts ENCHANT_IDS, in their printed names).
     const bare = (t) => String(t ?? "").replace(/^(?:FIERY|RISING|GROWING|ECHOING|MASSIVE|SWIFT|WIDE|BRACED) /, "");
     const ok = !!s.face && s.face.side === side && s.face.sel.kind === p.kind && bare(s.face.title).startsWith(p.name) && s.face.lines.length > 0 && (p.kind !== "turret" || /^THIS FIGHT: /.test(s.face.line ?? ""));
-    check(ok && inViewport(s.face.r, vp) && big(s.face.close) && !overlaps(s.face.r, { x: p.x - 1, y: p.y - 1, w: 2, h: 2 }),
-      `${V}: in VIEW BATTLEFIELD a ${touch ? "tap" : "click"} on ${side === 0 ? "your" : "the enemy's"} ${p.name} (${p.kind}) opens its face (${s.face?.title ?? "none"}, side ${s.face?.side}, ${s.face?.lines.length ?? 0} lines${p.kind === "turret" ? `, "${s.face?.line ?? "no fight line"}"` : ""})${under ? " (after CLOSE: the last face lay over it)" : ""}, on the screen, the part in sight; its CLOSE ${box(s.face?.close)}`);
+    const noClose = isBare(s.face); // POLISH-4c: a null CLOSE passes in place of big(close), and the text says so (only then)
+    check(ok && inViewport(s.face.r, vp) && (noClose || big(s.face.close)) && !overlaps(s.face.r, { x: p.x - 1, y: p.y - 1, w: 2, h: 2 }),
+      `${V}: in VIEW BATTLEFIELD a ${touch ? "tap" : "click"} on ${side === 0 ? "your" : "the enemy's"} ${p.name} (${p.kind}) opens its face (${s.face?.title ?? "none"}, side ${s.face?.side}, ${s.face?.lines.length ?? 0} lines${p.kind === "turret" ? `, "${s.face?.line ?? "no fight line"}"` : ""})${under ? " (after CLOSE: the last face lay over it)" : ""}, on the screen, the part in sight; ${noClose ? "no CLOSE: a bare face (a press off any part closes it)" : `its CLOSE ${box(s.face?.close)}`}`);
   }
   await shot(page, `${TAG}-scout-${vname}-view.png`);
-  await press(page, cdp, centre(s.face.close));
-  s = await scoutState(page);
-  check(!s.face && s.phase === "view", `${V}: the face's CLOSE closes it; still in the view (${s.phase})`);
+  if (isBare(s.face)) { // POLISH-4c: no CLOSE button: a press off any part (an empty board tile) closes the face; still in the view
+    const r = await closeBare(page, "battle", (q) => press(page, cdp, q));
+    s = await scoutState(page);
+    check(r.ok && !s.face && s.phase === "view", `${V}: ${BARE_TEXT} (${r.where || r.why}); still in the view (${s.phase})`);
+  } else {
+    await press(page, cdp, centre(s.face.close));
+    s = await scoutState(page);
+    check(!s.face && s.phase === "view", `${V}: the face's CLOSE closes it; still in the view (${s.phase})`);
+  }
   await press(page, cdp, parts[0][0]);
   d = await decks(page);
   const water = { x: 4, y: d[0].y + d[0].h / 2 }; // beside your board, no part there
@@ -2335,17 +2348,29 @@ async function foeCardSteps(page, cdp, errors, vname) {
   for (const kind of ["turret", "item"]) {
     const p = f.parts.find((q) => q.kind === kind) ?? f.parts[0];
     const under = !!f.face && p.x >= f.face.r.x && p.x < f.face.r.x + f.face.r.w && p.y >= f.face.r.y && p.y < f.face.r.y + f.face.r.h;
-    if (under) await press(page, cdp, centre(f.face.close));
+    if (under) {
+      if (isBare(f.face)) { // POLISH-4c: a bare face has no CLOSE: a press off any part closes it (the card's place if it lies off the face), checked (scripts/faceClose.mjs)
+        const r = await closeBare(page, "foe", (q) => press(page, cdp, q), { prefer: centre(card) });
+        check(r.ok, `${V}: ${BARE_TEXT} (${r.where || r.why}); the view stays open (before the foe's ${p.name})`);
+      } else await press(page, cdp, centre(f.face.close));
+    }
     await press(page, cdp, p);
     f = await fv();
     const ok = !!f.face && f.face.sel.kind === p.kind && f.face.lines.length > 0 && !f.face.lines.some((l) => /^(DRAG|TAP|PRESS) /.test(l));
-    check(ok && inViewport(f.face.r, vp) && big(f.face.close) && !overlaps(f.face.r, { x: p.x - 1, y: p.y - 1, w: 2, h: 2 }) && !overlaps(f.face.r, f.back),
-      `${V}: a ${touch ? "tap" : "click"} on the foe's ${p.name} (${p.kind}) opens its face (${f.face?.title ?? "none"}, ${f.face?.lines.length ?? 0} lines), read only, on the screen, the part in sight; its CLOSE ${box(f.face?.close)}`);
+    const bare = isBare(f.face); // POLISH-4c: a null CLOSE passes in place of big(close), and the text says so (only then)
+    check(ok && inViewport(f.face.r, vp) && (bare || big(f.face.close)) && !overlaps(f.face.r, { x: p.x - 1, y: p.y - 1, w: 2, h: 2 }) && !overlaps(f.face.r, f.back),
+      `${V}: a ${touch ? "tap" : "click"} on the foe's ${p.name} (${p.kind}) opens its face (${f.face?.title ?? "none"}, ${f.face?.lines.length ?? 0} lines), read only, on the screen, the part in sight; ${bare ? "no CLOSE: a bare face (a press off any part closes it)" : `its CLOSE ${box(f.face?.close)}`}`);
   }
   await shot(page, `${TAG}-foecard-${vname}-face.png`);
-  await press(page, cdp, centre(f.face.close));
-  f = await fv();
-  check(f.open && !f.face, `${V}: CLOSE closes the face; the view stays open`);
+  if (isBare(f.face)) { // POLISH-4c: no CLOSE button: a press off any part closes the face, as the view closes any face (FoeView.press); the view stays open
+    const r = await closeBare(page, "foe", (q) => press(page, cdp, q), { prefer: centre(card) });
+    f = await fv();
+    check(r.ok && f.open && !f.face, `${V}: ${BARE_TEXT} (${r.where || r.why}); the view stays open`);
+  } else {
+    await press(page, cdp, centre(f.face.close));
+    f = await fv();
+    check(f.open && !f.face, `${V}: CLOSE closes the face; the view stays open`);
+  }
   await press(page, cdp, f.parts[0]);
   await press(page, cdp, centre(card)); // the card's place: off the foe's carrier
   f = await fv();

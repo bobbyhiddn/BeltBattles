@@ -24,6 +24,7 @@ import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { takeRuneCard } from "./runeTake.mjs"; // CARD-4 (REQ-BFG-081, P): the one scripted rune take
+import { BARE_TEXT, closeBare, isBare } from "./faceClose.mjs"; // POLISH-4c (REQ-BFG-089): a BARE face (no CLOSE: close null) closes by a press off any part
 
 const argv = process.argv.slice(2);
 const opt = (n, d) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : d; };
@@ -339,7 +340,11 @@ async function tour(browser) {
   await mark("VIEW BATTLEFIELD");
   await tapPart(0, ["turret"], 3.0);
   await tapPart(1, ["turret"], 3.0);
-  await tapId("faceclose", "the face's CLOSE"); // both summaries in sight again
+  if (isBare((await scout(page))?.face)) { // POLISH-4c (REQ-BFG-089): a bare face has no CLOSE button and no `faceclose` region: a press off any part (an empty board tile) closes it (scripts/faceClose.mjs); a face with a CLOSE is tapped on it, as before
+    const r = await closeBare(page, "battle", async (p) => { await tapAt(p); await frame(); });
+    must(r.ok, `${BARE_TEXT} (${r.where || r.why})`);
+    log(`${BARE_TEXT} (${r.where || r.why}); the view stays open`);
+  } else await tapId("faceclose", "the face's CLOSE"); // both summaries in sight again
   await hold(3.4);
   await mark("the summaries");
   await tapId("viewnext", "ON TO DAWN in the view");
