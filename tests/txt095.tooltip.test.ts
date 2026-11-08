@@ -61,7 +61,11 @@ describe("TXT-095 (ii): the shop card's hover tooltip reads faces first, as the 
   // alone) stays pinned above as data. Was: drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, offerTooltip(o.def, textOpts(s.run))).
   it("chrome.ts draws the whole face at the shop card (no more sentences[0] there); the pack tooltip's line is as before", () => {
     const src = readFileSync("src/screens/build/chrome.ts", "utf8");
-    expect(src).toContain("drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, [...offerFace(o.def, textOpts(s.run)), ...(o.sold ? [] : [offerMergeNote(s.run, o.def)].filter((n): n is string => !!n))], L.H);");
+    // PRESENT-1 (REQ-BFG-081, the fix round's PR-06): the same items, built by chrome.ts offerTipItems (the offer's sale in words first, then
+    // the whole face, then the merge/owned note: tests/present1.words2.test.ts pins it); the draw call reads it. Was: drawTooltip(g,
+    // L.cards[idx], ITEMS[o.def], L.W, [...offerFace(o.def, textOpts(s.run)), ...(o.sold ? [] : [offerMergeNote(s.run, o.def)].filter((n): n is string => !!n))], L.H);
+    expect(src).toContain("drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, offerTipItems(s.run, o), L.H);");
+    expect(src).toContain("return [...(sale ? [sale] : []), ...offerFace(o.def, textOpts(run)), ...(own ? [own] : [])];");
     expect(src).not.toContain("abilityText(o.def, 1, textOpts(s.run)).sentences[0]");
     // AZ-PREP (REVIEW-HULL1D Q3): the pack tooltip's line, face first then its sentence, now on the run's day (chrome.ts
     // packTip; was faceLines(def, 1)?.rules[0]?.text ?? abilityText(def, 1, textOpts(s.run)).sentences[0] ?? "")

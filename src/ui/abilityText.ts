@@ -97,7 +97,8 @@ import { hullShown } from "../sim/hullScale"; // HULL-1a (REQ-BFG-079): the ARMO
 import { dmgNow, shownOn, sustNow } from "./dayShown"; // HULL-1d (REQ-BFG-079): damage x D(d), sustain x S(d), on the text's day
 import { scaleCore } from "../sim/cores";
 import { scaleRules } from "../sim/scale"; // SCALE-2c (REQ-BFG-098): the 12 readers' entries, SCALE_RIGS on only
-import type { ReadCount } from "../sim/content"; // SCALE-2c: the readers' words, by count
+import type { GateEffect, ReadCount } from "../sim/content"; // SCALE-2c: the readers' words, by count; ROWS-1: hitRow's own part
+import { readerClause, readerRowWords } from "./readerClause"; // ROWS-1 (REQ-BFG-098; F2): a reader's belt row says its reading rule, the card face's clause
 import { effectAt, FUSE_MAX, fusible, outputsAt, pendingAt, perkAt, pourAt } from "../sim/stars";
 import { gearSlotsOf, type TimelineHit } from "../sim/deck";
 
@@ -337,19 +338,22 @@ const immunities = (e: ItemDef): string => {
   const im = m(e).immune ?? [];
   return STUN_CAUSES.every((k) => im.includes(k)) ? "EVERY STUN" : `${list(im.map((k) => STALL_WORD[k]))} STUNS`;
 };
+/** POLISH-1 (REQ-BFG-085; P3c, ENCHANT-2W's read: "looks cut off"): which belts' last tiles MANTLET guards. battle.ts makeSide flags the last `intakeGuard` tiles of every connected
+ *  route INTO the turret that carries it (the belts that feed it, no others): `INTO IT`, IT the turret (it was `IN`, a sentence that ended on a preposition). */
+const BELT_INTO = "INTO IT";
 /** 0.6.2 FB-B: MANTLET ★2 FULL GUARD (NUM-3: was FULL PLATE) shields the last tile of each belt into its turret, ★3 BULWARK SKIRT the last 3
  *  (battle.ts makeSide: the last intakeGuard tiles of every connected route into it). Y7b2 (the flip): the rigs working
  *  those tiles are not guarded (was "a rig with an arrow on a shielded tile is shielded too (Battle.skirted)"). */
 const shielded = (n: number): string => (n === 1 // Y2 (release Y; DESIGN-Y row 14): not their rigs
-  ? ", AND SO DOES THE LAST TILE OF EACH BELT IN" // TXT-096: a clause of the opening (was its own sentence, "SO DOES ... IN.")
-  : `, AND SO DO THE LAST ${n} TILES OF EACH BELT IN`);
+  ? `, AND SO DOES THE LAST TILE OF EACH BELT ${BELT_INTO}` // TXT-096: a clause of the opening (was its own sentence, "SO DOES ... IN."); POLISH-1 (P3c): ... INTO IT (was ... IN)
+  : `, AND SO DO THE LAST ${n} TILES OF EACH BELT ${BELT_INTO}`);
 /** MANTLET's clause at a star: at ★1 the stalls it ignores; above, the stalls that star adds and the tiles it shields. */
 function mantletGist(e: ItemDef, stars: number): string {
   const was = stars > 1 ? effectAt("mantlet", stars - 1).mod?.immune ?? [] : [];
   const added = (m(e).immune ?? []).filter((c) => !was.includes(c)), guard = m(e).intakeGuard ?? 0;
   return [
     ...(stars <= 1 ? [`IGNORES ${immunities(e)}`] : added.length ? [`IGNORES ${list(added.map((c) => STALL_WORD[c]))} TOO`] : []),
-    ...(guard ? [`GUARDS THE LAST ${guard === 1 ? "TILE" : `${guard} TILES`} OF EACH BELT IN`] : []),
+    ...(guard ? [`GUARDS THE LAST ${guard === 1 ? "TILE" : `${guard} TILES`} OF EACH BELT ${BELT_INTO}`] : []), // POLISH-1 (P3c): ... INTO IT (was ... IN)
   ].join(", ");
 }
 
@@ -358,7 +362,7 @@ export function shieldText(n: number): string {
   // NUM-4 (REVIEW-SUSB F3): MANTLET's word is GUARD (NUM-3's FULL GUARD); SHIELD is the sustain keyword (was SHIELDED)
   // Y7b2 (cap's ruling d4e8184e90c0ed75; the flip): the rig guard left with the switch's off branch (battle.ts
   // acceptHarassment), so the line names the tiles only (was "..., AND THE RIGS WORKING IT/THEM.")
-  return `GUARDED: THE LAST ${n === 1 ? "TILE" : `${n} TILES`} OF EACH BELT IN.`;
+  return `GUARDED: THE LAST ${n === 1 ? "TILE" : `${n} TILES`} OF EACH BELT ${BELT_INTO}.`; // POLISH-1 (P3c): ... INTO IT. (was ... IN., which read as cut off)
 }
 
 /**
@@ -1622,8 +1626,19 @@ export function hitText(h: TimelineHit, belt: BeltKind, day?: number): string {
   return shownOn(day, () => hitRow(h, belt));
 }
 
-function hitRow(h: TimelineHit, belt: BeltKind): string {
-  const name = ITEMS[h.def].name, e = effectAt(h.def, h.stars).gate ?? {};
+function hitRow(h: TimelineHit, belt: BeltKind, own?: GateEffect): string {
+  const name = ITEMS[h.def].name, e = own ?? effectAt(h.def, h.stars).gate ?? {};
+  // ROWS-1 (REQ-BFG-098, REQ-BFG-100; F2, cap's design call): a scaling reader (a rig whose gate has `reads`, SCALE_RIGS on) says what
+  // it reads, in the other rows' form `<NAME> +<amount> <what>`: the rig's own part first, if it gives something on this hit (a flat,
+  // plating, a heal: the rows below, from the gate without its reader line), then the card face's own clause (readerClause.ts, the
+  // one function the face uses too) as the timeline draws its words, after a comma: `IRON WALL +3 DAMAGE FOR EACH 10 SHIELD YOU HAVE`.
+  // The numbers are the star's and the day's (hitText's shownOn); the count is battle state, never a value here (the walk is the
+  // build view's). A bare reader (every one today) has no part of its own, so its row is its name and the clause
+  if (!own && e.reads) {
+    const { reads, ...rest } = e;
+    const part = hitRow(h, belt, rest), clause = readerRowWords(readerClause(reads).clause);
+    return part === name ? `${name} ${clause}` : `${part}, ${clause}`;
+  }
   // Y3 (release Y; DESIGN-Y rows 20, 21, 26, 28, 30): SURGE VALVE is a damage pulse on any belt (no
   // speed, slag and locked belts too), and the rigs whose floor or flat left say what they do instead of "+0 DAMAGE"
   if (e.pulse) return `${name} +${damage(e.pulse.flat)} EVERY ${fmtSec(e.pulse.period)} SEC`;

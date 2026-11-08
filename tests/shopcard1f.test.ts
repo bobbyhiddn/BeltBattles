@@ -159,7 +159,7 @@ describe("SHOPCARD-1f F1 (READ-13 round P: 12 of 12 picture readers read the but
     expect(portraitButtons("WHETSTONE", "COMMON RIG", [offerLabel(ITEMS.whetstone, 3, 2)], band).rects[0].w).toBeGreaterThanOrEqual(textWidth("MERGE ★2: 3G", "3") + 4);
   });
 
-  it("star5 is passed by ui.ts button alone: no other 3x5 text draws the new star (source)", () => {
+  it("star5 is passed by ui.ts button and by the two small lines that print a star level (PRESENT-2 W (a): LAST CHANCE's PART card, the victory drop card): no other 3x5 text draws the new star (source)", () => {
     const hits: string[] = [];
     const walk = (dir: string): void => {
       for (const f of readdirSync(dir)) {
@@ -169,7 +169,7 @@ describe("SHOPCARD-1f F1 (READ-13 round P: 12 of 12 picture readers read the but
       }
     };
     walk("src");
-    expect(hits.sort()).toEqual(["src/render/font.ts", "src/ui/ui.ts"]);
+    expect(hits.sort()).toEqual(["src/render/font.ts", "src/screens/fork/drops.ts", "src/screens/lastChancePicker.ts", "src/ui/ui.ts"]); // PRESENT-2 W (a): was font.ts and ui.ts alone
     expect(readFileSync("src/ui/ui.ts", "utf8").match(/star5: true/g)!.length).toBe(2); // the label, with and without a sub line
   });
 
@@ -355,7 +355,7 @@ describe("SHOPCARD-1f F5 (READ-13: 10 of 12 readers asked whether GRAPNEL GUN's 
       expect(wOf(line), `★${s}`).toBe(px[s - 1]);
     }
     expect(rowsOf(GRAPNEL(1))).toEqual(["SHOT: A HIT ON A FOE BELT OR RIG DESTROYS", "1 SLUG NEAR IT."]);
-    expect(faceAt("grapnel", 1, { k: 1 })!.nums.find(([k]) => k === "rip")![1]).toBe("RIPS 1"); // the ⓘ ladder `RIPS 1/2/3` is not in this job
+    expect(faceAt("grapnel", 1, { k: 1 })!.nums.find(([k]) => k === "rip")![1]).toBe("DESTROYS 1"); // PRESENT-1 (REQ-BFG-081; REVIEW-READ14 fix 2): the ⓘ ladder says DESTROYS (was "RIPS 1", not in 1f's job)
     expect(effectAt("grapnel", 3).core!.rip).toBe(3);
   });
 

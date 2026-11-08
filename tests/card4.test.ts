@@ -20,6 +20,7 @@ import { RUNES, RUNE_LIST, type RuneDef } from "../src/sim/runes";
 import { UI, inside, type Rect } from "../src/ui/ui";
 import { TAP_CSS } from "../src/ui/tap";
 import { buildLayout, buildScale, phoneBarLift, phoneScreen } from "../src/screens/build/layout";
+import { C } from "../src/render/palette"; // PRESENT-2 L: the hint strip's inner colour (night)
 import { TAKE_CLOCK, takeGuardPassed } from "../src/ui/runeBar"; // CARD-4 (P2): the guard's wall clock, pinned here
 const WALL = TAKE_CLOCK.wall;
 import {
@@ -462,16 +463,20 @@ import type { DuskFoe } from "../src/game/run";
 function panelCtx(run: Run, sel: Sel, f: ReturnType<typeof framed>, touch: boolean) {
   const ctx = { game: { ui: new UI(), t: 0, view: f.view, W: f.W, H: f.H }, run, touch, L: f.L } as unknown as Ctx;
   const area = panelArea(f.L, sel, { touch, hover: false, busy: false }, panelFit(ctx, sel, !!f.L.phone));
+  let last: ReturnType<typeof fresh> | null = null; // PRESENT-2 L: the last frame's canvas, to read whether the hint strip was drawn
   const draw = () => {
     const ui = (ctx.game as unknown as { ui: UI }).ui;
     ui.pointer.kind = touch ? "touch" : "mouse";
     Object.assign(ui.pointer, { x: -1, y: -1, down: false });
     ui.begin();
-    drawDetails(gOf(fresh(f.W, f.H)), ctx, sel, null, area, {} as DuskFoe);
+    drawDetails(gOf((last = fresh(f.W, f.H))), ctx, sel, null, area, {} as DuskFoe);
     ui.end();
     return ui;
   };
-  return { ctx, area, draw, d: () => detailsPlan(ctx, sel, null, area)! };
+  /** PRESENT-2 L (cap's ruling 0d0ef2465804aafb): was the strip `s` drawn in the last frame (its inner px is C.night)? A note that hangs at the growth limit may sit where the strip is,
+   *  and then the strip is not drawn while it shows. */
+  const stripDrawn = (s: Rect): boolean => !!last && last.at(s.x + 1, s.y + 1) === C.night;
+  return { ctx, area, draw, d: () => detailsPlan(ctx, sel, null, area)!, stripDrawn };
 }
 const CARGO: Sel = { kind: "cargo", uid: 900 };
 const SHORTB = [KEY(4, 5), KEY(4, 4), KEY(4, 3), KEY(4, 2), KEY(4, 1), KEY(4, 0)];
@@ -546,9 +551,10 @@ describe("CARD-4 (k, d, s): first-sight notes beside the strip; no box over a he
         for (const q of shopRects(f)) expect(overlaps(s, q.r), `${name} ${p.id}: over ${q.what}`).toBe(false);
         for (const b of d.plan.rects ?? []) expect(overlaps(s, b), `${name} ${p.id}: over a button`).toBe(false);
         expect(overlaps(s, d.plan.r), `${name} ${p.id}: over the panel`).toBe(false);
-        // the strip takes no press (CARD-3 C): nothing is registered over it
+        // the strip takes no press (CARD-3 C): nothing is registered over it. PRESENT-2 L (cap's ruling 0d0ef2465804aafb): except the note that hangs over where the strip would be
+        // (a panel at the growth limit): the strip is not drawn while it shows, so it takes no press either
         const ui = pc.draw();
-        expect(ui.regions.filter((q) => overlaps(q.r, s) && q.id !== "details-over").map((q) => q.id), `${name} ${p.id}`).toEqual([]);
+        expect(ui.regions.filter((q) => overlaps(q.r, s) && q.id !== "details-over" && !(q.id === "kwdef" && !pc.stripDrawn(s))).map((q) => q.id), `${name} ${p.id}`).toEqual([]);
         where.set(name, (where.get(name) ?? 0) + 1);
       }
     }
@@ -583,7 +589,7 @@ describe("CARD-4 (k, d, s): first-sight notes beside the strip; no box over a he
 
   // one test per phone (each draws every panel's every box twice: tips new and done), each given 3 minutes under load
   for (const [name, w, h, dpr] of PHONES) it(`D on ${name}: tips new and done, every keyword's box (a tap's, as a first sight's) misses the panel's header, its own word's row and the strip; the ones that can't fit are listed`, () => {
-    let n = 0, below = 0, past = 0;
+    let n = 0, below = 0, past = 0, yielded = 0;
     const cant: string[] = [];
     {
       const f = framed(w, h, dpr, 1);
@@ -610,8 +616,11 @@ describe("CARD-4 (k, d, s): first-sight notes beside the strip; no box over a he
             n++;
             const mineBefore = regs.filter((q) => (glossaryEntry(q.id.split(":")[2])?.word ?? q.id.split(":")[2]) === key);
             const mine = ui.regions.filter((q) => /^kw:\d+:/.test(q.id) && (glossaryEntry(q.id.split(":")[2])?.word ?? q.id.split(":")[2]) === key);
-            const bad = head.some((q) => overlaps(def.r, q)) || mine.length < mineBefore.length || (strip && overlaps(def.r, strip));
-            if (bad) cant.push(`${name} ${tips} ${p.id} ${wd}: box ${JSON.stringify(def.r)}${head.some((q) => overlaps(def.r, q)) ? " over the header" : ""}${mine.length < mineBefore.length ? " over its own word" : ""}${strip && overlaps(def.r, strip) ? " over the strip" : ""}`);
+            // PRESENT-2 L (cap's ruling 0d0ef2465804aafb): a note that hangs at the growth limit may overlap the strip's place: the strip is not drawn while it shows (pc.stripDrawn)
+            const overStrip = !!strip && overlaps(def.r, strip) && pc.stripDrawn(strip);
+            if (strip && overlaps(def.r, strip) && !overStrip) yielded++;
+            const bad = head.some((q) => overlaps(def.r, q)) || mine.length < mineBefore.length || overStrip;
+            if (bad) cant.push(`${name} ${tips} ${p.id} ${wd}: box ${JSON.stringify(def.r)}${head.some((q) => overlaps(def.r, q)) ? " over the header" : ""}${mine.length < mineBefore.length ? " over its own word" : ""}${overStrip ? " over the strip" : ""}`);
             const foot = definitionBox(d.plan.r, d.plan.maxY + 2, Math.round((def.r.h - 3) / 9));
             if (def.r.y > foot.y) below++;
             if (def.r.y + def.r.h > d.plan.r.y + d.plan.r.h) past++;
@@ -621,7 +630,7 @@ describe("CARD-4 (k, d, s): first-sight notes beside the strip; no box over a he
         }
       }
     }
-    console.log(`CARD-4 (d) ${name}: ${n} boxes (tips new and done); ${below} sit lower than the panel's foot box (under their word's line), ${past} reach past the panel's foot; ${cant.length} can't fit:\n${cant.slice(0, 40).join("\n")}`);
+    console.log(`CARD-4 (d) ${name}: ${n} boxes (tips new and done); ${below} sit lower than the panel's foot box (under their word's line), ${past} reach past the panel's foot; ${yielded} overlap the strip's place with the strip not drawn (PRESENT-2 L); ${cant.length} can't fit:\n${cant.slice(0, 40).join("\n")}`);
     expect(n).toBeGreaterThan(1000);
     expect(cant.length, cant.slice(0, 5).join("\n")).toBe(0);
   }, 180_000);

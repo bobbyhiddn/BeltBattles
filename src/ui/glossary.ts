@@ -414,7 +414,8 @@ export const TAP_NOTES: Readonly<Record<string, TapNote>> = {
     word: "SHOT",
     text: (e, x) => {
       const n = core(e, x).reach!;
-      return `SHOT: IT RIPS THE NEAREST SLUGS WITHIN ${fmtCount(n)} TILE${n === 1 ? "" : "S"} OF A HIT.`;
+      // PRESENT-1 (REQ-BFG-081; REVIEW-READ14 fix 2): DESTROYS, the face's verb (was "SHOT: IT RIPS THE NEAREST SLUGS ...")
+      return `SHOT: IT DESTROYS THE NEAREST SLUGS WITHIN ${fmtCount(n)} TILE${n === 1 ? "" : "S"} OF A HIT.`;
     },
   },
   // battle.ts impact: each pellet picks its own target; a burn splits between them

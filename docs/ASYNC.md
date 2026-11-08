@@ -343,6 +343,10 @@ runs unchanged in the browser and in Node, through WebCrypto only (`globalThis.c
    takes FURNACE, WEAVER, FOUNDRY and BASTION, so a METRONOME or SIPHON upload gets 400
    `snapshot.hero: rules bb-0.8.3 accept only FURNACE, WEAVER, FOUNDRY, BASTION, not METRONOME` (0.9.0 adds them).
 5. `snapshot.playerId` is not the key's playerId: 403.
+   S1 (a server change; the rules stay bb-0.12.0): an ENDLESS snapshot whose day is past `ENDLESS_ONLINE_LAST_DAY` (25, the last
+   day the game uploads one) gets 422 `day: 33 is past the last online endless day 25` here, before the rules check and the
+   deck check; the decoder still takes an endless day to `ENDLESS_LAST_DAY` (64), and the stores and `ghosts:admin` read it
+   as built, but the deck check costs about x1.11 more each day (7.7 s of CPU at day 33, 26 s and 221 MB at day 41).
 6. The rules version: anything but this build's `RULES_VERSION` exactly gets 422 (`rules bb-0.8.0 not accepted: this
    server validates bb-0.8.3`).
 7. The deck, in the player mode (`validateUpload`): 422 `deck failed validation`, with its errors.

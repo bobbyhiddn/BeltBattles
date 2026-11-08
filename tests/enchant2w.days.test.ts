@@ -36,7 +36,10 @@ import type { Ctx } from "../src/screens/build/actions";
 import { setTipsForTests } from "../src/ui/tips";
 import { ENCHANT, ENCHANT_DEFS, ENCHANT_IDS, ENCHANT_NUM, setEnchant, withEnchant, type EnchantId, type EnchantKind } from "../src/sim/enchant";
 import { dmgMulTenths, withHullScale } from "../src/sim/hullScale";
-import { ENCHANT_NOTES, pieceLine, wordFace, wordLine } from "../src/ui/enchantFaces";
+import { ENCHANT_NOTES, RISING_CARD_RESETS, RISING_RESETS, pieceLine, wordFace, wordLine } from "../src/ui/enchantFaces";
+/** POLISH-1 (P3a): a card row is wordLine's, but RISING's reset sentence stands once on its card, on the LAST row (all three rows do not keep whole in the phone band); FIX ROUND (the cold
+ *  read's PW-01): there it says `ALL THREE RESET EACH FIGHT.` for the three rows above it (RISING_CARD_RESETS), not the part's own `IT STARTS OVER EACH FIGHT.`. */
+const cardRow = (id: string, i: number, n: number, line: string | null): string | null => (id === "rising" && line !== null ? line.replace(` ${RISING_RESETS}`, i < n - 1 ? "" : ` ${n === 3 ? RISING_CARD_RESETS : RISING_RESETS}`) : line);
 import { lineText } from "../src/ui/richText";
 import { icons, textWidth } from "../src/render/font";
 import { ITEMS } from "../src/sim/content";
@@ -65,8 +68,9 @@ describe("W3: wordFace(id, day) gives RISING's and GROWING's amounts on the day,
       for (let day = 1; day <= 24; day++) {
         for (const id of ["growing", "rising"] as const) {
           const step = id === "growing" ? ENCHANT_NUM.growingStep : ENCHANT_NUM.risingStep;
-          for (const l of wordFace(id, day).lines) {
-            expect(l.text, `${id} ${l.kind} day ${day}`).toBe(wordLine(id, l.kind, 1, day));
+          const rows = wordFace(id, day).lines;
+          for (const [i, l] of rows.entries()) {
+            expect(l.text, `${id} ${l.kind} day ${day}`).toBe(cardRow(id, i, rows.length, wordLine(id, l.kind, 1, day)));
             expect(l.text, `${id} ${l.kind} day ${day}`).toContain(`+${onDay(step, day)} {DMG}`);
             expect(onDay(step, day), `${id} day ${day}: never under day 1's`).toBeGreaterThanOrEqual(step);
           }
@@ -112,10 +116,10 @@ describe("W3: wordFace(id, day) gives RISING's and GROWING's amounts on the day,
   it("the card and the part's panel agree: at one star the card's line IS the panel's line (the panel adds `, ON TOP OF ITS OWN STATS` to FIERY's only), on every day and kind", () => {
     on(() => {
       for (let day = 1; day <= 24; day++) for (const kind of KINDS) for (const id of ENCHANT_IDS) {
-        const card = wordFace(id, day).lines.find((l) => l.kind === kind)?.text ?? null, panel = pieceLine(id, kind, 1, day);
+        const rows = wordFace(id, day).lines, card = rows.find((l) => l.kind === kind)?.text ?? null, panel = pieceLine(id, kind, 1, day);
         if (card === null) { expect(panel).toBeNull(); continue; }
         if (id === "fiery") expect(panel).toBe(card.replace(/\.$/, ", ON TOP OF ITS OWN STATS."));
-        else expect(panel, `${id} ${kind} day ${day}`).toBe(card);
+        else expect(cardRow(id, rows.findIndex((l) => l.kind === kind), rows.length, panel), `${id} ${kind} day ${day}`).toBe(card); // POLISH-1 (P3a): RISING's first two rows lack the reset sentence the panel has
       }
     });
   });

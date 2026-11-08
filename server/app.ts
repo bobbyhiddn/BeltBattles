@@ -16,6 +16,10 @@
 //                                       "name: too short", "name: too long", "name: bad characters",
 //                                       "name: not allowed" (src/net/names.ts)
 //                                   403 { error } snapshot.playerId is not the signing key's playerId
+//                                   422 { error } S1: an ENDLESS snapshot past the last online endless day (src/sim/endless.ts
+//                                       ENDLESS_ONLINE_LAST_DAY, 25), one cheap reason, before any costly check: "day: 33 is past
+//                                       the last online endless day 25". The game never uploads one (past it the foe is the GOD
+//                                       stand-in); the deck check below grows about x1.11 a day (8 s of CPU at day 33, 26 s at 41)
 //                                   422 { error } foreign rules; PACKS M2: "name: missing" (every upload
 //                                       under RULES_VERSION carries its player's name); or the deck fails
 //                                       validateUpload (the player mode), with its errors
@@ -45,7 +49,7 @@ import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
 import { endlessRecordProblem, isReachable, lossesProblem } from "../src/net/records"; // ENDLESS-1: an endless snapshot's record
 import { validateUpload } from "../src/net/validate";
 import { endlessFor, livesCapFor } from "../src/net/rulesGate"; // RETUNE-1 (REQ-BFG-096): the match route's lives bound; ENDLESS-1: and endless' rules
-import { ENDLESS_LAST_DAY, ENDLESS_LIVES, ENDLESS_WIN_CAP } from "../src/sim/endless"; // ENDLESS-1: an endless match request's bounds
+import { ENDLESS_LAST_DAY, ENDLESS_LIVES, ENDLESS_ONLINE_LAST_DAY, ENDLESS_WIN_CAP } from "../src/sim/endless"; // ENDLESS-1: an endless match request's bounds; S1: and the last day an endless snapshot is taken ONLINE
 import { putProfile } from "./profileRoute"; // PROFILE-UP (REQ-BFG-074 clause 4)
 import { profileStoreFor, type ProfileStore } from "./profileStore";
 import { sha256Hex } from "./sigv4";
@@ -339,6 +343,17 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         // 5. a key uploads only under its own playerId: nobody can post as another player
         if (snap.playerId !== signer.playerId) {
           throw new HttpError(403, "snapshot.playerId is not the player id of the signing key (x-bb-key)");
+        }
+        // 5b. S1 (BRIEF-S1; LAUNCH-0 run 3, REPORT 1.4 item 6): an ENDLESS snapshot past the last day the game takes part online is refused HERE,
+        //     before validateUpload and every other costly check. The game never sends one (online.ts offlineEndless: past
+        //     ENDLESS_ONLINE_LAST_DAY the foe is the GOD stand-in and nothing goes up, because the deck check is too slow there), but the
+        //     strict decoder takes an endless day to ENDLESS_LAST_DAY (64) and validateUpload's cost grows about x1.11 a day: measured at
+        //     0.9.13, one signed day-33 endless POST held this one request thread for 7.7 s (/v1/health waited 7.6 s), and day 41 costs 26 s
+        //     of CPU and 221 MB of the 256 MB machine. A hand-built client with a free key could freeze or kill the server, again after
+        //     every restart. The day is already decoded, so this costs nothing. A run snapshot is not touched: the decoder bounds its day by
+        //     maxDayFor(rules), 25 at most. Endless records, the stores and the match route keep their ENDLESS_LAST_DAY bounds (cheap reads)
+        if (snap.mode === "endless" && snap.day > ENDLESS_ONLINE_LAST_DAY) {
+          throw new HttpError(422, `day: ${snap.day} is past the last online endless day ${ENDLESS_ONLINE_LAST_DAY}`);
         }
         // 6. rules, the deck, the record (0.8.0 H2), then the store. The stored record is the same as before;
         //    neither the key nor the signature is kept.

@@ -31,7 +31,7 @@ import { inEndless } from "../../sim/endless"; // ENDLESS-1 (REQ-BFG-059, 3.5): 
 import { endlessBar } from "../endlessText";
 import type { BuildScreen } from "./build";
 import { drawCard, drawPack, drawReroll, drawTag, drawTooltip, offerFace } from "./shop"; // SHOPCARD-1: offerFace (was TXT-095's offerTooltip)
-import { drawDetails, hasDetails, offerMergeNote, textOpts } from "./inspector";
+import { drawDetails, hasDetails, offerMergeNote, offerSaleNote, textOpts } from "./inspector";
 import { keywordCursorOff } from "./keywords"; // SHOPCARD-1e (E5): the column is not drawn while a hover tooltip shows
 import { drawFoeCard } from "./foeView"; // SCOUT-1c (REQ-BFG-082): the NEXT BATTLE card opens a scouted foe
 import { abilityText } from "../../ui/abilityText"; // 0.6.2t (T5): the pack tooltip's fallback sentence (SHOPCARD-1: no longer the card's effect line; SC-0912: PLAIN-1F's cardEffect import dropped, a shop card carries no effect line)
@@ -42,11 +42,19 @@ import { faceLines } from "../../ui/faces"; // U2c group 0 fix 3: the packs' fac
 import { cargoGlow, drawMergePrompt, drawPick, drawWagon, glow, wordHits } from "./enchantStrip"; // ENCHANT-1 (REQ-BFG-085): the ENCHANTER's wagon, the warlord pick, the merge pick, APPLY's glow
 
 /** bb-0.8.6 (PACKS P5; U2c group 0 fix 3): a pack slot's tooltip text: the pack's face ("+4 BELT TILES FOR THE RUN.",
- *  "+250 {HULL} FOR THE RUN."), else its first sentence. AZ-PREP (REQ-BFG-079; REVIEW-HULL1D Q3): on the run's day
+ *  "+250 HULL FOR THE RUN.": PRESENT-1, was {HULL}), else its first sentence. AZ-PREP (REQ-BFG-079; REVIEW-HULL1D Q3): on the run's day
  *  (textOpts: with HULL_SCALE on the ARMOR PACK's hull x M(d), as its slot and its panel read it); it read day 1's. With
  *  the switch off, or on day 1, the same text as before. */
 export function packTip(def: string, run: Run): string {
   return faceLines(def, 1, textOpts(run))?.rules[0]?.text ?? abilityText(def, 1, textOpts(run)).sentences[0] ?? "";
+}
+
+/** PRESENT-1 (REQ-BFG-081; the cold read's PR-06): the items of an offer's desk hover tooltip: its sale in words first (inspector.ts offerSaleNote:
+ *  `ON SALE: WAS 3G.`; the tooltip has no buy button to say it), then its whole face (shop.ts offerFace), then what owning a copy means in words
+ *  (offerMergeNote; SHOPCARD-1e). A sold offer shows the face alone. Pure (drawShop's tooltip, tests). */
+export function offerTipItems(run: Run, o: Run["shop"]["wagons"][number]["offers"][number]): string[] {
+  const sale = offerSaleNote(o), own = o.sold ? null : offerMergeNote(run, o.def);
+  return [...(sale ? [sale] : []), ...offerFace(o.def, textOpts(run)), ...(own ? [own] : [])];
 }
 
 /** AZ-PREP (REQ-BFG-077; REVIEW-NPC1 Q4): the build bar's stage word: REFIT in REFIT with NPC_DAY on, else DAWN. */
@@ -332,13 +340,13 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     // (shop.ts offerTooltip; was that opening sentence alone)
     // SHOPCARD-1 (REQ-BFG-115, F5): the card shows only its icon and price, so the tooltip shows its whole face (offerFace: every
     // line the panel's face draws), kept on screen (L.H); a click still selects the card and opens its panel (BuildScreen.up)
-    drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, [...offerFace(o.def, textOpts(s.run)), ...(o.sold ? [] : [offerMergeNote(s.run, o.def)].filter((n): n is string => !!n))], L.H);
+    drawTooltip(g, L.cards[idx], ITEMS[o.def], L.W, offerTipItems(s.run, o), L.H);
   }
   // bb-0.8.6 (REQ-BFG-051, PACKS P5): a mouse over a pack slot: its name and one-line text, as an offer's tooltip reads
   const ph = s.refit || c ? -1 : PACK_IDS.findIndex((id) => ui.hover === `pack-${id}`);
   if (ph >= 0) {
     const def = PACK_ITEM[PACK_IDS[ph]];
-    // U2c group 0 fix 3: the pack's face, "+4 BELT TILES FOR THE RUN." and "+25 {HULL} FOR THE RUN." (the tooltip's layout
+    // U2c group 0 fix 3: the pack's face, "+4 BELT TILES FOR THE RUN." and "+25 HULL FOR THE RUN." (PRESENT-1: was {HULL}) (the tooltip's layout
     // as before: one line of its 3x5 text)
     drawTooltip(g, packRects(L)[ph], ITEMS[def], L.W, packTip(def, s.run));
   }

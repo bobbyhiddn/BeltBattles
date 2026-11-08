@@ -25,7 +25,7 @@ import type { ArenaMotion } from "../game/arenaMotion"; // WIND-1: the callout's
 import { PLATE_COLOUR, SHIELD_COLOUR } from "../game/arenaReact"; // WIND-1 (REQ-BFG-097): plating's and SHIELD's colours (ICON_COLOUR)
 import { SHIELD_CAP } from "../sim/content"; // SUS-B: the pips' count
 import { fmtDmg } from "../ui/statFormat"; // SUS-B: the REGEN badge prints as the faces print REGEN
-import { fmtClock, fmtCount, fmtReadPct } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clocks and the results; WIND-1: SHIELD's count
+import { fmtClockSec, fmtCount, fmtReadPct } from "../ui/statFormat"; // NUM-4 (REQ-BFG-047): the clocks and the results; WIND-1: SHIELD's count; POLISH-1 (P3b): `24 SEC`, not `24S`
 import { heartIcon } from "../render/sprites";
 import { button, panel, statsPanel, tapRect, type Rect } from "../ui/ui";
 import { skinOf } from "../render/styles"; // CUSTOM-2a (REQ-BFG-072): the plate wears its board's panel style
@@ -530,7 +530,7 @@ export function resultRows(r: Pick<DayResult, "player" | "enemy" | "shocks" | "r
   const rows: [string, string, string][] = [
     ["DAMAGE DEALT", fmtDmg(p.damage), fmtDmg(e.damage)],
     ["SHOTS", String(p.shots), String(e.shots)],
-    ["FIRST SHOT", p.firstShot < 0 ? "NEVER" : `${fmtClock(p.firstShot)}S`, e.firstShot < 0 ? "NEVER" : `${fmtClock(e.firstShot)}S`],
+    ["FIRST SHOT", p.firstShot < 0 ? "NEVER" : fmtClockSec(p.firstShot), e.firstShot < 0 ? "NEVER" : fmtClockSec(e.firstShot)], // POLISH-1 (P3b): `24 SEC` (was `24S`, read as 245)
     ["GUNS IDLE", idle(p), idle(e)],
     ["JAMS", String(p.jams), String(e.jams)],
     ["BURN DAMAGE", fmtDmg(p.burnDealt), fmtDmg(e.burnDealt)],
@@ -546,6 +546,9 @@ export function resultRows(r: Pick<DayResult, "player" | "enemy" | "shocks" | "r
   if (race?.spent) rows.push(["SHIELD SPENT", v(race.spent[0]), v(race.spent[1])]);
   return rows;
 }
+
+/** POLISH-1 (REQ-BFG-085; P3b): the dusk result card's top line, `DUSK · DAY 6 · 24 SEC` (the clock was `24S`, read as 245 by ENCHANT-2W's phone and desk readers). */
+export const duskLine = (day: number, time: number): string => `DUSK · DAY ${day} · ${fmtClockSec(time)}`;
 
 /** The rows 0.6.2's card holds at its 170 px. */
 export const CARD_ROWS = 7;
@@ -611,7 +614,7 @@ export function drawResult(g: G, game: Game, r: DayResult, pt: number, label: st
   const title = r.outcome === "win" ? "WIN" : loss ? "LOSS" : "DRAW";
   const tc = r.outcome === "win" ? C.lime : loss ? C.red : C.bone;
   drawText(g, title, W / 2, yy + 6, tc, { align: "center", scale: 2, outline: C.ink });
-  drawText(g, `DUSK · DAY ${r.day} · ${fmtClock(r.time)}S`, W / 2, yy + 23, C.slate4, { font: "3", align: "center" }); // NUM-4: a clock
+  drawText(g, duskLine(r.day, r.time), W / 2, yy + 23, C.slate4, { font: "3", align: "center" }); // NUM-4: a clock; POLISH-1 (P3b): `24 SEC`
   drawText(g, `VS ${r.foe}`, W / 2, yy + 31, C.bone, { font: "3", align: "center" });
   // lives, with the heart just lost blinking and -1 LIFE beside them; the W-L record on the right. 0.6.2 RULE
   // EARLY-LOSS REFUND: the hearts are the lives after this dusk (the refund comes at the dawn the card leads to)

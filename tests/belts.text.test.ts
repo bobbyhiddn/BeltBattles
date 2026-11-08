@@ -97,7 +97,7 @@ describe("M4: the signature factories' text at every FACTORY level, each number 
       expect(text, `L${l}`).toContain(levelLine("factory", l));
       if (l < 4) expect(text, `L${l}`).toContain(factoryNext("kiln", l));
       expect(p.labels, `L${l}`).toEqual(l < 4 ? [upgradeLabel(l)] : []);
-      expect(p.title).toBe("KILN");
+      expect(p.title).toBe("KILN ★"); // POLISH-1 (P5a): the panel's title shows its star at ★1 too (was "KILN")
       expect(text.join(" "), `L${l}`).not.toMatch(/COPY|COPIES|TO MERGE|NEXT STAR|MERGES WITH|OWN/);
       expect(p.sub).toBe(`FACTORY · BELTS 1/${outputsAt("kiln", l)}`);
       if (l < 4) buyUpgrade(run, "factory");

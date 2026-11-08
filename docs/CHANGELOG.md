@@ -3,6 +3,55 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.14.1: clearer cards, panels and words
+
+Cards, panels and words are easier to read, and the server turns away one more kind of bad upload. The battle rules do not
+change (bb-0.13.0).
+- **Cards and shapes:** every card of a piece bigger than one cell shows its footprint grid: plain 2x2 factories and size-2
+  turrets too, and LAST CHANCE's part card, the victory drop card and a road event's choice. Arrowheads in the grids are bigger
+  arrows where the card has room (the cargo slot and the narrow phone card keep the small ones). A road card names every part it
+  gives; a name that fits no line gets a row of its own, and a part the card takes may show as an icon alone. A shop card that is
+  on sale and can also merge shows the sale mark beside the merge mark, and an offer on sale says ON SALE: WAS 3G. in its tap
+  panel (not on the smallest phones' one-line strip) and in the desk's hover tooltip.
+- **Carrying a piece:** a tall piece, or a gate, carried by a finger onto the top rows of the deck lands on the deck, where its
+  ghost shows, instead of being refused without a word. A spot that is taken or blocked still refuses, and says why.
+- **Notes on panels:** on a phone held upright, a definition note (a tap on a keyword, or a first-sight note) no longer covers the
+  panel's rules: the panel grows up over the shop rows to hold it, keeps its small type where it already shows all its text in
+  small type, and shrinks back when the note closes. A panel already as tall as it can grow (the tall turret panels) hangs the
+  note just under its last rule row, and if the note would land on the how-to strip, the strip hides while the note shows. On a
+  landscape phone a definition note stays where it is if that covers none of the panel's rules, and otherwise moves under the
+  panel or beside the column (a few notes, such as the SWARM FAMILY note on some turret panels before you hold a rune, still
+  cover a rule row).
+- **Panels:** the family line says what it is, FORGE FAMILY or FAMILIES: FORGE, TEMPO, in the desk's hover tooltip and on the
+  panel wherever the words fit (some phone panels still show the short name or the family marks). The tap panel of a part you
+  own (on the deck, in cargo or in a turret slot) shows its star at one star too (NAME ★), and the part panel's info button is
+  drawn as a ?.
+- **The title:** the two carriers start with clear water between them, at least 14% of the width and one CSS inch, and the command
+  panel is placed clear of them, on landscape phones and desk screens. On phones the touch targets of HOW TO PLAY, OPTIONS and
+  CUSTOMIZE are 44 CSS px tall (the buttons look the same). HOW TO PLAY names POISON and says, in one sentence, what a gate does
+  and what the ENCHANTER sells.
+- **Words:** hull is said as HULL, never with the heart (LAST CHANCE's hull card and the ARMOR PACK; the desk slot shows 550 HULL
+  while the amount has three digits). GRAPNEL GUN's levels and SHOT note say DESTROYS (was RIPS), LIMPET WORKS has a note saying
+  what ANYTHING covers, and the desk's hover tooltip for a core or a piece of gear names its kind in plain words (CHANGES HOW A
+  GUN SHOOTS; FITS A GUN'S GEAR SLOT). RISING's text says its climb starts over each fight, and the ENCHANTER's card says ALL
+  THREE RESET EACH FIGHT. A fight's result card (dusk, road and replay) and its FIRST SHOT row show the time as 24 SEC instead of
+  24S. A turret that carries a MANTLET says which belts' last tiles it guards: GUARDED: THE LAST TILE OF EACH BELT INTO IT (the
+  last 2 tiles at two stars, the last 3 at three). Event hull chips say MAX HULL. The small writing's W is redrawn so that it
+  differs from an H by two dots instead of one (WINS in the build bar, WARLORD in the road result line), and a star in small
+  text is drawn as a real star on LAST CHANCE's part card and the victory card's drop line.
+- **Enchantments on screen:** selecting a rig that holds GROWING no longer cuts its counter, and on LAST CHANCE's PART card the
+  word's spark sits whole inside the card, in the top-right corner of the part's picture.
+- **Battles and runes:** a belt's timeline now says what a scaling rig reads. At one star on day 1 IRON WALL's row reads IRON WALL
+  +3 DAMAGE FOR EACH 10 SHIELD YOU HAVE, where it said only IRON WALL (the numbers follow the star and the day), and the other nine
+  scaling rigs say what they read the same way. On a small screen a reader's badge (POWDER KEG's, SPALL CATCHER's) steps to a free
+  place beside its piece instead of covering a belt's slug count. YOUR RUNES' list turns into pages (with <, > and the page
+  number) whenever it does not fit the screen, and on a phone each rune's first sentence shows whole (FORGE WARD's row no longer
+  stops after EACH SLUG FROM YOUR FACTORY:).
+- **The server:** it now refuses an endless upload past day 25 at once, before it checks the deck (the game never sends one:
+  past day 25 the foe is THE GOD), so a hand-made one can no longer tie the server up for many seconds.
+
+The battle rules stay bb-0.13.0, so 0.9.14.1 meets the same ghosts as 0.9.14, and a run saved on 0.9.14 goes on.
+
 ## 0.9.14: gates and enchantments
 
 New battle rules: bb-0.13.0. Ghosts and uploads from bb-0.12.0 and older no longer meet this release's players. The

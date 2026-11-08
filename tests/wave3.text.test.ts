@@ -270,10 +270,12 @@ describe("0.8.0 P1: the belt timeline's wave-3 rows say what each number is (F2)
     expect(withGuard(() => h("plateroller", 2, { plate: 11 }), false)).toBe("PLATE ROLLER +11 SHIELD");
     // SUS-B (cap's answer 3 to SUSTAIN-1): SHIELD WALL is IRON WALL (the name; the id and the row stay)
     // BUMP-1E: SCALE_RIGS ships on (bb-0.12.0) and IRON WALL is reworked into a reader (+n DMG for each 10 SHIELD you have: its def holds no `plate` and
-    // no `plated`, only `reads`), which the day-1 walk can't count: its row is its name, whatever the hit it is handed (hitRow reads the def's own
-    // fields). The row with its plating and its +30 at 120 is the 0.9.11 world's, read with the switch off (withScaleRigs(fn, false), synchronous)
+    // no `plated`, only `reads`), which the day-1 walk can't count: its row is its name and its reading rule, whatever the hit it is handed (hitRow
+    // reads the def's own fields). The row with its plating and its +30 at 120 is the 0.9.11 world's, read with the switch off (withScaleRigs(fn, false), synchronous)
+    // ROWS-1 (REQ-BFG-098; F2, cap's design call): the row says what it reads, the card face's own clause as the timeline draws its words (abilityText.ts
+    // hitRow, readerClause.ts), `IRON WALL +3 DAMAGE FOR EACH 10 SHIELD YOU HAVE` at ★1 on day 1 (was the bare name, BUMP-1E); tests/rows1.reader.test.ts has them all
     expect(SCALE_RIGS).toBe(true);
-    expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("IRON WALL"); // BUMP-1E: was "IRON WALL +10 SHIELD, +30 DAMAGE AT 120 SHIELD"
+    expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("IRON WALL +3 DAMAGE FOR EACH 10 SHIELD YOU HAVE"); // ROWS-1: was "IRON WALL" (BUMP-1E; before it "IRON WALL +10 SHIELD, +30 DAMAGE AT 120 SHIELD")
     withScaleRigs(() => expect(h("shieldwall", 1, { plate: 10, plated: { min: 120, flat: 30 } })).toBe("IRON WALL +10 SHIELD, +30 DAMAGE AT 120 SHIELD"), false);
     // Y7b2 (the flip): TWIN GAUGE's floor left, so the walk gives an unmatched belt flat 0 and its row says it does nothing
     // there (was the hit { flat: 10, matched: false } and "TWIN GAUGE +10 DAMAGE")

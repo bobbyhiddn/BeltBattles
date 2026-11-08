@@ -34,6 +34,8 @@ import {
   explainPanel, type Block, type PanelPlan, type PanelText,
 } from "./build/inspector";
 import { slotIcon } from "./build/turretPanel";
+import { shapedPiece } from "./build/shapeEdit"; // PRESENT-1 S1 (f): a shaped piece's face shows its shape picture
+import { shapePic } from "../ui/shapePic";
 import { INFO_FREE_MIN, drawKeywordLayer, keywordsPressed } from "./build/keywords";
 import { textDay } from "../ui/fightDay"; // CNT-DAY (REQ-BFG-082, REQ-BFG-079): a face's numbers on the fight's day
 
@@ -156,11 +158,12 @@ export function readOnlyBlock(b: Block): Block | null {
 export const CLOSE_LABEL = "CLOSE";
 
 /** The face's icon, as the build screen's panel draws it. */
-function faceIcon(build: Build, sel: PartSel): HTMLCanvasElement | null {
+export function faceIcon(build: Build, sel: PartSel): HTMLCanvasElement | null {
   if (sel.kind === "turret") return slotIcon(build, sel.index);
   if (sel.kind === "route") return beltIcon();
   const p = itemByUid(build, sel.uid);
-  return p ? itemIcon(defOf(p).id) : null;
+  // PRESENT-1 S1 (f): as the build screen's panel (inspector.ts panelIcon): a shaped piece shows its shape picture (ui/shapePic.ts), in the header's 16x16 box, where every other piece keeps its icon
+  return p ? (shapedPiece(defOf(p).id) ? shapePic(defOf(p).id) : itemIcon(defOf(p).id)) : null;
 }
 
 /** Where a face opens: in the open floor between the bows (L.gapBox), over neither board, so both boards stay in sight

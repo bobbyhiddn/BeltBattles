@@ -34,6 +34,8 @@ export interface TurretPanelSpec {
 }
 
 const starred = (name: string, stars: number): string => (stars > 1 ? `${name} ${starText(stars)}` : name);
+/** POLISH-1 (REQ-BFG-089; P5a): a turret panel's TITLE shows its star at ★1 too, `NAME ★` (inspector.ts titled; the gear rows keep `starred`). */
+const titled = (name: string, stars: number): string => `${name} ${starText(stars)}`;
 const isTurret = (def: string): boolean => (Object.prototype.hasOwnProperty.call(ITEMS, def) ? ITEMS[def] : undefined)?.kind === "turret";
 
 /** The facts of turret `def` at `stars`, most important first: the glossary's sentences (its class, fire rate and loads;
@@ -153,7 +155,7 @@ export function slotWord(b: Build, t: number): WordOn | undefined {
 export function slotTitle(b: Build, t: number): string {
   const tu = turretSlots(b)[t]?.turret;
   const w = slotWord(b, t); // ENCHANT-1
-  return tu ? (w ? enchantedTitle(w.id, starred(ITEMS[tu.def].name, starsOf(tu))) : starred(ITEMS[tu.def].name, starsOf(tu))) : `TURRET SLOT ${t + 1}`;
+  return tu ? (w ? enchantedTitle(w.id, titled(ITEMS[tu.def].name, starsOf(tu))) : titled(ITEMS[tu.def].name, starsOf(tu))) : `TURRET SLOT ${t + 1}`; // POLISH-1 (P5a): titled (the star at ★1 too)
 }
 
 /** Its colour: the turret's rarity. */
