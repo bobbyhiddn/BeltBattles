@@ -10,7 +10,7 @@ import { rect, type G } from "../../render/pixel";
 import { drawText, textWidth, wrap } from "../../render/font";
 import { drawScene } from "../../render/scenes";
 import { itemIcon } from "../../render/sprites";
-import { hasGrid, iconCell, shapeGrid } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped reward part's grid on its icon
+import { drawIconMark, hasGrid } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped reward part's footprint on its icon; PRESENT-5 G5: as the drop row's mark (drawIconMark)
 import { panel, type Rect } from "../../ui/ui";
 import { TIER_COLOR, TIER_LABEL, drawPortrait, nameColor, rankTag, tag } from "../../ui/captain";
 import { RIVALS, type Difficulty, type RivalId } from "../../sim/rivals";
@@ -66,7 +66,9 @@ function drawParts(g: G, parts: string[], x: number, y: number): number {
     rect(g, px, y, 14, 14, C.ink);
     rect(g, px + 1, y + 1, 12, 12, C.slate0);
     g.drawImage(ic, px + 7 - Math.floor(ic.width / 2), y + 7 - Math.floor(ic.height / 2));
-    if (hasGrid(d)) g.drawImage(shapeGrid(d, iconCell(d)), px, y); // SHOPCARD-1 (G4): over the box's corner, inside the 16 px pitch; PRESENT-1 S1 (d): the icon cell
+    // PRESENT-5 G5 (REQ-BFG-113; backlog #537 (5)): the drop row's footprint MARK in this 14 x 14 box's corner (shapePic.ts drawIconMark), where it was G1's grid over the box's top-left (iconCell: 11 x 11 for a 2x2 part,
+    // which covered the icon whole: SHOPCARD-1 G4, PRESENT-1 S1 (d)); the box and the 16 px pitch are as they were
+    if (hasGrid(d)) drawIconMark(g, d, px, y, 14);
     px += 16;
   }
   return px - x;
