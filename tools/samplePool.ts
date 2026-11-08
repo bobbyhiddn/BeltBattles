@@ -541,6 +541,7 @@ export function softDecks(hero: HeroId, day: number, botRunes?: boolean): [SoftD
     let best: SoftDeck | undefined, bg = 0;
     for (const c of cands) {
       if (not !== undefined && encodeStarred(c.build) === not) continue;
+      if (curveRules() && !seedable(hero, day, c)) continue; // BUMP-1H: a candidate seedGhost would refuse is never picked (CURVE on only; off: no such check, the rule as it was)
       const g = casual ? gradeCasualOne(c.build, day, gi, GRADE_K, GRADE_SEEDS) : gradeOne(c.build, day, gi, GRADE_K, GRADE_SEEDS);
       const dg = Math.abs(g - target), db = Math.abs(bg - target);
       if (best === undefined || dg < db || (dg === db && g < bg)) { best = c; bg = g; }
@@ -994,6 +995,21 @@ const streakDays = (): number => Math.max(0, poolDepth() - STREAK_FIRST_DAY + 1)
 export const streakSlot = (hero: HeroId, day: number): number => curveBase() + PLAYABLE_HEROES.indexOf(hero) * streakDays() + (day - STREAK_FIRST_DAY);
 export const depthSlot = (i: number): number => curveBase() + PLAYABLE_HEROES.length * streakDays() + i;
 
+/**
+ * BUMP-1H: could this candidate travel as a seed ghost of (hero, day)? The checks seedGhost runs on a deck (the shop's strict rules, the player mode, a record a
+ * run can carry) with the day's floor record, a record every day has. Found at P3 (V0's first dry pool): a casual-graded slot 1 can land on a par-field deck
+ * the par player's run left invalid (furnace day 15's seed-7 deck: "route 0 does not end on a free turret connector (disconnected)"), which no earlier rule
+ * picked by luck of its target; the curve's rules (softDecks with CURVE on, the streak and the depth rules) pick only candidates that pass this.
+ */
+export function seedable(hero: HeroId, day: number, c: SoftDeck): boolean {
+  try {
+    seedGhost(hero, day, 0, c.build, floorRecord(day), 0, c.seed !== undefined ? (parRunSeed(hero, c.seed) >>> 0) || undefined : undefined, roadOf(c.road), floorLosses(day));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** BUMP-1H: (hero, day)'s par-field dusk decks (the par player's decks of seeds 1..PAR_K), distinct, in field order, with their runs' seeds and road logs. */
 export function parFieldCandidates(hero: HeroId, day: number, botRunes?: boolean): SoftDeck[] {
   const out: SoftDeck[] = [];
@@ -1015,7 +1031,7 @@ export function streakDeckByRule(hero: HeroId, day: number, botRunes?: boolean):
   const taken = floorTaken(hero, botRunes)(day), gi = streakSlot(hero, day);
   let best: SoftDeck | undefined, bg = 0;
   for (const c of parFieldCandidates(hero, day, botRunes)) {
-    if (taken.has(encodeStarred(c.build))) continue;
+    if (taken.has(encodeStarred(c.build)) || !seedable(hero, day, c)) continue;
     const g = gradeOne(c.build, day, gi, GRADE_K, GRADE_SEEDS);
     const dg = Math.abs(g - STREAK_TARGET), db = Math.abs(bg - STREAK_TARGET);
     if (best === undefined || dg < db || (dg === db && g < bg)) { best = c; bg = g; }
@@ -1032,7 +1048,7 @@ export function depthDeckByRule(i: number, taken: ReadonlySet<string>, botRunes?
   let best: { hero: HeroId; deck: SoftDeck; grade: number } | undefined;
   for (const hero of PLAYABLE_HEROES) {
     for (const c of softCandidates(hero, day, botRunes)) {
-      if (taken.has(encodeStarred(c.build))) continue;
+      if (taken.has(encodeStarred(c.build)) || !seedable(hero, day, c)) continue;
       const g = gradeCasualOne(c.build, day, gi, GRADE_K, GRADE_SEEDS);
       const dg = Math.abs(g - CASUAL_TARGET), db = best ? Math.abs(best.grade - CASUAL_TARGET) : 0;
       if (best === undefined || dg < db || (dg === db && g < best.grade)) best = { hero, deck: c, grade: g };

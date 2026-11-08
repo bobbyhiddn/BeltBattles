@@ -17,8 +17,10 @@ import { isReachable } from "../src/net/records";
 import { CURVE, setCurve, withCurve } from "../src/net/curve";
 import {
   CASUAL_TARGET, CURVE_PICKS_FILE_ENV, DEPTH_SLOTS, DEPTH_VARIANT, SOFT1_CURVE, SOFT1_WORLD, STREAK_FIRST_DAY, STREAK_RECORDS, STREAK_TARGET, STREAK_VARIANT,
-  baseSamplePool, curveGhosts, depthDeckByRule, depthSlot, depthSlots, drawnLabel, poolDepth, softDeckOf, softPickKey, streakDeckByRule, streakRecord, streakSlot,
+  baseSamplePool, curveGhosts, depthDeckByRule, depthSlot, depthSlots, drawnLabel, poolDepth, seedable, softDeckOf, softPickKey, streakDeckByRule, streakRecord, streakSlot,
+  type SoftDeck,
 } from "../tools/samplePool";
+import { playerRoadLog, playerRun } from "../src/sim/harness/player";
 
 afterEach(() => setCurve(CURVE));
 
@@ -59,6 +61,16 @@ describe("BUMP-1H CURVE: the pool's new slots (shape; no battles)", () => {
       expect(streakRecord(6)).toEqual([5, 0]);
     });
   });
+
+  it("seedable: a deck seedGhost would refuse is never a candidate (furnace day 15's seed-7 par deck, found at P3, has a route that ends on no free turret connector); the committed furnace day 5 pick is", () => {
+    withLongRun(() => withCurve(() => {
+      const days7 = playerRun("furnace", 15, 7), bad: SoftDeck = { build: days7[14].build, seed: 7, road: playerRoadLog(days7, 15) };
+      expect(seedable("furnace", 15, bad)).toBe(false);
+      const days1 = playerRun("furnace", 5, 1), good: SoftDeck = { build: days1[4].build, seed: 1, road: playerRoadLog(days1, 5) };
+      expect(softPickKey("furnace", 5, good)).toBe("f1:c9c07b3b"); // SOFT1_PICKS' furnace day 5, slot 0
+      expect(seedable("furnace", 5, good)).toBe(true);
+    }));
+  }, 120_000);
 
   it("the constants: the variants are distinct from the sample (0, 1) and floor (2) variants; the depth list is at most 24 and every slot a reachable record; the targets are the screens' first reads", () => {
     expect([STREAK_VARIANT, DEPTH_VARIANT]).toEqual([3, 4]);
