@@ -23,7 +23,7 @@ import { TAKE_CLOCK, runeBarTarget, runeCardTextW, runeNoteBox, runeNoteY, takeG
 import { runeNoteLines } from "../ui/runeBar"; // CARD-4 (P1): the chip's line's box (the bar's target is never under it); run 3 (I): with the source line
 import { runeTag, tierColour, tierWord } from "../ui/runeText";
 import type { BuildScreen } from "./build/build";
-import { drawTitlePlate } from "./pickHead"; // TXT-AZ (REQ-BFG-073; REVIEW-STAGE097 R5): the title block on the cards' panel
+import { titlePlate } from "./pickHead"; // TXT-AZ (REQ-BFG-073; REVIEW-STAGE097 R5): the title block's plate; BACKDROP-2: pickGround starts at its top (the ground is that plate grown down the column, drawn in draw(), no longer drawTitlePlate)
 
 export const PICK_TITLE = "PICK A RUNE";
 export const PICK_TAKE = "TAP AGAIN TO TAKE IT";
@@ -125,6 +125,38 @@ export function pickLayout(W: number, H: number, ids: readonly string[], open: n
     y = tray.y + tray.h;
   }
   return { top, cardW, cards, tray, trayChips, bottom: y };
+}
+
+/**
+ * BACKDROP-2 (REQ-BFG-058; BACKDROP-1's report, section 8): how far the card column's ground stands out past the cards' sides, and below the column's foot: the same 4 and 4 as LAST CHANCE's
+ * (lastChancePicker.ts GROUND_SIDE and GROUND_FOOT; tests/backdrop2.ground.test.ts pins them equal; they are not imported so this picker keeps no dependency on LAST CHANCE's screen). The open card's
+ * ring is one px outside its card, so both are at least 1; 4 puts the ring on the panel's first fill column and row (bevel2's frame and bevel take the 3 px before it).
+ */
+export const PICK_GROUND_SIDE = 4;
+export const PICK_GROUND_FOOT = 4;
+
+/**
+ * BACKDROP-2 (REQ-BFG-058; BACKDROP-1's report, section 8): the one solid ground under the dawn picker's column. The picker's scrim (draw: ink at 0.86) is not opaque, so every gap in the column
+ * showed the build screen behind it, dimmed: the 7 px between two cards (GAP), the 9 px between the last card and the YOUR RUNES tray, and the bevel band between the title plate and the first card
+ * (cut pieces of the shop row and the ship's outline). The ground is ONE "dark" panel (the cards' own look; ui.ts panel) from the title plate's top (pickHead.ts titlePlate: the plate and the ground read
+ * as one ground, no seam or frame line under the title block) to the foot of the column's last element, PICK_GROUND_SIDE px wider than the column on each side and PICK_GROUND_FOOT px under the foot, clamped
+ * inside the screen (on a tight screen `top` is 4, which puts the plate's top 2 px above it, and the column may run past H). The column is the plate, every card and the held-runes tray (the tray has
+ * the cards' x and width: pickLayout), so the foot is the tray's, or the last card's with none held (`L.bottom`). It holds the plate, every card (the open card's ring too) and the tray. Drawn after the
+ * scrim and before the title's text, the cards and the tray (draw), in place of drawTitlePlate. Pure (draw, tests); nothing of the layout moves.
+ */
+export function pickGround(W: number, H: number, L: Pick<PickLayout, "top" | "cardW" | "cards" | "tray" | "bottom">): Rect {
+  const p = titlePlate(W, L.top, L.cardW);
+  let x0 = p.x, x1 = p.x + p.w, y1 = Math.max(p.y + p.h, L.bottom);
+  for (const c of L.tray ? [...L.cards, L.tray] : L.cards) {
+    x0 = Math.min(x0, c.x);
+    x1 = Math.max(x1, c.x + c.w);
+    y1 = Math.max(y1, c.y + c.h);
+  }
+  x0 = Math.max(0, x0 - PICK_GROUND_SIDE);
+  x1 = Math.min(W, x1 + PICK_GROUND_SIDE);
+  const y0 = Math.max(0, p.y);
+  y1 = Math.min(H, y1 + PICK_GROUND_FOOT);
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
 /** The picker's state on one build screen. */
@@ -233,7 +265,7 @@ export class RunePicker {
     g.globalAlpha = 1;
     ui.add({ id: "runepick", r: { x: 0, y: 0, w: W, h: H }, block: true });
     const cx = Math.round(W / 2);
-    drawTitlePlate(g, W, L.top, L.cardW); // TXT-AZ (REVIEW-STAGE097 R5): as the LAST CHANCE picker's, one plate for both
+    panel(g, pickGround(W, H, L), "dark"); // TXT-AZ (REVIEW-STAGE097 R5): a clean ground under the title, its line and the hint, as the LAST CHANCE picker's; BACKDROP-2: and under every card, gap and the YOUR RUNES tray (pickGround: the plate grown down the column), in place of drawTitlePlate
     drawText(g, PICK_TITLE, cx, L.top, C.yellow, { align: "center", outline: C.ink });
     const [a, b] = pickDawn(o.day, o.tier);
     const dw = textWidth(a + b);

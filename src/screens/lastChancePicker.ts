@@ -19,7 +19,7 @@ import { panel, type Rect } from "../ui/ui";
 import { drawInfoMarkIn } from "../ui/infoGlyph"; // POLISH-2 (REQ-BFG-089; Q3): the one ⓘ mark
 import { colourize, drawRich, wrapRich, type RichLine } from "../ui/richText";
 import { faceLines } from "../ui/faces";
-import { drawTitlePlate } from "./pickHead"; // TXT-AZ (REQ-BFG-073; REVIEW-STAGE097 R5): the title block on the cards' panel
+import { titlePlate } from "./pickHead"; // TXT-AZ (REQ-BFG-073; REVIEW-STAGE097 R5): the title block's plate; BACKDROP-1: lcGround starts at its top (the ground is that plate grown down the column, drawn here, no longer drawTitlePlate)
 import { plainRigStats } from "../ui/faces"; // CARD-2 (REQ-BFG-084, K6): the plain rigs' faces (SHAPES-1 x c099-card3, RUN5 2: isPlainRig)
 import { plainNotes } from "../ui/faces"; // PLAIN-1F (REQ-BFG-089, M3): the PART card's NOTES lead (was isPlainRig ? RIG_SENTENCE)
 import { statRow } from "../ui/icons"; // CARD-2 (K6)
@@ -223,6 +223,36 @@ export function lcLayout(W: number, H: number, hs: readonly number[]): LcLayout 
     y += h + (i < hs.length - 1 ? GAP : 0);
   });
   return { top, cardW, cards, infos, bottom: y };
+}
+
+/**
+ * BACKDROP-1 (REQ-BFG-073; BUMP-1G run 5's review, item 4): how far the card column's ground stands out past the cards' sides, and below the last card's foot. The open card's ring is one
+ * px outside its card, so both are at least 1; 4 puts the ring on the panel's first fill column and row (bevel2's frame and bevel take the 3 px before it).
+ */
+export const GROUND_SIDE = 4;
+export const GROUND_FOOT = 4;
+
+/**
+ * BACKDROP-1 (REQ-BFG-073; BUMP-1G run 5's review, item 4): the one solid ground under the card column. The picker's scrim (draw: ink at 0.86) is not opaque, so every gap between two
+ * cards (GAP, 7 px) showed the build screen behind it, dimmed, with its words cut across the gap (the next battle's rival name, half in the gap between the PART and HULL cards). The ground
+ * is ONE "dark" panel (the cards' own look; ui.ts panel) from the title plate's top (pickHead.ts titlePlate: the plate and the ground read as one ground, no seam or frame line under the
+ * title block) to the last card's foot, GROUND_SIDE px wider than the cards on each side and GROUND_FOOT px under the foot, clamped inside the screen (the Gmin layout's `bottom` can reach
+ * H; a tight screen's `top` of 4 puts the plate's top 2 px above it). It holds the plate and every card, the open card's ring too. Drawn after the scrim and before the title's text and
+ * the cards (draw), in place of drawTitlePlate. Pure (draw, tests); nothing of the layout moves.
+ */
+export function lcGround(W: number, H: number, L: Pick<LcLayout, "top" | "cardW" | "cards" | "bottom">): Rect {
+  const p = titlePlate(W, L.top, L.cardW);
+  let x0 = p.x, x1 = p.x + p.w, y1 = Math.max(p.y + p.h, L.bottom);
+  for (const c of L.cards) {
+    x0 = Math.min(x0, c.x);
+    x1 = Math.max(x1, c.x + c.w);
+    y1 = Math.max(y1, c.y + c.h);
+  }
+  x0 = Math.max(0, x0 - GROUND_SIDE);
+  x1 = Math.min(W, x1 + GROUND_SIDE);
+  const y0 = Math.max(0, p.y);
+  y1 = Math.min(H, y1 + GROUND_FOOT);
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
 /** The ⓘ button in its box: the one mark of every info button (ui/infoGlyph.ts: the 5x7 face's `?`, the glyph keywords.ts drawInfoGlyph draws on a part's panel),
@@ -470,7 +500,7 @@ export class LastChancePicker {
     // CARD-2 (K2): a press anywhere off the RUNE card's words closes a word's definition (the regions over it close it too)
     ui.add({ id: "lcpick", r: { x: 0, y: 0, w: W, h: H }, block: true, onTap: () => { if (!this.eat()) this.word = null; } });
     const cx = Math.round(W / 2);
-    drawTitlePlate(g, W, L.top, L.cardW); // TXT-AZ (REVIEW-STAGE097 R5): a clean ground under the title, its line and the hint
+    panel(g, lcGround(W, H, L), "dark"); // TXT-AZ (REVIEW-STAGE097 R5): a clean ground under the title, its line and the hint; BACKDROP-1: and under every card and gap (lcGround: the plate grown down the column), in place of drawTitlePlate
     drawText(g, LC_TITLE, cx, L.top, C.yellow, { align: "center", outline: C.ink });
     const lcl = lcLineFit(lcLine(s.run), L.cardW - 6); // POLISH-3 (REQ-BFG-087): the line steps down to the 3x5 face where its 5x7 width would pass the plate (280x653, 300x640)
     drawText(g, lcl.text, cx, L.top + 11 + (lcl.small ? 1 : 0), C.lime, lcl.small ? { font: "3", align: "center" } : { align: "center" }); // RETUNE-1 run 2: a hearts run's words
