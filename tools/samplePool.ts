@@ -903,15 +903,15 @@ export function baseSamplePool(o: { botRunes?: boolean } = {}): GhostSnapshot[] 
  * R2), a CURVE-on pool holds no new ghost.
  * With the switch off none of this is read: every generator writes the files it wrote at bb-0.14.0.
  */
-/** BUMP-1H H1 (b): slot 1's target on the CASUAL grade (permille). P3's V0 reads 500 (V0' 600, once, if c5 reads under 26%). */
+/** BUMP-1H H1 (b): slot 1's target on the CASUAL grade (permille). 500 = V0's (RULING-BUMP1H-R1 R1.2, R2.4: 400 (G) and 600 (V0') read worse; the take's K 96 read in section 5.1 of the REPORT). */
 export const CASUAL_TARGET = 500;
-/** BUMP-1H H1 (c): the streak tier's target on the PAR grade (permille). P3's variants: A and B 300, C and D 450. */
-export const STREAK_TARGET = 300;
-/** BUMP-1H: the streak tier's first day (a run needs a win in hand to be on a streak). */
-export const STREAK_FIRST_DAY = 2;
-/** BUMP-1H (run 2; RULING-BUMP1H-R2 R2.4's reads K and L): the streak tier's last day. 16 = the pool's last day (the tier runs to the end, as in run 1's reads A-J); a variant that
- *  stops earlier sets it lower (c5's near-winners meet the late streak ghosts, par's weak runs too: the one place the two cannot be told apart by record). */
-export const STREAK_LAST_DAY = 16;
+/** BUMP-1H H1 (c): the streak tier's target on the PAR grade (permille). THE TAKE (RULING-BUMP1H-R1 R1.4 (2), R1.5): 450 (C, D, I read the same target from days 2 and 5; run 2's k1n takes it on days 6-12 with no lead). */
+export const STREAK_TARGET = 450;
+/** BUMP-1H: the streak tier's first day (a run needs a win in hand to be on a streak). THE TAKE: 6 (day 5's ghost met c5's 4-0 runs 59 times in 192 and beat them 75-86%: H, I; RULING-BUMP1H-R1 R1.3 dropped days 2-4 already). */
+export const STREAK_FIRST_DAY = 6;
+/** BUMP-1H (run 2; RULING-BUMP1H-R2 R2.4): the streak tier's last day. THE TAKE: 12. 16 = the pool's last day (the tier runs to the end, as in run 1's reads A-J); c5's near-winners meet the late streak
+ *  ghosts (days 13-16, 9 wins and the 10th win to play) and par's weak runs meet the same ghosts there: the one place the two cannot be told apart by record, so the tier stops at day 12. */
+export const STREAK_LAST_DAY = 12;
 /** BUMP-1H: seedGhost's variant number of a streak ghost and of a depth ghost (the sample ghosts hold 0 and 1, the floor ghost FLOOR_VARIANT, 2). */
 export const STREAK_VARIANT = 3;
 export const DEPTH_VARIANT = 4;
@@ -923,12 +923,18 @@ export const STREAK_RECORDS: Readonly<Record<number, readonly [number, number]>>
   // undefeated record up to day 10 (1-0 x156 of 192 on day 2, 4-0 x104 on day 5, 6-0 x76 on day 7, 9-0 x70 on day 10), then 9 wins with the losses a long run holds (9-1 x21 on
   // day 11, 9-2 x14 on day 12, 9-3 x8 on day 13, 9-4 x8 on day 14, 9-5 x5 on day 15, 9-6 x4 on day 16; a run ghost is a dusk before its 10th win). Days 2-4 hold no record `lead.at`
   // ahead (at 4 first from day 5): their ghosts meet the runs of their own record through the nearest-record pick alone.
+  // BUMP-1H run 2, THE TAKE (RULING-BUMP1H-R1 R1.4 (2), R1.5): the tier deals days STREAK_FIRST_DAY..STREAK_LAST_DAY = 6-12 (5-0 .. 9-0, 9-1, 9-2) and PICK_RULE has NO lead (the lead cost c5 1.7 points
+  // for every par point in v0L against V0, the slots alone 1 for 1: k1n against V0), so these ghosts meet the runs of their own record through the nearest-record pick alone. The rows of days 2-5 and 13-16 are par's
+  // modal records kept as data (a variant that moves the tier's days reads them); nothing deals them.
   2: [1, 0], 3: [2, 0], 4: [3, 0], 5: [4, 0], 6: [5, 0], 7: [6, 0], 8: [7, 0], 9: [8, 0], 10: [9, 0], 11: [9, 1], 12: [9, 2], 13: [9, 3], 14: [9, 4], 15: [9, 5], 16: [9, 6],
 };
 
 /** BUMP-1H H1 (c): the depth slots, [day, wins, dusks lost] each (the record is drawnLabel's, as a sample ghost's): c5's busiest (day, record)
- *  matchups (P3). Empty until P3's take. At most 24. */
-export const DEPTH_SLOTS: readonly (readonly [number, number, number])[] = [];
+ *  matchups (P3). At most 24. THE TAKE (RULING-BUMP1H-R1 R1.5): V0's 13 slots (c5's TABLE 2 walls with their exact records: d3 1-1, d4 1-2, d6 1-3, d8 2-4, d9 4-4, d11 1-6, d13 4-1 twice, d14 5-7, d15 8-6
+ *  twice, d16 8-6 twice) plus (11, 4, 1) (V0's d11 weaver-1 wall, 48% of the day, c5 lost 64%): 14. The pool's slot index is this order. */
+export const DEPTH_SLOTS: readonly (readonly [number, number, number])[] = [
+  [3, 1, 1], [4, 1, 2], [6, 1, 3], [8, 2, 4], [9, 4, 4], [11, 1, 6], [13, 4, 1], [13, 4, 1], [14, 5, 7], [15, 8, 6], [15, 8, 6], [16, 8, 6], [16, 8, 6], [11, 4, 1],
+];
 
 /** BUMP-1H: the streak picks, per hero, one per day STREAK_FIRST_DAY.. (index day - STREAK_FIRST_DAY): empty until P4's step R2 pastes the rule's rows. */
 export const STREAK_PICKS: Readonly<Record<string, readonly string[]>> = {};

@@ -87,6 +87,9 @@ export interface PickRule {
 /** The tuned numbers: RULING-S8-R8's V4, re-tuned on the regenerated pool (B/output-s8/bench/bands-r8.md). Was
  *  { losing: 1, deep: 0.667, deepAt: 3 } (output-retune1/bench c5E-allon; RETUNE-1's REPORT section 4). */
 export const PICK_RULE: Readonly<PickRule> = { losing: 1, deep: 0.5, deepAt: 2 };
+// BUMP-1H run 2, P3's TAKE (RULING-BUMP1H-R1 R1.4 (2), R1.5 "PICK_RULE.lead: none if J's shape wins"): PICK_RULE has NO `lead` in bb-0.15.0. The lead pick (the code above, gated by LEAD_RULES and CURVE) stays
+// coded and unused, as it was at bb-0.14.0: on the K 48 reads the lead cost c5 1.7 points for every point it took off par (v0L against V0: c5 24.5 -> 19.3, par 87.5 -> 84.4), the streak
+// tier's slots alone 1 for 1 (k1n against V0: c5 24.5 -> 21.9, par 87.5 -> 84.9). The streak ghosts meet the runs of their own record through the nearest-record pick (days 6-12).
 
 /** The seed step's grade: the par fields' first GRADE_K members a hero, GRADE_SEEDS seeds from both sides (cap's answer 5:
  *  the bench was read with K 6 x 1 seed, so the pick ships as measured). */

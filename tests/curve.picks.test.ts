@@ -38,12 +38,14 @@ describe("BUMP-1H CURVE: the pool's new slots (shape; no battles)", () => {
   it("the slot indexes continue generateSamplePool's order: 192 ghosts (4 heroes x 3 slots x 16 days), then the streak ghosts hero by hero and day by day, then the depth ghosts", () => {
     withLongRun(() => {
       expect(poolDepth()).toBe(LONG_RUN_GEN_DAYS);
+      // BUMP-1H run 2, THE TAKE: the tier is days 6-12 (STREAK_FIRST_DAY..STREAK_LAST_DAY, 7 days a hero, 28 ghosts); was: days 2-16 (15 days a hero, 60 ghosts: 192 + 14, 192 + 15, 192 + 3 * 15 + 14, 192 + 60, 192 + 60 + 5)
+      expect([STREAK_FIRST_DAY, STREAK_LAST_DAY]).toEqual([6, 12]);
       expect(streakSlot("furnace", STREAK_FIRST_DAY)).toBe(192);
-      expect(streakSlot("furnace", 16)).toBe(192 + 14);
-      expect(streakSlot("weaver", 2)).toBe(192 + 15);
-      expect(streakSlot("bastion", 16)).toBe(192 + 3 * 15 + 14);
-      expect(depthSlot(0)).toBe(192 + 60);
-      expect(depthSlot(5)).toBe(192 + 60 + 5);
+      expect(streakSlot("furnace", STREAK_LAST_DAY)).toBe(192 + 6);
+      expect(streakSlot("weaver", 6)).toBe(192 + 7);
+      expect(streakSlot("bastion", 12)).toBe(192 + 3 * 7 + 6);
+      expect(depthSlot(0)).toBe(192 + 28);
+      expect(depthSlot(5)).toBe(192 + 28 + 5);
     });
   });
 
@@ -82,8 +84,10 @@ describe("BUMP-1H CURVE: the pool's new slots (shape; no battles)", () => {
       }
       for (const [day, row] of Object.entries(STREAK_RECORDS)) expect(row[0] + row[1], `day ${day}`).toBe(Number(day) - 1);
     });
-    expect(typeof CASUAL_TARGET).toBe("number");
-    expect(typeof STREAK_TARGET).toBe("number");
+    // BUMP-1H run 2, THE TAKE (RULING-BUMP1H-R1 R1.4 (2), R1.5; the REPORT's section 5.1): casual 500, streak 450 on days 6-12, V0's 13 depth slots plus (11, 4, 1); was: no constants (the tables were empty, the targets the screens' first reads)
+    expect([CASUAL_TARGET, STREAK_TARGET]).toEqual([500, 450]);
+    expect(DEPTH_SLOTS).toHaveLength(14);
+    expect(DEPTH_SLOTS[13]).toEqual([11, 4, 1]);
     expect(STREAK_LAST_DAY).toBeGreaterThanOrEqual(STREAK_FIRST_DAY); // BUMP-1H run 2: the tier's days are STREAK_FIRST_DAY..STREAK_LAST_DAY (16 = to the pool's last day)
     expect(STREAK_LAST_DAY).toBeLessThanOrEqual(LONG_RUN_GEN_DAYS);
     expect(SOFT1_CURVE).toBe(false); // BUMP-1H P1: SOFT1_PICKS is bb-0.14.0's (slot 1 par-graded); P4's step R2 re-reads it under CURVE and sets this true
