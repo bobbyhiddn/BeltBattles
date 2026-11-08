@@ -50,7 +50,7 @@ import type { Block, PLine, PanelPlan, PanelText } from "./inspector";
 import { levelLines, levelSpans, type LevelLine } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS
 import { fusible } from "../../sim/stars"; // U2e step 5
 import type { BuildLayout } from "./layout"; // U2f: the room the ⓘ view grows into (infoFree)
-import { GAP } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between the ⓘ view's entries
+import { GAP, headDy } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between the ⓘ view's entries; POLISH-4 (P4-1): where a family head sits under a two-row title
 import { plainSlugRig } from "../../ui/faces"; // EXPLAIN-1 (REQ-BFG-084 step 0b, E9): HIT on the plain rigs' KEYWORDS (SHAPES-1: isPlainRig; PLAIN-1F M3: plainSlugRig)
 import { RIG_SENTENCE, faceLines } from "../../ui/faces"; // CARD-2 (REQ-BFG-004, K1): the rig sentence on the first rig
 import { rigSeen, sawRig, sawWord, sightsLeft, sightWord } from "../../ui/firstSight"; // CARD-2 (K1): the first-sight notes
@@ -307,10 +307,12 @@ export function keywordTargets(lines: readonly { line: PLine | "rule"; y: number
  * names (3x5), each name; where only the marks fit, each 3x3 mark. Each glyph grown to a 7 px pitch (the header's), inside
  * the panel (1 px in from its frame) and clear of `avoid` (the buttons' grown rects and the ⓘ button's), its middle in its
  * target; its key is "<TAG> FAMILY", apart from the PLATE keyword's. Pure (drawKeywordLayer, tests).
+ * POLISH-4 (REQ-BFG-089; P4-1): the head's place is drawFamHead's, under a two-row title and beside the last of three or more sub rows too (`dy`, spacing.ts headDy).
  */
-export function familyTargets(plan: Pick<PanelPlan, "r" | "famHead">, avoid: readonly Rect[] = []): KwTarget[] {
+export function familyTargets(plan: Pick<PanelPlan, "r" | "famHead"> & Partial<Pick<PanelPlan, "titleRows">>, avoid: readonly Rect[] = []): KwTarget[] {
   const fh = plan.famHead, r = plan.r;
   if (!fh) return [];
+  const dy = headDy(plan);
   const within = { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, out: KwTarget[] = [];
   const push = (tag: ModuleTag, glyph: Rect) => {
     let q: Rect | null = clamp(grow({ x: glyph.x - 1, y: glyph.y, w: glyph.w + 2, h: glyph.h }, 7, 7), within);
@@ -324,7 +326,7 @@ export function familyTargets(plan: Pick<PanelPlan, "r" | "famHead">, avoid: rea
     // drawFamHead: `FORGE FAMILY` or `FAMILIES: FORGE, TEMPO` in 3x5 (PRESENT-2 W (b); was "FORGE, TEMPO"), under the sub line (x + 23, y + 19), or
     // right-aligned on the sub line's second row (y + 19) or the title's (y + 5)
     const parts = famHeadParts(fh.tags, !!fh.explained), words = parts.names, text = famHeadText(fh.tags, !!fh.explained), x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - textWidth(text, "3"); // CARD-3
-    const y0 = r.y + (fh.at === "title" ? 5 : 19);
+    const y0 = r.y + dy + (fh.at === "title" ? 5 : 19);
     if (fh.tags.length === 1) {
       // one family: the whole head is its target (`FORGE FAMILY`: a tap on either word opens the note, whose key is `FORGE FAMILY`; the plain `FORGE`: the name)
       push(fh.tags[0], { x: x0, y: y0, w: textWidth(text, "3"), h: GLYPH_H["3"] });
@@ -338,7 +340,7 @@ export function familyTargets(plan: Pick<PanelPlan, "r" | "famHead">, avoid: rea
   }
   // drawFamHead's marks: 3x3 each, 4 px apart, from (x + 23, y + 20) under the sub line, else right-aligned (y + 6 by the
   // title, y + 20 by the sub line's second row)
-  const x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - (fh.tags.length * 4 - 1), y0 = r.y + (fh.at === "title" ? 6 : 20);
+  const x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - (fh.tags.length * 4 - 1), y0 = r.y + dy + (fh.at === "title" ? 6 : 20);
   fh.tags.forEach((tag, i) => push(tag, { x: x0 + i * 4, y: y0, w: 3, h: 3 }));
   return out;
 }

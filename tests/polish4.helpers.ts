@@ -7,7 +7,9 @@ import { battleLayout, battleScale, laneLayout, battleGrid } from "../src/game/b
 import { viewWithSub } from "../src/game/viewGrid";
 import { faceArea } from "../src/screens/battleScout";
 import { tapPx } from "../src/ui/tap";
-import type { Rect } from "../src/ui/ui";
+import { UI, type Rect } from "../src/ui/ui";
+import type { Game } from "../src/game/game";
+import { fresh } from "./raster.helpers";
 
 export const VIEWS13 = {
   "desk-1920x1080": [1920, 1080, 1], "laptop-1366x768": [1366, 768, 1], "desk-1280x800": [1280, 800, 1], "land-844x390": [844, 390, 3], "op-402x690": [402, 690, 3], "phone-360x640": [360, 640, 3],
@@ -20,6 +22,12 @@ export const VIEW13_NAMES = Object.keys(VIEWS13) as View13[];
 export const LANDSCAPE_PHONES: View13[] = ["land-812x375@3", "pixel5-851x393@2.75", "land-915x412@2.625", "promax-926x428@3"];
 
 const pickSub = (pw: number, ph: number, p: boolean, scale: number): number => { const g = battleGrid(pw, ph, p); return g.close === scale ? g.sub : 1; };
+/** A view's screen and a Game stub holding what BattleFaces.drawOn reads (the view, a UI, a canvas of the logical screen's size). */
+export function gameAt(name: View13): { v: ReturnType<typeof viewWithSub>; game: Game } {
+  const [w, h, dpr] = VIEWS13[name];
+  const v = viewWithSub(w, h, dpr, (pw, ph, p) => battleScale(pw, ph, p), pickSub);
+  return { v, game: { view: v, ui: new UI(), canvas: fresh(v.W, v.H), t: 0, W: v.W, H: v.H, portrait: v.portrait } as unknown as Game };
+}
 const cache = new Map<string, { fa: { area: Rect; band: boolean }; tp: number }>();
 /** A view's face area and finger target for a side's faces (0: yours, 1: the foe's), as BattleFaces.draw reads them. */
 export function viewAt(name: View13, side: 0 | 1 = 0): { fa: { area: Rect; band: boolean }; tp: number } {

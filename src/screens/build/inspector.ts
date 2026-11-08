@@ -126,7 +126,7 @@ import { salvoSpeed } from "../../sim/cores"; // Y1: SALVO RACK's volley pace, i
 import { statRow } from "../../ui/icons"; // U2c step 4
 import { fmtClock, fmtCount, fmtDmg, fmtReadPct } from "../../ui/statFormat"; // U2c step 4; NUM-4: the estimate, whole
 import { icons } from "../../render/font"; // U2c step 4
-import { GAP, GAP_MIN } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between a panel's separate items
+import { GAP, GAP_MIN, TITLE_ROW_DY, headDy } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between a panel's separate items; POLISH-4 (P4-1): the pitch of a two-row title, where the family head sits under it
 import { hintShows } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a hint shows until its first-run tip is done
 import { turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' kind lines (PLAIN-1F M3: the rig sentence comes through plainNotes)
 import { shapeNotes } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-089): the shaped rigs' NOTES
@@ -1549,7 +1549,7 @@ export function fitTitle(g: G, t: Pick<PanelText, "title" | "color" | "ench">, x
   }
 }
 
-/** POLISH-3 (REQ-BFG-087; Q2 (a)): a foe's face title on the two 3x5 rows planOnce gave it (PanelPlan.titleRows): row 1 at y + 1 and row 2 six px under it (the 3x5 title's own offset and the sub rows'
+/** POLISH-3 (REQ-BFG-087; Q2 (a)): a foe's face title on the two 3x5 rows planOnce gave it (PanelPlan.titleRows): row 1 at y + 1 and row 2 TITLE_ROW_DY (6) px under it (the 3x5 title's own offset and the sub rows'
  *  pitch), in fitTitle's colours: an enchanted piece's word first in its colour, the rest of the title in the piece's. The words are the title's, whole: nothing is cut. */
 export function fitTitleRows(g: G, t: Pick<PanelText, "title" | "color" | "ench">, x: number, y: number, rows: readonly [string, string]): void {
   const [word, name] = titleSpans(t);
@@ -1559,7 +1559,7 @@ export function fitTitleRows(g: G, t: Pick<PanelText, "title" | "color" | "ench"
     const at = Math.max(0, Math.min(row.length, wordLen - from));
     let cx = x;
     for (const [txt, c] of [[row.slice(0, at), word.c], [row.slice(at), t.ench ? name.c : t.color]] as const) {
-      if (txt) cx += drawText(g, txt, cx, y + 1 + 6 * k, c, { font: "3", outline: C.ink }) + 1;
+      if (txt) cx += drawText(g, txt, cx, y + 1 + TITLE_ROW_DY * k, c, { font: "3", outline: C.ink }) + 1;
     }
     from += row.length + 1;
   });
@@ -1658,8 +1658,10 @@ export interface PanelPlan {
   headerOnly: { lines: string[]; colour: string } | null;
   /** 0.8.0 I1 M4: the module's families in the header: named under the sub line ("sub"), or right-aligned on the row of
    *  the sub line's second line ("sub2") or of the title ("title"), named or (where the names don't fit) as their marks;
-   *  null when none is given or the header has no room. */
-  famHead: { at: "sub" | "sub2" | "title"; tags: ModuleTag[]; names: boolean; explained?: boolean } | null;
+   *  null when none is given or the header has no room.
+   *  POLISH-4 (REQ-BFG-089; P4-1): under a two-row title (`titleRows`) the head sits TITLE_ROW_DY lower, like the sub rows (drawFamHead, familyTargets); a head beside a sub of three or more rows (a foe's: the owner's row, then the
+   *  broken sub) sits beside the LAST row: `row`, that row's index (absent for the sub's second row, as before). */
+  famHead: { at: "sub" | "sub2" | "title"; tags: ModuleTag[]; names: boolean; explained?: boolean; row?: number } | null;
   /** SPACE-1 (REQ-BFG-087): the gaps between the body's separate items, laid after the body's plan (which is exactly as
    *  without them) from the room it leaves: `before[i]`, the gap slots before body line i (gapSlots); `slots`, their sum;
    *  `px`, each slot's gap (all alike: `G` where the room holds it, less where it doesn't, 0 with no room or a cut);
@@ -1888,7 +1890,7 @@ function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: 
   // the column's text room in the 3x5 face too breaks at a space onto a second 3x5 row (`RISING RAMPART` / `CANNON ★`); the header takes that row's 6 px (`shift`) and the body starts under it.
   // POLISH-3b (P1): the same for every battle face (`wrap`): your own parts' faces too. Every other panel, the build screen's desk column included (tests/enchant1.faces.test.ts :765), is as before.
   const titleRows = column && wrap && textWidth(sp.title) > area.w - 27 && textWidth(sp.title, "3") > area.w - 27 ? wrapAt(sp.title, area.w - 27) : null;
-  const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 + 6 * (subs.length - 2) : 0) + (titleRows ? 6 : 0); // a third sub line (the owner's, then a broken sub) takes its 6 px more
+  const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 + 6 * (subs.length - 2) : 0) + (titleRows ? TITLE_ROW_DY : 0); // a third sub line (the owner's, then a broken sub) takes its 6 px more
   const extra = labels.length ? btnRows * pitch + 3 : 4;
   const headRight = !column && port && !port.shift ? port.rects[0].x - 3 : area.x + area.w - 4;
   const subMax = headRight - (area.x + 23);
@@ -1909,18 +1911,22 @@ function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: 
   const explainedW = textWidth(famHeadText(tags), "3"); // PRESENT-2 W (b): the head says what the names are (`FORGE FAMILY`, `FAMILIES: FORGE, TEMPO`) where that fits the same place
   const titleFree = column || !labels.length || !!port?.shift;
   const beside = (text: string, font: FontId, free: boolean, gap = 6) => (w: number) => free && 23 + textWidth(text, font) + gap + w <= area.w - 4;
-  const bySub2 = beside(subs[1] ?? "", "3", column && subs.length === 2), byTitle = beside(sp.title, "5", titleFree);
+  // POLISH-4 (REQ-BFG-089; P4-1): beside the LAST sub row, not only the second: a foe's sub is three rows (the owner's, then `HEAVY TURRET IN` / `SLOT 1`) and had no row to hold the head
+  const bySub2 = beside(subs[subs.length - 1] ?? "", "3", column && subs.length >= 2), byTitle = beside(sp.title, "5", titleFree);
   // 0.8.0 B1 M4 (VERIFIED-I1 call 7): the last resort, the marks right of the title with only its outline and one clear
   // pixel between (I1's rule: a clear pixel all round). DRAG CHAIN FOUNDRY at 3 stars on the phone (its 125 px title, the
   // buttons under the sub line) had no place at all
   const byTitleTight = beside(sp.title, "5", titleFree, 2);
-  const underSub = subs.length === 1 && !shift;
-  const famHead0: PanelPlan["famHead"] = !tags.length || strip || area.h < 28 || titleRows ? null // POLISH-3: a two-row title has no place for the head (no title cut with a dot carries one at 1920x1080)
+  // POLISH-4 (REQ-BFG-089; P4-1): a two-row title takes its TITLE_ROW_DY of `shift` and no more: a head under a one-row sub is drawn that much lower (drawFamHead), so a battle face keeps its family head under two title rows
+  // (POLISH-3 gave it none: REVIEW-POLISH3 N6, REVIEW-POLISH3B N7); the ladder runs as for any other panel (the title place never holds: a title wider than the column breaks, so no head sits beside it)
+  const underSub = subs.length === 1 && shift === (titleRows ? TITLE_ROW_DY : 0);
+  const row = subs.length > 2 ? { row: subs.length - 1 } : {}; // beside the last of three or more sub rows (absent for the second, as before)
+  const famHead0: PanelPlan["famHead"] = !tags.length || strip || area.h < 28 ? null
     : underSub && !body.tight && namesW <= area.w - 27 ? { at: "sub", tags, names: true }
-    : bySub2(namesW) ? { at: "sub2", tags, names: true }
+    : bySub2(namesW) ? { at: "sub2", tags, names: true, ...row }
     : byTitle(namesW) ? { at: "title", tags, names: true }
     : underSub && marksW <= area.w - 27 ? { at: "sub", tags, names: false }
-    : bySub2(marksW) ? { at: "sub2", tags, names: false }
+    : bySub2(marksW) ? { at: "sub2", tags, names: false, ...row }
     : byTitle(marksW) || byTitleTight(marksW) ? { at: "title", tags, names: false }
     : null;
   // PRESENT-2 W (b) (cap's ruling 7d5006c5f3ca852f): one ladder a head, per view: the explained words (`FORGE FAMILY`, `FAMILIES: FORGE, TEMPO`) where they fit the place the plain names
@@ -2464,17 +2470,20 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
  *  its family's colour (the commas slate4) under the sub line at (x+23, y+19), or right-aligned 4 px in from the panel's
  *  right edge on the sub line's second row (y+19) or the title row (y+5); where the names don't fit, their 3x3 marks
  *  (the card's own, 4 px apart): under the sub line at (x+23, y+20), or right-aligned on those rows (y+20 or y+6).
+ *  POLISH-4 (REQ-BFG-089; P4-1): under a two-row title (`titleRows`) every row of the sub is TITLE_ROW_DY lower, and so is a head under it or beside it (not one beside the title); a head beside the LAST of three or more sub rows
+ *  (`famHead.row`) sits 6 px (the sub rows' pitch) lower for each row past the second. headDy (src/ui/spacing.ts) is the one place both numbers are added: keywords.ts familyTargets uses it too.
  *  Nothing without a famHead. Exported for the tests. */
-export function drawFamHead(g: G, plan: Pick<PanelPlan, "r" | "famHead">): void {
+export function drawFamHead(g: G, plan: Pick<PanelPlan, "r" | "famHead"> & Partial<Pick<PanelPlan, "titleRows">>): void {
   const fh = plan.famHead, r = plan.r;
   if (!fh) return;
+  const dy = headDy(plan);
   if (fh.names) {
     const spans = famHeadSpans(fh.tags, C.slate4, !!fh.explained); // CARD-3 (REQ-BFG-107): the player's tags; PRESENT-2 W (b): `FORGE FAMILY`, `FAMILIES: FORGE, TEMPO` where the explained words fit
-    if (fh.at === "sub") drawRich(g, spans, r.x + 23, r.y + 19, "3");
-    else drawRich(g, spans, r.x + r.w - 4 - lineWidth(spans, "3"), r.y + (fh.at === "sub2" ? 19 : 5), "3");
+    if (fh.at === "sub") drawRich(g, spans, r.x + 23, r.y + 19 + dy, "3");
+    else drawRich(g, spans, r.x + r.w - 4 - lineWidth(spans, "3"), r.y + dy + (fh.at === "sub2" ? 19 : 5), "3");
     return;
   }
-  const x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - (fh.tags.length * 4 - 1), y0 = r.y + (fh.at === "title" ? 6 : 20);
+  const x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - (fh.tags.length * 4 - 1), y0 = r.y + dy + (fh.at === "title" ? 6 : 20);
   fh.tags.forEach((tag, i) => drawFamilyMark(g, tag, x0 + i * 4, y0));
 }
 

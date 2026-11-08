@@ -132,7 +132,7 @@ describe("POLISH-3 Q2 (a): at 1920x1080 no face's title or sub is cut with a dot
 
   it("the header takes the rows it grew by (shift), and the body starts under the last sub row with the same clear rows as every header", () => {
     const { faces } = corpus("desk-1920x1080");
-    let n = 0;
+    let n = 0, heads = 0;
     for (const f of faces) {
       const p = f.p, subShift = p.subs.length > 1 ? 4 + 6 * (p.subs.length - 2) : 0;
       expect(p.shift, f.tag).toBe(subShift + (p.titleRows ? 6 : 0));
@@ -141,9 +141,15 @@ describe("POLISH-3 Q2 (a): at 1920x1080 no face's title or sub is cut with a dot
       const lastSubEnd = p.r.y + 13 + (p.titleRows ? 6 : 0) + 6 * (p.subs.length - 1) + 5;
       expect(p.y - lastSubEnd, `${f.tag}: clear rows between the header and the body`).toBeGreaterThanOrEqual(3);
       expect(p.r.y + p.r.h, `${f.tag}: the panel is inside the column`).toBeLessThanOrEqual(f.p.r.y + f.p.r.h);
-      if (p.titleRows) { n++; expect(p.famHead, `${f.tag}: a two-row title has no family head`).toBeNull(); }
+      if (p.titleRows) {
+        n++;
+        // POLISH-4 (P4-1, cap's ruling 1: patch 1 + 1c): POLISH-3 gave a two-row title no family head (this asserted null). The foe's sub is three rows (the owner's, then the broken sub), so the head sits beside the LAST row
+        // (famHead.row); 50 of the 92 have the room (the other 42's last row is `FACTORY · BELTS 1/2` or `2/2 ARROWS ON BELTS`, 70-72 px of the 100 px column)
+        if (p.famHead) { heads++; expect(p.famHead.at, f.tag).toBe("sub2"); expect(p.famHead.row ?? 1, `${f.tag}: beside the last sub row (absent: the second)`).toBe(p.subs.length - 1); }
+      }
     }
     expect(n).toBe(92);
+    expect(heads, "the two-row titles that carry a family head (POLISH-4 P4-1)").toBe(50);
   });
 
   it("the wrap is a battle face's: the same text without its `subOwner` planned without planPanel's `wrap` (the build screen's desk column) plans as before, with no title rows (POLISH-3b: an own part's face wraps through facePlan's `wrap`)", () => {

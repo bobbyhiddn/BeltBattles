@@ -32,10 +32,10 @@ const OWN = (): Face[] => faces(false);
 const B8 = ["B frostbite 3 growing", "B frostbite 3 echoing", "B dragchain 2 growing", "B dragchain 2 echoing", "B dragchain 3 rising", "B dragchain 3 growing", "B dragchain 3 echoing", "B dragchain 3 braced"];
 
 describe("POLISH-3b P1: at 1920x1080 no own face is cut with a dot", () => {
-  it("corpus A (2,242 faces) and B (1,809): every title whole (one row, or two 3x5 rows with the star on the second), every sub row within the room with the slot number on the last row, no head under a two-row title", () => {
+  it("corpus A (2,242 faces) and B (1,809): every title whole (one row, or two 3x5 rows with the star on the second), every sub row within the room with the slot number on the last row; POLISH-4 P4-1: a two-row title keeps its family head (A 72 of 92, B 883 of 883)", () => {
     const { fa } = viewOf("desk-1920x1080", 0);
     expect(fa.area.w, "the face column of the 1920x1080 desk").toBe(100);
-    const n = { A: { faces: 0, wrapped: 0, turrets: 0, rows3: 0 }, B: { faces: 0, wrapped: 0, turrets: 0, rows3: 0 } };
+    const n = { A: { faces: 0, wrapped: 0, turrets: 0, rows3: 0, heads: 0 }, B: { faces: 0, wrapped: 0, turrets: 0, rows3: 0, heads: 0 } };
     for (const f of OWN()) {
       const p = drawnOwn(f, "desk-1920x1080"), c = n[f.corpus];
       c.faces++;
@@ -45,7 +45,9 @@ describe("POLISH-3b P1: at 1920x1080 no own face is cut with a dot", () => {
         c.wrapped++;
         expect(p.titleRows.join(" "), `${f.tag}: the title's words, whole`).toBe(f.t.title);
         if (/★+$/.test(f.t.title)) expect(/ ★+$/.test(p.titleRows[1]), `${f.tag}: the star is on the second row (${p.titleRows[1]})`).toBe(true);
-        expect(p.famHead, `${f.tag}: a two-row title has no family head`).toBeNull();
+        // POLISH-4 (P4-1, REVIEW-POLISH3 N6): POLISH-3 gave a two-row title no family head (this line asserted null); it keeps it now, under the sub or beside its second row (tests/polish4.famhead.test.ts has the rest)
+        if (p.famHead) { c.heads++; expect(["sub", "sub2"], `${f.tag}: the head's place under a two-row title`).toContain(p.famHead.at); }
+        else expect(f.fam.length === 0 || p.subs.length > 1, `${f.tag}: no head only where the sub leaves no row for it`).toBe(true);
       }
       if (f.kind === "turret") {
         c.turrets++;
@@ -70,6 +72,8 @@ describe("POLISH-3b P1: at 1920x1080 no own face is cut with a dot", () => {
     expect(n.B.wrapped, "B: the 883 titles that were cut with a dot").toBe(883);
     expect(n.A.turrets).toBe(280);
     expect(n.B.turrets).toBe(312);
+    expect(n.A.heads, "A: the two-row titles that carry a family head (the other 20 are rigs whose two sub rows leave no room)").toBe(72);
+    expect(n.B.heads, "B: every two-row title carries its head").toBe(883);
   });
 
   it("a face changes if and only if its old plan cut a title or a sub with a dot (every other own face is drawn exactly as polish3-accepted drew it); A 322 of 2,242 and B 1,078 of 1,809 change", () => {
@@ -108,7 +112,7 @@ describe("POLISH-3b P1: where nothing was cut, an own face is drawn as before", 
         expect(titleCut(f.t, old), `${name} ${f.tag}: it was cut with a dot`).toBe(true);
         expect(titleCut(f.t, p) || subCut(f, p), `${name} ${f.tag}: and is not now`).toBe(false);
         expect(p.titleRows, `${name} ${f.tag}`).toBeDefined();
-        expect(p.famHead, `${name} ${f.tag}: no head beside a two-row title`).toBeNull();
+        expect(p.famHead, `${name} ${f.tag}: POLISH-4 P4-1: the family head under the two-row title (it had none)`).not.toBeNull();
       }
       expect(differ, name).toEqual(name === "op-402x690" || name === "phone-360x640" ? [] : B8);
     });
@@ -169,9 +173,10 @@ describe("POLISH-3b P1: an own face's header, drawn", () => {
 });
 
 describe("POLISH-3b P1: REQ-BFG-089 and REQ-BFG-087 keep", () => {
-  // REQ-BFG-087: own faces with a gap under min (gaps.px < gaps.min) after, and at polish3-accepted (A: 72 -> 82 and B: 165 -> 132 at 1920x1080; every other view unchanged)
+  // REQ-BFG-087: own faces with a gap under min (gaps.px < gaps.min) after, and at polish3-accepted (A: 72 -> 82 and B: 165 -> 132 at 1920x1080 with POLISH-3b; every other view unchanged).
+  // POLISH-4 (P4-1): B 132 -> 162 at 1920x1080: a family head under a two-row title takes a gap slot, and the gap yields to the head (content first, SPACE-1 D3); the real builds (A) stay at 82.
   const UNDER: Record<ViewName, { A: number; B: number; was: { A: number; B: number } }> = {
-    "desk-1920x1080": { A: 82, B: 132, was: { A: 72, B: 165 } },
+    "desk-1920x1080": { A: 82, B: 162, was: { A: 72, B: 165 } },
     "laptop-1366x768": { A: 48, B: 83, was: { A: 48, B: 83 } },
     "desk-1280x800": { A: 57, B: 2, was: { A: 57, B: 2 } },
     "land-844x390": { A: 105, B: 161, was: { A: 105, B: 161 } },

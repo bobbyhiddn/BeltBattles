@@ -27,6 +27,7 @@ import { beltIcon, itemIcon } from "../render/sprites";
 import { skinOf, type PanelId } from "../render/styles";
 import { button, panel, statsPanel, tapRect, type Rect } from "../ui/ui";
 import { tapPx } from "../ui/tap";
+import { TITLE_ROW_DY } from "../ui/spacing";
 import { fmtCount, fmtDmg } from "../ui/statFormat";
 import type { Sel } from "./build/layout";
 import {
@@ -388,7 +389,7 @@ export class BattleFaces {
     // POLISH-3 (REQ-BFG-087; Q2 (a)): a title the column cannot hold in one row breaks at a space onto two 3x5 rows (planOnce: titleRows); the sub rows start 6 px lower (dy)
     if (plan.titleRows) fitTitleRows(g, t, r.x + 23, r.y + 4, plan.titleRows);
     else fitTitle(g, t, r.x + 23, r.y + 4, plan.subMax); // ENCHANT-1 (REQ-BFG-085, E7): an enchanted piece's word first in its colour (= fitHead for a plain one)
-    const dy = plan.titleRows ? 6 : 0;
+    const dy = plan.titleRows ? TITLE_ROW_DY : 0; // POLISH-4 (P4-1): spacing.ts, shared with the family head's place (headDy)
     const subColor = t.subColor ?? C.slate4;
     if (plan.body.sub) fitHead(g, plan.body.sub, r.x + 23, r.y + 13 + dy, plan.subMax, plan.body.subColor ?? subColor, false);
     else if (plan.subs.length > 1) plan.subs.forEach((s, i) => fitHead(g, s, r.x + 23, r.y + 13 + dy + i * 6, plan.subMax, subColor, false));
