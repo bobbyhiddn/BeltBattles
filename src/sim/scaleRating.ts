@@ -206,7 +206,7 @@ export function readValue(r: ReadSpec, n: number): number {
   return r.give === "plate" ? Math.min(PLATE_CAP, v) : v;
 }
 
-/** SCALE-2d (REQ-BFG-108; COUNTS.md 6, POISON_DPS 3 a second a stack): what a VENOM DRIP hit of `poison` adds to each
+/** SCALE-2d (REQ-BFG-108; COUNTS.md 6, written at POISON_DPS 3 a second a stack; it is 2 since BUMP-1F P3 D2, content.ts, and this reads the constant): what a VENOM DRIP hit of `poison` adds to each
  *  payload of a route whose first payload rides `time` s, in a fight of `fight` s: each stack lands and deals POISON_DPS
  *  a second to the fight's end, never decaying; over payloads landing evenly from `time` on, that is half of what is left
  *  of the fight after `time` (the rating's left() share weighs it again by the belt's start, as it does every payload). */

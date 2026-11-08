@@ -133,7 +133,7 @@ describe("star-aware stand-in code (F2)", () => {
     }
     expect(n).toBe(192); // BUMP-1D: was 120 (2 heroes x 10 days x 6): the regenerated pool holds days 1-16, 2 x 16 x 6 = 192
     expect(starred).toBeGreaterThan(40); // merged decks are shipped, so a star-blind loader would be caught
-  });
+  }, 120_000); // BUMP-1G P7: 120 s (was the 30-s default): 13 s alone, 30 s beside twelve workers: a host timeout, not the rule
 
   it("stars-on dry pool (tiny): every WRITTEN pick decodes to the scored deck - stored cost == buildCost(decoded), validateBuild ok, no unfused pair; a v1-coded module is caught", async () => {
     const tiny = { ...STANDIN_DEFAULTS, pop: 6, gauntlet: 2, seeds: 1, elites: 2, refSeeds: 2, per: 2, grow: [8], stars: "on" as const };

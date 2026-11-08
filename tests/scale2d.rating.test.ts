@@ -197,6 +197,10 @@ describe("SCALE-2d D1: the rating with SCALE_RIGS on", () => {
       "rival/bulwark/3": [86.70639877627485, 2300, 104.20407130290458, 2300], // BUMP-1F (D1 second step): was [59.62034750400571, 2300, 117.36212038951315, 2300]
       "rival/bulwark/4": [107.43148668731905, 2660, 137.91965130675345, 2660], // BUMP-1F (D1 second step): was [103.00550944304103, 2660, 167.96590052638615, 2660]
       "rival/bulwark/5": [141.43333395982492, 3020, 177.45117130675348, 3020], // BUMP-1F (D1 second step): was [147.7279861932939, 3020, 225.26211385971948, 3020]
+      // BUMP-1G (P3 G2, 30ceda87, src/sim/rivalBuilds.ts, in every world: the captains' decks are not switch-aware): GRIMHOLD's road fill's second ANVIL (M2, the core fused into the day-2 one) comes on day 6 (was 4), so his day-4 and
+      // day-5 decks lack it and rate 35.784 lower in offense on both curves (the defense and every other key are M0's, or the moves above). Measured in this world with ENCHANT and SCALE_RIGS off; the move is the one plan step (days 6 and later are as before)
+      "rival/grimhold/4": [89.50328834355827, 2820.025, 97.90704, 2878.75], // BUMP-1G (G2): was M0's [125.28728834355826, 2820.025, 133.69104000000002, 2878.75]
+      "rival/grimhold/5": [90.36063905325443, 3184.075, 97.90704, 3238.75], // BUMP-1G (G2): was M0's [126.14463905325442, 3184.075, 133.69104000000002, 3238.75]
     };
     const want = { ...pins, ...MOVED };
     expect(Object.keys(want).length).toBe(Object.keys(pins).length); // the two keys are the fixture's own: nothing is added or dropped

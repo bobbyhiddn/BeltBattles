@@ -255,7 +255,8 @@ describe("GATES-1 G1: GATES_RULES and the validator's verdicts in both switch st
     // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: label bb-0.11.0 -> bb-0.13.0; the bump wrote the release's): was toBe("bb-0.11.0"), and `expect(GATES_RULES).toBe(SHAPES2_RULES)`
     // (SHAPES2_RULES stays bb-0.11.0, so GATES_RULES no longer equals it: SHAPES2's own literal is pinned instead)
     expect(GATES_RULES).toBe("bb-0.13.0");
-    expect(GATES_RULES).toBe(RULES_VERSION);
+    // BUMP-1G (BRIEF-BUMP1G P2: every other rules literal stays): was expect(GATES_RULES).toBe(RULES_VERSION); GATES went live at bb-0.13.0 and its gate keeps that literal, RULES_VERSION is bb-0.14.0 now: the gate is not newer than the build's rules
+    expect(GATES_RULES <= RULES_VERSION).toBe(true); // same-width bb-0.<minor>.<patch> labels: the string order is the release order here (13 < 14)
     expect(SHAPES2_RULES).toBe("bb-0.11.0");
     expect(gatesFeatures(deck([["fuser", 2]]))).toEqual([FEATURES]);
     expect(gatesFeatures(deck())).toEqual([]);

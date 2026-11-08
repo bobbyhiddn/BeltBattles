@@ -27,11 +27,13 @@ import { INERT, reasonOf } from "./deadOffers.inert";
  *  BUMP-1F P6 (RULING-BUMP1F-R8 R8.3: typecheck:tests read 164 against the baseline 163, TS2367 at (39,9): the old literal is a type error against
  *  RULES_VERSION "bb-0.13.0"; at runtime the audit still lists 217 open rows, 138 num1Open and 79 num2Open, so the tripwire reads red with the old
  *  key): re-keyed to bb-0.13.0 (was bb-0.12.0) with the gates-and-enchantments release's bump, as BUMP-1E P2b did; the open rows are the same
- *  provisional rows. */
-const OPEN_RULES = "bb-0.13.0";
+ *  provisional rows.
+ *  BUMP-1G P6 (typecheck:tests: TS2367 at (43,9), the old literal is a type error against RULES_VERSION "bb-0.14.0"; at runtime the audit still lists the open rows, so the tripwire reads red
+ *  with the old key): re-keyed to bb-0.14.0 (was bb-0.13.0) with the effect-floor release's bump, as BUMP-1F P6 did; the open rows are the same provisional rows. */
+const OPEN_RULES = "bb-0.14.0";
 
 describe("REQ-BFG-021: the dead-offer audit's open reasons (num1Open, num2Open) end at the next rules version", () => {
-  it("no num1Open or num2Open reason remains once RULES_VERSION differs from bb-0.13.0 (BUMP-1F: re-keyed, was bb-0.12.0; BUMP-1E: was bb-0.11.0; BUMP-1D: was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)", () => {
+  it("no num1Open or num2Open reason remains once RULES_VERSION differs from bb-0.14.0 (BUMP-1G: re-keyed, was bb-0.13.0; BUMP-1F: was bb-0.12.0; BUMP-1E: was bb-0.11.0; BUMP-1D: was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)", () => {
     const open: string[] = [];
     for (const [hero, mods] of Object.entries(INERT) as [HeroId, Record<string, number[]>][]) {
       for (const [id, days] of Object.entries(mods)) for (const day of days) {

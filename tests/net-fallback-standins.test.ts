@@ -79,7 +79,7 @@ describe("fallback stand-ins", () => {
         }
       }
     }
-  });
+  }, 120_000); // BUMP-1G P7: 120 s (was the 30-s default): 14 s alone, 38 s beside twelve workers: a host timeout, not the rule
 
   it("offlineGhost spends the full purse from day 1 (8 of 8 gold)", () => {
     // REDO-X step 2 (4.1; the pools changed, the regeneration): WEAVER's seed-3 offline ghost is now a FURNACE day-1 pick

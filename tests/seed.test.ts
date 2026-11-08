@@ -65,7 +65,9 @@ describe("the bundled pool the seed writes", () => {
     expect(JOIN_DECKS.length).toBeGreaterThan(0);
     // strict decode, the current rules, validateUpload (the player mode), a reachable record, no duplicates
     expect(checkPool(POOL)).toHaveLength(N);
-  });
+    // BUMP-1G (REVIEW-BUMP1F-run6 Q3; time only, no assertion changed): BUMP-1F's third whole-suite read measured this test at 12,741 ms alone and 31.5 s in a shard at
+    // load ~20, over vitest's 30 s default (REPORT-BUMP1F section R6.7): a 120 s per-test limit, as RULING-BUMP1F-R8.1, R11.4 and R13.2 gave eight other tests.
+  }, 120_000);
 });
 
 /** One storage backend as the seed sees it, with hooks to plant and inspect raw state. */

@@ -181,10 +181,12 @@ describe("ENCHANT-1 E1: the eight words and the switch", () => {
   });
 });
 
+const rulesRank = (r: string): number => r.split(".").slice(1).map(Number).reduce((a, n) => a * 1000 + n, 0); // BUMP-1G: bb-0.<minor>.<patch> as a number
 describe("ENCHANT-1 E1: the rules gate", () => {
   it("ENCHANT_RULES is today's literal; features, gate problem and world follow SHAPES2's form", () => {
     expect(ENCHANT_RULES).toBe("bb-0.13.0"); // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), TRIAGE-R34 line 34): was "bb-0.11.0" (rulesGate.ts ENCHANT_RULES moved with the bump)
-    expect(ENCHANT_RULES).toBe(RULES_VERSION); // the release's bump writes its own literal here
+    // BUMP-1G (BRIEF-BUMP1G P2: "every other rules literal stays"): was expect(ENCHANT_RULES).toBe(RULES_VERSION) // the release's bump writes its own literal here. ENCHANT went live at bb-0.13.0 and its gate keeps that literal (line above); the build's rules are bb-0.14.0 now, so the gate is not newer than the build's rules
+    expect(rulesRank(ENCHANT_RULES)).toBeLessThanOrEqual(rulesRank(RULES_VERSION));
     const plain = deck(), held = deck({ ench: { 10: { ench: "fiery" } } });
     expect(enchantFeatures(plain)).toEqual([]);
     expect(enchantFeatures(held)).toEqual(["enchantments (ench, enchDir, grow)"]);

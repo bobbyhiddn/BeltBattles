@@ -106,7 +106,9 @@ const variantOf = (s: GhostSnapshot) => Number(s.playerId.slice(-1));
 // BUMP-1F (the pools regenerated under bb-0.13.0, RULING-BUMP1F-R5 R5.2 (2): the stand-in pool src/sim/standInPoolData.ts, 192 decks days 1-16, and the seed pool server/seedPoolData.ts, 192 ghosts, SOFT_TARGET 150,
 // GATES and ENCHANT shipped on in the shop and on the road; the whole pool's json sha16 0b5875abef73c9f4): this part is the first 96 lines of the committed server/seedPoolData.ts, hashed as above. Read off the committed
 // file (SEED_POOL.slice(0, 96)) and off the generator in this worker (generateSamplePool(), the pool cache): both give df2595db...; was 34e2493a0a04b44d... (BUMP-1E's)
-const STANDIN_PART_SHA256 = "df2595dbf57e3e3713416fcac9c2998ea1047866a75cf3ee9787ac57ff617949"; // BUMP-1F: the regenerated pool (bb-0.13.0, was 34e2493a...). BUMP-1E: the regenerated pool (R3). FLIP-X2: the regenerated pool (was 2bd3adfd..., under POOL_RULES bb-0.8.6, /10)
+// BUMP-1G: was df2595db... (BUMP-1F's) (the pools regenerated under bb-0.14.0: the stand-in pool R1 a5fb26be, SOFT1_PICKS and FLOOR_PICKS R2 d48e7efe, the seed pool R3 336dddec by gen:ghosts; 27 of these 96 ghosts' decks differ from
+// bump1g-base's file, 42 ghosts in all with their grades, seeds and road logs): this part is the first 96 lines of the committed server/seedPoolData.ts, hashed as above; read off the file and off the generator in this worker, the same bytes [STANDIN_PART_SHA256]
+const STANDIN_PART_SHA256 = "606d7e51e2fcab6c77d4c7cdd916520d9fd1eb3fb35e37855bc32f477056b250"; // BUMP-1F: the regenerated pool (bb-0.13.0, was 34e2493a...). BUMP-1E: the regenerated pool (R3). FLIP-X2: the regenerated pool (was 2bd3adfd..., under POOL_RULES bb-0.8.6, /10)
 /** The race part (FOUNDRY and BASTION, 60) as a pool file: a change to the par player or this generator moves it.
  *  BELTS run 5: the par player buys the gold upgrades (was 9daab76d...). PACKS (bb-0.8.6): it buys BELT and ARMOR PACKs. */
 // REDO-X (cap's ruling on FIX-ABE, REVIEW-FIXABE: rc.seedpool :98 re-pinned after the regeneration): the race ghosts are
@@ -132,7 +134,9 @@ const STANDIN_PART_SHA256 = "df2595dbf57e3e3713416fcac9c2998ea1047866a75cf3ee978
 // FLOOR_PICKS' casual runs foundry 9008 and bastion 9007; measured off the committed file, the generator in this worker giving the same bytes): was 73d3f62dea998e5d... (BUMP-1D's)
 // BUMP-1F (the pools regenerated under bb-0.13.0, as above): this part is the file's last 96 lines (the par player's FOUNDRY and BASTION dusk decks, with their words and converters where the shop offered them); read off the
 // committed file (SEED_POOL.slice(96)) and off the generator in this worker, both giving 13d5c352...: was d353afdfecd634a1... (BUMP-1E's)
-const RACE_PART_SHA256 = "13d5c35292aa1915da19fdfa6669d973c7a87df0484bc1c8d1d17d54e117e2a2";
+// BUMP-1G: was 13d5c352... (BUMP-1F's) (the pools regenerated under bb-0.14.0, as above: the par field's runs moved with EFFECT_FLOOR on and B1 (p2.floor's POOL_OFF_SHA256 trail measures it on the NPC_DAY-off race pool), and R2 re-read the picks over them; 28 of these 96 ghosts' decks differ from bump1g-base's file (foundry 11, bastion 17),
+// 43 ghosts in all with their grades, seeds and road logs; the floor ghosts' decks (variant 2) are the same): this part is the file's last 96 lines; read off the file and off the generator in this worker, the same bytes [RACE_PART_SHA256]
+const RACE_PART_SHA256 = "229364f6bfbe91860354164bec38cce73d8b90ce40dc7f0331e5bb97d064de0e";
 /** SOFT-1 (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): a race seed deck as generateSamplePool's deckOf gives it in the
  *  shipped world: variant 0 and 1 from SOFT1_PICKS (softPicked: a par-field run's dusk deck, its field seed and road log),
  *  the floor variant (2) from raceDeck as before. */
@@ -144,7 +148,8 @@ const RACE_PART_SHA256 = "13d5c35292aa1915da19fdfa6669d973c7a87df0484bc1c8d1d17d
 // AZ-BUMP (the bump): title bb-0.9.7 -> bb-0.10.0 (the pool's decks move at S8's regeneration)
 // BUMP-1D (the bump): title bb-0.10.0 -> bb-0.11.0 (regenerated again, 5e93e1e: days 1-16, 192 ghosts)
 // BUMP-1E (the bump): title bb-0.11.0 -> bb-0.12.0 (regenerated again, R3 04fab9a under bb-0.12.0: 192 ghosts)
-describe("the bb-0.13.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, again at REDO-X, BAL-2, Y7b2, Z-BUMP, BUMP-1D, BUMP-1E and BUMP-1F; v3 snapshots holding their runes)", () => {
+// BUMP-1G: was "the bb-0.13.0 seed pool (... BUMP-1E and BUMP-1F; ...)" (the bump): title bb-0.13.0 -> bb-0.14.0, and BUMP-1G's regeneration added (regenerated again, R3 336dddec under bb-0.14.0: 192 ghosts; the first test checks every ghost's rules against RULES_VERSION)
+describe("the bb-0.14.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, again at REDO-X, BAL-2, Y7b2, Z-BUMP, BUMP-1D, BUMP-1E, BUMP-1F and BUMP-1G; v3 snapshots holding their runes)", () => {
   it("holds every playable hero on every day 1-16, three ghosts per hero and day (variants 0, 1 and the floor ghost 2), 192 in all", () => {
     // BUMP-1D: days 1-16, 192 ghosts (was days 1-10, 120)
     expect([...PLAYABLE_HEROES]).toEqual(["furnace", "weaver", "foundry", "bastion"]);
@@ -166,7 +171,8 @@ describe("the bb-0.13.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, 
   // Z-BUMP (the bump, the pools): title bb-0.9.3 -> bb-0.9.7
   // S8c (the pools: the stand-in pool regenerated once under bb-0.10.0, P1 83c039d): title bb-0.9.7 -> bb-0.10.0
   // BUMP-1E (the pools): title bb-0.11.0 -> bb-0.12.0 (the stand-in pool regenerated under bb-0.12.0, R1 19ae423)
-  it("FURNACE and WEAVER's 96 come first: the sample and floor ghosts of the bb-0.13.0 stand-in pool, pinned by their digest", () => {
+  // BUMP-1G: was "... of the bb-0.13.0 stand-in pool, ..." (the pools): title bb-0.13.0 -> bb-0.14.0 (the stand-in pool regenerated under bb-0.14.0, R1 a5fb26be)
+  it("FURNACE and WEAVER's 96 come first: the sample and floor ghosts of the bb-0.14.0 stand-in pool, pinned by their digest", () => {
     // BUMP-1D: 96 (2 heroes x 3 variants x 16 days; was 60), the stand-in pool of 16 days under bb-0.11.0 (8fc5e24; was the bb-0.10.0 pool)
     // HULL-ON (the flip, PICK): every seed ghost carries the seed step's grade (generateSamplePool, written last), which
     // the sample and floor ghosts' own generators don't write, so the parts compare without it; the digest below still
@@ -267,7 +273,7 @@ describe("the bb-0.13.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, 
     expect(branch.heroGate, JSON.stringify(branch)).toBeGreaterThan(0);
     console.log(`rc.seedpool (FLIP-X2): under bb-0.6.2 ${JSON.stringify(branch)}`);
     expect(checkPool(POOL)).toHaveLength(192); // BUMP-1D: was 120
-  });
+  }, 120_000); // BUMP-1G P7: 120 s (was the 30-s default): 13 s alone, 34 s beside twelve workers: a host timeout, not the rule
 
   it("a race deck that fails validateUpload never enters the pool: the generator throws on it", () => {
     const rich = (hero: HeroId, day: number, v: number) => {
@@ -292,7 +298,8 @@ interface Store { name: string; store(): ReturnType<typeof tigrisFor> | JsonlSto
 // AZ-BUMP (the bump): title bb-0.9.7 -> bb-0.10.0
 // BUMP-1D (the bump): title bb-0.10.0 -> bb-0.11.0
 // BUMP-1E (the bump): title bb-0.11.0 -> bb-0.12.0
-describe("the seed pool on both stores: ghosts:admin list --rules bb-0.13.0", () => {
+// BUMP-1G: was "... list --rules bb-0.13.0" (the bump): title bb-0.13.0 -> bb-0.14.0 (the test lists --rules RULES_VERSION)
+describe("the seed pool on both stores: ghosts:admin list --rules bb-0.14.0", () => {
   let fake: FakeS3;
   const dirs: string[] = [];
   beforeAll(async () => {
@@ -327,7 +334,8 @@ describe("the seed pool on both stores: ghosts:admin list --rules bb-0.13.0", ()
 
   // Y7b2 (the bump): title bb-0.9.1 -> bb-0.9.3
   // Z-BUMP (the bump, the pools): title bb-0.9.3 -> bb-0.9.7
-  it("the seed writes 192 on each store, and list shows 12 seed ghosts a day (3 per hero) under bb-0.13.0 (BUMP-1F: was bb-0.12.0; BUMP-1E: was bb-0.11.0; BUMP-1D: was 120 and bb-0.10.0; AZ-BUMP: was bb-0.9.7), none under bb-0.6.2", async () => {
+  // BUMP-1G: was "... under bb-0.13.0 (BUMP-1F: was bb-0.12.0; ...)" (the bump): title bb-0.13.0 -> bb-0.14.0 (the test seeds and lists RULES_VERSION)
+  it("the seed writes 192 on each store, and list shows 12 seed ghosts a day (3 per hero) under bb-0.14.0 (BUMP-1G: was bb-0.13.0; BUMP-1F: was bb-0.12.0; BUMP-1E: was bb-0.11.0; BUMP-1D: was 120 and bb-0.10.0; AZ-BUMP: was bb-0.9.7), none under bb-0.6.2", async () => {
     for (const h of stores()) {
       expect(await seedStore(h.store()), h.name).toMatchObject({ rules: RULES_VERSION, entries: 192, written: 192, removed: 0 });
       for (const [rules, perDay, all] of [[RULES_VERSION, 12, 192], ["bb-0.6.2", 0, 0]] as const) {

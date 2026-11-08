@@ -156,8 +156,9 @@ describe("0.6.2s build screen: turret texts (S10, REQ-BFG-032)", () => {
     const fx = (d: string, s: number) => `${d.toUpperCase()} AT ${s}`;
     // 0.6.2rel: labelled rows (the panel aligns their values); a gear piece's clause after its name is the glossary's gist
     const rows = (rs: SocketRow[]) => rs.map((r) => `${r.label}: ${r.text}`);
+    // PRESENT-3 E (re-pinned old -> new): the two EMPTY gear slots are one row (was "GEAR 2: EMPTY", "GEAR 3: EMPTY")
     expect(rows(socketLines(b, 1, "KILN BREECH", fx))).toEqual([
-      "CORE: KILN BREECH", "GEAR 1: EXT. CHAMBER ★★: CHAMBER AT 2.", "GEAR 2: EMPTY", "GEAR 3: EMPTY",
+      "CORE: KILN BREECH", "GEAR 1: EXT. CHAMBER ★★: CHAMBER AT 2.", "GEAR 2-3: EMPTY",
     ]);
     // 0.6.2rel2 (nit 2): the empty hardpoints say what they are
     expect(rows(socketLines(b, 1, "KILN BREECH", fx, true))).toEqual(["CORE: KILN BREECH", "GEAR: EXT. CHAMBER ★★ AND 2 EMPTY SLOTS"]);

@@ -25,6 +25,7 @@ import { furnaceDeck, playerCheck, uploadRulesFor } from "./netHelpers";
 import { heroesFor } from "../src/net/rulesGate";
 import { openRunesFor } from "../src/net/rulesGate"; // HULL-ON (the flip, OPEN_RUNES): the offer rule of this build's rules
 import { driveRuns, type Dusk } from "./uploadDriver";
+import { withEffectFloor } from "../src/sim/effectFloor"; // SHOCK-1 flip: the decks below come from the floor-off world their expectations were written in
 import { ownedBy, signedHeaders, testIdentity } from "./netIdentity";
 import { withDawnRunes } from "./runeFill";
 
@@ -99,7 +100,8 @@ describe("062m recheck 1: turrets in the player budget", () => {
 
 /** Honest dusk decks from the seeded driver (tests/uploadDriver.ts plays the real game functions) that hold a bought
  *  turret and a joined belt, all six heroes. */
-const HONEST: Dusk[] = driveRuns(90, 7000).flatMap((r) => r.dusks)
+// SHOCK-1 flip: drawn with the effect floor off: the floor changes the wares of a few of seeds 7000-7089 (foundry #7002 among them), so the deck a turret case was written for is gone; the subject here is the validator, not the wares
+const HONEST: Dusk[] = withEffectFloor(() => driveRuns(90, 7000), false).flatMap((r) => r.dusks)
   .filter((d) => (d.build.turrets ?? []).some((t) => !t.free) && d.build.routes.some((x) => x.join !== undefined));
 /** 0.8.0 H1: the honest decks this server's rules (bb-0.6.2) accept: FURNACE's and WEAVER's (rulesGate.ts RULES_HEROES). */
 const HONEST_HERE: Dusk[] = HONEST.filter((d) => heroesFor(RULES_VERSION).includes(d.hero));
@@ -362,7 +364,7 @@ describe("062m recheck 6: POST /v1/ghosts and a served ghost, with turrets and j
     const plain = await post(snapOf(d, { rules: "bb-0.6.1", hero: "furnace", build: furnaceDeck() }));
     expect(plain.status).toBe(422);
     expect(plain.body.error).toBe(`rules bb-0.6.1 not accepted: this server validates ${RULES_VERSION}`);
-    expect(RULES_VERSION).toBe("bb-0.13.0") /* BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.14.0") /* BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
   });
 
   it("fetchGhost fights a served ghost with turrets and joins; it falls back on an illegal one and on other rules", async () => {

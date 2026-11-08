@@ -640,7 +640,11 @@ describe("ENCHANT-1 E6: off, or under rules without ENCHANT, every ench, enchDir
   });
 
   it("older rules: ENCHANT on but the snapshot's rules predate ENCHANT_RULES, so every one is refused naming both versions", () => {
-    expect(ENCHANT_RULES).toBe(RULES_VERSION);
+    // BUMP-1G (BRIEF-BUMP1G P2: every other rules literal stays): was expect(ENCHANT_RULES).toBe(RULES_VERSION); ENCHANT went live at bb-0.13.0 and its gate keeps that literal (the message below names it);
+    // RULES_VERSION is bb-0.14.0 now (f05d33f1), so the gate is pinned to its own literal and is not newer than the build's rules
+    expect(ENCHANT_RULES).toBe("bb-0.13.0");
+    const rulesRank = (r: string): number => r.split(".").slice(1).map(Number).reduce((a, n) => a * 1000 + n, 0); // BUMP-1G: bb-0.<minor>.<patch> as a number
+    expect(rulesRank(ENCHANT_RULES)).toBeLessThanOrEqual(rulesRank(RULES_VERSION));
     for (const [name, b] of fixtures()) {
       const v = on(() => validateUpload(withDawnRunes(b, 5), 5, "bb-0.10.0", {}));
       expect(v.ok, name).toBe(false);

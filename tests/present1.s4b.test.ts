@@ -65,28 +65,30 @@ const STUCK_F: Record<string, number> = {
   "new op-402x690, no rune": 0, "new op-402x690, a rune": 0, "new phone-390x844": 0, "new phone-390x660": 0, "new iphone15pm-430x739": 0,
 };
 /** PRESENT-2 L (cap's ruling 0d0ef2465804aafb): the notes that hang over the carrier's top edge (the bow pieces' barrels, the pad's margin, the hull's top plate) while they show,
- *  per view: [the count, the deepest px into the carrier's pad]. T: every keyword's tapped note; F: the first-sight notes (the chain's first two a panel). */
+ *  per view: [the count, the deepest px into the carrier's pad]. T: every keyword's tapped note; F: the first-sight notes (the chain's first two a panel).
+ *  PRESENT-3 E (re-pinned old -> new): the tall turret panels (a core and gear) fold their EMPTY gear rows, so none reaches the growth limit and no note hangs: T was 10 (9 px), 10 (9 px), 0,
+ *  6 (12 px), 0 and the first sights on 390x660 2 (3 px); all [0, 0] now. */
 const OVER: Record<string, [number, number]> = {
-  "T op-402x690, no rune": [10, 9], "T op-402x690, a rune": [10, 9], "T phone-390x844": [0, 0], "T phone-390x660": [6, 12], "T iphone15pm-430x739": [0, 0],
-  "sight op-402x690, no rune": [0, 0], "sight op-402x690, a rune": [0, 0], "sight phone-390x844": [0, 0], "sight phone-390x660": [2, 3], "sight iphone15pm-430x739": [0, 0],
-  "new op-402x690, no rune": [0, 0], "new op-402x690, a rune": [0, 0], "new phone-390x844": [0, 0], "new phone-390x660": [2, 3], "new iphone15pm-430x739": [0, 0],
+  "T op-402x690, no rune": [0, 0], "T op-402x690, a rune": [0, 0], "T phone-390x844": [0, 0], "T phone-390x660": [0, 0], "T iphone15pm-430x739": [0, 0],
+  "sight op-402x690, no rune": [0, 0], "sight op-402x690, a rune": [0, 0], "sight phone-390x844": [0, 0], "sight phone-390x660": [0, 0], "sight iphone15pm-430x739": [0, 0],
+  "new op-402x690, no rune": [0, 0], "new op-402x690, a rune": [0, 0], "new phone-390x844": [0, 0], "new phone-390x660": [0, 0], "new iphone15pm-430x739": [0, 0],
 };
-/** PRESENT-2 L: the first-sight notes whose place overlaps the how-to strip (only where every tip is new: "new"): the strip is not drawn while the note shows, per view (F). */
+/** PRESENT-2 L: the first-sight notes whose place overlaps the how-to strip (only where every tip is new: "new"): the strip is not drawn while the note shows, per view (F).
+ *  PRESENT-3 E (re-pinned old -> new): was 24, 24, 0, 10, 0 (the notes that hung under the last rule row of a panel at the limit); none hangs now, so none yields the strip.
+ *  PRESENT-3 H (re-pinned old -> new): the first-run notes that ended 1-10 px into the deck's top rows (tests/present3.firstrun.test.ts) move up to end at its top; where that lands on the strip
+ *  (230 on 402x690 with a rune, 27 on 390x660) the strip is not drawn while the note shows: 0, 230, 0, 27, 0. */
 const YIELDS: Record<string, number> = {
-  "new op-402x690, no rune": 24, "new op-402x690, a rune": 24, "new phone-390x844": 0, "new phone-390x660": 10, "new iphone15pm-430x739": 0,
+  "new op-402x690, no rune": 0, "new op-402x690, a rune": 230, "new phone-390x844": 0, "new phone-390x660": 27, "new iphone15pm-430x739": 0, // PRESENT-3 H: was all 0 after E (24, 24, 0, 10, 0 before it)
 };
 /** PRESENT-2 F (REQ-BFG-081; PRESENT-1 Question 4 (d) (ii)): a panel grown up from the band for a note keeps the band's 3x5 face where the band shows its whole text in it (inspector.ts
  *  detailsPlanOf's `small`). T, per view: [the notes whose grown panel still changed the body's face (panels that grow for their own text), the growth's total px over every box].
- *  Before F (PRESENT-1's tip 4656d58630ee and PRESENT-2 at f48f9b7e: the same counts): faces 21, 533, 137, 55, 24 and the totals in GROWTH_BEFORE. */
+ *  Before F (PRESENT-1's tip 4656d58630ee and PRESENT-2 at f48f9b7e: the same counts): faces 21, 533, 137, 55, 24 and the totals 8,784, 61,280, 8,688, 35,840, 10,226. After F (PRESENT-2): 8,328,
+ *  57,050, 5,172, 34,904, 9,620. At present3-base (POLISH-1 and ROWS-1 merged; the pins above were red there): 8,400, 57,056, 5,172, 35,120, 9,656.
+ *  PRESENT-3 E (re-pinned old -> new): the tall turret panels now fold their EMPTY gear rows, so they no longer sit at the growth limit and grow for a note like every other panel (where they
+ *  hung before): the totals rise on four views (the same boxes, now placed by growing: 8,400 -> 9,126, 57,056 -> 57,732, 5,172 -> 5,622, 35,120 -> 36,138; 9,656 -> 9,540 falls). */
 const FACES: Record<string, [number, number]> = {
-  "op-402x690, no rune": [0, 8400], // STAGE-09141 (POLISH-1 P5a's ★1 star meets PRESENT-1's pin; cap, RULING-STAGE09141-R1): was [0, 8328]
-  "op-402x690, a rune": [4, 57056], // STAGE-09141 (POLISH-1 P5a's ★1 star meets PRESENT-1's pin; cap, RULING-STAGE09141-R1): was [4, 57050]
-  "phone-390x844": [0, 5172],
-  "phone-390x660": [2, 35120], // STAGE-09141 (POLISH-1 P5a's ★1 star meets PRESENT-1's pin; cap, RULING-STAGE09141-R1): was [2, 34904]
-  "iphone15pm-430x739": [0, 9656], // STAGE-09141 (POLISH-1 P5a's ★1 star meets PRESENT-1's pin; cap, RULING-STAGE09141-R1): was [0, 9620]
+  "op-402x690, no rune": [0, 9126], "op-402x690, a rune": [4, 57732], "phone-390x844": [0, 5622], "phone-390x660": [2, 36138], "iphone15pm-430x739": [0, 9540],
 };
-/** The same totals before F (the growth px histograms of the base's T run, summed: kit/growsum.py): the growth falls on every view. */
-const GROWTH_BEFORE: Record<string, number> = { "op-402x690, no rune": 8784, "op-402x690, a rune": 61280, "phone-390x844": 8688, "phone-390x660": 35840, "iphone15pm-430x739": 10226 };
 const ov = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 /** What a note never covers (cap's ruling 0d0ef2465804aafb): the deck's cells, FIGHT, the cargo bar, the top bar. */
 const hardRects = (L: BuildLayout): Record<string, Rect> => ({ deck: screenRect(L, { x: L.frame.dx, y: L.frame.dy, w: DECK, h: DECK }), FIGHT: L.fight, cargo: L.cargo, bar: L.bar });
@@ -230,10 +232,9 @@ describe("PRESENT-1 S4 (b): a shown definition never covers a rule row of its pa
     expect(crossed, crossed.slice(0, 5).join("\n")).toEqual([]);
     expect([onCarrier, deepest], `T ${name}: notes over the carrier's top, the deepest px into the pad`).toEqual(OVER[`T ${name}`]);
     // PRESENT-2 F: a panel whose band shows its whole text in 3x5 keeps that face when a note grows it (none of them takes the 5x7 face); the face changes left are the panels
-    // that grow for their own text; the growth falls on every view
+    // that grow for their own text (PRESENT-3 E: the growth's total is pinned, not bounded: the panels that hung now grow)
     expect(lost, `grown panels that left the band's face: ${lost.slice(0, 5).join("; ")}`).toEqual([]);
     expect([faces, total], `T ${name}: notes whose grown panel changed the body's face, the growth's total px`).toEqual(FACES[name]);
-    expect(total, `T ${name}: the growth falls (before F ${GROWTH_BEFORE[name]} px)`).toBeLessThan(GROWTH_BEFORE[name]);
   }, BIG);
 
   // "sight": every tip done, every first-sight note new (no how-to strip); "new": every tip new too (a strip under the panel, the note beside it)

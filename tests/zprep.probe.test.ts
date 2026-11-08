@@ -75,7 +75,8 @@ const digest = (x: unknown): string => createHash("sha256").update(JSON.stringif
 // alone; was 970c168f... under bb-0.12.0 (BUMP-1E's pin). Checked as BUMP-1E checked its own: put bb-0.12.0 back into the nine rows' text and expected lines
 // (the 400 rows name the rules too) and recompute their ghost ids, and the digest of the rows reproduces 970c168f833c197554be2dd4cae21151ee29612615099693796bb2b8b21cb52b
 // (the GATES and ENCHANT flips move none of the nine rows: start decks and reference decks hold no converter and no word)
-const PRE_FLIP_NINE = "55df8822ce23c8f03079bd6cede02a55d66c9719cf835ef397b1f2a93d96f5ea";
+// BUMP-1G (the bump to bb-0.14.0, label bb-0.13.0 -> bb-0.14.0, PROBE_RULES: the nine rows' bytes carry the new rules string, so the digest moved with it alone): was 55df8822... [PRE_FLIP_NINE]
+const PRE_FLIP_NINE = "ec9ed2e82145940456bdebcad4a3c785e14702969001f5f2c43158459c677dfc";
 /** HULL-ON (the flip, HEARTS and OPEN_RUNES; ruling 12a42239093fb6ec): digest(rows(plan.slice(0, 9))) with every switch on:
  *  the start rows at 10 hearts (HEARTS: was 5 lives) and BASTION's, METRONOME's and SIPHON's dawn runes from the open
  *  offers (OPEN_RUNES). With HEARTS alone off it reads 3c5741a1...; with both off, PRE_FLIP_NINE.
@@ -87,7 +88,8 @@ const PRE_FLIP_NINE = "55df8822ce23c8f03079bd6cede02a55d66c9719cf835ef397b1f2a93
  *  BUMP-1F (the bump to bb-0.13.0; label bb-0.12.0 -> bb-0.13.0, PROBE_RULES): the nine rows' bytes carry the new rules string, so the digest moved with it
  *  alone; was 5fc4f91d... under bb-0.12.0 (BUMP-1E's pin). Put bb-0.12.0 back into the nine rows' text and expected lines, recompute their ghost ids, and the
  *  digest of the rows reproduces 5fc4f91d1edda0a64e0f2295d1d18148c4ffa0902390e12161a5209ef4c0dfd4 (the GATES and ENCHANT flips move none of the nine rows). */
-const FLIP_NINE = "a08800600bec0fa9fa90f38d0c90212ed6e217432558a5587dfeafd7889eebb1";
+// BUMP-1G (the bump to bb-0.14.0, label bb-0.13.0 -> bb-0.14.0, PROBE_RULES: the nine rows' bytes carry the new rules string, so the digest moved with it alone): was a0880060... [FLIP_NINE]
+const FLIP_NINE = "0e30a5926711f46d11ece7554c569bd71729c5c87d1e021bd972c938a1c17bd9";
 /** HULL-ON (the off check): the plan with HEARTS and OPEN_RUNES off, the probe's rows as before the flip.
  *  BUMP-1D: and with the long run off (no row states `losses`: the decoder refuses the field there), so these are still the
  *  rows as they were before the flip, but for the rules string. */

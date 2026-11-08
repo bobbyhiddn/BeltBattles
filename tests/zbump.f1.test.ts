@@ -77,7 +77,7 @@ function honest(boon: Boon, hero: HeroId): GhostSnapshot {
 
 describe("Z-BUMP F1 (REVIEW-ZPREP): revalidate's record check knows the record's rules", () => {
   it("LAST CHANCE's row is bb-0.9.7 and this build's rules are at or after it (BUMP-1D: bb-0.11.0; AZ-BUMP: bb-0.10.0); bb-0.9.3 predates it, so its records are read without LAST CHANCE", () => {
-    expect([RULES_VERSION, LAST_CHANCE_RULES]).toEqual(["bb-0.13.0", "bb-0.9.7"]); // BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was ["bb-0.10.0", "bb-0.9.7"]; AZ-BUMP: was ["bb-0.9.7", "bb-0.9.7"])
+    expect([RULES_VERSION, LAST_CHANCE_RULES]).toEqual(["bb-0.14.0", "bb-0.9.7"]); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was ["bb-0.10.0", "bb-0.9.7"]; AZ-BUMP: was ["bb-0.9.7", "bb-0.9.7"])
     expect([recordHasLastChance(RULES_VERSION), recordHasLastChance(OLD), recordHasLastChance(undefined), recordHasLastChance("nope")]).toEqual([true, false, true, false]);
     // the model under bb-0.9.3 is the one before the flip: 1 life at dusk 6 after five losses; under bb-0.9.7 the loss at
     // dusk 5 fires LAST CHANCE, so that run carries 2 lives, never 1

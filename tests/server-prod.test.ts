@@ -66,7 +66,7 @@ describe.each(storeBackends())("uploads closed, $name store", (backend) => {
     const m = await fetch(`${base}/v1/ghosts/match?rules=${RULES_VERSION}&day=2&wins=1&lives=${HEARTS_START}&player=closed-check&seen=`);
     expect(m.status).toBe(200);
     expect((await m.json()).snapshot.day).toBe(2);
-  });
+  }, 120_000); // BUMP-1G P7: 120 s (was the 30-s default): the 192-deck seed check takes 13 s alone and 30-40 s beside twelve workers: a host timeout, not the rule
 
   it("0.7.0: closed is checked before the signature: a signed upload and a badly signed one are both 403, nothing stored", async () => {
     const size = app.store.size;

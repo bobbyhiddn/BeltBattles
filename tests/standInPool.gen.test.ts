@@ -182,7 +182,7 @@ describe("stand-in pool", () => {
     expect(STAND_IN_POOL_DAYS).toBe(16);
     expect(DAYS).toHaveLength(16);
     for (const hero of STAND_IN_POOL_HEROES) expect(STAND_IN_DATA.pools[hero]!, hero).toHaveLength(16);
-    expect(STAND_IN_DATA.rules).toBe("bb-0.13.0"); // BUMP-1F (the regenerated pool under bb-0.13.0, src/sim/standInPoolData.ts: header 'RULES_VERSION bb-0.13.0'; RULING-BUMP1F-R5 R5.2 (2)): was "bb-0.12.0". BUMP-1E (the regenerated pool, R1 19ae423: header 'RULES_VERSION bb-0.12.0'): was "bb-0.11.0"
+    expect(STAND_IN_DATA.rules).toBe("bb-0.14.0"); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the stand-in module's rules): was bb-0.13.0. BUMP-1F (the regenerated pool under bb-0.13.0, src/sim/standInPoolData.ts: header 'RULES_VERSION bb-0.13.0'; RULING-BUMP1F-R5 R5.2 (2)): was "bb-0.12.0". BUMP-1E (the regenerated pool, R1 19ae423: header 'RULES_VERSION bb-0.12.0'): was "bb-0.11.0"
     expect(STAND_IN_POOL_RULES).toBe(POOL_RULES);
     expect(STAND_IN_DATA.band).toEqual([40, 60]);
     expect(STAND_IN_DATA.parFloor).toBe(0.5);
@@ -257,16 +257,17 @@ describe("stand-in pool", () => {
         }
       }
     }
-  });
+  }, 120_000); // BUMP-1G P7: 120 s (was the 30-s default): 13 s alone, 35 s beside twelve workers: a host timeout, not the rule
 
   // BUMP-1E: the replay of SALE_GAIN's one pick: furnace d4 #2 is candidate #3's day-4 deck, the loose run of seed 1003, and that run's meta books the gain (a sale loss of -6) to the gold
   // BUMP-1F (F5: parNpcDay never books a negative sale loss; RULING-BUMP1F-R5 R5.2 (2)): the title was "the one sale-gain pick: furnace d4 #2 is the loose run of seed 1003 (candidate #3 at day 4), whose meta books a sale loss of -6
   // (spent 48 + drops 17 + 6 = its cost 71)". The replay of that run is kept: it books a sale loss of 0 now (its day-4 deck is worth 65, not 71, and is no longer the stored pick), and SALE_GAIN is empty
-  it("the former sale-gain pick (BUMP-1F F5): the loose run of seed 1003 (candidate #3 at day 4) books no negative sale loss now (0, was -6), and furnace d4 #2 is another deck (cost 48, spent 45 + drops 11)", () => {
+  // BUMP-1G (R1: the stand-in pool regenerated under bb-0.14.0, src/sim/standInPoolData.ts): furnace d4 #2 is another deck again: cost 54, spent 49 + drops 15 (was cost 48, spent 45 + drops 11, which the title said); the loose run of seed 1003 (candidate #3 at day 4) still books a sale loss of 0 and is still not the stored pick
+  it("the former sale-gain pick (BUMP-1F F5): the loose run of seed 1003 (candidate #3 at day 4) books no negative sale loss now (0, was -6), and furnace d4 #2 is another deck (cost 54, spent 49 + drops 15)", () => {
     const e = standInPool("furnace", 4)[2], d = caravanCandidate("furnace", 4, STAND_IN_DATA.seed, 3, STANDIN_MAX_STARS);
     expect(caravanCand(3, d).code).not.toBe(encodeStarred(poolRaw("furnace", 4, 2))); // BUMP-1F: the stored pick is no longer this run's day-4 deck (was toBe: it IS)
     expect([d.meta.policy, d.meta.seed]).toEqual(["loose", 1003]);
-    expect([e.cost, e.spent, roadDropValue(e.road)]).toEqual([48, 45, 11]); // BUMP-1F: measured off the committed pool (was [71, 48, 17])
+    expect([e.cost, e.spent, roadDropValue(e.road)]).toEqual([54, 49, 15]); // BUMP-1G: was [48, 45, 11] (R1: the stand-in pool regenerated under bb-0.14.0, furnace d4 #2 is another deck again). BUMP-1F: measured off the committed pool (was [71, 48, 17])
     expect([d.value, d.meta.spent, d.meta.soldLoss]).toEqual([65, 48, 0]); // BUMP-1F: measured (was [71, 48, -6]); F5: never a negative sale loss
     expect(SALE_GAIN).toEqual({}); // BUMP-1F: was { "furnace|4|2": -d.meta.soldLoss }
   }, 120_000);

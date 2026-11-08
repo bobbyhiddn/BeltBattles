@@ -111,6 +111,9 @@ import { botWarlordPick, buyPlan, casualWarlordPick, casualWordBuys, chooserFor,
 import { setPieceWord } from "../../game/fuse";
 import { pendingEnchantPick } from "../../game/enchanter";
 import { botShrine, type ShrineVisit } from "./shrineBot"; // ENCHANT-2 (REQ-BFG-085, T3): the bots at the ASH SHRINE
+import { effectFloorRules } from "../effectFloor"; // BUMP-1G B3 (REQ-BFG-033): the par-run cache key
+import { npcWordsRules } from "../npcWords"; // BUMP-1G B3: the par-run cache key (the rivals' words toggle)
+import { shrineInBag } from "../../game/shrine"; // BUMP-1G B3: the par-run cache key (the shrine toggle)
 
 // ---------------------------------------------------------------- the deck rating (what the player reads)
 
@@ -119,7 +122,7 @@ import { botShrine, type ShrineVisit } from "./shrineBot"; // ENCHANT-2 (REQ-BFG
 export { EQ, FIGHT_T, NOMINAL, ROUND_EQ, SATURATED, rateDeck, type DeckRating } from "../deckRating";
 import { FIGHT_T, RATING_CURVE, fightTime, rateDeck } from "../deckRating";
 import { sustainKeyword, type RateOut, type SustainKw } from "../deckRating"; // BOTS-X (SUS-C, REQ-BFG-069): the bots' sustain
-import { sustainLive } from "../content"; // BOTS-X: the sustain switch (SUSTAIN_LIVE, or a withSustain call)
+import { sustainLive, wave3Live } from "../content"; // BOTS-X: the sustain switch (SUSTAIN_LIVE, or a withSustain call); BUMP-1G B3: and WAVE3's, the par-run cache key
 // SCALE-2d (REQ-BFG-098 098.6, REQ-BFG-106; BRIEF-SCALE2d D2): the bots' feeder+reader rule, the run's hearts lost in its
 // fights and the cache key, all SCALE_RIGS on only (off: every run exactly as before)
 import { heartsLost, scaleRules } from "../scale";
@@ -1933,7 +1936,7 @@ export function playerRun(hero: HeroId, days: number, seed: number, opts: Player
   // GATES-1 (REQ-BFG-052, G6): GATES moves them (the three in the shop; the par player buys and places them), "|gates" last
   const asked =Number.isFinite(days) ? Math.floor(days) : PLAYER_DAYS;
   const depth = asked <= PLAYER_DAYS ? PLAYER_DAYS : Math.max(PLAYER_DAYS_LONG, asked);
-  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${depth > PLAYER_DAYS ? `|d${depth}` : ""}${longRunRules() ? "|long" : ""}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}${plainRigsRules() ? "|pr" : ""}${shapes2Rules() ? "|s2" : ""}${scaleRules() ? "|sc" : ""}${gatesRules() ? "|gates" : ""}${enchantRules() ? "|en" : ""}`; // SHAPES-1: "|sh"; PLAIN-1: "|pr"; SHAPES-2: "|s2"; SCALE-2d: "|sc" (last: SCALE_RIGS on moves every par run: the catalogue, the reworks, the rating; off: the key as before) (BUMP-1E: both sides' parts); GATES-1 (REQ-BFG-052, G6): "|gates" (after "|sc"; off: the key as before) (BUMP-1F: both sides' parts, PACKET-BUMP-0130 section 4); ENCHANT-1 (REQ-BFG-085): "|en" (the words move every par run; after "|gates"; off: the key as before) (BUMP-1F: every switch appended in order, PACKET-BUMP-0130 section 4)
+  const key = `${hero}|${seed}|${policy}|${maxStars}|${JSON.stringify(opts.tune ?? {})}${depth > PLAYER_DAYS ? `|d${depth}` : ""}${longRunRules() ? "|long" : ""}${runes ? "|runes" : ""}${sustainLive() ? "|sustain" : ""}${lc ? `|lc${lc.day}${lc.boon}${lc.hull ?? ""}` : ""}${hullScaleRules() ? "|hs" : ""}${ladderFixRules() ? "|lf" : ""}${nd ? "|nd" : ""}${guardRules() ? "|guard" : ""}${openRunesRules() ? "|open" : ""}${freeJoinsRules() ? "|fj" : ""}${shapesRules() ? "|sh" : ""}${plainRigsRules() ? "|pr" : ""}${shapes2Rules() ? "|s2" : ""}${scaleRules() ? "|sc" : ""}${gatesRules() ? "|gates" : ""}${enchantRules() ? "|en" : ""}${effectFloorRules() ? "|ef" : ""}${npcWordsRules() ? "|nw" : ""}${shrineInBag() ? "|shr" : ""}${wave3Live() ? "|w3" : ""}`; // BUMP-1G B3 (REQ-BFG-033 and the RULING-BUMP1F-R5 R5.2 (2) cache trap): "|ef" EFFECT_FLOOR (the ware draw moves the shops a par run buys from), "|nw" the rivals' words (npcWords.ts, a test-only toggle: the road's warlord drops and fights), "|shr" the shrine in the event bag (shrine.ts, a test-only toggle) and "|w3" WAVE3 (withWave3, which moves 8 of 8 par runs: kit-1g/zz-b3others.test.ts; ENDLESS, HEARTS, PICK and FIRST_RUN move 0 of 8), after "|en" so a key without them is the old one; any toggle a test can flip that changes a run belongs here. SHAPES-1: "|sh"; PLAIN-1: "|pr"; SHAPES-2: "|s2"; SCALE-2d: "|sc" (last: SCALE_RIGS on moves every par run: the catalogue, the reworks, the rating; off: the key as before) (BUMP-1E: both sides' parts); GATES-1 (REQ-BFG-052, G6): "|gates" (after "|sc"; off: the key as before) (BUMP-1F: both sides' parts, PACKET-BUMP-0130 section 4); ENCHANT-1 (REQ-BFG-085): "|en" (the words move every par run; after "|gates"; off: the key as before) (BUMP-1F: every switch appended in order, PACKET-BUMP-0130 section 4)
   let full = traced ? undefined : CACHE.get(key);
   if (!full) {
     const run = startRun(hero, seed);
@@ -2223,10 +2226,15 @@ function refitSwap(run: Run, def: string, rng: Rng, stars = 1): { rel: number; s
  *  star) spent on ARMOR PACKs, "the least a gold can buy" (harness/lastChance.ts goldBy10 prices the gold runes the same way). A part the
  *  bots can place nowhere (45% of the par boards of days 3-8 at K 24) sat in cargo, rated no gain, and so was the weakest card by
  *  construction (c5 20%, par 7% on 1D's F1); a part is never worth less than selling it. One reader: the pick (botLastChancePick) and
- *  the modeled run's card (lastChanceCard) both take this number, so the bots get what they priced. */
+ *  the modeled run's card (lastChanceCard) both take this number, so the bots get what they priced. BUMP-1G B2: in whole plates. */
 export function partSaleHull(def: string, stars: number): number {
   const armor = ITEMS[PACK_ITEM.armor];
-  return Math.floor(sellValue(def, stars) * ((armor.supply?.hull ?? 0) / Math.max(1, armor.price)));
+  const plate = armor.supply?.hull ?? 0;
+  const raw = Math.floor(sellValue(def, stars) * (plate / Math.max(1, armor.price)));
+  // BUMP-1G B2 (RULING-BUMP1F-R12 R12.2; the KNOWN LIMITATION "the par bot books a modeled sale hull the server refuses"): a human holds hull only in WHOLE PLATES (an ARMOR PACK: +plate hull for its price),
+  // so the sale is spent on as many whole plates as it pays and what is left over buys nothing: plate x floor(raw / plate), or nothing. The pick (botLastChancePick), the card (lastChanceCard) and the endless
+  // bench (which takes the pick and plays the card) all read this one number, so every deck the par bot builds after a LAST CHANCE part holds a hull the server's supply check can reach.
+  return plate > 0 ? plate * Math.floor(raw / plate) : 0;
 }
 
 /** LC-1: the par run's LAST CHANCE card at the dawn after `day` (playerRun's opts.lastChance): the game's takeLastChance

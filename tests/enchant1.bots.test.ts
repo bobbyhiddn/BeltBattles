@@ -536,39 +536,28 @@ describe("ENCHANT-1 E8: the casual player, the warlord pick and LAST CHANCE", ()
 
   it("LAST CHANCE's part arrives with its word and the harness run keeps it; the bot's pick counts the word in the part's rating", () => {
     on(() => {
-      let kept = 0, rated = 0, tried = 0, lostOnLift = 0;
-      // BUMP-1F (RULING-BUMP1F-R6 R6.3, TRIAGE-R34 line 4): KNOWN LIMITATION "bots lose a word when a belt redraw lifts its rig", shipped as is (the REPORT's section; src/ is not edited). Shopper.reseat puts a
-      // lifted rig back with placeRig(.., keep) (src/sim/harness/shopper.ts:281), which calls placeRigAt (src/sim/beltside.ts:587) and builds a fresh piece without ench / enchDir / grow: the harness run
-      // loses the part's word. This test is NARROWED here and only here. "arrives with its word" stays STRICT (`kept` > 0 below; the rating below). "The harness run keeps it" now accepts a missing word
-      // ONLY on a rig that a belt redraw lifted while it bore that word by dusk of day 4 (the spy: a placeRig call whose `keep` is a rig of the part's def holding the part's word, at Shopper.day <= 4),
-      // counted in `lostOnLift`; every other loss, a gun's included (a gun is never lifted), still fails as it did. The spy also sees the shopper's trial lifts, so it narrows by piece and word, not by effect.
-      // SENTINEL: `lostOnLift` must be > 0 (measured: furnace seed 1, TROPHY CHAIN's GROWING, 1 of the 7 runs this loop plays). THE NEXT RULES RELEASE fixes placeRig(keep) (copy ench / enchDir / grow, 3 lines);
-      // then no run loses a word on a lift, the sentinel goes red ON PURPOSE, and whoever sees it restores this test (it was :551) to strict: delete `lifts`, `lostOnLift` and the `else if` below, leave the plain `else expect`.
-      // (Checked by simulating the fix on placeRig(keep) in a throwaway edit: the loop then plays 5 runs, 2 keep their word, none loses it, every strict check passes and only this sentinel is red.)
-      const lifts = vi.spyOn(Shopper.prototype, "placeRig"); // calls through; restored below
-      try {
-        for (const hero of ["furnace", "weaver", "foundry"] as const) {
-          for (let seed = 1; seed <= 10 && kept < 2; seed++) {
-            const run = newRun(hero, parRunSeed(hero, seed));
-            const part = lastChanceOffer(run.seed, 3, hero, [], true).part;
-            const word = part ? lastChanceWord(run.seed, 3, part) : null;
-            if (!part || !word) continue;
-            tried++;
-            lifts.mockClear();
-            const days = playerRun(hero, 4, seed, { lastChance: { day: 3, boon: "part" } }); // the key is this test's alone, so the run executes in the spy window
-            expect(lifts.mock.calls.length, `${hero} ${seed}: the run executed inside the spy window (a cached run makes no call)`).toBeGreaterThan(0);
-            const lifted = new Set(lifts.mock.calls.flatMap((c, i) => { const k = c[4]; return k && k.def === part && k.ench === word.ench && (lifts.mock.contexts[i] as Shopper).day <= 4 ? [k.uid] : []; }));
-            const held = [...days[3].build.items, ...(days[3].build.turrets ?? [])].filter((p) => p.def === part);
-            if (!held.length) continue; // the part found no spot (it waits in cargo)
-            if (held.some((p) => p.ench === word.ench)) kept++;
-            else if (held.every((p) => p.ench === undefined) && held.some((p) => lifted.has(p.uid))) lostOnLift++; // KNOWN LIMITATION: the redraw lift rebuilt the rig without its word
-            else expect(held.some((p) => p.ench !== undefined), `${hero} ${seed}: the part's word must not vanish`).toBe(true); // merged into a twin holding another word
-          }
+      let kept = 0, rated = 0, tried = 0;
+      // BUMP-1G (BRIEF-BUMP1G P2 B1; RULING-BUMP1F-R6 R6.3): STRICT again, as this test was before BUMP-1F narrowed it. BUMP-1F shipped the KNOWN LIMITATION "bots lose a word when a belt redraw lifts its rig" and
+      // narrowed this test with a spy on Shopper.prototype.placeRig, a `lostOnLift` count and a SENTINEL (`lostOnLift` > 0) that was to go red ON PURPOSE when the limitation was fixed, whoever saw it then restoring
+      // the test to strict. B1 fixed it: Shopper.placeRig(keep) (src/sim/harness/shopper.ts) copies ench / enchDir / grow back onto the moved rig, so no run loses a word on a lift. The sentinel went red as
+      // announced (on this tree `lostOnLift` read 0, expected > 0, at the old line :571; BUMP-1F had measured 1 of the 7 runs this loop plays), and the spy, `lostOnLift`, the sentinel and the lift branch are
+      // gone: "the harness run keeps it" accepts a missing word only where the part merged into a twin that holds another word.
+      for (const hero of ["furnace", "weaver", "foundry"] as const) {
+        for (let seed = 1; seed <= 10 && kept < 2; seed++) {
+          const run = newRun(hero, parRunSeed(hero, seed));
+          const part = lastChanceOffer(run.seed, 3, hero, [], true).part;
+          const word = part ? lastChanceWord(run.seed, 3, part) : null;
+          if (!part || !word) continue;
+          tried++;
+          const days = playerRun(hero, 4, seed, { lastChance: { day: 3, boon: "part" } });
+          const held = [...days[3].build.items, ...(days[3].build.turrets ?? [])].filter((p) => p.def === part);
+          if (!held.length) continue; // the part found no spot (it waits in cargo)
+          if (held.some((p) => p.ench === word.ench)) kept++;
+          else expect(held.some((p) => p.ench !== undefined), `${hero} ${seed}: the part's word must not vanish`).toBe(true); // merged into a twin holding another word
         }
-      } finally { lifts.mockRestore(); }
+      }
       expect(tried).toBeGreaterThan(0);
       expect(kept).toBeGreaterThan(0);
-      expect(lostOnLift, "KNOWN LIMITATION (RULING-BUMP1F-R6): no run lost its word on a redraw lift. If the next rules release fixed placeRig(keep) (copy ench / enchDir / grow), restore this test to strict: drop the lift branch and this sentinel").toBeGreaterThan(0);
       // the rating: the same offer on the same board, with the word and without
       for (const hero of ["furnace", "weaver", "foundry"] as const) {
         for (let seed = 1; seed <= 8 && rated < 2; seed++) {

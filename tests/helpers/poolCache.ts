@@ -35,6 +35,7 @@ import { dirname, join, resolve } from "node:path";
 import { deserialize, serialize } from "node:v8";
 import { HEROES, ITEMS, sustainLive, wave3Live } from "../../src/sim/content";
 import { BOT_RUNES } from "../../src/sim/runes";
+import { effectFloorRules } from "../../src/sim/effectFloor";
 import { enchantRules } from "../../src/sim/enchant";
 import { endlessRules } from "../../src/sim/endless";
 import { firstRunRules } from "../../src/sim/firstRun";
@@ -170,6 +171,7 @@ export const SWITCHES: ReadonlyArray<readonly [string, () => boolean]> = [
   ["firstRun", firstRunRules],
   ["endless", endlessRules],
   ["shapes2", shapes2Rules],
+  ["effectFloor", effectFloorRules], // SHOCK-1 (REQ-BFG-033): the effect floor in the ware draw (src/sim/effectFloor.ts, in the closure through wares.ts); without it the key could not tell a floor-on pool from an off one
   ["npcDay", npcDayRules],
   ["hullScale", hullScaleRules],
   ["shapes", shapesRules],
