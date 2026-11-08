@@ -343,7 +343,7 @@ async function tour(browser) {
   if (isBare((await scout(page))?.face)) { // POLISH-4c (REQ-BFG-089): a bare face has no CLOSE button and no `faceclose` region: a press off any part (an empty board tile) closes it (scripts/faceClose.mjs); a face with a CLOSE is tapped on it, as before
     const r = await closeBare(page, "battle", async (p) => { await tapAt(p); await frame(); });
     must(r.ok, `${BARE_TEXT} (${r.where || r.why})`);
-    log(`${BARE_TEXT} (${r.where || r.why}); the view stays open`);
+    if (r.ok) log(`${BARE_TEXT} (${r.where}); the view stays open`);
   } else await tapId("faceclose", "the face's CLOSE"); // both summaries in sight again
   await hold(3.4);
   await mark("the summaries");
