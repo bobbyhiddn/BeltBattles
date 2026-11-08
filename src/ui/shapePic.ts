@@ -295,12 +295,21 @@ export function shapeMarkSize(defId: string): { w: number; h: number } {
 /**
  * PRESENT-5 G2a (REQ-BFG-113; backlog #537 (1), (5)): the ONE place a surface puts the footprint mark over its icon's box. The box is `boxSize` px square with its top-left at (boxX, boxY); the mark
  * (shapeMark) goes in its bottom-right corner, flush with the box's edges (PRESENT-4 G's place: the road's drop row passed its 14 x 14 box, the icon's carriage gun and wheel stay clear there). Returns the
- * rect the mark covers. G2a moves no pixel (tests/present5.dropmark.test.ts compares the drop row with PRESENT-4's drawing); G2b's variant, if it stays, changes this function alone, so every surface that calls it follows.
+ * rect the mark covers. G2a moved no pixel (tests/present5.dropmark.test.ts compared the drop row with PRESENT-4's drawing); G2b's variant changes this function alone, so every surface that calls it follows.
+ * PRESENT-5 G2b (variant (a) of backlog #537 (1)): the mark stands on a 1 px INK backing, one px bigger than the mark above and to its left (iconMarkBack; right and below it is the box's own ink ring, so the box does
+ * not grow). PRESENT-4's K-03 read the carriage gun's box 2 of 6 for `four tiles`: the icon's own pale wheel patch sat level with the mark's bottom row in nearly the tiles' grey, and readers counted it as a fifth tile.
+ * The ink gap parts the mark from whatever the icon holds beside it; the icon's own pixels are unchanged, the backing hides at most a px row and a px column of them more than the mark did.
  */
 export function drawIconMark(g: G, defId: string, boxX: number, boxY: number, boxSize: number): { x: number; y: number; w: number; h: number } {
-  const m = shapeMarkSize(defId), x = boxX + boxSize - m.w, y = boxY + boxSize - m.h;
+  const m = shapeMarkSize(defId), x = boxX + boxSize - m.w, y = boxY + boxSize - m.h, b = iconMarkBack(defId, boxX, boxY, boxSize);
+  rect(g, b.x, b.y, b.w, b.h, C.ink);
   g.drawImage(shapeMark(defId), x, y);
   return { x, y, w: m.w, h: m.h };
+}
+/** PRESENT-5 G2b: the ink backing drawIconMark lays under the mark: the mark's rect grown 1 px up and left (its right and bottom edges are the box's corner, the box's own ink ring). Pure (tests). */
+export function iconMarkBack(defId: string, boxX: number, boxY: number, boxSize: number): { x: number; y: number; w: number; h: number } {
+  const m = shapeMarkSize(defId);
+  return { x: boxX + boxSize - m.w - 1, y: boxY + boxSize - m.h - 1, w: m.w + 1, h: m.h + 1 };
 }
 
 /** G4: a shaped piece's grid (no plate) at the right end of a row `x`..`x + w` whose top is `y`, where it clears `left` (the row's

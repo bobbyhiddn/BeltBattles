@@ -106,12 +106,14 @@ describe("PRESENT-4 G: a shaped part's icon and its footprint both show in the r
       let oldHidden = 0;
       for (const [x, y] of px0) if (o.at(x, y) !== null) oldHidden++;
       const sz = shapeMarkSize(id);
-      expect(nowHidden, `${id}: the mark hides at most its box`).toBeLessThanOrEqual(sz.w * sz.h);
+      // PRESENT-5 G2b (REQ-BFG-113), old -> new: was `at most its box` (sz.w * sz.h); the mark now stands on a 1 px ink backing above and left of it (shapePic.ts iconMarkBack), so it hides at most that rect, (w + 1) x (h + 1)
+      expect(nowHidden, `${id}: the mark and its backing hide at most the backing's rect`).toBeLessThanOrEqual((sz.w + 1) * (sz.h + 1));
       expect(nowHidden, `${id}: no more of the icon than the old overlay hid`).toBeLessThanOrEqual(oldHidden);
       oldAll += px0.length - oldHidden; newAll += px0.length - nowHidden; total += px0.length;
       lines.push(`G-ICON ${id.padEnd(12)} icon px ${String(px0.length).padStart(3)}: visible old ${String(px0.length - oldHidden).padStart(3)} -> new ${String(px0.length - nowHidden).padStart(3)} (mark ${sz.w}x${sz.h}, grid ${gridGeom(gridSpecOf(id), iconCell(id)).w}x${gridGeom(gridSpecOf(id), iconCell(id)).h})`);
       // the 2x2 parts: the old grid hid the whole icon (the icon's px under an 11 x 11 grid); now at least 70% of it shows
-      if (gridSpecOf(id).cells.length === 4 && gridSpecOf(id).arrows.length === 0 && gridGeom(gridSpecOf(id), iconCell(id)).w === 11) expect((px0.length - nowHidden) / px0.length, `${id}: the icon shows`).toBeGreaterThanOrEqual(0.7);
+      // PRESENT-5 G2b (REQ-BFG-113), old -> new: was `at least 70%`; the backing hides up to a px row and a px column more (the least shown is 66.7%: TWIN NEEDLE, 54 of 81), so the floor is 65% (tests/present5.dropmark.test.ts counts every part)
+      if (gridSpecOf(id).cells.length === 4 && gridSpecOf(id).arrows.length === 0 && gridGeom(gridSpecOf(id), iconCell(id)).w === 11) expect((px0.length - nowHidden) / px0.length, `${id}: the icon shows`).toBeGreaterThanOrEqual(0.65);
     }
     console.log(`${lines.join("\n")}\nG-ICON total icon px ${total}: visible old ${oldAll} -> new ${newAll}`);
     expect(newAll).toBeGreaterThan(oldAll * 1.5);
