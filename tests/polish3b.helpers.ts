@@ -104,9 +104,10 @@ export const titleCut = (t: PanelText, p: PanelPlan): boolean => (p.titleRows ? 
 
 /** facePlan as POLISH-3 left it at polish3-accepted: planPanel's plan, the 3x5 plan where that is the rule text whole and planPanel's is not; no `wrap`, no tie-break. The reference the new rules are measured against. */
 export function oldFacePlan(t: PanelText, fa: { area: Rect; band: boolean }, fam: ReturnType<typeof selFamilies>, tp: number): PanelPlan {
-  const plan = planPanel(t, fa.area, fam, { tap: tp, band: fa.band });
+  // POLISH-4 (P4-5): `sub1: false`, the plans before the family head's sub1 rung (a battle face never has it: planPanel's `wrap`), so the reference stays polish3-accepted's plan
+  const plan = planPanel(t, fa.area, fam, { tap: tp, band: fa.band, sub1: false });
   if (!plan.column || rulesWhole(plan)) return plan;
-  const small = planPanel(t, fa.area, fam, { tap: tp, band: fa.band, small: true });
+  const small = planPanel(t, fa.area, fam, { tap: tp, band: fa.band, small: true, sub1: false });
   return rulesWhole(small) ? small : plan;
 }
 

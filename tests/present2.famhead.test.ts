@@ -89,28 +89,37 @@ const P5A_STAR1: Record<string, string> = {
   // POLISH-3 (REQ-BFG-089; Q5, cap's ruling D): the NARROW step (inspector.ts portraitButtons: on a band under 176 px a lone trailing star does not move the buttons, and fitTitle steps the title down
   // to the 3x5 face) gives 26 of the 33 phone panels their names back, in BASE's place (S): the table shrinks to the 7 whose names the star still pushes out to marks (their titles are wider than the
   // band holds even in the 3x5 face, or the names have no other place): phone 6 and the laptop's STOKER. (Was 33 entries: phone 32, laptop 1.)
-  "phone 47": "x", // placed assembly ★1 (BASE T)
-  "phone 81": "x", // cargo frostbite ★1 spare0 (BASE T)
-  "phone 82": "x", // cargo frostbite ★1 spare1 (BASE T)
-  "phone 83": "x", // placed frostbite ★1 (BASE T)
-  "phone 299": "x", // rig keg ★1 1hit (BASE T)
-  "phone 300": "x", // rig keg ★1 idle (BASE T)
+  // POLISH-4 (REQ-BFG-089; P4-5, cap's ruling 4): the family head's new rung `sub1` (inspector.ts planOnce bySub1, code `1`): the names right-aligned on the sub line's FIRST row, where that row is free (the buttons are under the sub, or a column
+  // sub is on two rows), for a title that ends in ` ★`, after the three name places and before the marks. 8 of the 14 entries below go from `x` to `1`; 6 stay marks (their subs are 81-92 px: phone 299, 1088, 1168, 1182, 1184, 1244 --
+  // tappable, they open the family's note); 5 more ★1 panels that were marks at BASE too (phone 92, 228, 288, 1097, 1098) print names by it and are added with the new code. 14 -> 19 entries.
+  "phone 47": "1", // placed assembly ★1 (BASE T): `SWARM, TEMPO` beside `FACTORY · BELTS 1/2`
+  "phone 81": "1", // cargo frostbite ★1 spare0 (BASE T): `HARASS`
+  "phone 82": "1", // cargo frostbite ★1 spare1 (BASE T)
+  "phone 83": "1", // placed frostbite ★1 (BASE T): `HARASS FAMILY`
+  "phone 92": "1", // placed dragchain ★1 (BASE x)
+  "phone 228": "1", // rig surge ★1 idle (BASE x)
+  "phone 288": "1", // rig overclocker ★1 idle (BASE x)
+  "phone 299": "x", // rig keg ★1 1hit (BASE T): the sub `RIG · 1 HIT` leaves no room
+  "phone 300": "1", // rig keg ★1 idle (BASE T): `FORGE, BURST, TEMPO` beside `RIG · IDLE`
   // POLISH-3 (REQ-BFG-089; Q4, cap's ruling E): the shop OFFER's title carries its star at ★1 too (inspector.ts offerPanel: `NAME ★`, as every other panel's); with Q5's narrow step 7 of the offers still lose their
   // names to marks on this band (all T -> x: a ★1 title wider than the band holds in the 3x5 face; 23 offers moved by the star alone, 16 of them are back in place with the narrow step)
   "phone 1088": "x", // offer assembly held[1] (BASE T)
-  "phone 1095": "x", // offer frostbite held[] (BASE T)
-  "phone 1096": "x", // offer frostbite held[1] (BASE T)
+  "phone 1095": "1", // offer frostbite held[] (BASE T)
+  "phone 1096": "1", // offer frostbite held[1] (BASE T)
+  "phone 1097": "1", // offer dragchain held[] (BASE x)
+  "phone 1098": "1", // offer dragchain held[1] (BASE x)
   "phone 1168": "x", // offer gatling held[1] (BASE T)
   "phone 1182": "x", // offer capacitor held[1] (BASE T)
   "phone 1184": "x", // offer compound held[1] (BASE T)
   "phone 1244": "x", // offer spallcatcher held[1] (BASE T)
-  "laptop 692": "x", // rig stoker ★1 stoke (BASE T)
+  "laptop 692": "1", // rig stoker ★1 stoke (BASE T): `SWARM, TEMPO` beside `RIG ·`, the sub's first row
 };
 const BANDS = [["phone", PHONE], ["desk", DESK], ["laptop", LAPTOP]] as const;
 /** The pins per view: [heads that print the explained words, heads that keep the plain names, heads that keep the marks] (names at base: phone 1,171, desk column 1,295, laptop column 1,295).
  *  STAGE-09141 (POLISH-1 P5a's ★1 star meets PRESENT-2's pin; cap, RULING-STAGE09141-R1): the phone was [939, 232, 132] (names 1,171) and is [909, 246, 148] (names 1,155: marks 132 -> 148); the laptop was [1157, 138, 8] (names 1,295) and is [1157, 137, 9] (names 1,294: marks 8 -> 9); the desk is unchanged.
  *  POLISH-3 (Q5, the narrow step; Q4, the offers' star): the phone is [923, 235, 145] (names 1,158; marks 148 -> 145: the narrow step alone read [927, 238, 138]); the desk and the laptop are as above. */
-const RUNGS: Record<string, [number, number, number]> = { phone: [923, 235, 145], desk: [1163, 132, 8], laptop: [1157, 137, 9] };
+// POLISH-4 (P4-5, the `sub1` rung): the phone is [926, 244, 133] (names 1,170: marks 145 -> 133, 12 panels back to names) and the laptop [1157, 138, 8] (STOKER back to names); the desk is as above.
+const RUNGS: Record<string, [number, number, number]> = { phone: [926, 244, 133], desk: [1163, 132, 8], laptop: [1157, 138, 8] };
 
 describe("PRESENT-2 W (b): the family head says what it is, by a ladder: explained words, else the plain names, else the marks", () => {
   it("the base's placement is read from the same corpus: 1,303 panels, and every panel has a code", () => {
@@ -125,7 +134,7 @@ describe("PRESENT-2 W (b): the family head says what it is, by a ladder: explain
       expect(c.t.title.endsWith(" ★"), `${key} ${c.id}: its title ends in the star`).toBe(true);
       expect(P5A_STAR1[key], key).not.toBe(BASE[band][Number(idx)]);
     }
-    expect(moved).toEqual({ phone: 13, desk: 0, laptop: 1 }); // POLISH-3 (Q5, the narrow step; Q4, the offers' star): was { phone: 32, desk: 0, laptop: 1 }
+    expect(moved).toEqual({ phone: 18, desk: 0, laptop: 1 }); // POLISH-3 (Q5, the narrow step; Q4, the offers' star): was { phone: 32, desk: 0, laptop: 1 }; POLISH-4 (P4-5, the `sub1` rung): phone 13 -> 18 (5 panels that were marks at BASE print names), laptop 1
   });
 
   it("PER PANEL and per view: every head that printed names at base prints names still (the explained words or the plain), in the same place; marks and none stay as they were", () => {
@@ -143,7 +152,7 @@ describe("PRESENT-2 W (b): the family head says what it is, by a ladder: explain
         }
         // names at base: still names, the same place
         expect(fh!.names, what).toBe(true);
-        expect(fh!.at, what).toBe(code === "S" ? "sub" : code === "B" ? "sub2" : "title");
+        expect(fh!.at, what).toBe(code === "S" ? "sub" : code === "B" ? "sub2" : code === "1" ? "sub1" : "title"); // POLISH-4 (P4-5): `1` = the sub line's first row
         if (fh!.explained) {
           // rung 1: the explained words fit where the plain names sat
           const w = textWidth(famHeadText(fam), "3");

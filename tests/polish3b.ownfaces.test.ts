@@ -81,7 +81,7 @@ describe("POLISH-3b P1: at 1920x1080 no own face is cut with a dot", () => {
   it("a face changes if and only if its old plan cut a title or a sub with a dot, or (POLISH-4 P4-4) it is a belt that gives away fewer hit rows in the 3x5 plan (every other own face is drawn exactly as polish3-accepted drew it); A 322 + 69 belts of 2,242 and B 1,078 of 1,809 change", () => {
     const changed = { A: 0, B: 0 };
     for (const f of OWN()) {
-      const p = drawnOwn(f, "desk-1920x1080"), old = oldOwn(f, "desk-1920x1080");
+      const p = drawnOwn(f, "desk-1920x1080"), old = oldOwn(f, "desk-1920x1080"); // POLISH-4 (P4-5): oldFacePlan plans with `sub1: false`: the reference stays polish3-accepted's plan (a battle face never has the sub1 head either: `wrap`)
       const differs = JSON.stringify(p) !== JSON.stringify(old), wasCut = titleCut(f.t, old) || subCut(f, old);
       const belt = f.kind === "route" && hitRowsGone(p) < hitRowsGone(old); // P4-4: the 3x5 plan, fewer hit rows given away (tests/polish4.beltrows.test.ts)
       expect(differs, `${f.tag}: changes iff it was cut (old: title cut ${titleCut(f.t, old)}, sub cut ${subCut(f, old)}) or is a belt that gives fewer rows away`).toBe(wasCut || belt);

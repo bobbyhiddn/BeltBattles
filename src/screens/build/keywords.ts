@@ -326,7 +326,7 @@ export function familyTargets(plan: Pick<PanelPlan, "r" | "famHead"> & Partial<P
     // drawFamHead: `FORGE FAMILY` or `FAMILIES: FORGE, TEMPO` in 3x5 (PRESENT-2 W (b); was "FORGE, TEMPO"), under the sub line (x + 23, y + 19), or
     // right-aligned on the sub line's second row (y + 19) or the title's (y + 5)
     const parts = famHeadParts(fh.tags, !!fh.explained), words = parts.names, text = famHeadText(fh.tags, !!fh.explained), x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - textWidth(text, "3"); // CARD-3
-    const y0 = r.y + dy + (fh.at === "title" ? 5 : 19);
+    const y0 = r.y + dy + (fh.at === "title" ? 5 : fh.at === "sub1" ? 13 : 19); // POLISH-4 (P4-5): `sub1`, the sub line's first row
     if (fh.tags.length === 1) {
       // one family: the whole head is its target (`FORGE FAMILY`: a tap on either word opens the note, whose key is `FORGE FAMILY`; the plain `FORGE`: the name)
       push(fh.tags[0], { x: x0, y: y0, w: textWidth(text, "3"), h: GLYPH_H["3"] });
