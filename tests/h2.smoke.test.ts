@@ -8,6 +8,10 @@
 // The smoke itself (npm run smoke) prints exactly these lines (its transcript: output-H2/logs).
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { smokeRequest, smokeUpload } from "../tools/smoke"; // BUMP-1H T2: the smoke's upload choice and request
+import { noBetterRecord } from "../src/net/matchmaking";
+import { HEARTS_START } from "../src/sim/hearts";
+import { generateSamplePool } from "./helpers/poolCache"; // BUMP-1H T2: the cached twin of the pool builder (tests reach the builders through it)
 import { envReport, flyTomlEnv, smokeEnv } from "../tools/smoke";
 
 const HEAD_TOML = readFileSync(new URL("../fly.toml", import.meta.url), "utf8");
@@ -17,6 +21,27 @@ const OPEN_TOML = setUploads(HEAD_TOML, "open");
 const CLOSED_TOML = setUploads(HEAD_TOML, "closed");
 const ENV = smokeEnv({ port: 41234, staticDir: "/tmp/bb-smoke-static", endpoint: "http://127.0.0.1:39999" });
 const SECRETS = ["AKIDSMOKELOCALFAKE", "smoke-fake-secret-not-real"];
+
+// BUMP-1H T2 (BUMP-1G question 2; the tools/ line is approved in BRIEF-BUMP1H P2): the smoke's section 6 asks the open server, as a player with 3 finished runs, for the ghost
+// section 5 uploaded and checks D1 (noBetterRecord) on what it gets back. A regenerated pool can turn that check red (BUMP-1G P7 met it on the 0.9.14 pool: the upload's record
+// held 10 hearts, the request asked with 5), and only the smoke's own run showed it. So the smoke exports its upload choice (smokeUpload) and its request (smokeRequest), and this
+// test asserts noBetterRecord(upload, request) for the pool as generated now (the cached twin: a pool build is shared with the other files). The smoke's source must use both.
+describe("BUMP-1H T2: the smoke's upload and its request (tools/smoke.ts smokeUpload, smokeRequest)", () => {
+  it("the upload section 5 sends is no better a record than the request section 6 asks with (D1), and the request holds the game's start hearts", () => {
+    const upload = smokeUpload(generateSamplePool());
+    expect(upload, "the pool holds a deck with turrets and a join that POST accepts (a day of the 10-day span, a record without a LAST CHANCE)").toBeDefined();
+    const req = smokeRequest(upload!.day, 3, [], "smoke-player-2");
+    expect(req.lives).toBe(HEARTS_START);
+    expect(req.wins).toBe(upload!.day - 1);
+    expect(noBetterRecord(upload!, req), `${upload!.hero} day ${upload!.day}: the upload's ${upload!.wins}W ${upload!.lives} lives against the request's ${req.wins}W ${req.lives} lives`).toBe(true);
+  }, 900_000);
+
+  it("the smoke makes its choice and its request with those two functions, so this test and the smoke cannot drift apart", () => {
+    const src = readFileSync("tools/smoke.ts", "utf8"); // from the repo root (vitest's cwd); the URL form is a baseline type error (tsc-tests-baseline.json)
+    expect(src).toMatch(/const v2 = smokeUpload\(generateSamplePool\(\)\);/);
+    expect(src).toMatch(/=> smokeRequest\(day, runs, seen, player2\.playerId, wins, lives\);/);
+  });
+});
 
 /** A report's line for `key`, and the keys its first line says differ. */
 const lineOf = (lines: string[], key: string) => lines.filter((l) => l.startsWith(`  ${key}=`) || l.startsWith(`  ${key} `));
