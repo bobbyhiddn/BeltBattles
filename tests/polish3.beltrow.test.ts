@@ -114,7 +114,7 @@ describe("POLISH-3 Q3 (desk; cap's ruling A): a column belt panel keeps its hit 
       expect(rung, `${spec.name}: belts that take the 3x5 face (the rows the 5x7 face gave way)`).toBe(WAS[spec.name]);
     });
 
-    it(`${spec.name} with the ENCHANTER's row up (${ROW_UP} px of column): only the belts whose 3x5 plan gives rows away too (5 and 6 hits: 16 of 75) still do, and the note counts only those`, () => {
+    it(`${spec.name} with the ENCHANTER's row up (${ROW_UP} px of column): only the belts whose plan gives rows away at the tight 3x5 pitch too (5 and 6 hits: 5 of 75; POLISH-5 P5-2's tight rung: it was 16 of 75) still do, and the note counts only those`, () => {
       const f = framed(spec.w, spec.h, spec.dpr, spec.runes);
       const area = { ...f.L.info, h: ROW_UP };
       let gave = 0;
@@ -129,7 +129,7 @@ describe("POLISH-3 Q3 (desk; cap's ruling A): a column belt panel keeps its hit 
         } else expect(noteOf(p), b.label).toBeNull();
         expect(gapsAtLeast(p, p.gaps.min), `${b.label}: gaps at least min`).toBe(true);
       }
-      expect(gave, `${spec.name}: belts still giving rows away`).toBe(16);
+      expect(gave, `${spec.name}: belts still giving rows away`).toBe(5); // POLISH-5 (P5-2, cap's ruling (A)): the column's plan now takes the 3x5 face at the tight pitch where that gives away fewer rows (was 16)
     });
   }
 

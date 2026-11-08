@@ -158,9 +158,11 @@ const SCOUT_PIN: Record<string, [number, number, number, number]> = {
   "phone-360x640": [632, 428, 406, 22],
   "phone-320x568": [632, 428, 416, 12],
   // POLISH-3 (Q3 desk; cap's ruling A): the foe's belt faces in the landscape columns take the 3x5 rung where it keeps every hit row (was 326/102, 344/84 and 334/94)
-  "land-844x390": [632, 428, 352, 76],
-  "desk-1920x1080": [632, 428, 374, 54],
-  "desk-1280x800": [632, 428, 400, 28],
+  // POLISH-5 (P5-2, cap's ruling (A)): the build screen's panel takes the plan that gives away the fewest hit rows (the 3x5 plan, at the tight pitch where that gives away fewer still), and the rows win the room: the guest line uses only
+  // what is spare and goes first behind the ⓘ when there is none (R1's own move). In the landscape columns: 844x390 352/76 -> 334/94 (18 lines move behind the ⓘ), 1920x1080 374/54 -> 333/95 (41), 1280x800 400/28 -> 404/24 (4 come in). Phones: bands, unchanged.
+  "land-844x390": [632, 428, 334, 94],
+  "desk-1920x1080": [632, 428, 333, 95],
+  "desk-1280x800": [632, 428, 404, 24],
 };
 
 describe("POLISH-2 R1: the scouted foes' belts (battleScout.ts faceText + the face area): 632 panels a view, seven views", () => {

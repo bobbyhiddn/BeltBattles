@@ -62,7 +62,7 @@ function corpus(name: ViewName) {
         const t = faceText(b, sel, "THIS FIGHT: 7422 DAMAGE IN 8 SHOTS.", day, owner)!;
         faces.push({
           tag: `${name} ${id} ${maker} d${day} ${sel.kind}${"index" in sel ? sel.index : "uid" in sel ? sel.uid : ""}`, sel, t, fam,
-          p0: planPanel(t, fa.area, fam, { tap: tp, band: fa.band }), p: facePlan(t, fa, fam, tp), small: planPanel(t, fa.area, fam, { tap: tp, band: fa.band, small: true }),
+          p0: planPanel(t, fa.area, fam, { tap: tp, band: fa.band, fewer: false }), p: facePlan(t, fa, fam, tp), small: planPanel(t, fa.area, fam, { tap: tp, band: fa.band, small: true, fewer: false }), // POLISH-5: `fewer: false` = the planner as POLISH-4c left it (P5-2 moves the build screen's belt panel, not this reference)
         });
       }
     }
@@ -155,7 +155,7 @@ describe("POLISH-3 Q2 (a): at 1920x1080 no face's title or sub is cut with a dot
   it("the wrap is a battle face's: the same text without its `subOwner` planned without planPanel's `wrap` (the build screen's desk column) plans as before, with no title rows (POLISH-3b: an own part's face wraps through facePlan's `wrap`)", () => {
     const { faces, fa } = corpus("desk-1920x1080");
     for (const f of faces.slice(0, 600)) {
-      const plain = planPanel({ ...f.t, subOwner: undefined }, fa.area, [], {});
+      const plain = planPanel({ ...f.t, subOwner: undefined }, fa.area, [], { fewer: false });
       expect(plain.titleRows, f.tag).toBeUndefined();
     }
   });
@@ -255,7 +255,7 @@ describe("POLISH-3 Q2 (b): a face keeps every one of its own rule lines wherever
       const { fa, tp, faces } = corpus(name);
       let moved = 0, belts = 0;
       for (const f of faces) {
-        const on = planPanel(f.t, fa.area, f.fam, { tap: tp, band: fa.band }), off = planPanel(f.t, fa.area, f.fam, { tap: tp, band: fa.band, rung: false });
+        const on = planPanel(f.t, fa.area, f.fam, { tap: tp, band: fa.band, fewer: false }), off = planPanel(f.t, fa.area, f.fam, { tap: tp, band: fa.band, rung: false });
         if (f.sel.kind === "route") belts++;
         if (JSON.stringify(on) === JSON.stringify(off)) continue;
         moved++;

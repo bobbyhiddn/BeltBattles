@@ -1459,9 +1459,10 @@ function choose(all: readonly Laid[], avail: number, width: number, main: FontId
  * do (else the last, drawn until the space ends: a phone cut). A tight variant has 1 px more (its body starts 1 px
  * higher). `subFits` says whether a variant's header sub line fits the header (else that variant is skipped).
  * CARD-3 (REQ-BFG-080, B's lever 3): `small`, the band's face only: the 5x7 face is not tried (planPanel's `inBand`).
+ * POLISH-5 (REQ-BFG-089; P5-2): `tight0`, the body itself at the tight pitch (a variant's `tight`, LH_TIGHT, its body 1 px higher): planRung's third rung for a belt's hit rows.
  */
 export function planBody(body: readonly Block[], variants: readonly Variant[] | undefined, width: number, avail: number,
-  subFits: (s: string) => boolean = () => true, keepBig = false, small = false): BodyPlan {
+  subFits: (s: string) => boolean = () => true, keepBig = false, small = false, tight0 = false): BodyPlan {
   const finish = (font: FontId, chosen: Laid[], fits: boolean, variant: number, from: readonly Laid[], v?: Variant): BodyPlan => {
     const lines: (PLine | "rule")[] = [];
     let big = false, ruled = false;
@@ -1491,7 +1492,7 @@ export function planBody(body: readonly Block[], variants: readonly Variant[] | 
   // 0.6.2t: the desk column (keepBig) keeps the readable 5x7 face while its kept blocks fit it: the optional blocks
   // give way first, each whole or not at all, least important first (the flavour, then the ability's later sentences,
   // then the hint: 0.6.2t2 F4, deskRank); only then does the text drop to the 3x5 face
-  const texts: Variant[] = [{ body: deskKept(body) }, ...(variants ?? []).map((t) => ({ ...t, body: deskKept(t.body) }))];
+  const texts: Variant[] = [{ body: deskKept(body), ...(tight0 ? { tight: true } : {}) }, ...(variants ?? []).map((t) => ({ ...t, body: deskKept(t.body) }))];
   if (keepBig && !small) {
     for (let v = 0; v < texts.length; v++) {
       const t = texts[v];
@@ -1761,7 +1762,7 @@ const columnRows = (n: number, tap = 0): number => Math.ceil(n / (tap > 0 ? 2 : 
  *  POLISH-3b (REQ-BFG-087; P1, cap's ruling 1 on POLISH-3's question 1): `o.wrap`, a BATTLE face (battleScout.ts facePlan passes it for every face, yours and the foe's): in the column its title and its sub
  *  wrap as a foe's text (the one with `subOwner`) always did, so no battle face is cut with a dot. The build screen's panels (detailsPlan, drawDetails) never pass it: their desk column is as before. */
 export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [],
-  o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean; small?: boolean; rung?: boolean; wrap?: boolean; sub1?: boolean } = {}): PanelPlan { // POLISH-3: `rung: false` plans without planRung's 3x5 rung (tests: what the rung moves); POLISH-4: `sub1: false` without the family head's sub1 rung (tests: the plans before P4-5)
+  o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean; small?: boolean; rung?: boolean; wrap?: boolean; sub1?: boolean; fewer?: boolean } = {}): PanelPlan { // POLISH-3: `rung: false` plans without planRung's 3x5 rung (tests: what the rung moves); POLISH-4: `sub1: false` without the family head's sub1 rung (tests: the plans before P4-5); POLISH-5: `fewer: false` without P5-2's rungs (tests: the plans as POLISH-4c drew them)
   if (o.small) return planIn(sp, area, families, o, true);
   const p = planIn(sp, area, families, o, false);
   if (!o.inBand || p.column || p.headerOnly || p.body.font !== "5") return p;
@@ -1841,7 +1842,7 @@ function guestFits(p0: PanelPlan, p: PanelPlan): boolean {
  *  panel has spare, in the band and in a grown panel alike, and the panel's size and fit never depend on it (the same plan is fit or not fit, with or without it). Otherwise the panel is
  *  exactly the plan without it, and the words are in the panel's ⓘ view (routePanel's `notes`). (The rule is here, in the one place every plan goes through, and not in planPanel, so
  *  planPanel's own lines are the base's.) */
-function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean; rung?: boolean; wrap?: boolean; sub1?: boolean }, small: boolean): PanelPlan {
+function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: PlanOpts, small: boolean): PanelPlan {
   if (!sp.body.some((b) => b.hold)) return planRung(sp, area, families, o, small);
   const p0 = planRung(withoutHold(sp), area, families, o, small); // today's panel
   const p = planRung(sp, area, families, o, small);
@@ -1851,16 +1852,30 @@ function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { 
 /** POLISH-3 (REQ-BFG-089; Q3, the pieces lane's display list, item 4; cap's ruling A): a hit row of a belt is the belt's own text. Where a column's plan (the desk, the laptop, a landscape phone: the 5x7
  *  face) gives hit rows away (`+N MORE HIT TILES`) and the same text planned in the 3x5 face (planOnce's `small`: the band's own face) keeps every one of them, the column takes the 3x5 plan. Only a plan that
  *  gives hit rows away takes the rung: every other column panel keeps the 5x7 face, and the band (not a column) is as before. It sits INSIDE planIn, so POLISH-2's guest rule compares the plan with and
- *  without its NOT COUNTED line like with like. */
-function planRung(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean; rung?: boolean; wrap?: boolean; sub1?: boolean }, small: boolean): PanelPlan {
+ *  without its NOT COUNTED line like with like.
+ *  POLISH-5 (REQ-BFG-089; P5-2, cap's ruling (A) on the build screen's belt panel: the pieces lane's display list): the panel still gave hit rows away for belts of 6 to 12 hits, 18 of 316 real belts at 1920x1080 (126 rows), 36 at
+ *  1366x768 (255), 9 at 844x390 (71). It is planned in the column's whole height (layout.ts L.info), so there is no spare room; the only room left is the type. Where no 3x5 plan keeps every row, the column takes the plan that
+ *  gives away FEWEST hit rows: the 5x7 plan, the 3x5 plan, or the 3x5 plan at the tight pitch (LH_TIGHT 6, the pitch the rig, turret and offer panels' compact forms already use; `tight`). The 5x7 plan wins a tie, then the
+ *  3x5, so a panel that gives no rows away today is the plan it was; no row is merged, shortened or reworded. The rows win the room: POLISH-2 R1's guest line (NOT COUNTED) uses only what is spare and goes first in the ⓘ
+ *  view when there is none, and the line never decides the rung. For the build screen's panel only: a battle face (`wrap`) keeps POLISH-3's rule (battleScout.ts facePlanWith adds POLISH-4's), and `fewer: false` plans as
+ *  POLISH-4c did (tests). */
+function planRung(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: PlanOpts, small: boolean): PanelPlan {
   const p = planOnce(sp, area, families, o, small);
   if (small || o.rung === false || !p.column || !p.body.dropped.some((b) => b.trim && !b.join)) return p;
   const sm = planOnce(sp, area, families, o, true);
-  return sm.body.dropped.some((b) => b.trim && !b.join) ? p : sm;
+  if (o.wrap === true || o.fewer === false) return sm.body.dropped.some((b) => b.trim && !b.join) ? p : sm;
+  const rows = (q: PanelPlan): number => q.body.dropped.filter((b) => b.trim && !b.join).length;
+  const best = rows(sm) < rows(p) ? sm : p;
+  if (rows(best) === 0) return best;
+  const st = planOnce(sp, area, families, { ...o, tight: true }, true);
+  return rows(st) < rows(best) ? st : best;
 }
 
+/** The options planIn, planRung and planOnce take (planPanel's, less its band's own: `inBand`, `small`). */
+type PlanOpts = { tap?: number; band?: boolean; gaps?: boolean; rung?: boolean; wrap?: boolean; sub1?: boolean; fewer?: boolean; tight?: boolean };
+
 /** planIn's plan of `sp` as it stands. */
-function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean; wrap?: boolean; sub1?: boolean }, small: boolean): PanelPlan {
+function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: PlanOpts, small: boolean): PanelPlan {
   const column = !o.band && area.h >= 70; // landscape column: size to content, the buttons under the text
   const labels = sp.labels;
   const pitch = columnButtonH(o.tap) + 3; // a row of buttons and the gap above it (0.6.1r: 16 + 3)
@@ -1902,7 +1917,7 @@ function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: 
   // the body starts at y + 25 + shift (a tight variant's 1 px higher). The column grows to its text (27 + shift + body +
   // extra, as 0.6.1r sized it); the band's text ends 4 px above its bottom edge. A variant's sub line must fit the header
   const body = planBody(sp.body, sp.variants, wrapW, column ? area.h - 27 - shift - extra : area.h - 27 - shift,
-    (s) => subs.length === 1 && textWidth(s, "3") <= subMax, column, small);
+    (s) => subs.length === 1 && textWidth(s, "3") <= subMax, column, small, o.tight === true);
   // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families sit in the header and never in the body (planned above,
   // exactly as without them), named where they fit, else as their marks (ui/families.ts, the card's own), in the first
   // place free with a clear pixel all round: the band under a one-line sub line (y+19..y+23, when the body starts at

@@ -130,14 +130,14 @@ describe("POLISH-3b P1: where nothing was cut, an own face is drawn as before", 
   it("the build screen's desk column is not a battle face: planPanel without `wrap` never makes title rows and still cuts the two longest factory names (tests/enchant1.faces.test.ts :765 stands)", () => {
     const { fa, tp } = viewOf("desk-1920x1080", 0);
     for (const f of OWN()) {
-      const plain1 = withEnchant(() => planPanel(f.t, fa.area, f.fam, { tap: tp, band: fa.band }));
+      const plain1 = withEnchant(() => planPanel(f.t, fa.area, f.fam, { tap: tp, band: fa.band, fewer: false }));
       expect(plain1.titleRows, f.tag).toBeUndefined();
       expect(plain1.subs.length, `${f.tag}: a sub breaks only at a ' · ' or '. ' as before`).toBeLessThanOrEqual(2);
       if (f.kind === "turret" && /^HEAVY TURRET IN SLOT/.test(f.t.sub)) expect(plain1.subs, `${f.tag}: the sub is one row, cut with a dot when drawn`).toEqual([f.t.sub]);
     }
     for (const view of ["desk-1280x800", "laptop-1366x768"] as ViewName[]) {
       const v = viewOf(view, 0);
-      const cut = OWN().filter((f) => B8.includes(f.tag)).filter((f) => titleCut(f.t, withEnchant(() => planPanel(f.t, v.fa.area, f.fam, { tap: v.tp, band: v.fa.band }))));
+      const cut = OWN().filter((f) => B8.includes(f.tag)).filter((f) => titleCut(f.t, withEnchant(() => planPanel(f.t, v.fa.area, f.fam, { tap: v.tp, band: v.fa.band, fewer: false }))));
       expect(cut.map((f) => f.tag), `${view}: planPanel's plan still cuts them (the build screen's pin)`).toEqual(B8);
     }
   });
