@@ -956,8 +956,26 @@ export function curvePickRows(): CurveRows | null {
   return rows;
 }
 
+/** BUMP-1H: the environment variable that names a scratch list of depth slots, "day:wins:lost,day:wins:lost,..." (a dry pool's; DEPTH_SLOTS is the committed list). */
+export const CURVE_DEPTH_SLOTS_ENV = "BB_CURVE_DEPTH_SLOTS";
+
+/** BUMP-1H: the depth slots in force: BB_CURVE_DEPTH_SLOTS' list when it is set (a dry pool of P3's screen), else DEPTH_SLOTS. The slot index in the pool is the index here. */
+export function depthSlots(): readonly (readonly [number, number, number])[] {
+  const spec = process.env[CURVE_DEPTH_SLOTS_ENV];
+  if (spec === undefined) return DEPTH_SLOTS;
+  return spec.split(",").filter(Boolean).map((s) => {
+    const p = s.split(":").map(Number);
+    if (p.length !== 3 || p.some((x) => !Number.isInteger(x) || x < 0)) throw new Error(`CURVE: ${CURVE_DEPTH_SLOTS_ENV} entry "${s}" is not day:wins:lost`);
+    return [p[0], p[1], p[2]] as const;
+  });
+}
+
 /** BUMP-1H: do the streak and depth tables (or scratch rows) exist? If not, a CURVE-on pool holds no new ghost (see above). */
 const curveDealt = (): boolean => Object.keys(STREAK_PICKS).length > 0 || DEPTH_PICKS.length > 0 || curvePickRows() !== null;
+
+/** BUMP-1H: is the streak tier dealt? Only when its table (or scratch rows) holds picks: a pool of P3's V0 (slot 1 and the depth ghosts, no streak tier) names no streak pick. Once any
+ *  pick exists every (hero, day) of the tier needs one (curveGhosts throws on a gap). */
+const streakDealt = (rows: CurveRows | null): boolean => Object.keys(STREAK_PICKS).length > 0 || (rows !== null && Object.keys(rows.streak).length > 0);
 
 /** BUMP-1H: the streak ghost's [wins, dusks lost] on `day`: STREAK_RECORDS' row, else the provisional default (P3 replaces it with the records par
  *  often holds): one loss for every six dusks fought (days 2-6 undefeated, 7-12 one loss, 13-16 two), wins capped at WIN_GOAL - 1 (a run ghost is a
@@ -1010,7 +1028,7 @@ export function streakDeckByRule(hero: HeroId, day: number, botRunes?: boolean):
  *  (the codes of the decks the pool already holds that day), the casual grade at its slot (depthSlot) nearest CASUAL_TARGET; ties go to the lower grade, then
  *  the earlier hero and deck. */
 export function depthDeckByRule(i: number, taken: ReadonlySet<string>, botRunes?: boolean): { hero: HeroId; deck: SoftDeck; grade: number } {
-  const [day] = DEPTH_SLOTS[i], gi = depthSlot(i);
+  const [day] = depthSlots()[i], gi = depthSlot(i);
   let best: { hero: HeroId; deck: SoftDeck; grade: number } | undefined;
   for (const hero of PLAYABLE_HEROES) {
     for (const c of softCandidates(hero, day, botRunes)) {
@@ -1032,7 +1050,7 @@ export function curveGhosts(first: number, o: { botRunes?: boolean } = {}): Ghos
   const out: GhostSnapshot[] = [];
   const depth = poolDepth();
   const seedOf = (deck: SoftDeck, hero: HeroId): number | undefined => (deck.seed !== undefined ? (parRunSeed(hero, deck.seed) >>> 0) || undefined : undefined);
-  for (const hero of PLAYABLE_HEROES) {
+  for (const hero of streakDealt(rows) ? PLAYABLE_HEROES : []) {
     for (let day = STREAK_FIRST_DAY; day <= depth; day++) {
       const pick = rows?.streak[hero]?.[String(day)] ?? STREAK_PICKS[hero]?.[day - STREAK_FIRST_DAY];
       if (pick === undefined) throw new Error(`CURVE: no streak pick for ${hero} day ${day}. Re-run the rule: ${CURVE_REBUILD}`);
@@ -1042,7 +1060,7 @@ export function curveGhosts(first: number, o: { botRunes?: boolean } = {}): Ghos
       out.push(seedGhost(hero, day, STREAK_VARIANT, deck.build, rec, EPOCH + (first + out.length) * 1000, seedOf(deck, hero), roadOf(deck.road), statedLosses(day, rec, lost)));
     }
   }
-  DEPTH_SLOTS.forEach(([day, wins, lost], i) => {
+  depthSlots().forEach(([day, wins, lost], i) => {
     const pick = rows?.depth[String(i)] ?? DEPTH_PICKS[i];
     const m = pick === undefined ? null : /^([a-z]+):(.+)$/.exec(pick);
     if (!m || !PLAYABLE_HEROES.includes(m[1] as HeroId)) throw new Error(`CURVE: no depth pick for slot ${i} (day ${day}). Re-run the rule: ${CURVE_REBUILD}`);

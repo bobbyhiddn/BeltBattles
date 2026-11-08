@@ -17,7 +17,7 @@ import { isReachable } from "../src/net/records";
 import { CURVE, setCurve, withCurve } from "../src/net/curve";
 import {
   CASUAL_TARGET, CURVE_PICKS_FILE_ENV, DEPTH_SLOTS, DEPTH_VARIANT, SOFT1_CURVE, SOFT1_WORLD, STREAK_FIRST_DAY, STREAK_RECORDS, STREAK_TARGET, STREAK_VARIANT,
-  baseSamplePool, curveGhosts, depthDeckByRule, depthSlot, drawnLabel, poolDepth, softDeckOf, softPickKey, streakDeckByRule, streakRecord, streakSlot,
+  baseSamplePool, curveGhosts, depthDeckByRule, depthSlot, depthSlots, drawnLabel, poolDepth, softDeckOf, softPickKey, streakDeckByRule, streakRecord, streakSlot,
 } from "../tools/samplePool";
 
 afterEach(() => setCurve(CURVE));
@@ -106,7 +106,7 @@ describe("BUMP-1H CURVE (opt-in): the streak and depth picks' rule", () => {
         const take = (day: number, code: string): void => { if (!takenByDay.has(day)) takenByDay.set(day, new Set()); takenByDay.get(day)!.add(code); };
         for (const g of baseSamplePool()) take(g.day, encodeStarred(g.build));
         for (const [hero, byDay] of Object.entries(rows.streak)) for (const [day, key] of Object.entries(byDay)) take(Number(day), encodeStarred(softDeckOf(hero as HeroId, Number(day), key).build));
-        DEPTH_SLOTS.forEach(([day], i) => {
+        depthSlots().forEach(([day], i) => {
           const have = rows.depth[String(i)];
           if (have) {
             const m = /^([a-z]+):(.+)$/.exec(have)!;
