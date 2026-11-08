@@ -25,9 +25,15 @@ import { ITEMS } from "../src/sim/content";
 import { gridGeom, gridSpecOf, hasGrid, iconCell, markCell, shapeGrid, shapeMarkSize } from "../src/ui/shapePic";
 import { drawWarlordCard, type ForkCardView } from "../src/screens/fork/cards";
 import { drawReveal } from "../src/screens/event/reveal";
-import type { DuskFoe } from "../src/game/run";
+import { newRun, type DuskFoe } from "../src/game/run";
+import { UI } from "../src/ui/ui";
+import { LastChancePicker, lcPartGrid, lcPartSub, lcWord } from "../src/screens/lastChancePicker";
+import { lastChanceOffer } from "../src/sim/lastChance";
+import { ENCHANT_DEFS } from "../src/sim/enchant";
+import { VIEWS, VIEW_NAMES, freshStorage, regionsOf } from "./backdrop1.helpers";
 
 installRaster();
+freshStorage();
 
 const SHAPED = Object.keys(ITEMS).filter((id) => hasGrid(id));
 const fillOf = (id: string): string => (ITEMS[id].kind === "gate" ? C.wood2 : C.steel2);
@@ -159,5 +165,86 @@ describe("PRESENT-5 G5: the scout report's deck (event/reveal.ts drawReveal: one
     expect(xs[0], "the first box").toBe(5);
     expect(xs[1] - xs[0], "after a counted part: 26 px").toBe(26);
     expect(new Set(ys).size, "the deck wraps to a second row of boxes").toBeGreaterThan(1);
+  });
+});
+
+describe("PRESENT-5 G5: LAST CHANCE's part card (lastChancePicker.ts: the plate beside the words where they leave room, else the corner fallback over the 20 x 20 icon floor)", () => {
+  /** the brief's views and the narrowest phones the repo names (POLISH-3: 280x653 and 300x640 at x5; 320x568 at dpr 2, x3): W, H in the game's px, scale = device px per game px */
+  const VX: { name: string; W: number; H: number; scale: number; dpr: number }[] = [...VIEW_NAMES.map((name) => ({ name, ...VIEWS[name] })), { name: "320x568", W: 213, H: 378, scale: 3, dpr: 2 }, { name: "300x640", W: 180, H: 384, scale: 5, dpr: 3 }, { name: "280x653", W: 168, H: 392, scale: 5, dpr: 3 }];
+  /** the picker on a run of `seed` at `view` (the helper's scene, with the seed free: the offer, its part and its enchant word are the game's own for that seed); `draw(off)` one frame with the mark (or without it) */
+  function frameOf(view: string, seed: number) {
+    const v = VX.find((q) => q.name === view)!, ui = new UI();
+    const run = newRun("furnace", seed, "present5-lc");
+    (run as unknown as { lastChance: { lives: number; day: number } }).lastChance = { lives: 1, day: 6 };
+    (run as unknown as { hearts: boolean }).hearts = true;
+    const s = {
+      run, refit: false, touch: false, t: 0,
+      game: { W: v.W, H: v.H, ui, view: { W: v.W, H: v.H, scale: v.scale, dpr: v.dpr, portrait: v.H > v.W * 1.05, sub: 1 }, canvas: null, error: () => {}, resize: () => {}, toast: () => {} },
+      touched: () => {}, lcHeartT: Infinity,
+    };
+    const lc = new LastChancePicker(), o = lc.offer(s as never)!;
+    const draw = (off: boolean): { c: RasterCanvas; calls: typeof cap.calls; regions: string[] } => {
+      cap.off = off; cap.calls.length = 0;
+      const c = fresh(v.W, v.H);
+      ui.begin(); lc.draw(gOf(c), s as never); ui.end();
+      cap.off = false;
+      return { c, calls: cap.calls.slice(), regions: regionsOf(ui) };
+    };
+    draw(false); // the first frame fixes the offer's key: a fresh picker starts closed
+    return { lc, o, run, layout: () => lc.layout(s as never, o), draw };
+  }
+  /** the seeds (1..) whose offer's part is a shaped piece, per view: where the part card draws the plate and where the corner (the decision is lcPartGrid's: card width, the part's name with its word, the sub line) */
+  const found: { view: string; seed: number; id: string; corner: boolean }[] = [];
+  for (const view of VX.map((q) => q.name)) {
+    const cardW = Math.min(VX.find((q) => q.name === view)!.W - 8, 300);
+    for (let seed = 1; seed <= 600; seed++) {
+      const o = lastChanceOffer(seed, 6, "furnace", []);
+      if (!o.part || !hasGrid(o.part)) continue;
+      const d = ITEMS[o.part], word = lcWord({ seed }, o), name = word ? `${ENCHANT_DEFS[word.ench].name} ${d.name}` : d.name;
+      const where = lcPartGrid({ x: 0, y: 0, w: cardW, h: 80 }, o.part, name, lcPartSub(d.rarity, o.partStars ?? 1));
+      found.push({ view, seed, id: o.part, corner: !!where && "corner" in where });
+    }
+  }
+  it("the game offers shaped parts on this card, and on each view the plate AND the corner both occur (the card width, the enchant word's length)", () => {
+    expect(found.length).toBeGreaterThan(40);
+    const corners = found.filter((f) => f.corner), plates = found.filter((f) => !f.corner);
+    expect(corners.length, "the corner fallback is reached in the game").toBeGreaterThan(5);
+    expect(plates.length, "the plate is reached").toBeGreaterThan(5);
+    console.log(`G5-LC offers with a shaped part over seeds 1-600 and ${VX.length} views: ${found.length}; the plate ${plates.length}, the corner ${corners.length}; corner parts: ${[...new Set(corners.map((f) => f.id))].join(", ")}; by view (corner/all): ${VX.map((q) => q.name).map((vw) => `${vw} ${corners.filter((f) => f.view === vw).length}/${found.filter((f) => f.view === vw).length}`).join(", ")}`);
+  });
+
+  it("the corner fallback: the icon whole on its floor, one tile per footprint cell in the floor's corner, the frame changes nowhere else, the card's rects and the regions are the same with and without the mark; the plate case asks for no mark and is the old frame", () => {
+    let corners = 0, plates = 0, was = 0, now = 0, total = 0;
+    const lines: string[] = [];
+    for (const view of VX.map((q) => q.name)) {
+      const here = found.filter((f) => f.view === view);
+      const picks = [...new Map(here.filter((f) => f.corner).map((f) => [f.id, f])).values()].slice(0, 3).concat(here.filter((f) => !f.corner).slice(0, 2));
+      for (const f of picks) {
+        const fr = frameOf(view, f.seed), L = fr.layout(), at = fr.lc.boons(fr.o).indexOf("part"), card = L.cards[at];
+        expect(fr.o.part, `${view} seed ${f.seed}: the offer is the pure one`).toBe(f.id);
+        const on = fr.draw(false), off = fr.draw(true);
+        expect(on.regions, `${view} ${f.id}: the regions are the same with and without the mark`).toEqual(off.regions);
+        expect(L.cards, `${view}: the card rects are the layout's`).toEqual(fr.layout().cards);
+        if (!f.corner) {
+          plates++;
+          expect(on.calls.length, `${view} ${f.id} (plate): no mark asked for`).toBe(0);
+          for (let y = 0; y < on.c.height; y++) for (let x = 0; x < on.c.width; x++) if (on.c.at(x, y) !== off.c.at(x, y)) expect.fail(`${view} ${f.id}: a plate card changed at (${x}, ${y})`);
+          continue;
+        }
+        corners++;
+        expect(on.calls.length, `${view} ${f.id} (corner): one mark`).toBe(1);
+        const c = on.calls[0];
+        expect([c.x, c.y, c.size], `${view} ${f.id}: the 20 x 20 icon floor at (+6, +7) of the part card`).toEqual([card.x + 6, card.y + 7, 20]);
+        const k = checkBox(on.c, off.c, c, { x: card.x + 16, y: card.y + 17 }, `${view} ${f.id}`);
+        confined(on.c, off.c, [{ x: c.x, y: c.y, w: 20, h: 20 }], `${view} ${f.id}`);
+        expect(k.newHidden, `${view} ${f.id}: the mark hides at most a corner of the icon`).toBeLessThanOrEqual(20);
+        was += k.icon - k.oldHidden; now += k.icon - k.newHidden; total += k.icon;
+        lines.push(`G5-LC ${view.padEnd(10)} ${f.id.padEnd(10)} icon px ${String(k.icon).padStart(3)}: visible old ${String(k.icon - k.oldHidden).padStart(3)} -> new ${String(k.icon - k.newHidden).padStart(3)}`);
+      }
+    }
+    console.log(`${lines.join("\n")}\nG5-LC total over ${corners} corner cards: icon px ${total}: visible old ${was} -> new ${now}; ${plates} plate cards unchanged`);
+    expect(corners).toBeGreaterThan(5);
+    expect(plates).toBeGreaterThan(3);
+    expect(now).toBeGreaterThan(was);
   });
 });

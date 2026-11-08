@@ -13,7 +13,7 @@ import { frame, rect } from "../render/pixel";
 import { C, RARITY_COLOR } from "../render/palette";
 import { drawText, icons, textWidth } from "../render/font";
 import { itemIcon } from "../render/sprites";
-import { drawShapePlate, hasGrid, iconCell, shapeGrid, shapeGridSize } from "../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its card
+import { drawIconMark, drawShapePlate, hasGrid, shapeGridSize } from "../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its card; PRESENT-5 G5: the corner fallback is the drop row's mark (drawIconMark)
 import { isPhone, tapPx } from "../ui/tap"; // a finger's target for the ⓘ on a phone
 import { panel, type Rect } from "../ui/ui";
 import { drawInfoMarkIn } from "../ui/infoGlyph"; // POLISH-2 (REQ-BFG-089; Q3): the one ⓘ mark
@@ -536,7 +536,7 @@ export class LastChancePicker {
         // the card's top (the head is 31 px: the tallest plate, SPIKE RAIL's 18, ends 25 px down); the name and the sub line end well before it
         const where = lcPartGrid(r, def.id, word ? `${ENCHANT_DEFS[word.ench].name} ${def.name}` : def.name, lcPartSub(def.rarity, o.partStars ?? 1));
         if (where && "plate" in where) drawShapePlate(g, def.id, where.plate.x, where.plate.y);
-        else if (where) g.drawImage(shapeGrid(def.id, iconCell(def.id)), where.corner.x, where.corner.y); // PRESENT-1 S1 (a): a card too narrow for the plate beside the words draws the grid over its icon's corner (was dropped)
+        else if (where) drawIconMark(g, def.id, where.corner.x, where.corner.y, 20); // PRESENT-1 S1 (a): a card too narrow for the plate beside the words never loses its footprint; PRESENT-5 G5 (REQ-BFG-113; #537 (5)): it is the drop row's footprint MARK in the corner of the 20 x 20 icon floor (where.corner is the floor's top-left; the 12 x 12 icon sits 4 px in, so the mark covers at most 3 x 3 px of it), where it was G1's grid at iconCell over the floor's top-left (11 x 11 for a 2x2 part, covering most of the icon); the card's rects and regions do not move
         drawBody(g, r, t.lines, t.info, hint, L.gap);
         if (word) { const sp = lcSparkAt(r); drawSparkAt(g, sp.x, sp.y, ENCHANT_DEFS[word.ench].color); } // ENCHANT-1 (E7); POLISH-1 (P2): the word's spark whole inside the card, on its part's plate (lcSparkAt; was on the frame's top-right corner, half outside it)
       } else {
