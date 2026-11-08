@@ -69,12 +69,16 @@ describe("TXT-AZ item 6: the pickers' title block on a clean ground (REQ-BFG-073
     expect(a.calls[0].slice(1)).toEqual([170, 34, 300, 39]); // its ink edge covers the whole plate
   });
 
+  // BACKDROP-1 (REQ-BFG-073), old -> new: LAST CHANCE's picker no longer calls drawTitlePlate: its title plate is the TOP of lcGround's one "dark" panel (the card column's ground, the plate
+  // grown down to the last card's foot: tests/backdrop1.ground.test.ts), drawn at the same place (after the scrim, before the title). The dawn picker keeps drawTitlePlate. Cause: the ground.
   it("both pickers draw it after their scrim and before their title (one plate for both)", () => {
+    const MARK = { "src/screens/lastChancePicker.ts": 'panel(g, lcGround(W, H, L), "dark")', "src/screens/runePicker.ts": "drawTitlePlate(g, W, L.top, L.cardW)" };
     for (const [file, title] of [["src/screens/lastChancePicker.ts", "drawText(g, LC_TITLE"], ["src/screens/runePicker.ts", "drawText(g, PICK_TITLE"]] as const) {
       const src = readFileSync(join(ROOT, file), "utf8");
-      const scrim = src.indexOf("rect(g, 0, 0, W, H, C.ink)"), plate = src.indexOf("drawTitlePlate(g, W, L.top, L.cardW)"), text = src.indexOf(title);
+      const scrim = src.indexOf("rect(g, 0, 0, W, H, C.ink)"), plate = src.indexOf(MARK[file]), text = src.indexOf(title);
       expect([scrim > 0, plate > scrim, text > plate], file).toEqual([true, true, true]);
-      expect(src.split("drawTitlePlate(g, W, L.top, L.cardW)").length - 1, file).toBe(1);
+      expect(src.split(MARK[file]).length - 1, file).toBe(1);
     }
+    expect(readFileSync(join(ROOT, "src/screens/lastChancePicker.ts"), "utf8").includes("drawTitlePlate("), "LAST CHANCE draws no separate title plate").toBe(false);
   });
 });
