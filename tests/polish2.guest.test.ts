@@ -153,16 +153,18 @@ describe("POLISH-2 R1: every plan of the corpus keeps its faces and its lines, a
 
 /** The scouted foes' counts at this tip: [panels, with the line, in the panel, behind the ?] per view. */
 const SCOUT_PIN: Record<string, [number, number, number, number]> = {
-  "phone-390x844": [632, 428, 156, 272],
+  // POLISH-6 (P6-1, REQ-BFG-089): COPIES prints 1.3 where it printed 1.3333333333333333 (the readout grid is 3 characters wide, not 18), so the rows have room and the guest line is spare in more panels:
+  // phone-390x844 156/272 -> 160/268, 844x390 334/94 -> 342/86, 1280x800 404/24 -> 396/32 (the other views are unchanged: they hold no belt that prints a fraction, or none that has room)
+  "phone-390x844": [632, 428, 160, 268],
   "op-402x690": [632, 428, 152, 276],
   "phone-360x640": [632, 428, 406, 22],
   "phone-320x568": [632, 428, 416, 12],
   // POLISH-3 (Q3 desk; cap's ruling A): the foe's belt faces in the landscape columns take the 3x5 rung where it keeps every hit row (was 326/102, 344/84 and 334/94)
   // POLISH-5 (P5-2, cap's ruling (A)): the build screen's panel takes the plan that gives away the fewest hit rows (the 3x5 plan, at the tight pitch where that gives away fewer still), and the rows win the room: the guest line uses only
   // what is spare and goes first behind the ⓘ when there is none (R1's own move). In the landscape columns: 844x390 352/76 -> 334/94 (18 lines move behind the ⓘ), 1920x1080 374/54 -> 333/95 (41), 1280x800 400/28 -> 404/24 (4 come in). Phones: bands, unchanged.
-  "land-844x390": [632, 428, 334, 94],
+  "land-844x390": [632, 428, 342, 86],
   "desk-1920x1080": [632, 428, 333, 95],
-  "desk-1280x800": [632, 428, 404, 24],
+  "desk-1280x800": [632, 428, 396, 32],
 };
 
 describe("POLISH-2 R1: the scouted foes' belts (battleScout.ts faceText + the face area): 632 panels a view, seven views", () => {

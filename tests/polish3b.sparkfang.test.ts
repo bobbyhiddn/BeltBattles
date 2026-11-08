@@ -129,7 +129,7 @@ describe("POLISH-3b P2: the foe's faces that moved are those twelve; nothing els
   });
 
   it("REQ-BFG-087: the foe's faces with a gap under min (gaps.px < gaps.min) are the same count as at polish3-accepted on every view, but 844x390's (POLISH-4 P4-3: the six drawn without their CLOSE row have the room: 109 -> 103); the twelve are under min before (content first: SPACE-1 D3)", () => {
-    const UNDER: Record<ViewName, number> = { "desk-1920x1080": 42, "laptop-1366x768": 88, "desk-1280x800": 47, "land-844x390": 104, "op-402x690": 503, "phone-360x640": 28 }; // POLISH-4 P4-4: 1920x1080 57 -> 42 (belts in the 3x5 plan), 844x390 103 -> 104
+    const UNDER: Record<ViewName, number> = { "desk-1920x1080": 42, "laptop-1366x768": 88, "desk-1280x800": 47, "land-844x390": 104, "op-402x690": 503, "phone-360x640": 32 }; // POLISH-4 P4-4: 1920x1080 57 -> 42 (belts in the 3x5 plan), 844x390 103 -> 104; POLISH-6 P6-1: 360x640 28 -> 32 (COPIES prints 1.3, the readout's grid rows are one line: six belt faces fit the 5x7 plan at a 1 px gap (min 3), two leave the list; tests/polish3b.ownfaces.test.ts names them)
     for (const name of VIEW_NAMES) {
       const { fa, tp } = viewOf(name, 1);
       let under = 0;

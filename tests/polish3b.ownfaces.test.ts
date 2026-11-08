@@ -191,7 +191,9 @@ describe("POLISH-3b P1: REQ-BFG-089 and REQ-BFG-087 keep", () => {
     "desk-1280x800": { A: 57, B: 2, was: { A: 57, B: 2 } },
     "land-844x390": { A: 106, B: 161, was: { A: 105, B: 161 } }, // POLISH-4 P4-4: +1, a belt that shows more hit rows in the 3x5 plan has a thinner gap
     "op-402x690": { A: 503, B: 644, was: { A: 503, B: 644 } },
-    "phone-360x640": { A: 28, B: 0, was: { A: 28, B: 0 } },
+    // POLISH-6 (P6-1): COPIES prints 1.3, not 1.3333333333333333: the readout's grid rows are one line, not two. At 360x640 six belt faces (tags `A grimhold rivalBuild d12 route0` and d16, `A highspire rivalBuild d12 route2` and d16,
+    // `A nettle standInBuild d12 route1` and d16) then fit the 5x7 plan with a 1 px gap (min 3) where they were 3x5 with room, and two (`A nettle rivalBuild d12 route1` and d16) leave the list: 28 -> 32, at polish3-accepted's rules too (`was`).
+    "phone-360x640": { A: 32, B: 0, was: { A: 32, B: 0 } },
   };
   for (const name of VIEW_NAMES) {
     it(`${name}: REQ-BFG-089 no battle face draws default rules text (no block flagged note, no flavour, reminder, hint or caveat; own and foe) and REQ-BFG-087 own faces under min gap are ${UNDER[name].was.A} / ${UNDER[name].was.B} -> ${UNDER[name].A} / ${UNDER[name].B} (A / B; a face newly under min is a face that wrapped: content first, SPACE-1 D3)`, () => {

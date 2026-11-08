@@ -17,17 +17,21 @@ afterEach(() => setEnchant(ENCHANT));
 /** Per view [own, foe]: the real builds' belts (corpus A: 316 a view) that give hit rows away [belts, rows lost] before -> after, and the belt faces that take the 3x5 plan. The scout's table (POLISH-4 SCOUT section 5). */
 const BELTS: Record<View13, { own: [number, number, number, number, number]; foe: [number, number, number, number, number] }> = {
   // [belts giving rows away before, rows lost before, belts giving rows away after, rows lost after, belt faces that changed]
+  // POLISH-6 (P6-1, REQ-BFG-089): COPIES prints 1.3 where it printed 1.3333333333333333 (the readout's grid rows are one line, not two), so seven views have room for rows the table below lost:
+  // 1366x768 and 844x390 [63,389,63,203,61] -> [55,357,55,167,53] (both sides); 1280x800 [4,30,4,14,4] -> [4,30,4,8,4]; 812x375@3 own [75,387,75,268,26] -> [71,355,71,236,26], foe [83,430,83,310,28] -> [81,404,81,284,28];
+  // 851x393@2.75 own [120,626,120,465,52] -> [120,600,120,439,52], foe [131,699,131,551,58] -> [131,677,131,529,58]; 915x412@2.625 [93,494,93,372,35] -> [93,472,93,350,35];
+  // 926x428@3 own [100,513,100,370,39] -> [98,489,98,346,39], foe [108,581,108,434,46] -> [108,555,108,408,46]. 1920x1080, 402x690, 360x640, 3040x1710 and the bands do not move.
   "desk-1920x1080": { own: [77, 492, 77, 261, 69], foe: [84, 519, 84, 290, 75] },
-  "laptop-1366x768": { own: [63, 389, 63, 203, 61], foe: [63, 389, 63, 203, 61] },
-  "desk-1280x800": { own: [4, 30, 4, 14, 4], foe: [4, 30, 4, 14, 4] },
-  "land-844x390": { own: [63, 389, 63, 203, 61], foe: [63, 389, 63, 203, 61] },
+  "laptop-1366x768": { own: [55, 357, 55, 167, 53], foe: [55, 357, 55, 167, 53] },
+  "desk-1280x800": { own: [4, 30, 4, 8, 4], foe: [4, 30, 4, 8, 4] },
+  "land-844x390": { own: [55, 357, 55, 167, 53], foe: [55, 357, 55, 167, 53] },
   "op-402x690": { own: [134, 479, 134, 479, 0], foe: [134, 479, 134, 479, 0] },
   "phone-360x640": { own: [0, 0, 0, 0, 0], foe: [0, 0, 0, 0, 0] },
   "col96-3040x1710": { own: [91, 558, 91, 320, 82], foe: [91, 564, 91, 320, 82] },
-  "land-812x375@3": { own: [75, 387, 75, 268, 26], foe: [83, 430, 83, 310, 28] },
-  "pixel5-851x393@2.75": { own: [120, 626, 120, 465, 52], foe: [131, 699, 131, 551, 58] },
-  "land-915x412@2.625": { own: [93, 494, 93, 372, 35], foe: [93, 494, 93, 372, 35] },
-  "promax-926x428@3": { own: [100, 513, 100, 370, 39], foe: [108, 581, 108, 434, 46] },
+  "land-812x375@3": { own: [71, 355, 71, 236, 26], foe: [81, 404, 81, 284, 28] },
+  "pixel5-851x393@2.75": { own: [120, 600, 120, 439, 52], foe: [131, 677, 131, 529, 58] },
+  "land-915x412@2.625": { own: [93, 472, 93, 350, 35], foe: [93, 472, 93, 350, 35] },
+  "promax-926x428@3": { own: [98, 489, 98, 346, 39], foe: [108, 555, 108, 408, 46] },
   "band-280x653": { own: [241, 1067, 241, 1067, 0], foe: [253, 1094, 253, 1094, 0] }, // a band is not a column: nothing changes; this count takes every dropped row, the body's whole (the scout's +N MORE count: 171 / 742 and 179 / 753)
   "band-300x640": { own: [0, 0, 0, 0, 0], foe: [0, 0, 0, 0, 0] },
 };

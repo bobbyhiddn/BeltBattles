@@ -934,6 +934,15 @@ export interface BeltPanel {
 }
 
 /**
+ * POLISH-6 (REQ-BFG-089; RULING-POLISH5 R6, RULING-REVIEW-POLISH5 N5, cap's answer A1): the COPIES cell. est.copies is a mean (SORTING ARM's
+ * 1 + (copies - 1) / every: 4/3 at one star, 16/9 through a splitter), and fmtCount printed it as `1.3333333333333333`. A whole count prints as it
+ * does; a non-whole one is rounded to ONE decimal (4/3 -> 1.3, 5/3 -> 1.7, 16/9 -> 1.8); one that rounds to a whole prints the whole, never `2.0`.
+ * A local format on purpose: fmtCount keeps "a count as it is" (NUM-4: a fraction is a finding, never rounded away), and this is the one place
+ * anywhere that hands it a non-whole value (1,660 calls over 121 test files, all from the cell below).
+ */
+export const copiesText = (n: number): string => fmtCount(Math.round(n * 10) / 10);
+
+/**
  * A belt route (0.6.2 BELTSIDE, V4): its tiles and hits, the timeline in R7 order (0.6.2t: the glossary's hit rows, 0b.4),
  * then the gun end's readout in aligned stat pairs: DMG and BURN, SPD and TIME, and SHOCK and COPIES where they apply.
  * The readout always stays; on a short panel the last timeline rows give way first, and a note says how many.
@@ -975,7 +984,7 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   const cells: [string, string][][] = [
     [["DMG", dmg], ["BURN", String(burn)]],
     [["SPD", spd], ["TIME", time]],
-    ...(est.shock || est.copies > 1 ? [[["SHOCK", est.shock ? "YES" : "NO"], ["COPIES", fmtCount(est.copies)]] as [string, string][]] : []),
+    ...(est.shock || est.copies > 1 ? [[["SHOCK", est.shock ? "YES" : "NO"], ["COPIES", copiesText(est.copies)]] as [string, string][]] : []), // POLISH-6 R6: one decimal where it is not whole
   ];
   const joined = joinersOf(b, index); // 0.6.2j (J10): the belts that join this one
   const joins = w.joins ?? [];

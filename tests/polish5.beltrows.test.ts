@@ -18,12 +18,14 @@ installRaster();
 type Maker = "rivalBuild" | "standInBuild";
 const MAKERS: Record<Maker, (id: RivalId, day: number) => Build> = { rivalBuild, standInBuild };
 const DAYS = [5, 8, 12, 16];
-/** The three views of the brief and 1280x800: [name, w, h, dpr, belts giving rows away / rows lost at POLISH-4c, the same now]. */
+/** The three views of the brief and 1280x800: [name, w, h, dpr, belts giving rows away / rows lost at POLISH-4c, the same now].
+ *  POLISH-6 (P6-1, REQ-BFG-089): COPIES prints 1.3 where it printed 1.3333333333333333 (the readout's grid rows are one line, not two): the rows have room, in the harness column (framed(), no ENCHANTER row):
+ *  POLISH-4c's plans 18 / 126 -> 14 / 106 (1920x1080), 36 / 255 -> 30 / 227 (1366x768), 9 / 71 -> 6 / 50 (844x390@3); this tip's plans 6 / 16 -> 4 / 8, 10 / 34 -> 8 / 24, 4 / 12 -> 2 / 4. */
 const VIEWS: [string, number, number, number, [number, number], [number, number]][] = [
-  ["desk 1920x1080", 1920, 1080, 1, [18, 126], [6, 16]],
-  ["laptop 1366x768", 1366, 768, 1, [36, 255], [10, 34]],
+  ["desk 1920x1080", 1920, 1080, 1, [14, 106], [4, 8]],
+  ["laptop 1366x768", 1366, 768, 1, [30, 227], [8, 24]],
   ["desk 1280x800", 1280, 800, 1, [0, 0], [0, 0]],
-  ["land 844x390@3", 844, 390, 3, [9, 71], [4, 12]],
+  ["land 844x390@3", 844, 390, 3, [6, 50], [2, 4]],
 ];
 const NOTE = /\+\d+ MORE HIT TILES?/;
 
