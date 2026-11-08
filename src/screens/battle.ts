@@ -46,7 +46,7 @@ import { barClock, clockSec } from "../ui/statFormat"; // WIND-2 (REQ-BFG-093): 
 import { TitleScreen } from "./title";
 import { NOTE_ROW, SPEEDS, SPEED_1X, drawBar, drawPlate, drawResult, notePlace, plateSource, type BarState } from "./battleHud";
 import { drawWindCall, type PlateInfo } from "./battleHud"; // WIND-1 (REQ-BFG-093): the DARK WIND callout; the plates drawn
-import { BattleFaces, drawSummaries, drawViewBar, fingerPx, summaryRects } from "./battleScout"; // SCOUT-1 (REQ-BFG-076)
+import { BattleFaces, drawSummaries, drawViewBar, fingerPx, summaryRects, trimHit } from "./battleScout"; // SCOUT-1 (REQ-BFG-076)
 import { BattleCounters, plateKeep } from "./battleCounters"; // COUNT-1 (REQ-BFG-100): the counters
 import { PairWatch } from "../game/pairCue"; // PAIR-CUE (REQ-BFG-100, REQ-BFG-081): the PAIR on the board
 import { keepRunSpeed, runSpeed } from "../game/runSpeed"; // SCOUT-1b (REQ-BFG-083): the speed picked holds for the run
@@ -127,7 +127,7 @@ export class BattleScreen implements Screen {
   private viewT = 0;
   /** SCOUT-1 tooling: this frame's BACK and primary tap targets and the summaries (logical px); SCOUT-1b: the result
    *  card's box (null: no card drawn). */
-  readonly scoutRects: { back: Rect | null; primary: Rect | null; summaries: Rect[]; card: Rect | null } = { back: null, primary: null, summaries: [], card: null };
+  readonly scoutRects: { back: Rect | null; backBtn: Rect | null; primary: Rect | null; primaryBtn: Rect | null; summaries: Rect[]; card: Rect | null } = { back: null, backBtn: null, primary: null, primaryBtn: null, summaries: [], card: null };
   /** WIND-1 tooling (bb.windInfo): the DARK WIND callout's box as drawn this frame (null: not showing). */
   windCallR: Rect | null = null;
   /** WIND-1 tooling (bb.windInfo): each plate as drawn this frame (battleHud.ts drawPlate), [yours, the foe's]. */
@@ -632,8 +632,13 @@ export class BattleScreen implements Screen {
       drawSummaries(g, this.arena, this.L);
       sr.summaries = [...summaryRects(this.L).r];
     }
-    if (this.phase === "view" && !lowering) this.faces.draw(g, this.game, this.arena, this.L, true, this.foeName); // ENCHANT-2W (REQ-BFG-085; W5): a foe's part says whose it is
-    else this.faces.last = null;
+    if (this.phase === "view" && !lowering) {
+      this.faces.draw(g, this.game, this.arena, this.L, true, this.foeName); // ENCHANT-2W (REQ-BFG-085; W5): a foe's part says whose it is
+      // POLISH-5 (REQ-BFG-089; P5-4): the face is drawn after the bar, so its region wins a press where it lies over BACK's tap target: the target is trimmed to what a press reaches (the rect the tooling reports is that object)
+      if (sr.back && sr.backBtn) trimHit(sr.back, this.faces.last?.r ?? null, sr.backBtn);
+      // POLISH-6 (REQ-BFG-089; P6-2, RULING-POLISH5 R2 widened): ON TO DAWN's tap target the same way (tapRect grew it past the drawn button and it lay under the face at the five landscape phones: 7,644 to 13,816 sampled points reached the face)
+      if (sr.primary && sr.primaryBtn) trimHit(sr.primary, this.faces.last?.r ?? null, sr.primaryBtn);
+    } else this.faces.last = null;
     // COUNT-1 (REQ-BFG-100): a counter group's panel (a tap's, or the desk's hover), during the fight only
     if (this.phase === "fight" && !this.menu) this.counters.drawPanel(g, this.game, a, this.plateRows);
     else this.counters.open = null;
@@ -727,12 +732,14 @@ export class BattleScreen implements Screen {
     }
     const st = this.bar;
     const sr = this.scoutRects;
-    sr.back = sr.primary = null;
+    sr.back = sr.backBtn = sr.primary = sr.primaryBtn = null;
     if (this.phase === "view") {
       // SCOUT-1 (REQ-BFG-076): VIEW BATTLEFIELD's bar: BACK and the card's primary action, where the playback bar sits
       const q = drawViewBar(g, this.game, L.bar, this.clockText, this.onBack, this.viewPrimary());
       sr.back = q.back;
+      sr.backBtn = q.backBtn;
       sr.primary = q.primary;
+      sr.primaryBtn = q.primaryBtn;
       return;
     }
     st.speed = this.speed;

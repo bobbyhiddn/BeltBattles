@@ -126,7 +126,7 @@ import { salvoSpeed } from "../../sim/cores"; // Y1: SALVO RACK's volley pace, i
 import { statRow } from "../../ui/icons"; // U2c step 4
 import { fmtClock, fmtCount, fmtDmg, fmtReadPct } from "../../ui/statFormat"; // U2c step 4; NUM-4: the estimate, whole
 import { icons } from "../../render/font"; // U2c step 4
-import { GAP, GAP_MIN } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between a panel's separate items
+import { GAP, GAP_MIN, TITLE_ROW_DY, headDy } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between a panel's separate items; POLISH-4 (P4-1): the pitch of a two-row title, where the family head sits under it
 import { hintShows } from "../../ui/tips"; // EXPLAIN-1 (REQ-BFG-089, E5): a hint shows until its first-run tip is done
 import { turretPlainOf } from "../../ui/faces"; // EXPLAIN-1 (E4, E9): NOTES' kind lines (PLAIN-1F M3: the rig sentence comes through plainNotes)
 import { shapeNotes } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-089): the shaped rigs' NOTES
@@ -766,7 +766,9 @@ export function offerPanel(run: Run, wagon: number, slot: number, touch = false)
     // WORDS-1 (REQ-BFG-081; READ-1 6.2: merchant names drew 40 "not understood" flags): no merchant's name on the panel (the
     // desk's wagon tags keep them), and a core's or gear's kind in plain words (shop.ts panelKind). Was `${describe(d)} ·
     // ${merchant}`, subShort describe(d)
-    title: d.name, color: RARITY_COLOR[d.rarity], sub: panelKind(d),
+    // POLISH-3 (REQ-BFG-089; Q4, the pieces lane's display list, item 1d; cap's ruling E): the offer's title carries its star at ★1, as every other panel's does since POLISH-1's P5a (`titled`): the
+    // offer is drawn at ★1 (its abilityBlocks take star 1); the merge's ★2 stays on the button (`MERGE ★2: 3G`)
+    title: titled(d.name, 1), color: RARITY_COLOR[d.rarity], sub: panelKind(d),
     subShort: KIND_SUB[d.kind] ?? describe(d), // T6: the rarity gives way first (the title shows it in colour)
     headerOnly: one ? { texts: [one], colour: C.bone } : undefined,
     body,
@@ -932,6 +934,15 @@ export interface BeltPanel {
 }
 
 /**
+ * POLISH-6 (REQ-BFG-089; RULING-POLISH5 R6, RULING-REVIEW-POLISH5 N5, cap's answer A1): the COPIES cell. est.copies is a mean (SORTING ARM's
+ * 1 + (copies - 1) / every: 4/3 at one star, 16/9 through a splitter), and fmtCount printed it as `1.3333333333333333`. A whole count prints as it
+ * does; a non-whole one is rounded to ONE decimal (4/3 -> 1.3, 5/3 -> 1.7, 16/9 -> 1.8); one that rounds to a whole prints the whole, never `2.0`.
+ * A local format on purpose: fmtCount keeps "a count as it is" (NUM-4: a fraction is a finding, never rounded away), and this is the one place
+ * anywhere that hands it a non-whole value (1,660 calls over 121 test files, all from the cell below).
+ */
+export const copiesText = (n: number): string => fmtCount(Math.round(n * 10) / 10);
+
+/**
  * A belt route (0.6.2 BELTSIDE, V4): its tiles and hits, the timeline in R7 order (0.6.2t: the glossary's hit rows, 0b.4),
  * then the gun end's readout in aligned stat pairs: DMG and BURN, SPD and TIME, and SHOCK and COPIES where they apply.
  * The readout always stays; on a short panel the last timeline rows give way first, and a note says how many.
@@ -973,7 +984,7 @@ export function beltPanel(run: Run, index: number): BeltPanel | null {
   const cells: [string, string][][] = [
     [["DMG", dmg], ["BURN", String(burn)]],
     [["SPD", spd], ["TIME", time]],
-    ...(est.shock || est.copies > 1 ? [[["SHOCK", est.shock ? "YES" : "NO"], ["COPIES", fmtCount(est.copies)]] as [string, string][]] : []),
+    ...(est.shock || est.copies > 1 ? [[["SHOCK", est.shock ? "YES" : "NO"], ["COPIES", copiesText(est.copies)]] as [string, string][]] : []), // POLISH-6 R6: one decimal where it is not whole
   ];
   const joined = joinersOf(b, index); // 0.6.2j (J10): the belts that join this one
   const joins = w.joins ?? [];
@@ -1457,9 +1468,10 @@ function choose(all: readonly Laid[], avail: number, width: number, main: FontId
  * do (else the last, drawn until the space ends: a phone cut). A tight variant has 1 px more (its body starts 1 px
  * higher). `subFits` says whether a variant's header sub line fits the header (else that variant is skipped).
  * CARD-3 (REQ-BFG-080, B's lever 3): `small`, the band's face only: the 5x7 face is not tried (planPanel's `inBand`).
+ * POLISH-5 (REQ-BFG-089; P5-2): `tight0`, the body itself at the tight pitch (a variant's `tight`, LH_TIGHT, its body 1 px higher): planRung's third rung for a belt's hit rows.
  */
 export function planBody(body: readonly Block[], variants: readonly Variant[] | undefined, width: number, avail: number,
-  subFits: (s: string) => boolean = () => true, keepBig = false, small = false): BodyPlan {
+  subFits: (s: string) => boolean = () => true, keepBig = false, small = false, tight0 = false): BodyPlan {
   const finish = (font: FontId, chosen: Laid[], fits: boolean, variant: number, from: readonly Laid[], v?: Variant): BodyPlan => {
     const lines: (PLine | "rule")[] = [];
     let big = false, ruled = false;
@@ -1489,7 +1501,7 @@ export function planBody(body: readonly Block[], variants: readonly Variant[] | 
   // 0.6.2t: the desk column (keepBig) keeps the readable 5x7 face while its kept blocks fit it: the optional blocks
   // give way first, each whole or not at all, least important first (the flavour, then the ability's later sentences,
   // then the hint: 0.6.2t2 F4, deskRank); only then does the text drop to the 3x5 face
-  const texts: Variant[] = [{ body: deskKept(body) }, ...(variants ?? []).map((t) => ({ ...t, body: deskKept(t.body) }))];
+  const texts: Variant[] = [{ body: deskKept(body), ...(tight0 ? { tight: true } : {}) }, ...(variants ?? []).map((t) => ({ ...t, body: deskKept(t.body) }))];
   if (keepBig && !small) {
     for (let v = 0; v < texts.length; v++) {
       const t = texts[v];
@@ -1547,6 +1559,22 @@ export function fitTitle(g: G, t: Pick<PanelText, "title" | "color" | "ench">, x
   }
 }
 
+/** POLISH-3 (REQ-BFG-087; Q2 (a)): a foe's face title on the two 3x5 rows planOnce gave it (PanelPlan.titleRows): row 1 at y + 1 and row 2 TITLE_ROW_DY (6) px under it (the 3x5 title's own offset and the sub rows'
+ *  pitch), in fitTitle's colours: an enchanted piece's word first in its colour, the rest of the title in the piece's. The words are the title's, whole: nothing is cut. */
+export function fitTitleRows(g: G, t: Pick<PanelText, "title" | "color" | "ench">, x: number, y: number, rows: readonly [string, string]): void {
+  const [word, name] = titleSpans(t);
+  const wordLen = t.ench ? word.t.length : 0;
+  let from = 0; // the index in t.title of the row's first character
+  rows.forEach((row, k) => {
+    const at = Math.max(0, Math.min(row.length, wordLen - from));
+    let cx = x;
+    for (const [txt, c] of [[row.slice(0, at), word.c], [row.slice(at), t.ench ? name.c : t.color]] as const) {
+      if (txt) cx += drawText(g, txt, cx, y + 1 + TITLE_ROW_DY * k, c, { font: "3", outline: C.ink }) + 1;
+    }
+    from += row.length + 1;
+  });
+}
+
 /**
  * 0.6.1r F7 (review-061; the Prime's layout call): in portrait the 1-2 action buttons never cover the panel's
  * title or sub-line. They keep the top-right row when it can hold them right of both texts (at the old even width,
@@ -1556,7 +1584,12 @@ export function fitTitle(g: G, t: Pick<PanelText, "title" | "color" | "ench">, x
  */
 export function portraitButtons(title: string, sub: string, labels: string[], r: Rect, left = 0): { rects: Rect[]; shift: number } {
   const n = labels.length, gap = 3, h = 13;
-  const clear = r.x + 23 + Math.max(textWidth(title) + 2, textWidth(sub, "3")) + 3; // the title's outline, then a gap
+  // POLISH-3 (REQ-BFG-089; Q5, the pieces lane's display list, item 2; cap's ruling D): on a band under 176 px (280x653: 162 px, 300x640: 174 px, and the pre-ZOOM-1 phone scale of tests/present2.famhead:
+  // 161 px) a lone trailing star (POLISH-1's P5a: `WHETSTONE ★`, a space and a star wider) does not move the buttons: `clear` is measured on the title without it, and fitTitle steps the title down
+  // to the 3x5 face where the star would reach them. So the buttons keep the top row and the family head keeps its place under the sub line (the star pushed 32 of 33 phone panels' heads out, 26 of
+  // them back now). Two stars or more (a ★★ title) and every band of 176 px or more: as before.
+  const lone = r.w < 176 && / ★$/.test(title) ? title.slice(0, -2) : title;
+  const clear = r.x + 23 + Math.max(textWidth(lone) + 2, textWidth(sub, "3")) + 3; // the title's outline, then a gap
   const even = Math.min(64, Math.floor((r.w - 10 - gap * (n - 1)) / n));
   const sized = labels.map((l) => Math.min(even, Math.max(24, textWidth(l, "3") + 10)));
   const place = (ws: number[], right: number, y: number): Rect[] => {
@@ -1623,6 +1656,13 @@ export interface PanelPlan {
   shift: number;
   subs: string[];
   subMax: number;
+  /** POLISH-5 (REQ-BFG-087; P5-3): a battle face on a band whose one-row sub is wider than `subMax` (the foe's `MASTER VOSS'S MEDIUM TURRET IN SLOT 1`, 139 px in the 280x653 band's 137): the same sub in the shortest wording that fits
+   *  (slotSubFit), drawn in its place (battleScout.ts drawOn). Absent: the sub fits, or it is not a turret's slot sub, or the panel has a short form of its own; the sub is drawn as it was. */
+  subFit?: string;
+  /** POLISH-3 (REQ-BFG-087; Q2 (a)): a foe's face in the column (the text with `subOwner`; POLISH-3b: or any battle face, planPanel's `wrap`) whose title is wider than `subMax` even in the 3x5 face: the title broken at a space onto
+   *  these two 3x5 rows (`RISING RAMPART` / `CANNON ★`), drawn by fitTitleRows at y + 5 and y + 11; the sub rows then start 6 px lower (y + 19) and `shift` holds those 6 px. Absent:
+   *  the title is one row, as drawn before (fitTitle). */
+  titleRows?: [string, string];
   body: BodyPlan;
   /** The body's top y and the last y a glyph may reach. */
   y: number;
@@ -1631,13 +1671,20 @@ export interface PanelPlan {
   headerOnly: { lines: string[]; colour: string } | null;
   /** 0.8.0 I1 M4: the module's families in the header: named under the sub line ("sub"), or right-aligned on the row of
    *  the sub line's second line ("sub2") or of the title ("title"), named or (where the names don't fit) as their marks;
-   *  null when none is given or the header has no room. */
-  famHead: { at: "sub" | "sub2" | "title"; tags: ModuleTag[]; names: boolean; explained?: boolean } | null;
+   *  null when none is given or the header has no room.
+   *  POLISH-4 (REQ-BFG-089; P4-1): under a two-row title (`titleRows`) the head sits TITLE_ROW_DY lower, like the sub rows (drawFamHead, familyTargets); a head beside a sub of three or more rows (a foe's: the owner's row, then the
+   *  broken sub) sits beside the LAST row: `row`, that row's index (absent for the sub's second row, as before).
+   *  POLISH-4 (REQ-BFG-089; P4-5, cap's ruling 4): "sub1", the names right-aligned on the sub line's FIRST row where that row is free (the buttons dropped under the sub, or a column sub on two rows), for a title that ends in ` ★`
+   *  (the star that pushed the names out to marks), never in a battle face: a rung of the ladder after the three name places and before the marks. It takes no gap slot (it is beside the sub, not under it). */
+  famHead: { at: "sub" | "sub1" | "sub2" | "title"; tags: ModuleTag[]; names: boolean; explained?: boolean; row?: number } | null;
   /** SPACE-1 (REQ-BFG-087): the gaps between the body's separate items, laid after the body's plan (which is exactly as
    *  without them) from the room it leaves: `before[i]`, the gap slots before body line i (gapSlots); `slots`, their sum;
    *  `px`, each slot's gap (all alike: `G` where the room holds it, less where it doesn't, 0 with no room or a cut);
    *  `G` and `min`, the body face's GAP and GAP_MIN (src/ui/spacing.ts). */
   gaps: PanelGaps;
+  /** POLISH-4 (REQ-BFG-089; P4-3, cap's ruling 2): a battle face planned without its CLOSE button row (battleScout.ts facePlan), because the row would cost one of the piece's own ability lines on a landscape phone. The face is closed by a press
+   *  on the battlefield off any part (BattleFaces.press) or by BACK, as every face is; drawOn lays no button for it. Absent on every other plan. */
+  bare?: true;
 }
 
 /** SPACE-1 (REQ-BFG-087): a panel plan's gaps (PanelPlan.gaps). */
@@ -1723,9 +1770,11 @@ const columnRows = (n: number, tap = 0): number => Math.ceil(n / (tap > 0 ? 2 : 
  *  face is chosen with the gaps on, whatever `o.gaps` asks, so the content is the same with the gaps off and on (SPACE-1's
  *  content first: the gaps never change what a plan shows).
  *  PRESENT-2 F (REQ-BFG-081; PRESENT-1 Question 4 (d) (ii)): `o.small`, the band's face carried to a panel grown up from the band for a note
- *  (detailsPlanOf): the body in the 3x5 face only, as the band itself planned it. */
+ *  (detailsPlanOf): the body in the 3x5 face only, as the band itself planned it.
+ *  POLISH-3b (REQ-BFG-087; P1, cap's ruling 1 on POLISH-3's question 1): `o.wrap`, a BATTLE face (battleScout.ts facePlan passes it for every face, yours and the foe's): in the column its title and its sub
+ *  wrap as a foe's text (the one with `subOwner`) always did, so no battle face is cut with a dot. The build screen's panels (detailsPlan, drawDetails) never pass it: their desk column is as before. */
 export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTag[] = [],
-  o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean; small?: boolean } = {}): PanelPlan {
+  o: { tap?: number; band?: boolean; gaps?: boolean; inBand?: boolean; small?: boolean; rung?: boolean; wrap?: boolean; sub1?: boolean; fewer?: boolean } = {}): PanelPlan { // POLISH-3: `rung: false` plans without planRung's 3x5 rung (tests: what the rung moves); POLISH-4: `sub1: false` without the family head's sub1 rung (tests: the plans before P4-5); POLISH-5: `fewer: false` without P5-2's rungs (tests: the plans as POLISH-4c drew them)
   if (o.small) return planIn(sp, area, families, o, true);
   const p = planIn(sp, area, families, o, false);
   if (!o.inBand || p.column || p.headerOnly || p.body.font !== "5") return p;
@@ -1736,11 +1785,44 @@ export function planPanel(sp: PanelText, area: Rect, families: readonly ModuleTa
   return o.gaps === false ? planIn(sp, area, families, o, true) : s;
 }
 
-/** ENCHANT-2W (REQ-BFG-085; W5): a sub line as one line, or as two where it is wider than `max` and has a " · " (broken after the last one, as planIn breaks a sub on the desk column) or a full stop. */
+/** POLISH-3 (REQ-BFG-087; Q2 (a)): `s` broken at a space onto two rows of at most `max` px in `font`: the first as long as it can be, the rest after it. A count or a level stays with its
+ *  word: never a break before a number or a run of stars (`SLOT 1`, `CANNON ★★`). Null: no break gives two rows that fit (the caller's cut with a dot stands, as before). Pure (planOnce, tests). */
+export function wrapAt(s: string, max: number, font: FontId = "3"): [string, string] | null {
+  let at = -1;
+  for (let i = s.indexOf(" "); i > 0; i = s.indexOf(" ", i + 1)) {
+    const end = s.indexOf(" ", i + 1), next = s.slice(i + 1, end < 0 ? s.length : end);
+    if (next && !/^(\d+|★+)$/.test(next) && textWidth(s.slice(0, i), font) <= max) at = i;
+  }
+  if (at < 0) return null;
+  const rest = s.slice(at + 1);
+  return textWidth(rest, font) <= max ? [s.slice(0, at), rest] : null;
+}
+
+/**
+ * POLISH-5 (REQ-BFG-087; P5-3): a turret's sub (`MASTER VOSS'S MEDIUM TURRET IN SLOT 1`) in the shortest wording that fits `max` px in the 3x5 face, for a band that has no row to break it onto (a second sub row would cost the face an ability or a
+ * CORE / GEAR line: 19 of 24 faces in corpus A, 21 of 24 in B). The owner, the weight and the slot always stay: ` IN` goes first (`... TURRET SLOT 1`, the wording turretPanel's slotSub already uses for an empty slot), then ` TURRET IN`
+ * for a comma (`OLD BULWARK'S ADAPTABLE, SLOT 2`). Of the 228 owner x weight x slot subs 162 fit as they were, 48 take ` TURRET SLOT` and 18 the comma form (128 px is that form's widest); after this the widest of the 228 is 136 px of the
+ * band's 137 (POLISH-6 P6-5, REVIEW-POLISH5 N2: this comment said the widest of all 228 was 128 px, which is the comma form's alone; tests/polish5.bandsub.test.ts pins 136). A sub that fits, or is not a turret's, is returned as it is. Pure (planOnce, tests).
+ */
+export function slotSubFit(s: string, max: number): string {
+  if (textWidth(s, "3") <= max) return s;
+  const a = s.replace(" TURRET IN SLOT ", " TURRET SLOT ");
+  if (a !== s && textWidth(a, "3") <= max) return a;
+  const b = s.replace(" TURRET IN SLOT ", ", SLOT ");
+  return b !== s ? b : s;
+}
+
+/** ENCHANT-2W (REQ-BFG-085; W5): a sub line as one line, or as two where it is wider than `max` and has a " · " (broken after the last one, as planIn breaks a sub on the desk column) or a full stop.
+ *  POLISH-3 (REQ-BFG-087; Q2 (a)): or, with neither, at a space (wrapAt: `HEAVY TURRET IN` / `SLOT 1`), so a foe's turret sub keeps its slot number where the column is 100 px wide.
+ *  POLISH-4 (REQ-BFG-087; P4-2, cap's ruling 2 on the scout's mode b): and where the split's second piece is wider than `max` too (a rig's `RIG · 1/1 ARROWS ON BELTS`, whose second piece is 72 px in the 96 px column's 69 px room),
+ *  it breaks again instead of being cut with a dot: the WHOLE sub at a space where that gives two rows that fit (`RIG · 1/1 ARROWS ON` / `BELTS`), else the two pieces with the second one's own break (three rows). */
 function breakSub(s: string, max: number): string[] {
   const cut = s.lastIndexOf(" · "), stop = s.lastIndexOf(". ");
-  if (textWidth(s, "3") <= max || (cut <= 0 && stop <= 0)) return [s];
-  return cut > 0 ? [s.slice(0, cut + 2), s.slice(cut + 3)] : [s.slice(0, stop + 1), s.slice(stop + 2)];
+  if (textWidth(s, "3") <= max) return [s];
+  if (cut <= 0 && stop <= 0) return wrapAt(s, max) ?? [s];
+  const two = cut > 0 ? [s.slice(0, cut + 2), s.slice(cut + 3)] : [s.slice(0, stop + 1), s.slice(stop + 2)];
+  if (textWidth(two[1], "3") <= max) return two;
+  return wrapAt(s, max) ?? [two[0], ...(wrapAt(two[1], max) ?? [two[1]])];
 }
 
 /** POLISH-2 (Q2): a panel's text without its `hold` blocks (the body and every variant; a variant that shared the body's blocks shares the new body, as withoutHint keeps them). */
@@ -1786,15 +1868,40 @@ function guestFits(p0: PanelPlan, p: PanelPlan): boolean {
  *  panel has spare, in the band and in a grown panel alike, and the panel's size and fit never depend on it (the same plan is fit or not fit, with or without it). Otherwise the panel is
  *  exactly the plan without it, and the words are in the panel's ⓘ view (routePanel's `notes`). (The rule is here, in the one place every plan goes through, and not in planPanel, so
  *  planPanel's own lines are the base's.) */
-function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean }, small: boolean): PanelPlan {
-  if (!sp.body.some((b) => b.hold)) return planOnce(sp, area, families, o, small);
-  const p0 = planOnce(withoutHold(sp), area, families, o, small); // today's panel
-  const p = planOnce(sp, area, families, o, small);
+function planIn(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: PlanOpts, small: boolean): PanelPlan {
+  if (!sp.body.some((b) => b.hold)) return planRung(sp, area, families, o, small);
+  const p0 = planRung(withoutHold(sp), area, families, o, small); // today's panel
+  const p = planRung(sp, area, families, o, small);
   return guestFits(p0, p) ? p : p0;
 }
 
+/** POLISH-3 (REQ-BFG-089; Q3, the pieces lane's display list, item 4; cap's ruling A): a hit row of a belt is the belt's own text. Where a column's plan (the desk, the laptop, a landscape phone: the 5x7
+ *  face) gives hit rows away (`+N MORE HIT TILES`) and the same text planned in the 3x5 face (planOnce's `small`: the band's own face) keeps every one of them, the column takes the 3x5 plan. Only a plan that
+ *  gives hit rows away takes the rung: every other column panel keeps the 5x7 face, and the band (not a column) is as before. It sits INSIDE planIn, so POLISH-2's guest rule compares the plan with and
+ *  without its NOT COUNTED line like with like.
+ *  POLISH-5 (REQ-BFG-089; P5-2, cap's ruling (A) on the build screen's belt panel: the pieces lane's display list): the panel still gave hit rows away for belts of 6 to 12 hits, 18 of 316 real belts at 1920x1080 (126 rows), 36 at
+ *  1366x768 (255), 9 at 844x390 (71). It is planned in the column's whole height (layout.ts L.info), so there is no spare room; the only room left is the type. Where no 3x5 plan keeps every row, the column takes the plan that
+ *  gives away FEWEST hit rows: the 5x7 plan, the 3x5 plan, or the 3x5 plan at the tight pitch (LH_TIGHT 6, the pitch the rig, turret and offer panels' compact forms already use; `tight`). The 5x7 plan wins a tie, then the
+ *  3x5, so a panel that gives no rows away today is the plan it was; no row is merged, shortened or reworded. The rows win the room: POLISH-2 R1's guest line (NOT COUNTED) uses only what is spare and goes first in the ⓘ
+ *  view when there is none, and the line never decides the rung. For the build screen's panel only: a battle face (`wrap`) keeps POLISH-3's rule (battleScout.ts facePlanWith adds POLISH-4's), and `fewer: false` plans as
+ *  POLISH-4c did (tests). */
+function planRung(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: PlanOpts, small: boolean): PanelPlan {
+  const p = planOnce(sp, area, families, o, small);
+  if (small || o.rung === false || !p.column || !p.body.dropped.some((b) => b.trim && !b.join)) return p;
+  const sm = planOnce(sp, area, families, o, true);
+  if (o.wrap === true || o.fewer === false) return sm.body.dropped.some((b) => b.trim && !b.join) ? p : sm;
+  const rows = (q: PanelPlan): number => q.body.dropped.filter((b) => b.trim && !b.join).length;
+  const best = rows(sm) < rows(p) ? sm : p;
+  if (rows(best) === 0) return best;
+  const st = planOnce(sp, area, families, { ...o, tight: true }, true);
+  return rows(st) < rows(best) ? st : best;
+}
+
+/** The options planIn, planRung and planOnce take (planPanel's, less its band's own: `inBand`, `small`). */
+type PlanOpts = { tap?: number; band?: boolean; gaps?: boolean; rung?: boolean; wrap?: boolean; sub1?: boolean; fewer?: boolean; tight?: boolean };
+
 /** planIn's plan of `sp` as it stands. */
-function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: { tap?: number; band?: boolean; gaps?: boolean }, small: boolean): PanelPlan {
+function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: PlanOpts, small: boolean): PanelPlan {
   const column = !o.band && area.h >= 70; // landscape column: size to content, the buttons under the text
   const labels = sp.labels;
   const pitch = columnButtonH(o.tap) + 3; // a row of buttons and the gap above it (0.6.1r: 16 + 3)
@@ -1815,18 +1922,30 @@ function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: 
   // the sub under it (itself broken at its last " · " or full stop where that is wider than the column too): the sub is never cut, the owner never given way. Any other panel: as before.
   const wideSub = textWidth(sp.sub, "3") > area.w - 27;
   const ownerLine = column && wideSub && !!sp.subOwner && sp.sub.startsWith(`${sp.subOwner} `) ? sp.subOwner : null;
+  // POLISH-3b (REQ-BFG-087; P1): a BATTLE face wraps (`o.wrap`: battleScout.ts facePlan passes it for every face; the foe's text, the one with `subOwner`, always did): your own turret's sub
+  // (`HEAVY TURRET IN SLOT 1`, 83 px against the 100 px column's 73) breaks at a space as the foe's rest does (breakSub); a sub with a ` · ` or `. ` breaks there, as before.
+  const wrap = o.wrap === true || !!sp.subOwner;
+  // POLISH-4 (REQ-BFG-087; P4-2): in a battle face (`wrap`) the split's second piece is broken too where it is wider than the column (breakSub: a rig's `RIG · 1/1 ARROWS ON BELTS` in the 96 px column, 3040x1710);
+  // every other panel keeps the split of old (the build screen's desk column cannot move).
   const subs = ownerLine !== null ? [ownerLine, ...breakSub(sp.sub.slice(ownerLine.length + 1), area.w - 27)]
+    : column && wrap && wideSub ? breakSub(sp.sub, area.w - 27)
     : column && (cut > 0 || stop > 0) && wideSub
       ? cut > 0 ? [sp.sub.slice(0, cut + 2), sp.sub.slice(cut + 3)] : [sp.sub.slice(0, stop + 1), sp.sub.slice(stop + 2)]
       : [sp.sub];
-  const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 + 6 * (subs.length - 2) : 0); // a third sub line (the owner's, then a broken sub) takes its 6 px more
+  // POLISH-3 (REQ-BFG-087; Q2 (a)): a foe's face never cuts its title with a dot where the column is 100 px wide (1920x1080: the star and the slot's number were lost on 92 titles): a title wider than
+  // the column's text room in the 3x5 face too breaks at a space onto a second 3x5 row (`RISING RAMPART` / `CANNON ★`); the header takes that row's 6 px (`shift`) and the body starts under it.
+  // POLISH-3b (P1): the same for every battle face (`wrap`): your own parts' faces too. Every other panel, the build screen's desk column included (tests/enchant1.faces.test.ts :765), is as before.
+  const titleRows = column && wrap && textWidth(sp.title) > area.w - 27 && textWidth(sp.title, "3") > area.w - 27 ? wrapAt(sp.title, area.w - 27) : null;
+  const shift = (port?.shift ?? 0) + (subs.length > 1 ? 4 + 6 * (subs.length - 2) : 0) + (titleRows ? TITLE_ROW_DY : 0); // a third sub line (the owner's, then a broken sub) takes its 6 px more
   const extra = labels.length ? btnRows * pitch + 3 : 4;
   const headRight = !column && port && !port.shift ? port.rects[0].x - 3 : area.x + area.w - 4;
   const subMax = headRight - (area.x + 23);
+  // POLISH-5 (REQ-BFG-087; P5-3): a battle face's band (280x653: 164 x 69, subMax 137) draws the foe's turret sub in one row; where that is wider than the room it gets the shortest wording that fits (slotSubFit), not a cut with a dot
+  const subFit = !column && wrap && subs.length === 1 && !sp.subShort && textWidth(sp.sub, "3") > subMax ? slotSubFit(sp.sub, subMax) : sp.sub;
   // the body starts at y + 25 + shift (a tight variant's 1 px higher). The column grows to its text (27 + shift + body +
   // extra, as 0.6.1r sized it); the band's text ends 4 px above its bottom edge. A variant's sub line must fit the header
   const body = planBody(sp.body, sp.variants, wrapW, column ? area.h - 27 - shift - extra : area.h - 27 - shift,
-    (s) => subs.length === 1 && textWidth(s, "3") <= subMax, column, small);
+    (s) => subs.length === 1 && textWidth(s, "3") <= subMax, column, small, o.tight === true);
   // 0.8.0 I1 M4 (REQ-BFG-023 part 2): the module's families sit in the header and never in the body (planned above,
   // exactly as without them), named where they fit, else as their marks (ui/families.ts, the card's own), in the first
   // place free with a clear pixel all round: the band under a one-line sub line (y+19..y+23, when the body starts at
@@ -1840,24 +1959,32 @@ function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: 
   const explainedW = textWidth(famHeadText(tags), "3"); // PRESENT-2 W (b): the head says what the names are (`FORGE FAMILY`, `FAMILIES: FORGE, TEMPO`) where that fits the same place
   const titleFree = column || !labels.length || !!port?.shift;
   const beside = (text: string, font: FontId, free: boolean, gap = 6) => (w: number) => free && 23 + textWidth(text, font) + gap + w <= area.w - 4;
-  const bySub2 = beside(subs[1] ?? "", "3", column && subs.length === 2), byTitle = beside(sp.title, "5", titleFree);
+  // POLISH-4 (REQ-BFG-089; P4-1): beside the LAST sub row, not only the second: a foe's sub is three rows (the owner's, then `HEAVY TURRET IN` / `SLOT 1`) and had no row to hold the head
+  const bySub2 = beside(subs[subs.length - 1] ?? "", "3", column && subs.length >= 2), byTitle = beside(sp.title, "5", titleFree);
+  // POLISH-4 (REQ-BFG-089; P4-5, cap's ruling 4): beside the sub line's FIRST row where that row is free (the buttons dropped under the sub line: the top-right row is empty; or a column sub on two rows, `RIG ·` / `1/2 ARROWS ON FACTORIES`),
+  // for a title that ends in the star (POLISH-1's ` ★` is what pushed 14 panels' names out to marks: tests/present2.famhead.test.ts P5A_STAR1), never in a battle face (`wrap`: its rows and heads are POLISH-3's and P4-1's)
+  const bySub1 = beside(subs[0] ?? "", "3", (column ? subs.length === 2 : !!port?.shift) && !wrap && o.sub1 !== false && sp.title.endsWith(" ★"));
   // 0.8.0 B1 M4 (VERIFIED-I1 call 7): the last resort, the marks right of the title with only its outline and one clear
   // pixel between (I1's rule: a clear pixel all round). DRAG CHAIN FOUNDRY at 3 stars on the phone (its 125 px title, the
   // buttons under the sub line) had no place at all
   const byTitleTight = beside(sp.title, "5", titleFree, 2);
-  const underSub = subs.length === 1 && !shift;
+  // POLISH-4 (REQ-BFG-089; P4-1): a two-row title takes its TITLE_ROW_DY of `shift` and no more: a head under a one-row sub is drawn that much lower (drawFamHead), so a battle face keeps its family head under two title rows
+  // (POLISH-3 gave it none: REVIEW-POLISH3 N6, REVIEW-POLISH3B N7); the ladder runs as for any other panel (the title place never holds: a title wider than the column breaks, so no head sits beside it)
+  const underSub = subs.length === 1 && shift === (titleRows ? TITLE_ROW_DY : 0);
+  const row = subs.length > 2 ? { row: subs.length - 1 } : {}; // beside the last of three or more sub rows (absent for the second, as before)
   const famHead0: PanelPlan["famHead"] = !tags.length || strip || area.h < 28 ? null
     : underSub && !body.tight && namesW <= area.w - 27 ? { at: "sub", tags, names: true }
-    : bySub2(namesW) ? { at: "sub2", tags, names: true }
+    : bySub2(namesW) ? { at: "sub2", tags, names: true, ...row }
     : byTitle(namesW) ? { at: "title", tags, names: true }
+    : bySub1(namesW) ? { at: "sub1", tags, names: true }
     : underSub && marksW <= area.w - 27 ? { at: "sub", tags, names: false }
-    : bySub2(marksW) ? { at: "sub2", tags, names: false }
+    : bySub2(marksW) ? { at: "sub2", tags, names: false, ...row }
     : byTitle(marksW) || byTitleTight(marksW) ? { at: "title", tags, names: false }
     : null;
   // PRESENT-2 W (b) (cap's ruling 7d5006c5f3ca852f): one ladder a head, per view: the explained words (`FORGE FAMILY`, `FAMILIES: FORGE, TEMPO`) where they fit the place the plain names
   // took (the head keeps today's place, colour and face), else the plain names as before, else the marks as before: no head loses the names it shows
   const famHead: PanelPlan["famHead"] = famHead0 && famHead0.names
-    && (famHead0.at === "sub" ? explainedW <= area.w - 27 : famHead0.at === "sub2" ? bySub2(explainedW) : byTitle(explainedW))
+    && (famHead0.at === "sub" ? explainedW <= area.w - 27 : famHead0.at === "sub2" ? bySub2(explainedW) : famHead0.at === "sub1" ? bySub1(explainedW) : byTitle(explainedW))
     ? { ...famHead0, explained: true } : famHead0;
   // SPACE-1 (REQ-BFG-087, D2, D3): the body above is planned exactly as without gaps; its separate items then take a gap
   // each (gapSlots) from the room left: up to G (the body face's GAP), all alike, less where the room is short. The
@@ -1872,7 +1999,7 @@ function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: 
   const headerOnly = !column && r.y + 25 + shift + 5 > maxY && sp.headerOnly
     ? { lines: headerLines(sp.headerOnly.texts, subMax, r.w - 27), colour: sp.headerOnly.colour } : null;
   const gaps: PanelGaps = { before, slots, px: on && !headerOnly ? slotPx(body.lines, y, maxY, slots, G) : 0, G, min: GAP_MIN[body.font] };
-  return { r, column, rects: port?.rects ?? null, shift, subs: body.sub ? [body.sub] : subs, subMax, body, y, maxY, headerOnly, famHead, gaps };
+  return { r, column, rects: port?.rects ?? null, shift, subs: body.sub ? [body.sub] : subs, subMax, ...(subFit !== sp.sub && !body.sub ? { subFit } : {}), ...(titleRows ? { titleRows } : {}), body, y, maxY, headerOnly, famHead, gaps };
 }
 
 /** SPACE-1 (REQ-BFG-087, D4): a plan's gaps are at least `px` (or it has none to show). */
@@ -2227,8 +2354,9 @@ function columnSpec(ctx: Ctx, plan: PanelPlan, lines: readonly { line: PLine | "
   const x0 = L.info.x + L.info.w + 2, x1 = carrier.x - 2;
   // PRESENT-3 D (cap's ruling 6420b5479c7c7b92): the band, between the shop row's foot (+2) and the carrier's drawing (-2), from 2 px right of the column to 4 px left of FIGHT's column (where the foe card
   // and FIGHT start); the corner, above the column (2 px clear), left of the shop row (3 px clear; the screen's edge 3 px in) and under the rune row (+2: the row's height is what the shop row was
-  // shifted down by, shiftLayout: the first card's y less the bar and the 9 px the layout puts above the cards). The corner is closed on a day the ENCHANTER's wagon is up (L.wagon: its cards use that
-  // margin, enchantStrip.ts inMargin), and a place under 40 px wide or one 3x5 line (10 px) tall is not one. Neither is ever over a hard rect (columnPlace holds every box to them).
+  // shifted down by, shiftLayout: the first card's y less the bar and the 9 px the layout puts above the cards). The corner is closed on a day the ENCHANTER's wagon is up (L.wagon: its cards may use that
+  // margin, enchantStrip.ts inMargin; POLISH-6 P6-6: they may sit in the right column's gap or a row instead, and the corner stays closed whichever place they take), and a place under 40 px wide or one 3x5 line (10 px) tall is not one.
+  // Neither is ever over a hard rect (columnPlace holds every box to them; the wagon's cards are hard rects too).
   const first = L.cards?.[0];
   const shopFoot = first ? Math.max(...[...L.cards, L.reroll, ...(L.packs ?? [])].filter((q): q is Rect => !!q && q.y < L.info.y).map((q) => q.y + q.h)) : 0;
   const bandRect: Rect | null = first && L.fight ? { x: x0, y: shopFoot + 2, w: L.fight.x - 4 - x0, h: carrier.y - 2 - (shopFoot + 2) } : null;
@@ -2240,7 +2368,7 @@ function columnSpec(ctx: Ctx, plan: PanelPlan, lines: readonly { line: PLine | "
     top: L.info.y, areaBottom: L.info.y + L.info.h,
     beside: x1 > x0 ? { x0, x1 } : null,
     floor: (ctx.game?.H ?? Infinity) - 2,
-    hard: [carrier, ...(L.cards ?? []), L.reroll, ...(L.packs ?? []), L.bar, L.fight, L.foe, L.cargo, plan.r].filter((q): q is Rect => !!q),
+    hard: [carrier, ...(L.cards ?? []), L.reroll, ...(L.packs ?? []), L.bar, L.fight, L.foe, L.cargo, plan.r, ...(L.wagon?.rects ?? [])].filter((q): q is Rect => !!q), // POLISH-6 (P6-6): + the ENCHANTER's word cards (in the gap or the row they are no longer in the margin)
     band: roomy(bandRect), corner: roomy(cornerRect),
   };
 }
@@ -2269,8 +2397,17 @@ export function keptWhole(plan: PanelPlan): boolean {
 
 /** zoom (REQ-BFG-040, D3): a plan shows its panel's full description: its kept text whole (keptWhole), the full body's
  *  text (variant 0, or the same blocks at the tight pitch), every rule sentence (no ability sentence given way) and no
- *  header-only strip. Its flavour and its hint may give way. */
+ *  header-only strip. Its flavour and its hint may give way.
+ *  POLISH-3 (REQ-BFG-089; Q3, the pieces lane's display list, item 4): and no hit row of a belt's timeline given way (a `trim` block that is not a JOINS row: the rows `+N MORE HIT TILES` counts).
+ *  They were kept text by neither test, so a belt's finger panel on a phone with a rune held (57 px of band) stayed in the band after the press and gave its rows away (402x690: 104 of 150 plans,
+ *  every belt with two hits or more); it grows now, as every other panel does before text gives way. */
 export function fullText(plan: PanelPlan): boolean {
+  return rulesWhole(plan) && !plan.body.dropped.some((b) => b.trim && !b.join);
+}
+
+/** POLISH-3 (REQ-BFG-089): fullText as zoom's D3 had it before Q3: the rule text whole (the kept text whole, the full body, no ability sentence given way, no header-only strip), whatever
+ *  timeline rows gave way. A foe's face (battleScout.ts facePlan) asks this: its question is the CORE and GEAR rule lines, not a belt's rows. */
+export function rulesWhole(plan: PanelPlan): boolean {
   return keptWhole(plan) && !plan.headerOnly && plan.body.fullBody && !plan.body.dropped.some((b) => b.role === "ability");
 }
 
@@ -2388,17 +2525,20 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
  *  its family's colour (the commas slate4) under the sub line at (x+23, y+19), or right-aligned 4 px in from the panel's
  *  right edge on the sub line's second row (y+19) or the title row (y+5); where the names don't fit, their 3x3 marks
  *  (the card's own, 4 px apart): under the sub line at (x+23, y+20), or right-aligned on those rows (y+20 or y+6).
+ *  POLISH-4 (REQ-BFG-089; P4-1): under a two-row title (`titleRows`) every row of the sub is TITLE_ROW_DY lower, and so is a head under it or beside it (not one beside the title); a head beside the LAST of three or more sub rows
+ *  (`famHead.row`) sits 6 px (the sub rows' pitch) lower for each row past the second. headDy (src/ui/spacing.ts) is the one place both numbers are added: keywords.ts familyTargets uses it too.
  *  Nothing without a famHead. Exported for the tests. */
-export function drawFamHead(g: G, plan: Pick<PanelPlan, "r" | "famHead">): void {
+export function drawFamHead(g: G, plan: Pick<PanelPlan, "r" | "famHead"> & Partial<Pick<PanelPlan, "titleRows">>): void {
   const fh = plan.famHead, r = plan.r;
   if (!fh) return;
+  const dy = headDy(plan);
   if (fh.names) {
     const spans = famHeadSpans(fh.tags, C.slate4, !!fh.explained); // CARD-3 (REQ-BFG-107): the player's tags; PRESENT-2 W (b): `FORGE FAMILY`, `FAMILIES: FORGE, TEMPO` where the explained words fit
-    if (fh.at === "sub") drawRich(g, spans, r.x + 23, r.y + 19, "3");
-    else drawRich(g, spans, r.x + r.w - 4 - lineWidth(spans, "3"), r.y + (fh.at === "sub2" ? 19 : 5), "3");
+    if (fh.at === "sub") drawRich(g, spans, r.x + 23, r.y + 19 + dy, "3");
+    else drawRich(g, spans, r.x + r.w - 4 - lineWidth(spans, "3"), r.y + dy + (fh.at === "sub2" ? 19 : fh.at === "sub1" ? 13 : 5), "3"); // POLISH-4 (P4-5): `sub1` is on the sub line's first row, y + 13
     return;
   }
-  const x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - (fh.tags.length * 4 - 1), y0 = r.y + (fh.at === "title" ? 6 : 20);
+  const x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - (fh.tags.length * 4 - 1), y0 = r.y + dy + (fh.at === "title" ? 6 : 20);
   fh.tags.forEach((tag, i) => drawFamilyMark(g, tag, x0 + i * 4, y0));
 }
 

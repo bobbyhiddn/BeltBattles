@@ -263,7 +263,7 @@ function famBox(plan: PanelPlan): Box | null {
   if (!fh) return null;
   if (fh.names) {
     const w = textWidth(famHeadText(fh.tags, !!fh.explained), "3"); // CARD-3: the player's tags; PRESENT-2 W (b): the explained words where the head says them (fh.explained), else the plain names
-    return fh.at === "sub" ? { x: r.x + 23, y: r.y + 19, w, h: 5, what: "names" } : { x: r.x + r.w - 4 - w, y: r.y + (fh.at === "sub2" ? 19 : 5), w, h: 5, what: "names" };
+    return fh.at === "sub" ? { x: r.x + 23, y: r.y + 19, w, h: 5, what: "names" } : { x: r.x + r.w - 4 - w, y: r.y + (fh.at === "sub2" ? 19 : fh.at === "sub1" ? 13 : 5), w, h: 5, what: "names" }; // POLISH-4 (P4-5): `sub1` is on the sub line's first row, y + 13
   }
   const w = fh.tags.length * 4 - 1;
   return { x: fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - w, y: r.y + (fh.at === "title" ? 6 : 20), w, h: 3, what: "marks" };
@@ -321,7 +321,8 @@ describe("the inspect panel names the families in its header (REQ-BFG-023: in th
       const strip = (x: typeof p) => ({ ...x, famHead: null, gaps: null, r: x.column ? { ...x.r, h: 0 } : x.r, maxY: x.column ? 0 : x.maxY });
       expect(JSON.stringify(strip(p)), what).toBe(JSON.stringify(strip(q)));
       expect(p.gaps.before.slice(1), what).toEqual(q.gaps.before.slice(1));
-      expect(p.gaps.before[0] ?? 0, what).toBe(p.famHead && p.famHead.at !== "title" && p.body.lines.length ? 1 : 0);
+      // POLISH-4 (P4-5): and `sub1` (the names beside the sub line's first row) takes none: it is beside the sub, not under it
+      expect(p.gaps.before[0] ?? 0, what).toBe(p.famHead && p.famHead.at !== "title" && p.famHead.at !== "sub1" && p.body.lines.length ? 1 : 0);
       expect(q.famHead, what).toBeNull();
       const fb = famBox(p);
       if (!fb) continue;

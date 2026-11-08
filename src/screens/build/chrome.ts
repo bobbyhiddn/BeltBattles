@@ -331,7 +331,7 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     const rb = drawCarry(g, L, s.run.build, c, s.ed.px, s.ed.py, s.ed.carryT, (x, y) => s.turretAt(x, y), { W: s.game.view.W, tap: tapPx(s.game.view) }, carriedMark(s.run, c)); // ENCHANT-1 (REQ-BFG-085, E7): the carried piece's word spark
     if (rb) ui.add({ id: "carryrotate", r: rb, onTap: () => { s.ed.rotateCarry(); }, second: true });
   }
-  if (cue) drawFightCue(g, L.fight, L.portrait, s.t);
+  if (cue) drawFightCue(g, L.fight, L.portrait, s.t, L.wagon?.rects ?? []); // POLISH-6 (P6-6): beside FIGHT where the ENCHANTER's cards stand in the gap above it
   // mouse hover tooltip under the card
   if (tip) {
     const { idx, o } = tip;

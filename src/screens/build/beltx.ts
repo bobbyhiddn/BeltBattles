@@ -44,7 +44,7 @@ export function placeBeltX(L: BuildLayout, b: Build, x: BeltX, side: number, tur
   const d1 = tile.w / 2 + Math.ceil(side / 2) + 1, d2 = d1 + Math.ceil(side / 2);
   const dirs: [number, number][] = [[0, -1], [1, 0], [-1, 0], [0, 1], [1, -1], [-1, -1], [1, 1], [-1, 1]];
   // bb-0.8.6 (REQ-BFG-051 P5): and clear of the two fixed pack slots
-  const keep: Rect[] = [L.bar, L.info, L.cargo, L.fight, L.reroll, ...L.cards, ...packRects(L), ...(L.foe ? [L.foe] : []), ...keepOut];
+  const keep: Rect[] = [L.bar, L.info, L.cargo, L.fight, L.reroll, ...L.cards, ...packRects(L), ...(L.foe ? [L.foe] : []), ...(L.wagon?.rects ?? []), ...keepOut]; // POLISH-6 (P6-6): + the ENCHANTER's word cards
   const items = b.items.map((p) => {
     // SHAPES-1 (REQ-BFG-086 R1): each piece's turned footprint's box (a 1-cell rig's and a 2x2's: the size x size square)
     const fb = footBox(defOf(p), rotOf(p)), r = boxRect(f, p.x, p.y, fb.w, fb.h);

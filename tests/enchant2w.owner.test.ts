@@ -92,7 +92,7 @@ describe("W5: faceText(build, sel, line, day, owner) names the owner in the sub 
 });
 
 describe("W5: the face keeps its text whole with the owner on every view; the sub line is drawn uncut and the owner is its first word", () => {
-  it("every rival x day x deck x part x view: kept text whole wherever the plain face's is, no sub cut that the plain face did not cut, the owner first and whole", () => {
+  it("every rival x day x deck x part x view: kept text whole wherever the plain face's is, no sub cut on any view (POLISH-3), the owner first and whole", () => {
     withEnchant(() => {
       const rows: string[] = [];
       const bad: string[] = [];
@@ -111,7 +111,9 @@ describe("W5: the face keeps its text whole with the owner on every view; the su
             if (!keptWhole(p0)) notKeptPlain++;
             if (!keptWhole(p1)) { notKept++; if (keptWhole(p0)) bad.push(`${tag}: kept whole without the owner, not with it`); }
             if (cutSub(t0, p0)) cutPlain++;
-            if (cutSub(t1, p1)) { cut++; if (!cutSub(t0, p0)) bad.push(`${tag}: the owner's sub is cut, the plain one was not`); }
+            // POLISH-3 (REQ-BFG-087; Q2 (a)): no sub is cut with a dot on any view, the 100 px column of the 1920x1080 desk included (was: none that the plain face did not cut; `sub uncut 1962 (plain 1962)` of 2,242
+            // there, the 280 turret subs `HEAVY TURRET IN SL.`): breakSub breaks a sub with no ` · ` or `. ` at a space (`HEAVY TURRET IN` / `SLOT 1`)
+            if (cutSub(t1, p1)) { cut++; bad.push(`${tag}: the owner's sub is cut with a dot`); }
             const lines = drawnSubs(t1, p1);
             if (lines[0].startsWith(`${owner}'S`) && textWidth(`${owner}'S`, "3") <= p1.subMax) owners++; else bad.push(`${tag}: the owner is not first and whole (${lines[0]})`);
             if (p1.subs.length > 1 && !p1.body.sub) two++;
