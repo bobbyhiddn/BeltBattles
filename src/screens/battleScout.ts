@@ -349,7 +349,7 @@ export function drawViewBar(g: G, game: Game, r: Rect, clock: string, back: () =
 export class BattleFaces {
   open: FacePick | null = null;
   /** Tooling: the last face drawn (its title, sub line and body text) and its rects. */
-  last: { title: string; sub: string; lines: string[]; r: Rect; close: Rect | null; side: Side; sel: PartSel; line: string | null } | null = null;
+  last: { title: string; sub: string; subDrawn: string; lines: string[]; r: Rect; close: Rect | null; side: Side; sel: PartSel; line: string | null } | null = null;
 
   /** A press on the battlefield (not on a button or the face): a part opens its face (or swaps to it); anything else
    *  closes the face. True when a part was hit. */
@@ -417,9 +417,10 @@ export class BattleFaces {
     else fitTitle(g, t, r.x + 23, r.y + 4, plan.subMax); // ENCHANT-1 (REQ-BFG-085, E7): an enchanted piece's word first in its colour (= fitHead for a plain one)
     const dy = plan.titleRows ? TITLE_ROW_DY : 0; // POLISH-4 (P4-1): spacing.ts, shared with the family head's place (headDy)
     const subColor = t.subColor ?? C.slate4;
+    const sub1 = plan.subFit ?? (t.subShort && textWidth(t.sub, "3") > plan.subMax ? t.subShort : t.sub); // POLISH-5 (P5-3): subFit, the band's shorter wording of a turret's sub
     if (plan.body.sub) fitHead(g, plan.body.sub, r.x + 23, r.y + 13 + dy, plan.subMax, plan.body.subColor ?? subColor, false);
     else if (plan.subs.length > 1) plan.subs.forEach((s, i) => fitHead(g, s, r.x + 23, r.y + 13 + dy + i * 6, plan.subMax, subColor, false));
-    else fitHead(g, t.subShort && textWidth(t.sub, "3") > plan.subMax ? t.subShort : t.sub, r.x + 23, r.y + 13 + dy, plan.subMax, subColor, false);
+    else fitHead(g, sub1, r.x + 23, r.y + 13 + dy, plan.subMax, subColor, false);
     drawFamHead(g, plan);
     const shown = visibleLines(plan);
     for (const v of shown) {
@@ -429,7 +430,7 @@ export class BattleFaces {
     // the ⓘ button and the keyword targets (the build screen's layer, on this side's build: the enemy's runes too)
     drawKeywordLayer(g, this, ui, run, { show: o.sel, t, plan }, shown, hit ? [hit] : [], tp, game.canvas, free(r));
     this.last = {
-      title: t.title, sub: t.sub, side: o.side, sel: o.sel, line, r: { ...r }, close: hit,
+      title: t.title, sub: t.sub, subDrawn: plan.body.sub ?? (plan.subs.length > 1 ? plan.subs.join(" ") : sub1), side: o.side, sel: o.sel, line, r: { ...r }, close: hit,
       lines: shown.flatMap((v) => (v.line === "rule" ? [] : [v.line.spans.map((s) => s.t).join("")])),
     };
   }

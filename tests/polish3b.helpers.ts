@@ -98,7 +98,7 @@ export function viewOf(name: ViewName, side: 0 | 1 = 0): { fa: { area: Rect; ban
 }
 
 /** The sub rows drawOn hands fitHead: the variant's own, else the planner's rows, else the short form where the whole one is wider than the room, else the sub. */
-export const drawnSubs = (t: PanelText, p: PanelPlan): string[] => (p.body.sub ? [p.body.sub] : p.subs.length > 1 ? p.subs : [t.subShort && textWidth(t.sub, "3") > p.subMax ? t.subShort : t.sub]);
+export const drawnSubs = (t: PanelText, p: PanelPlan): string[] => (p.body.sub ? [p.body.sub] : p.subs.length > 1 ? p.subs : [p.subFit ?? (t.subShort && textWidth(t.sub, "3") > p.subMax ? t.subShort : t.sub)]); // POLISH-5 (P5-3): + the band's subFit
 /** Is the title cut with a dot as drawOn draws it: planOnce's two 3x5 rows that do not say the whole title or are wider than the room, else fitTitle's one row (the 5x7 face where it fits, else the 3x5 face, cut where that is wider)? */
 export const titleCut = (t: PanelText, p: PanelPlan): boolean => (p.titleRows ? p.titleRows.join(" ") !== t.title || p.titleRows.some((r) => textWidth(r, "3") > p.subMax) : textWidth(t.title) > p.subMax && textWidth(t.title, "3") > p.subMax);
 

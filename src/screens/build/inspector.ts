@@ -1647,6 +1647,9 @@ export interface PanelPlan {
   shift: number;
   subs: string[];
   subMax: number;
+  /** POLISH-5 (REQ-BFG-087; P5-3): a battle face on a band whose one-row sub is wider than `subMax` (the foe's `MASTER VOSS'S MEDIUM TURRET IN SLOT 1`, 139 px in the 280x653 band's 137): the same sub in the shortest wording that fits
+   *  (slotSubFit), drawn in its place (battleScout.ts drawOn). Absent: the sub fits, or it is not a turret's slot sub, or the panel has a short form of its own; the sub is drawn as it was. */
+  subFit?: string;
   /** POLISH-3 (REQ-BFG-087; Q2 (a)): a foe's face in the column (the text with `subOwner`; POLISH-3b: or any battle face, planPanel's `wrap`) whose title is wider than `subMax` even in the 3x5 face: the title broken at a space onto
    *  these two 3x5 rows (`RISING RAMPART` / `CANNON ★`), drawn by fitTitleRows at y + 5 and y + 11; the sub rows then start 6 px lower (y + 19) and `shift` holds those 6 px. Absent:
    *  the title is one row, as drawn before (fitTitle). */
@@ -1786,6 +1789,19 @@ export function wrapAt(s: string, max: number, font: FontId = "3"): [string, str
   return textWidth(rest, font) <= max ? [s.slice(0, at), rest] : null;
 }
 
+/**
+ * POLISH-5 (REQ-BFG-087; P5-3): a turret's sub (`MASTER VOSS'S MEDIUM TURRET IN SLOT 1`) in the shortest wording that fits `max` px in the 3x5 face, for a band that has no row to break it onto (a second sub row would cost the face an ability or a
+ * CORE / GEAR line: 19 of 24 faces in corpus A, 21 of 24 in B). The owner, the weight and the slot always stay: ` IN` goes first (`... TURRET SLOT 1`, the wording turretPanel's slotSub already uses for an empty slot), then ` TURRET IN`
+ * for a comma (`OLD BULWARK'S ADAPTABLE, SLOT 2`; the widest of all 228 owner x weight x slot subs is 128 px). A sub that fits, or is not a turret's, is returned as it is. Pure (planOnce, tests).
+ */
+export function slotSubFit(s: string, max: number): string {
+  if (textWidth(s, "3") <= max) return s;
+  const a = s.replace(" TURRET IN SLOT ", " TURRET SLOT ");
+  if (a !== s && textWidth(a, "3") <= max) return a;
+  const b = s.replace(" TURRET IN SLOT ", ", SLOT ");
+  return b !== s ? b : s;
+}
+
 /** ENCHANT-2W (REQ-BFG-085; W5): a sub line as one line, or as two where it is wider than `max` and has a " · " (broken after the last one, as planIn breaks a sub on the desk column) or a full stop.
  *  POLISH-3 (REQ-BFG-087; Q2 (a)): or, with neither, at a space (wrapAt: `HEAVY TURRET IN` / `SLOT 1`), so a foe's turret sub keeps its slot number where the column is 100 px wide.
  *  POLISH-4 (REQ-BFG-087; P4-2, cap's ruling 2 on the scout's mode b): and where the split's second piece is wider than `max` too (a rig's `RIG · 1/1 ARROWS ON BELTS`, whose second piece is 72 px in the 96 px column's 69 px room),
@@ -1914,6 +1930,8 @@ function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: 
   const extra = labels.length ? btnRows * pitch + 3 : 4;
   const headRight = !column && port && !port.shift ? port.rects[0].x - 3 : area.x + area.w - 4;
   const subMax = headRight - (area.x + 23);
+  // POLISH-5 (REQ-BFG-087; P5-3): a battle face's band (280x653: 164 x 69, subMax 137) draws the foe's turret sub in one row; where that is wider than the room it gets the shortest wording that fits (slotSubFit), not a cut with a dot
+  const subFit = !column && wrap && subs.length === 1 && !sp.subShort && textWidth(sp.sub, "3") > subMax ? slotSubFit(sp.sub, subMax) : sp.sub;
   // the body starts at y + 25 + shift (a tight variant's 1 px higher). The column grows to its text (27 + shift + body +
   // extra, as 0.6.1r sized it); the band's text ends 4 px above its bottom edge. A variant's sub line must fit the header
   const body = planBody(sp.body, sp.variants, wrapW, column ? area.h - 27 - shift - extra : area.h - 27 - shift,
@@ -1971,7 +1989,7 @@ function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: 
   const headerOnly = !column && r.y + 25 + shift + 5 > maxY && sp.headerOnly
     ? { lines: headerLines(sp.headerOnly.texts, subMax, r.w - 27), colour: sp.headerOnly.colour } : null;
   const gaps: PanelGaps = { before, slots, px: on && !headerOnly ? slotPx(body.lines, y, maxY, slots, G) : 0, G, min: GAP_MIN[body.font] };
-  return { r, column, rects: port?.rects ?? null, shift, subs: body.sub ? [body.sub] : subs, subMax, ...(titleRows ? { titleRows } : {}), body, y, maxY, headerOnly, famHead, gaps };
+  return { r, column, rects: port?.rects ?? null, shift, subs: body.sub ? [body.sub] : subs, subMax, ...(subFit !== sp.sub && !body.sub ? { subFit } : {}), ...(titleRows ? { titleRows } : {}), body, y, maxY, headerOnly, famHead, gaps };
 }
 
 /** SPACE-1 (REQ-BFG-087, D4): a plan's gaps are at least `px` (or it has none to show). */

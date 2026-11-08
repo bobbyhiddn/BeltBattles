@@ -49,11 +49,11 @@ describe("POLISH-4 P4-2: no sub is cut with a dot in the 96 px column", () => {
     expect(p.subs.every((s) => textWidth(s, "3") <= p.subMax)).toBe(true);
   });
 
-  it("on the other twelve views nothing was cut with a dot and nothing is now (the rig's second piece fits their columns, so its split is the same two pieces); the 280x653 band's 24 + 24 foe turret subs are a band, not a column (out of scope)", () => {
+  it("on the other twelve views nothing was cut with a dot and nothing is now (the rig's second piece fits their columns, so its split is the same two pieces); the 280x653 band's 24 + 24 foe turret subs were cut until POLISH-5 (P5-3: tests/polish5.bandsub.test.ts)", () => {
     for (const name of VIEW13_NAMES.filter((v) => v !== "col96-3040x1710")) {
       for (const foe of [false, true]) {
         const left = cutSubs(faces(foe), name, foe);
-        expect(left.length, `${name} ${foe ? "foe" : "own"}: faces cut with a dot`).toBe(name === "band-280x653" && foe ? 48 : 0);
+        expect(left.length, `${name} ${foe ? "foe" : "own"}: faces cut with a dot`).toBe(0); // POLISH-5 (P5-3): was `name === "band-280x653" && foe ? 48 : 0` (24 + 24 foe turret subs): the band shortens the sub (planOnce subFit)
       }
       const { fa } = viewAt(name, 0);
       expect(textWidth("1/2 ARROWS ON BELTS", "3"), `${name}: the second piece (72 px) fits the column's room`).toBeLessThanOrEqual(fa.area.w - 27);
