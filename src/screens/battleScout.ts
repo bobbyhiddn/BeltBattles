@@ -322,8 +322,8 @@ export function drawSummaries(g: G, a: Arena, L: BattleLayout): void {
 export const fingerPx = (game: Pick<Game, "view">): number => tapPx(game.view);
 
 /** VIEW BATTLEFIELD's bar, where the playback bar sits: the fight's clock, BACK, and the card's primary action (null:
- *  none, a warlord's part pick still waiting on the card). Returns the buttons' hit rects (tooling). */
-export function drawViewBar(g: G, game: Game, r: Rect, clock: string, back: () => void, primary: { label: string; onTap: () => void } | null): { back: Rect; primary: Rect | null } {
+ *  none, a warlord's part pick still waiting on the card). Returns the buttons' hit rects (tooling), and BACK's drawn button (`backBtn`: what a hit rect that is trimmed must still hold). */
+export function drawViewBar(g: G, game: Game, r: Rect, clock: string, back: () => void, primary: { label: string; onTap: () => void } | null): { back: Rect; backBtn: Rect; primary: Rect | null } {
   const ui = game.ui, tp = fingerPx(game);
   const screen = { x: 0, y: 0, w: game.W, h: game.H };
   panel(g, r, "dark");
@@ -334,12 +334,37 @@ export function drawViewBar(g: G, game: Game, r: Rect, clock: string, back: () =
   const br = { x: x0, y: by, w: bw, h: bh };
   const bhit = tapRect(br, tp, screen, tp);
   button(ui, g, "viewback", br, BACK_LABEL, { font: "3", onTap: back, hit: bhit });
-  if (!primary) return { back: bhit, primary: null };
+  if (!primary) return { back: bhit, backBtn: br, primary: null };
   const pw = Math.min(r.x + r.w - 2 - (x0 + bw + 3), textWidth(primary.label, "3") + 12);
   const pr = { x: r.x + r.w - 2 - pw, y: by, w: pw, h: bh };
   const phit = tapRect(pr, tp, { ...screen, x: br.x + br.w + 1, w: game.W - (br.x + br.w + 1) }, tp);
   button(ui, g, "viewnext", pr, primary.label, { font: "3", primary: true, onTap: primary.onTap, hit: phit });
-  return { back: bhit, primary: phit };
+  return { back: bhit, backBtn: br, primary: phit };
+}
+
+/**
+ * POLISH-5 (REQ-BFG-089; P5-4): a button's hit rect `hit` (tapRect grew it past the drawn button `keep`: BACK's is 59 x 46 CSS px at 851x393@2.75, 11 px above the bar) trimmed so it no longer meets `over`, an open face drawn after the bar
+ * (its region is added last, so it wins a press in the overlap: 26 x 11 CSS px of BACK's rect lay under the face's foot, 1,166 of 10,856 sampled points reached the face). The tooling reports the rect, so the rect it reports is now what a press reaches.
+ * The largest rect inside `hit` that clears `over` and still holds `keep`, cut from one side only (the drawn button and its centre are never cut); `hit` is changed in place (the button's region and the tooling's rect are the one object).
+ * No overlap, or no cut that holds `keep`: nothing changes. True when it cut. Pure but for `hit`.
+ */
+export function trimHit(hit: Rect, over: Rect | null, keep: Rect): boolean {
+  if (!over) return false;
+  const meets = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  if (!meets(hit, over)) return false;
+  const cuts: Rect[] = [
+    { x: hit.x, y: over.y + over.h, w: hit.w, h: hit.y + hit.h - (over.y + over.h) }, // the face lies over the top of the rect: keep what is under its foot
+    { x: hit.x, y: hit.y, w: hit.w, h: over.y - hit.y }, // over the bottom
+    { x: over.x + over.w, y: hit.y, w: hit.x + hit.w - (over.x + over.w), h: hit.h }, // over the left
+    { x: hit.x, y: hit.y, w: over.x - hit.x, h: hit.h }, // over the right
+  ];
+  const holds = (c: Rect): boolean => c.w > 0 && c.h > 0 && c.x >= hit.x && c.y >= hit.y && c.x + c.w <= hit.x + hit.w && c.y + c.h <= hit.y + hit.h && !meets(c, over)
+    && c.x <= keep.x && c.y <= keep.y && c.x + c.w >= keep.x + keep.w && c.y + c.h >= keep.y + keep.h;
+  let best: Rect | null = null;
+  for (const c of cuts) if (holds(c) && (!best || c.w * c.h > best.w * best.h)) best = c;
+  if (!best) return false;
+  hit.x = best.x; hit.y = best.y; hit.w = best.w; hit.h = best.h;
+  return true;
 }
 
 /**
