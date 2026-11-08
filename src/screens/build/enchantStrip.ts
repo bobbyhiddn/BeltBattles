@@ -130,6 +130,9 @@ function inGap(L: PlaceLayout, n: number, tap: number): WagonPlace | null {
 
 /** POLISH-7 (P7-3): the clear a portrait row keeps under its cards: the selection frame's and the lifted card's shadow's row, then 1 px of clear, before the first target under it. */
 const ROW_CLEAR = 2;
+/** POLISH-7 (P7-3 (c)): the portrait row's card height: the 46 x 32 face of RULING-SCOUT-POLISH6 S1.1 (the x1 icon under 38 px), a finger (`tap`) at least. The row takes the details band's top, so every px a card gives back is a px of the band
+ *  (10 of them: 42 -> 32). */
+const ROW_H = 32;
 
 /** POLISH-7 (P7-3, REVIEW-POLISH6 V10): the top, in screen px, of the first target under a portrait row: the hull and the bow turrets' mounts (build.ts deckTurretRect: 24 x 24, 18 x 18 for a light turret, about the pivot, on screen through the
  *  carrier's zoom), which reach 7 px above the hull's bow edge. Pure (wordLayout, tests). */
@@ -146,14 +149,15 @@ export function deckFloor(L: Pick<BuildLayout, "hull" | "frame" | "cam">, run: R
  *  landscape one the top of the details column (the column starts under it).
  *  POLISH-7 (P7-3, REVIEW-POLISH6 V10): a portrait row clears everything round it by 1 px at least, drawn as it is drawn (a selected card: its frame 1 px round it, its lift, its shadow 1 px under it; the tag's ink). `floor` (deckFloor: the hull and
  *  the bow turrets' mounts) is the first target under the row: at 360x640@2 with a rune held and 6 or 7 offers the shop's two rows leave 37 px under them, so the cards were 46 x 42 and lay 8 px over the turrets' mounts and 1 px over
- *  the hull. They are as tall as the room under them allows now (ROW_CLEAR), at least a finger and MIN_H (the 46 x 32 face of RULING-SCOUT-POLISH6 S1.1: the x1 icon under 38 px), and at most CARD_H; and the lift is cut to the clear rows
- *  above the cards (GAP, less the frame's own row and 1 px of clear: 1), so a selected card's frame keeps off the shop block (and the tag) above it. Absent `floor`: the cards are CARD_H tall, as before. */
+ *  the hull. They are ROW_H (32) tall now, a finger at least, and never taller than the room under them allows (ROW_CLEAR; MIN_H and a finger at least): the 46 x 32 face of RULING-SCOUT-POLISH6 S1.1 (the x1 icon under 38 px), which gives
+ *  the details band 10 px back of the 42 it lost to a 46 x 42 row (P7-3 (c)). The lift is cut to the clear rows above the cards (GAP, less the frame's own row and 1 px of clear: 1), so a selected card's frame keeps off the shop block (and the
+ *  tag) above it. Absent `floor`: ROW_H tall. */
 function inRow(L: PlaceLayout, n: number, tap: number, floor?: number): WagonPlace | null {
   const tag = L.tags ? 8 : 0;
   if (L.portrait) {
     const bottom = Math.max(...[...L.cards, L.reroll, ...L.packs].map((r) => r.y + r.h));
     const total = n * CARD_W + (n - 1) * GAP, x = Math.round(L.W / 2 - total / 2), y = bottom + GAP + tag;
-    const h = floor === undefined ? CARD_H : Math.min(CARD_H, Math.max(Math.max(MIN_H, tap), floor - ROW_CLEAR - y));
+    const want = Math.min(CARD_H, Math.max(ROW_H, tap)), h = floor === undefined ? want : Math.min(want, Math.max(Math.max(MIN_H, tap), floor - ROW_CLEAR - y));
     const rects = Array.from({ length: n }, (_, i): Rect => ({ x: x + i * (CARD_W + GAP), y, w: CARD_W, h }));
     const hits = fingerHits(rects, tap, { x: 0, y, w: L.W, h });
     return { rects, hits, tag: tag ? { x: rects[0].x, y: y - 8 } : null, shift: Math.max(0, y + h + 2 - L.info.y), lift: Math.max(0, Math.min(LIFT, GAP - 2)) };

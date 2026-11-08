@@ -1,9 +1,10 @@
 // POLISH-7 (REQ-BFG-089; P7-3, REVIEW-POLISH6 V10 / filed OPEN P6-V10): THE ENCHANTER'S PORTRAIT ROW CLEARS THE HULL AND EVERY TARGET; THE DETAILS BAND'S HEIGHT IS PINNED, WITH THE WAGON AND WITHOUT IT.
 //   At phone-360x640@2 on an ENCHANTER dawn with a rune held and 6 or 7 shop offers the shop's two rows and the rune bar leave 37 px between them and the hull's bow edge (enchantStrip.ts inRow, portrait). The word cards (46 x 42, row
 //   y 173) ended at 215: 1 px over L.hull (y 214) and 8 px over the bow turrets' mounts (24 x 24 at y 207, which reach above the hull), and the band under the row was 210 x 0 (REVIEW-POLISH6 N4: RV5/logs/n4-tip-portrait.txt :19-20).
-//   Now the row's cards are as tall as the room under them allows (a finger and MIN_H at least, CARD_H at most): 46 x 32 there (the x1 icon under 38 px: RULING-SCOUT-POLISH6 S1.1), and a portrait row's lift is 1 (its 3 clear rows above, less the
-//   frame's row and 1 px of clear). Every other case is as it was. (b) The band's height with the wagon and on the same dawn without it, both portrait phones, 3 to 7 offers, no rune and one: pinned below (BAND). At 360x640 with a rune and 6 or 7
-//   offers the band is 26 px WITHOUT the wagon and 0 with it: the wagon takes it to 0 there (and no card the rules allow gives it back: the row's floor is a finger, 27 px, and 173 + 27 + 2 is under the band's foot at 198 by none).
+//   Now the row's cards stop 2 px short of the first target under them (a finger and MIN_H at least): 46 x 32 there (the x1 icon under 38 px: RULING-SCOUT-POLISH6 S1.1), and a portrait row's lift is 1 (its 3 clear rows above, less the frame's
+//   row and 1 px of clear). (b) The band's height with the wagon and on the same dawn without it, both portrait phones, 3 to 7 offers, no rune and one: pinned below (BAND). At 360x640 with a rune and 6 or 7 offers the band is 26 px WITHOUT the
+//   wagon and 0 with it: the wagon takes it to 0 there, and no card the rules allow gives it back (the row's floor is a finger, 27 px: 173 + 27 + 2 is past the band's foot at 198). (c) Every portrait row is the 46 x 32 face now (it was 46 x 42
+//   where the room allowed): the band keeps 10 px more with the wagon, and three no-rune days reach the idle strip's minimum (IDLE_MIN 50).
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { G, fresh, installRaster, type RasterCanvas } from "./raster.helpers";
 import { VIEWS13 } from "./polish4.helpers";
@@ -16,6 +17,7 @@ import { turretSlots } from "../src/sim/deck";
 import { tapPx, TAP_CSS } from "../src/ui/tap";
 import { UI, type Rect } from "../src/ui/ui";
 import { drawWagon } from "../src/screens/build/enchantStrip";
+import { IDLE_MIN } from "../src/screens/build/layout";
 import type { Game } from "../src/game/game";
 
 installRaster();
@@ -102,17 +104,23 @@ const inked = (c: RasterCanvas, q: Rect): number => {
   return n;
 };
 
-/** THE TABLE (O/logs/p7-3-n4-tip.txt): per view, runes held / shop offers: the place the wagon takes, its shift, the first card's w x h, and the details band's height WITH the wagon and on the same dawn WITHOUT it.
- *  Only 360x640 with a rune and 6 or 7 offers moved (row cards 42 -> 32 tall, shift 45 -> 35; the band 0 either way with the wagon). */
+/** THE TABLE (O/logs/p7-3-n4-*.txt): per view, runes held / shop offers: the place the wagon takes, its shift, the first card's w x h, and the details band's height WITH the wagon and on the same dawn WITHOUT it.
+ *  P7-3 (a): only 360x640 with a rune and 6 or 7 offers moved (row cards 42 -> 32 tall, shift 45 -> 35; the band 0 either way with the wagon). P7-3 (c): every other row is 46 x 32 now too (shift -10: 53 -> 43, 45 -> 35). The margin's stacked
+ *  cards (4 and 5 offers) are as they were. */
 const BAND: Record<Name, Record<string, [place: "row" | "margin", shift: number, w: number, h: number, withWagon: number, without: number]>> = {
   "op-402x690": {
-    "0/3": ["row", 53, 46, 42, 43, 96], "0/4": ["margin", 0, 43, 36, 90, 90], "0/5": ["margin", 0, 43, 36, 90, 90], "0/6": ["row", 45, 46, 42, 45, 90], "0/7": ["row", 45, 46, 42, 12, 57],
-    "1/3": ["row", 53, 46, 42, 10, 63], "1/4": ["margin", 0, 43, 42, 57, 57], "1/5": ["margin", 0, 43, 42, 57, 57], "1/6": ["row", 45, 46, 42, 12, 57], "1/7": ["row", 45, 46, 42, 11, 56],
+    "0/3": ["row", 43, 46, 32, 53, 96], "0/4": ["margin", 0, 43, 36, 90, 90], "0/5": ["margin", 0, 43, 36, 90, 90], "0/6": ["row", 35, 46, 32, 55, 90], "0/7": ["row", 35, 46, 32, 22, 57],
+    "1/3": ["row", 43, 46, 32, 20, 63], "1/4": ["margin", 0, 43, 42, 57, 57], "1/5": ["margin", 0, 43, 42, 57, 57], "1/6": ["row", 35, 46, 32, 22, 57], "1/7": ["row", 35, 46, 32, 21, 56],
   },
   "phone-360x640": {
-    "0/3": ["row", 53, 46, 42, 45, 98], "0/4": ["margin", 0, 30, 36, 92, 92], "0/5": ["margin", 0, 30, 36, 92, 92], "0/6": ["row", 45, 46, 42, 14, 59], "0/7": ["row", 45, 46, 42, 14, 59],
-    "1/3": ["row", 53, 46, 42, 12, 65], "1/4": ["margin", 0, 30, 42, 59, 59], "1/5": ["margin", 0, 30, 42, 59, 59], "1/6": ["row", 35, 46, 32, 0, 26], "1/7": ["row", 35, 46, 32, 0, 26],
+    "0/3": ["row", 43, 46, 32, 55, 98], "0/4": ["margin", 0, 30, 36, 92, 92], "0/5": ["margin", 0, 30, 36, 92, 92], "0/6": ["row", 35, 46, 32, 24, 59], "0/7": ["row", 35, 46, 32, 24, 59],
+    "1/3": ["row", 43, 46, 32, 22, 65], "1/4": ["margin", 0, 30, 42, 59, 59], "1/5": ["margin", 0, 30, 42, 59, 59], "1/6": ["row", 35, 46, 32, 0, 26], "1/7": ["row", 35, 46, 32, 0, 26],
   },
+};
+/** The band with the wagon at polish6-accepted, where the row's cards were 46 x 42 (shift 53 / 45): the P7-3 (c) before. */
+const WAS_42: Record<Name, Record<string, number>> = {
+  "op-402x690": { "0/3": 43, "0/6": 45, "0/7": 12, "1/3": 10, "1/6": 12, "1/7": 11 },
+  "phone-360x640": { "0/3": 45, "0/6": 14, "0/7": 14, "1/3": 12, "1/6": 0, "1/7": 0 },
 };
 
 vi.stubGlobal("localStorage", new MapStore());
@@ -181,6 +189,22 @@ describe("POLISH-7 P7-3 (b): the details band's height, with the wagon and on th
       }
     });
   }
+
+  it("P7-3 (c): every portrait row is 46 x 32 (the x1 icon, RULING-SCOUT-POLISH6 S1.1; a finger tall and wide: 44 x 44 CSS px at least), which gives the band 10 px back of what the 46 x 42 row left it (a band already 0 stays 0); three no-rune days cross the idle strip's minimum (IDLE_MIN 50: the hero card and NEXT BATTLE): 402x690 with 3 and 6 offers, 360x640 with 3", () => {
+    const crossed: string[] = [];
+    for (const name of PORTRAIT2) for (const [key, was] of Object.entries(WAS_42[name])) {
+      const [place, shift, w, h, withWagon, without] = BAND[name][key];
+      expect([place, w, h], `${name} ${key}: a 46 x 32 row`).toEqual(["row", 46, 32]);
+      expect(withWagon, `${name} ${key}: the band is the plain band less the row's shift`).toBe(Math.max(0, without - shift));
+      expect(withWagon - was, `${name} ${key}: 10 px back (${was} -> ${withWagon})`).toBe(was === 0 ? 0 : 10);
+      if (was < IDLE_MIN && withWagon >= IDLE_MIN) crossed.push(`${name} ${key}`);
+    }
+    expect(crossed).toEqual(["op-402x690 0/3", "op-402x690 0/6", "phone-360x640 0/3"]);
+    for (const name of PORTRAIT2) on(() => {
+      const c = build(name, 0, 3, true), wg = c.L.wagon!;
+      for (const q of [...wg.rects, ...wg.hits]) { expect(q.w * c.k, `${name}: a finger wide`).toBeGreaterThanOrEqual(TAP_CSS - 0.5); expect(q.h * c.k, `${name}: a finger tall`).toBeGreaterThanOrEqual(TAP_CSS - 0.5); }
+    });
+  });
 
   it("the wagon takes the band to 0 only at 360x640 with a rune and 6 or 7 offers, where it is 26 px without the wagon (below the 45 to 60 px a panel needs): the band is never 0 without the wagon at either portrait phone", () => {
     const zero: string[] = [], zeroPlain: string[] = [];
