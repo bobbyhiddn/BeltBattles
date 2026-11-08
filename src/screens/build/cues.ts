@@ -425,9 +425,15 @@ export function drawArrowAt(g: G, x: number, y: number, dir: number, t: number):
   g.drawImage(a, Math.round(x + ox + dx), Math.round(y + oy + dy));
 }
 
-/** Arrow at FIGHT (beside it in landscape, above it in portrait). */
-export function drawFightCue(g: G, r: Rect, portrait: boolean, t: number): void {
-  if (portrait) drawArrowAt(g, r.x + r.w / 2, r.y - 2, 2, t);
+/**
+ * Arrow at FIGHT: above it, the 9 x 9 sprite bobbing 0-3 px toward it, 2 px clear. POLISH-6 (P6-6): where the ENCHANTER's word cards stand in the gap above FIGHT (enchantStrip.ts inGap) that arrow lay over
+ * the second card's price and coin (found in the pictures of the gap). `avoid`, the cards' rects: where one of them lies in the arrow's reach the arrow stands BESIDE FIGHT instead, left of it and pointing at it
+ * (the doc said "beside it in landscape" and drew it above in both). With no card there it is drawn where it always was.
+ */
+export function drawFightCue(g: G, r: Rect, portrait: boolean, t: number, avoid: readonly Rect[] = []): void {
+  const reach: Rect = { x: Math.floor(r.x + r.w / 2) - 5, y: r.y - 16, w: 11, h: 15 }; // the arrow's whole travel above FIGHT: 9 wide, 9 tall, 3 px of bob, 2 px clear
+  const covered = !portrait && avoid.some((q) => q.x < reach.x + reach.w && reach.x < q.x + q.w && q.y < reach.y + reach.h && reach.y < q.y + q.h);
+  if (covered) drawArrowAt(g, r.x - 2, r.y + r.h / 2, 1, t);
   else drawArrowAt(g, r.x + r.w / 2, r.y - 2, 2, t);
 }
 

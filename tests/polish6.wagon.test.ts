@@ -7,6 +7,8 @@
 //     a phone's targets are at least 44 x 44 CSS px;
 //   - the details column is the harness's whole one wherever the gap takes the cards (126x194 / 119x180 / 128x216), and the real belts give away 74 / 108 / 65 -> 4 / 8 / 2 short belts (P6-1 too);
 //   - S1.3: each card selected in turn is drawn with no pixel inside NEXT BATTLE's or FIGHT's rect (a real BuildScreen, drawWagon on a blank raster), and the control: the same draw with the old lift of 2 does reach NEXT BATTLE;
+//     and the converse, found in the pictures of the gap: FIGHT's cue (the arrow bobbing above FIGHT once something is placed this round) lay over the second card's price. With the cue on, no pixel of a card, its lift row or its frame
+//     changes (the whole frame drawn with the cue on and off at the nine views): the arrow stands beside FIGHT where a card is in its reach (cues.ts drawFightCue) and above it where none is;
 //   - S1.4 THE FALLBACK: the nine landscape views and both portrait phones, 3 to 7 offers, no rune and one: the wagon has a place on the screen, clear of every target (a finger's size on a phone); the gap where it holds the cards
 //     (shift 0, the column whole), the row (shift 58) where it does not (a gap shorter than a finger or MIN_H, packs lying in it), 1280x800 in the margin (2 x 41), the portrait phones in theirs.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,6 +19,7 @@ import { setTipsForTests } from "../src/ui/tips";
 import { viewWithSub } from "../src/game/viewGrid";
 import { BuildScreen } from "../src/screens/build/build";
 import { drawWagon, drawWordCard, wagonPlace, wordLayout } from "../src/screens/build/enchantStrip";
+import { drawFightCue } from "../src/screens/build/cues";
 import { planPanel, routePanel, visibleLines, type PanelPlan, type PanelText } from "../src/screens/build/inspector";
 import { faceRun } from "../src/screens/battleScout";
 import { newRun, rollShop, type Run } from "../src/game/run";
@@ -175,7 +178,7 @@ describe("POLISH-6 P6-6 (with P6-1): the real belts on ENCHANTER days give away 
   });
 });
 
-describe("POLISH-6 P6-6 S1.3: a selected word card never draws over NEXT BATTLE or FIGHT (its lift and its frame included)", () => {
+describe("POLISH-6 P6-6 S1.3: nothing is drawn over its neighbours: a selected word card (its lift and its frame included) never over NEXT BATTLE or FIGHT, FIGHT's cue never over a word card", () => {
   class FakeGame {
     readonly ui = new UI();
     readonly canvas = { style: {} };
@@ -243,6 +246,40 @@ describe("POLISH-6 P6-6 S1.3: a selected word card never draws over NEXT BATTLE 
     const d = fresh(L.W, L.H);
     drawWordCard(G(d), r, "fiery", { price: 4, sold: false, affordable: true, selected: true, hover: false, t: 0, maxLift: L.wagon!.lift });
     expect(inked(d, L.foe!), "the clamped lift does not").toBe(0);
+  });
+
+  // The converse (found in the pictures of the gap): FIGHT's cue, the yellow arrow bobbing above FIGHT once something is placed this round (BuildScreen.placedOnce), lay over the second card's price. It now stands
+  // beside FIGHT where a card is in its reach (cues.ts drawFightCue); everywhere else it is where it always was.
+  const lenient = (c: RasterCanvas): CanvasRenderingContext2D =>
+    new Proxy(G(c), { get: (t, k, r) => { const v = Reflect.get(t, k, r); return v !== undefined ? (typeof v === "function" ? v.bind(t) : v) : (): undefined => undefined; } }) as unknown as CanvasRenderingContext2D;
+  const changed = (a: RasterCanvas, b: RasterCanvas, q: Rect): number => { let n = 0; for (let y = q.y; y < q.y + q.h; y++) for (let x = q.x; x < q.x + q.w; x++) if (a.at(x, y) !== b.at(x, y)) n++; return n; };
+  const drawFrame = (s: BuildScreen, cue: boolean): RasterCanvas => {
+    s.placedOnce = cue;
+    const c = fresh(s.L.W, s.L.H), ui = (s.game as unknown as { ui: UI }).ui;
+    ui.begin();
+    s.draw(lenient(c));
+    ui.end();
+    return c;
+  };
+  for (const name of LAND9) {
+    it(`${name}: FIGHT's cue (the arrow once something is placed) changes no pixel of a word card, its lift row or its frame`, () => {
+      on(() => {
+        const s = rig(name), L = s.L, wg = L.wagon!, inGap = wg.shift === 0 && wg.rects[0].x >= L.foe!.x - 1;
+        const off = drawFrame(s, false), onn = drawFrame(s, true);
+        for (const r of wg.rects) expect(changed(off, onn, { x: r.x - 1, y: r.y - 3, w: r.w + 2, h: r.h + 4 }), `${name}: the cue over a word card ${JSON.stringify(r)}`).toBe(0);
+        const cx = Math.floor(L.fight.x + L.fight.w / 2), above = { x: cx - 5, y: L.fight.y - 16, w: 11, h: 15 }, beside = { x: L.fight.x - 14, y: L.fight.y + 8, w: 13, h: 16 };
+        expect(changed(off, onn, above) > 0, `${name}: the arrow ${inGap ? "is not" : "is"} above FIGHT`).toBe(!inGap);
+        expect(changed(off, onn, beside) > 0, `${name}: the arrow ${inGap ? "is" : "is not"} beside FIGHT`).toBe(inGap);
+      });
+    });
+  }
+  it("the control: without the cards' rects the arrow lies over the second word card at 1920x1080 (it did); with them it stands beside FIGHT", () => {
+    const f = frameOf("desk-1920x1080"), L = f.L, c = fresh(L.W, L.H), d = fresh(L.W, L.H);
+    drawFightCue(G(c), L.fight, false, 0);
+    expect(inked(c, L.wagon!.rects[1]), "the arrow over card 2").toBeGreaterThan(0);
+    drawFightCue(G(d), L.fight, false, 0, L.wagon!.rects);
+    expect(inked(d, L.wagon!.rects[0]) + inked(d, L.wagon!.rects[1]), "with the cards' rects: nothing over a card").toBe(0);
+    expect(inked(d, { x: L.fight.x - 14, y: L.fight.y + 8, w: 13, h: 16 }), "the arrow stands beside FIGHT").toBeGreaterThan(0);
   });
 });
 
