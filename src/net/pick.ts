@@ -28,10 +28,17 @@
 //
 // The switch: PICK (false), pickRules(), setPick(on), withPick(fn, on = true) (src/sim/npcDay.ts's form). P3 (new players
 // and weak uploads) is a design only (output-retune1/t5-design.md; cap's answer 3): not built.
+//
+// BUMP-1H (REQ-BFG-124, battle rules bb-0.15.0): THE LEAD PICK. R1's mirror (PickRule.lead, coded here and never used until now) is
+// turned on by rules: a request under LEAD_RULES or later (rulesGate.ts leadFor) with CURVE on (src/net/curve.ts) whose record is
+// lead.at or more wins ahead of its losses draws from the strongest lead.share of its eligible ghosts by grade (matchPick below),
+// then pickGhost's nearest-record rank runs inside them, as `deep` does at the other end. D1 (never a better record) is eligible()'s
+// and unchanged; an endless request picks by nearest endless wins as before; a bb-0.14.0 request, or CURVE off, picks exactly as at
+// bb-0.14.0 (tests/curve.pick.test.ts). The strong ghosts it finds are the seed pool's streak tier (tools/samplePool.ts).
 
 import { eligibleWide, matchDay, pickGhost, type IntRng, type MatchRequest } from "./matchmaking"; // RUN-1 (D6): the long run's widening is matchmaking's
 import { GRADE_MAX, type PoolEntry } from "./snapshot";
-import { pickFor } from "./rulesGate";
+import { leadFor, pickFor } from "./rulesGate"; // BUMP-1H (REQ-BFG-124): + leadFor, the lead pick's gate (the CURVE switch AND rules at or after LEAD_RULES)
 
 /** THE switch (REQ-BFG-092): on, from HULL-ON's flip (bb-0.10.0). Its setter, withPick and the off path stay this
  *  release, for older records (rulesGate.ts pickFor) and the tests that measure the off world. */
@@ -70,7 +77,10 @@ export interface PickRule {
   deep: number;
   deepAt: number;
   /** R1's mirror (cap's answer 1): a record `at` or more wins ahead of its losses draws from the strongest `share`.
-   *  Absent: off (RUN-1 tunes it on REQ-BFG-059's real days 11+). */
+   *  Absent: off (RUN-1 tunes it on REQ-BFG-059's real days 11+).
+   *  BUMP-1H (REQ-BFG-124, THE CURVE): matchPick honours it only for a request under rulesGate.ts LEAD_RULES (bb-0.15.0) or later with
+   *  the CURVE switch on (leadFor); pickShare itself reads whatever rule it is given (the bench passes a lead by `--rule`). PICK_RULE
+   *  gets its `lead` in P3's take (src/net/pick.ts below). */
   lead?: { share: number; at: number };
 }
 
@@ -96,6 +106,9 @@ export function pickShare(req: Pick<MatchRequest, "day" | "wins">, rule: Readonl
   return { share: 1, strong: false };
 }
 
+/** BUMP-1H: `rule` without its `lead` (the bb-0.14.0 rule: matchPick uses it when the lead does not hold for the request). */
+const withoutLead = (rule: Readonly<PickRule>): PickRule => ({ losing: rule.losing, deep: rule.deep, deepAt: rule.deepAt });
+
 /** The median grade of the graded ghosts in `entries` (GRADE_MAX / 2 when none is graded). */
 export function medianGrade(entries: readonly PoolEntry[]): number {
   const gs = entries.map((e) => e.snapshot.grade).filter((g): g is number => typeof g === "number").sort((a, b) => a - b);
@@ -117,7 +130,9 @@ export const gradeOf = (e: PoolEntry, median: number): number => e.snapshot.grad
  */
 export function matchPick(pool: readonly PoolEntry[], req: MatchRequest, rng: IntRng, rule: Readonly<PickRule> = PICK_RULE): PoolEntry | null {
   if (req.endless || !pickFor(req.rules)) return pickGhost(pool, req, rng); // ENDLESS-1: an endless request is nearest endless wins; the grade is a run's (no endless ghost carries one)
-  const { share, strong } = pickShare(req, rule);
+  // BUMP-1H (REQ-BFG-124): the lead (R1's mirror) applies only to a request under LEAD_RULES or later with CURVE on (rulesGate.ts leadFor);
+  // otherwise the rule's `lead` is left out, so the pick is exactly the bb-0.14.0 one (a bb-0.14.0 request, or CURVE off, at any rules label)
+  const { share, strong } = pickShare(req, rule.lead && !leadFor(req.rules) ? withoutLead(rule) : rule);
   if (share >= 1) return pickGhost(pool, req, rng);
   const ok = eligibleWide(pool, req);
   if (!ok.length) return null;

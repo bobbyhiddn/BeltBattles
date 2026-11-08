@@ -23,7 +23,10 @@ import { Rng } from "../../core/rng";
 import type { HeroId } from "../content";
 import { eligible, pickGhost, type IntRng, type MatchRequest } from "../../net/matchmaking";
 import type { PoolEntry } from "../../net/snapshot";
-import { playerRun, type PlayerDay, type PlayerOpts, type PolicyKnobs } from "./player";
+import { PLAYER_DAYS, PLAYER_DAYS_LONG, playerRun, type PlayerDay, type PlayerOpts, type PolicyKnobs } from "./player";
+import { PAR_K, parSeeds } from "./par"; // BUMP-1H: the casual field takes the par field's seeds
+import { longRunRules } from "../longRun"; // BUMP-1H: casualBuild's day clamp is playerBuild's
+import type { Build } from "../deck";
 import { enchantRules } from "../enchant"; // ENCHANT-1 (REQ-BFG-085, E8)
 import { CASUAL_WORD_RATE } from "./enchantBot";
 
@@ -58,6 +61,23 @@ export function casualOpts(tune: string | Partial<PolicyKnobs> = CASUAL_TUNE, mo
 /** The casual player's run (days 1..days), as playerRun plays par's. */
 export function casualRun(hero: HeroId, days: number, seed: number, tune: string | Partial<PolicyKnobs> = CASUAL_TUNE, more: PlayerOpts = {}): PlayerDay[] {
   return playerRun(hero, days, seed, casualOpts(tune, more));
+}
+
+/**
+ * BUMP-1H (REQ-BFG-124, H1 (b)): THE CASUAL FIELD, built the way par.ts parField builds par's. The casual player's deck at dusk of
+ * `day` (1-10; the long run in the game: 1-16, playerBuild's clamp) for (hero, seed): a fresh copy of casualRun's day, as playerBuild
+ * is of playerRun's. c5 (CASUAL_TUNE) is the casual bench bot, and the casual player's runs are cached as par's are (player.ts CACHE,
+ * whose key holds the tune and every switch that moves a run), so the field is memoised under the same world key.
+ */
+export function casualBuild(hero: HeroId, day: number, seed: number, tune: string | Partial<PolicyKnobs> = CASUAL_TUNE, more: PlayerOpts = {}): Build {
+  const d = Math.max(1, Math.min(longRunRules() ? PLAYER_DAYS_LONG : PLAYER_DAYS, Math.floor(day)));
+  return casualRun(hero, d, seed, tune, more)[d - 1].build;
+}
+
+/** BUMP-1H (H1 (b)): the casual field of (hero, day): casualBuild(hero, day, s) for s in parSeeds(k), the par field's seeds (12 runs a hero),
+ *  fresh copies. tools/samplePool.ts gradeCasualOne grades a deck against the first GRADE_K members of the four heroes' fields. */
+export function casualField(hero: HeroId, day: number, k = PAR_K, tune: string | Partial<PolicyKnobs> = CASUAL_TUNE, more: PlayerOpts = {}): Build[] {
+  return parSeeds(k).map((s) => casualBuild(hero, day, s, tune, more));
 }
 
 /** The record rule's grades: a ghost id's vsPar (0-1). A ghost with no grade counts as the strongest. */
