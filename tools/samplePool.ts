@@ -915,7 +915,13 @@ export const DEPTH_VARIANT = 4;
 
 /** BUMP-1H H1 (c): the streak ghost's record by day, [wins, dusks lost], where P3 sets one from par's records by day (the 1G bench rows): the
  *  record par often holds on that day, at the lead's `at` or more wins ahead of its losses. A day with no row takes streakRecord's default. */
-export const STREAK_RECORDS: Readonly<Record<number, readonly [number, number]>> = {};
+export const STREAK_RECORDS: Readonly<Record<number, readonly [number, number]>> = {
+  // BUMP-1H P3 (run 1): par's MODAL record into each dusk, 192 par runs of the bb-0.14.0 pool at K 48 (kit-1h/parrecs.mjs over the base cells; output-bump1h/bench/base-par-records.md): the
+  // undefeated record up to day 10 (1-0 x156 of 192 on day 2, 4-0 x104 on day 5, 6-0 x76 on day 7, 9-0 x70 on day 10), then 9 wins with the losses a long run holds (9-1 x21 on
+  // day 11, 9-2 x14 on day 12, 9-3 x8 on day 13, 9-4 x8 on day 14, 9-5 x5 on day 15, 9-6 x4 on day 16; a run ghost is a dusk before its 10th win). Days 2-4 hold no record `lead.at`
+  // ahead (at 4 first from day 5): their ghosts meet the runs of their own record through the nearest-record pick alone.
+  2: [1, 0], 3: [2, 0], 4: [3, 0], 5: [4, 0], 6: [5, 0], 7: [6, 0], 8: [7, 0], 9: [8, 0], 10: [9, 0], 11: [9, 1], 12: [9, 2], 13: [9, 3], 14: [9, 4], 15: [9, 5], 16: [9, 6],
+};
 
 /** BUMP-1H H1 (c): the depth slots, [day, wins, dusks lost] each (the record is drawnLabel's, as a sample ghost's): c5's busiest (day, record)
  *  matchups (P3). Empty until P3's take. At most 24. */
