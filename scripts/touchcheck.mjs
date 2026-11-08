@@ -2850,9 +2850,10 @@ async function replaySection(browsers, origin) {
  *    least 44 CSS px tall on a phone).
  * The dist must be built with ENCHANT on (a throwaway export with src/sim/enchant.ts `ENCHANT = true`); with it off there is no wagon
  * and the section logs one line and checks nothing. Run it alone: `node scripts/touchcheck.mjs <out> --dist <dir> --only apply
- * [--aviews phone,wk-op-690,desk-1280]`.
+ * [--aviews phone,wk-op-690,desk-1280,phone-land,desk,laptop]`. POLISH-6 (P6-6): the default also runs phone-land, desk and laptop, the landscape views where the word cards stand in the right column's gap
+ * (enchantStrip.ts inGap) or at the top of the details column; at the base the section never drew the wagon there.
  */
-const APPLY_VIEWS = opt("aviews", "phone,wk-op-690,desk-1280").split(",").map((s) => s.trim());
+const APPLY_VIEWS = opt("aviews", "phone,wk-op-690,desk-1280,phone-land,desk,laptop").split(",").map((s) => s.trim());
 VIEW["desk-1280"] = { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 };
 const APPLY_DECK = {
   hero: "furnace", day: 3, gold: 20, beltCap: 40,

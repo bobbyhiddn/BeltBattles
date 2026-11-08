@@ -7,7 +7,9 @@
 // rectangle of the shop is what it was). The wagon takes the free margin left of the shop block, between the screen's edge and the
 // first card: two cards side by side where the margin is wide (the desk: 2 x 41 px of the margin's 92), else stacked (a portrait
 // phone: 2 x 44 x 42 in the margin's 49, the shop block's own height). On a phone the card's tap target is TAP_CSS CSS px tall and
-// wide within the margin (ui/tap.ts tapPx), as the other cards' are.
+// wide within the margin (ui/tap.ts tapPx), as the other cards' are. POLISH-6 (P6-6): a landscape screen whose margin does not hold
+// them puts them in the right column's gap between NEXT BATTLE and FIGHT (inGap) where that holds them, so the details column keeps
+// its whole height; only where it does not do they take a row at the top of that column (inRow).
 
 import { ENCHANT_DEFS, enchantRules, type EnchantId } from "../../sim/enchant";
 import { enchantChoices, pendingEnchantPick, type EnchantTarget } from "../../game/enchanter";
@@ -34,17 +36,25 @@ import type { BuildScreen } from "./build";
 // ---------------------------------------------------------------------------------------------------------------- the wagon's place
 
 const GAP = 3, PAD = 2, CLEAR = 4, MIN_SIDE = 34, MIN_W = 30, MIN_H = 30;
+/** POLISH-6 (P6-6): the clear rows a card in the gap keeps above and below (NEXT BATTLE's foot, FIGHT's top), the clear columns between the cards and their tag, the narrowest word card the game draws
+ *  (the 1280x800 margin's 41 px: below it the ENCHANTER tag is dropped rather than the cards narrowed again), and a selected card's lift (a hovered one's is 1). */
+const GAP_CLEAR = 1, TAG_CLEAR = 4, MIN_TAG_W = 41, LIFT = 2;
+/** The ENCHANTER tag's drawn width (drawEnchanterTag): the ring's 3 px, 2 clear, then the word in the 3x5 face. Measured where it is used, never set by hand. */
+const tagWidth = (): number => 5 + textWidth("ENCHANTER", "3");
 
 /** The wagon's cards, their tap targets and the tag's place; `shift`, the px the details band (portrait) or column (landscape) gives up at
- *  its top for the wagon (0: the cards sit in the margin and nothing else moves). */
+ *  its top for the wagon (0: the cards sit in the margin, or in the right column's gap, and nothing else moves). `lift`: the most a card may
+ *  lift (LIFT, 2, when selected; 1 when hovered; both cut to it) -- inGap's cards may have 1 px of clear above them, so the lift is cut to what is clear above less the frame's own row
+ *  (0 with 1 px: the selection frame alone shows the pick) and neither the card, its lift nor its frame is drawn over NEXT BATTLE; absent: LIFT, as every card has had. */
 export interface WagonPlace {
   rects: Rect[];
   hits: Rect[];
   tag: { x: number; y: number } | null;
   shift: number;
+  lift?: number;
 }
 
-type PlaceLayout = Pick<BuildLayout, "cards" | "reroll" | "packs" | "tags" | "info" | "portrait" | "W" | "bar" | "phone">;
+type PlaceLayout = Pick<BuildLayout, "cards" | "reroll" | "packs" | "tags" | "info" | "portrait" | "W" | "bar" | "phone"> & Partial<Pick<BuildLayout, "foe" | "fight">>;
 
 /** Grow each card's tap target to a finger (`tap` px both ways) inside `within`, the neighbours' targets never meeting. */
 function fingerHits(rects: Rect[], tap: number, within: Rect): Rect[] {
@@ -91,7 +101,32 @@ function inMargin(L: PlaceLayout, n: number, tap: number): WagonPlace | null {
   return { rects, hits, tag: L.tags ? { x: rects[0].x, y: rects[0].y - 8 } : null, shift: 0 };
 }
 
-/** No margin holds the wagon: a portrait screen gives it a row under the shop block (the band under it gives up that much of its top), a
+/**
+ * POLISH-6 (P6-6, REQ-BFG-089; RULING-SCOUT-POLISH6 S1): a landscape screen's right column has a free gap between the NEXT BATTLE card (L.foe) and FIGHT (L.fight): 41 px tall at 1920x1080, 34 at 1366x768,
+ * 52 at 844x390@3 (the hull's middle sets FIGHT's row). The cards go there, left-aligned with NEXT BATTLE, with GAP_CLEAR (1) px of clear above and below, as tall as the gap allows (a shop card's 46 at most; the
+ * word's icon is x2 from 38 px, x1 under it), so the details column keeps its whole height (shift 0). The ENCHANTER tag (the seller's name, as every merchant has one) stands right of the cards, never above them;
+ * where it does not fit beside 46-wide cards they narrow until it does, down to MIN_TAG_W (41 px), and only below that is the tag dropped. The tag's width is the drawn one (tagWidth). The lift is cut to the
+ * clear above the cards (WagonPlace.lift). null: the gap is shorter than MIN_H or a finger (`tap`), or a landscape phone's packs lie in it (layout.ts landPacksAway: 6 or 7 offers), or the screen is a
+ * portrait one: inRow takes the cards as before.
+ */
+function inGap(L: PlaceLayout, n: number, tap: number): WagonPlace | null {
+  const foe = L.foe, fight = L.fight;
+  if (L.portrait || !foe || !fight || !L.cards.length) return null;
+  const foot = foe.y + foe.h, top = foot + GAP_CLEAR, bottom = fight.y - GAP_CLEAR, room = bottom - top;
+  if (L.packs.some((p) => p.w > 0 && p.h > 0 && p.y < fight.y && p.y + p.h > foot && p.x < foe.x + foe.w && p.x + p.w > foe.x)) return null; // landPacksAway put the packs here: the gap is theirs
+  const h = Math.min(L.cards[0].h, room);
+  if (h < Math.max(MIN_H, tap)) return null;
+  const across = (reserve: number): number => Math.min(CARD_W, Math.floor((foe.w - reserve - (n - 1) * GAP) / n));
+  const narrowed = L.tags ? across(TAG_CLEAR + tagWidth()) : 0, beside = L.tags && narrowed >= MIN_TAG_W;
+  const w = beside ? narrowed : across(0);
+  if (w < MIN_W || (tap > 0 && w < tap)) return null;
+  const x = foe.x, y = top + Math.floor((room - h) / 2); // the cards fill the gap; where a shop card's height caps them the spare px are shared above and below
+  const rects = Array.from({ length: n }, (_, i): Rect => ({ x: x + i * (w + GAP), y, w, h }));
+  const tag = beside ? { x: x + n * w + (n - 1) * GAP + TAG_CLEAR, y } : null;
+  return { rects, hits: fingerHits(rects, tap, { x: foe.x, y: top, w: foe.w, h: room }), tag, shift: 0, lift: Math.max(0, Math.min(LIFT, y - foot - 1)) };
+}
+
+/** No margin and no gap holds the wagon: a portrait screen gives it a row under the shop block (the band under it gives up that much of its top), a
  *  landscape one the top of the details column (the column starts under it). */
 function inRow(L: PlaceLayout, n: number, tap: number): WagonPlace | null {
   const tag = L.tags ? 8 : 0;
@@ -112,13 +147,14 @@ function inRow(L: PlaceLayout, n: number, tap: number): WagonPlace | null {
 /**
  * Where `n` word cards go on layout `L` (the regular cards, REROLL and the packs are never moved): in the free margin left of the shop
  * block where it holds them (the desk: 2 x 41 px of the margin's 92; a portrait phone: 2 x 43 x 42 in the margin's 49, the block's own
- * height), else in a row under the block (portrait) or at the top of the details column (landscape), which then start `shift` px
+ * height), else (landscape) in the right column's gap between NEXT BATTLE and FIGHT where that holds them (POLISH-6 P6-6: the details column
+ * keeps its whole height), else in a row under the block (portrait) or at the top of the details column (landscape), which then start `shift` px
  * lower. `tap` (a phone's finger target in logical px, ui/tap.ts tapPx; 0 on a desk) grows each card's tap target to a finger.
  * null: nowhere holds them. Pure (tests).
  */
 export function wagonPlace(L: PlaceLayout, n: number, tap = 0): WagonPlace | null {
   if (n <= 0 || !L.cards.length) return null;
-  return inMargin(L, n, tap) ?? inRow(L, n, tap);
+  return inMargin(L, n, tap) ?? inGap(L, n, tap) ?? inRow(L, n, tap);
 }
 
 /** The layout with the words' places in it (build.ts layoutAt): the ENCHANTER's wagon (`L.wagon`, and the band or column under it
@@ -154,7 +190,7 @@ export interface WordCardView {
 }
 
 /** The ENCHANTER's wagon as drawn this frame (its cards slide in with the caravan at the dawn), or null. */
-export function wagonView(s: BuildScreen): { cards: WordCardView[]; tag: { x: number; y: number } | null } | null {
+export function wagonView(s: BuildScreen): { cards: WordCardView[]; tag: { x: number; y: number } | null; lift: number } | null {
   const run = s.run, lay = s.L.wagon;
   if (!wagonUp(run) || !lay) return null;
   const offers = run.shop.enchanter!.offers, L = s.L;
@@ -164,7 +200,7 @@ export function wagonView(s: BuildScreen): { cards: WordCardView[]; tag: { x: nu
     pick: false, i, id: o.ench as EnchantId, price: o.price, sold: o.sold,
     rect: { ...lay.rects[i], x: lay.rects[i].x + dx(i) }, hit: { ...lay.hits[i], x: lay.hits[i].x + dx(i) },
   }));
-  return { cards, tag: lay.tag ? { x: lay.tag.x + dx(0), y: lay.tag.y } : null };
+  return { cards, tag: lay.tag ? { x: lay.tag.x + dx(0), y: lay.tag.y } : null, lift: lay.lift ?? LIFT };
 }
 
 // ---------------------------------------------------------------------------------------------------------------- the pick strip
@@ -246,9 +282,9 @@ function wordIcon2(id: EnchantId): HTMLCanvasElement {
  * One word card, in a shop card's frame (REQ-BFG-115: the icon and the price, nothing else): the word's icon at x2 (x1 on a card too
  * short for it), the price under it, the word's colour on the bar; a sold card is dim and prices nothing; a pick's card has no price.
  */
-export function drawWordCard(g: G, r: Rect, id: EnchantId, o: { price: number | null; sold: boolean; affordable: boolean; selected: boolean; hover: boolean; t: number }): void {
+export function drawWordCard(g: G, r: Rect, id: EnchantId, o: { price: number | null; sold: boolean; affordable: boolean; selected: boolean; hover: boolean; t: number; maxLift?: number }): void {
   const def = ENCHANT_DEFS[id];
-  const lift = o.selected ? 2 : o.hover ? 1 : 0, x = r.x, y = r.y - lift;
+  const lift = Math.min(o.selected ? LIFT : o.hover ? 1 : 0, o.maxLift ?? LIFT), x = r.x, y = r.y - lift; // POLISH-6 (P6-6): `maxLift`, a card in the gap lifts no further than the clear above it (WagonPlace.lift)
   if (lift) {
     rect(g, r.x + 2, r.y + r.h - 1, r.w - 1, 2, C.ink);
     rect(g, r.x + r.w, r.y + 2, 1, r.h - 1, C.ink);
@@ -290,7 +326,7 @@ export function drawWagon(g: G, s: BuildScreen): void {
   for (const c of v.cards) {
     drawWordCard(g, c.rect, c.id, {
       price: c.price, sold: c.sold, affordable: s.run.gold >= (c.price ?? 0), selected: isSel(s, false, c.i) && !s.ed.carry,
-      hover: !!hov && !hov.pick && hov.i === c.i, t: s.t,
+      hover: !!hov && !hov.pick && hov.i === c.i, t: s.t, maxLift: v.lift,
     });
   }
 }

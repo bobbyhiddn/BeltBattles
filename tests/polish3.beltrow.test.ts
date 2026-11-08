@@ -92,9 +92,10 @@ const DESKS: ViewSpec[] = [
 ];
 /** The belts that give rows away in the 5x7 face (planPanel's `rung: false`) at 1920x1080, 844x390 and 1280x800, and with the ENCHANTER's row up (the brief's numbers: 25, 15, 0 and 47, 46, 46; 16 each now). */
 const WAS: Record<string, number> = { "desk 1920x1080": 25, "land 844x390 @3": 15, "desk 1280x800": 0 };
-/** POLISH-6 (P6-4, R7): the belts that still give rows away in the ENCHANTER's column, the live one (framed(.., true), the page's own): 126 x 136 at 1920x1080 (the row up), 128 x 158 at 844x390@3 and 128 x 324 at 1280x800
- *  (the margin holds the cards). It was ROW_UP = 136 for all three views, which is right at 1920x1080 only: the pins move 844x390@3 5 -> 0 and 1280x800 5 -> 0 (1920x1080 stays 5). */
-const STILL_UP: Record<string, number> = { "desk 1920x1080": 5, "land 844x390 @3": 0, "desk 1280x800": 0 };
+/** POLISH-6 (P6-4, R7): the belts that still give rows away in the ENCHANTER's column, the live one (framed(.., true), the page's own). It was ROW_UP = 136 for all three views, which was right at 1920x1080 only (the live columns were
+ *  126 x 136 there, 128 x 158 at 844x390@3 and 128 x 324 at 1280x800): P6-4 moved 844x390@3 5 -> 0 and 1280x800 5 -> 0 (1920x1080 stayed 5). P6-6 (enchantStrip.ts inGap: the cards stand in the right column's gap, the column keeps
+ *  its whole height) moves 1920x1080 5 -> 0: the live column is the harness's 126 x 194 at 1920x1080 and 128 x 216 at 844x390@3, and 128 x 324 at 1280x800 (the margin). */
+const STILL_UP: Record<string, number> = { "desk 1920x1080": 0, "land 844x390 @3": 0, "desk 1280x800": 0 };
 
 describe("POLISH-3 Q3 (desk; cap's ruling A): a column belt panel keeps its hit rows in the 3x5 face where that keeps every one", () => {
   for (const spec of DESKS) {

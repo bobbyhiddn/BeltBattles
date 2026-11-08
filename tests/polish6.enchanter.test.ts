@@ -1,7 +1,9 @@
 // POLISH-6 P6-4 (REQ-BFG-089; RULING-POLISH5 R7, cap's answer Q5): framed() (tests/polish2.guestCorpus.ts) gets an `enchanter` option: the build screen as the page draws it with the ENCHANTER's wagon up
 // (enchantStrip.ts wordLayout on a run at the dawn caravan of an ENCHANTER day, exactly what BuildScreen.layoutAt does after shiftLayout), so a lane report measures the belt panel in BOTH columns. The numbers below are the
 // PAGE's own (read from `window.bb.game.screen.L` at the four views: kit/p6pics.mjs scene p6l; kit/p6-cmpL.py compared framed(..., true).L with the page's L key by key: 18 layout keys, 0 differ at all four views).
-// At polish5-accepted the ENCHANTER's column is 126x136 (y 132) at 1920x1080, 119x122 at 1366x768, 128x158 at 844x390@3, and 128x324 unchanged at 1280x800 (the margin holds the cards).
+// At polish5-accepted (and at P6-4's commit) the ENCHANTER's column is 126x136 (y 132) at 1920x1080, 119x122 at 1366x768, 128x158 at 844x390@3, and 128x324 unchanged at 1280x800 (the margin holds the cards): the cards take a row
+// at its top (shift 58). POLISH-6 P6-6 (enchantStrip.ts inGap) puts them in the right column's gap between NEXT BATTLE and FIGHT, so the column keeps the harness's whole height wherever the gap holds them: the pins below moved
+// 126x136 -> 126x194 (y 132 -> 74, shift 58 -> 0, cards 46x46 -> 46x39), 119x122 -> 119x180 (cards 46x46 -> 43x32) and 128x158 -> 128x216 (cards 46x46 -> 46x46); tests/polish6.wagon.test.ts has the rest.
 import { describe, expect, it } from "vitest";
 import { installRaster } from "./raster.helpers";
 import { framed } from "./polish2.guestCorpus";
@@ -9,9 +11,9 @@ import { framed } from "./polish2.guestCorpus";
 installRaster();
 /** [name, w, h, dpr, the harness's column (w x h), the ENCHANTER's column (x, y, w, h), the row's shift, a word card's rect (w x h)] */
 const VIEWS: [string, number, number, number, [number, number], [number, number, number, number], number, [number, number]][] = [
-  ["desk 1920x1080", 1920, 1080, 1, [126, 194], [6, 132, 126, 136], 58, [46, 46]],
-  ["laptop 1366x768", 1366, 768, 1, [119, 180], [6, 132, 119, 122], 58, [46, 46]],
-  ["land 844x390@3", 844, 390, 3, [128, 216], [6, 132, 128, 158], 58, [46, 46]],
+  ["desk 1920x1080", 1920, 1080, 1, [126, 194], [6, 74, 126, 194], 0, [46, 39]],
+  ["laptop 1366x768", 1366, 768, 1, [119, 180], [6, 74, 119, 180], 0, [43, 32]],
+  ["land 844x390@3", 844, 390, 3, [128, 216], [6, 74, 128, 216], 0, [46, 46]],
   ["desk 1280x800", 1280, 800, 1, [128, 324], [6, 74, 128, 324], 0, [41, 46]], // the margin left of the shop block holds the cards: the column is the same with and without the row
 ];
 describe("POLISH-6 P6-4: framed(..., enchanter) is the build screen with the ENCHANTER's wagon up", () => {

@@ -2354,8 +2354,9 @@ function columnSpec(ctx: Ctx, plan: PanelPlan, lines: readonly { line: PLine | "
   const x0 = L.info.x + L.info.w + 2, x1 = carrier.x - 2;
   // PRESENT-3 D (cap's ruling 6420b5479c7c7b92): the band, between the shop row's foot (+2) and the carrier's drawing (-2), from 2 px right of the column to 4 px left of FIGHT's column (where the foe card
   // and FIGHT start); the corner, above the column (2 px clear), left of the shop row (3 px clear; the screen's edge 3 px in) and under the rune row (+2: the row's height is what the shop row was
-  // shifted down by, shiftLayout: the first card's y less the bar and the 9 px the layout puts above the cards). The corner is closed on a day the ENCHANTER's wagon is up (L.wagon: its cards use that
-  // margin, enchantStrip.ts inMargin), and a place under 40 px wide or one 3x5 line (10 px) tall is not one. Neither is ever over a hard rect (columnPlace holds every box to them).
+  // shifted down by, shiftLayout: the first card's y less the bar and the 9 px the layout puts above the cards). The corner is closed on a day the ENCHANTER's wagon is up (L.wagon: its cards may use that
+  // margin, enchantStrip.ts inMargin; POLISH-6 P6-6: they may sit in the right column's gap or a row instead, and the corner stays closed whichever place they take), and a place under 40 px wide or one 3x5 line (10 px) tall is not one.
+  // Neither is ever over a hard rect (columnPlace holds every box to them; the wagon's cards are hard rects too).
   const first = L.cards?.[0];
   const shopFoot = first ? Math.max(...[...L.cards, L.reroll, ...(L.packs ?? [])].filter((q): q is Rect => !!q && q.y < L.info.y).map((q) => q.y + q.h)) : 0;
   const bandRect: Rect | null = first && L.fight ? { x: x0, y: shopFoot + 2, w: L.fight.x - 4 - x0, h: carrier.y - 2 - (shopFoot + 2) } : null;
@@ -2367,7 +2368,7 @@ function columnSpec(ctx: Ctx, plan: PanelPlan, lines: readonly { line: PLine | "
     top: L.info.y, areaBottom: L.info.y + L.info.h,
     beside: x1 > x0 ? { x0, x1 } : null,
     floor: (ctx.game?.H ?? Infinity) - 2,
-    hard: [carrier, ...(L.cards ?? []), L.reroll, ...(L.packs ?? []), L.bar, L.fight, L.foe, L.cargo, plan.r].filter((q): q is Rect => !!q),
+    hard: [carrier, ...(L.cards ?? []), L.reroll, ...(L.packs ?? []), L.bar, L.fight, L.foe, L.cargo, plan.r, ...(L.wagon?.rects ?? [])].filter((q): q is Rect => !!q), // POLISH-6 (P6-6): + the ENCHANTER's word cards (in the gap or the row they are no longer in the margin)
     band: roomy(bandRect), corner: roomy(cornerRect),
   };
 }
