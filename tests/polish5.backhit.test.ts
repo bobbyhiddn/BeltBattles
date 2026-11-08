@@ -95,7 +95,7 @@ describe("POLISH-5 P5-4: the real VIEW BATTLEFIELD at 851x393@2.75", () => {
       if (!(back.h === whole.h)) {
         meeting++;
         expect(back).toEqual({ x: 127, y: 164, w: 27, h: 16 });
-        // what the trim costs: the strip over the button (left of the face's foot, 3-11 px above the bar) that reached BACK before and now reaches nothing
+        // what the trim costs: the top 5 logical px of BACK's rect are cut off (27 x 5 logical px = 58.9 x 10.9 CSS px); the right 12 of those 27 px lay under the face's foot (a press there reached the face), the left 15 (32.7 x 10.9 CSS px, 3-11 px above the bar) reached BACK before and reach nothing now
         cost = (back.y - whole.y) * whole.w * k * k;
       }
       // the face closed: the rect is whole again next frame (nothing accumulates)
@@ -104,7 +104,7 @@ describe("POLISH-5 P5-4: the real VIEW BATTLEFIELD at 851x393@2.75", () => {
       expect(s.scoutRects.back).toEqual(whole);
     }
     expect([faces, meeting]).toEqual([20, 4]);
-    expect(Math.round(cost), "CSS px squared of the strip over the button that reached BACK and now reaches nothing (27 x 5 logical px = 58.9 x 10.9 CSS px)").toBe(Math.round(27 * 5 * k * k));
+    expect(Math.round(cost), "CSS px squared of the whole strip cut off BACK's rect (27 x 5 logical px = 58.9 x 10.9 CSS px: 26.2 x 10.9 of it lay under the face, 32.7 x 10.9 reached BACK before and reaches nothing now)").toBe(Math.round(27 * 5 * k * k));
   });
 
   it("where no face meets the rect it is not touched: 1920x1080 and 844x390@3, every face of the view", () => {
