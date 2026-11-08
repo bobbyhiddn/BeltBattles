@@ -24,6 +24,8 @@ import { itemIcon } from "../src/render/sprites";
 import { ITEMS } from "../src/sim/content";
 import { gridGeom, gridSpecOf, hasGrid, iconCell, markCell, shapeGrid, shapeMarkSize } from "../src/ui/shapePic";
 import { drawWarlordCard, type ForkCardView } from "../src/screens/fork/cards";
+import { drawReveal } from "../src/screens/event/reveal";
+import type { DuskFoe } from "../src/game/run";
 
 installRaster();
 
@@ -118,5 +120,44 @@ describe("PRESENT-5 G5: the old reward row (fork/cards.ts drawParts: the Matriar
       const none = both((g) => drawWarlordCard(g, r, "matriarch", "hard", { gold: 12, parts: [], legendary: false }, v, compact), r.w + 6, r.h + 6);
       expect(none.calls.length).toBe(0);
     }
+  });
+});
+
+describe("PRESENT-5 G5: the scout report's deck (event/reveal.ts drawReveal: one 14 x 14 icon box per distinct part on a 17 px pitch, its count `x2` beside it)", () => {
+  const foe = (defs: string[]): DuskFoe => ({ day: 5, kind: "standin", name: "GRUBNOSE", hero: "furnace", build: { hero: "furnace", items: defs.map((def, i) => ({ uid: i + 1, def, x: i, y: 1 })), routes: [], mods: [], beltCap: 14, hullBonus: 0 } }) as unknown as DuskFoe;
+  it("every shaped part alone and twice (`x2`), on the report's two heights: the icon whole in its box, one tile per footprint cell in the corner, nothing changed outside the box (the count's text is the old one)", () => {
+    let was = 0, now = 0, total = 0, n = 0;
+    const lines: string[] = [];
+    for (const h of [72, 58]) for (const id of SHAPED) for (const copies of [1, 2]) {
+      const r = { x: 0, y: 0, w: 150, h };
+      const { on, off, calls } = both((g) => drawReveal(g, r, foe(Array(copies).fill(id))), 160, h + 8);
+      expect(calls.length, `${id} h ${h}: one mark per distinct part`).toBe(1);
+      const c = calls[0], iy = 14 + Math.max(h >= 70 ? 24 : 16, 20) + 4;
+      expect([c.x, c.y, c.size], `${id}: the deck's first box`).toEqual([5, iy, 14]);
+      for (let i = 0; i < 14; i++) for (const [x, y] of [[c.x + i, c.y], [c.x + i, c.y + 13], [c.x, c.y + i], [c.x + 13, c.y + i]]) expect(off.at(x, y), `${id}: the box ring`).toBe(C.ink);
+      const k = checkBox(on, off, c, { x: c.x + 7, y: c.y + 7 }, `${id} h ${h} x${copies}`);
+      confined(on, off, [{ x: c.x, y: c.y, w: 14, h: 14 }], `${id} h ${h} x${copies}`);
+      expect(k.newHidden, `${id}: the mark hides no more of the icon than the old overlay did`).toBeLessThanOrEqual(k.oldHidden);
+      if (h === 72 && copies === 1) { was += k.icon - k.oldHidden; now += k.icon - k.newHidden; total += k.icon; lines.push(`G5-SCOUT ${id.padEnd(12)} icon px ${String(k.icon).padStart(3)}: visible old ${String(k.icon - k.oldHidden).padStart(3)} -> new ${String(k.icon - k.newHidden).padStart(3)}`); }
+      n++;
+    }
+    console.log(`${lines.join("\n")}\nG5-SCOUT total icon px ${total}: visible old ${was} -> new ${now}`);
+    expect(n).toBe(SHAPED.length * 4);
+    expect(now).toBeGreaterThan(was * 1.5);
+  });
+
+  it("a deck of several shaped parts: every distinct shaped part gets its own mark in its own box, along the 17 px pitch (26 px after a counted part) and wrapping to the next row of boxes; a plain part asks for none", () => {
+    const ids = ["scrapcannon", "kiln", "pickaxe", "whetstone", "spikerail", "gantry", "nailstrip", "elbowguard", "scrapcannon"].filter((id) => ITEMS[id]);
+    const r = { x: 0, y: 0, w: 120, h: 100 }; // tall enough for a second row of boxes (a row needs iy + 15 <= the report's foot - 2)
+    const { on, off, calls } = both((g) => drawReveal(g, r, foe(ids)), 130, 108);
+    const shaped = [...new Set(ids)].filter((id) => hasGrid(id));
+    expect(calls.map((q) => q.def), "the marks, in the deck's order").toEqual(shaped);
+    for (const c of calls) expect(tilesAt(on, c.def, c.rect), `${c.def}: tiles`).toBe(gridSpecOf(c.def).cells.length);
+    confined(on, off, calls.map((c) => ({ x: c.x, y: c.y, w: 14, h: 14 })), "the deck");
+    // the boxes follow the old pitch: 17 px, 26 after the counted SCRAP CANNON (x2), a new row of boxes 17 px down where the next box would pass the report's edge
+    const xs = calls.map((c) => c.x), ys = calls.map((c) => c.y);
+    expect(xs[0], "the first box").toBe(5);
+    expect(xs[1] - xs[0], "after a counted part: 26 px").toBe(26);
+    expect(new Set(ys).size, "the deck wraps to a second row of boxes").toBeGreaterThan(1);
   });
 });

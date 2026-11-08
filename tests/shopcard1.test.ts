@@ -577,13 +577,16 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
     }
   });
 
-  it("the scout report's deck: the grid over the icon box's corner for a shaped part, none for a plain one", () => {
+  it("the scout report's deck: the footprint mark in the icon box's corner for a shaped part, none for a plain one", () => { // PRESENT-5 G5 (REQ-BFG-113; #537 (5)), old -> new: was `the grid over the icon box's corner` (G1's grid at iconCell over the box's top-left)
     const foe = (defs: string[]) => ({ day: 5, kind: "standin", name: "GRUBNOSE", hero: "furnace", build: { hero: "furnace", items: defs.map((def, i) => ({ uid: i + 1, def, x: i, y: 1 })), routes: [], mods: [], beltCap: 14, hullBonus: 0 } }) as unknown as DuskFoe;
     for (const id of shaped()) {
       const c = fresh(160, 80);
       drawReveal(G(c), { x: 0, y: 0, w: 150, h: 72 }, foe([id]));
       const ix = 5, iy = 14 + 24 + 4; // the first deck icon's box (reveal.ts: x + 5, y + 14 + the 24 px portrait + 4)
-      for (const t of gridGeom(gridSpecOf(id), iconCell(id)).tiles) expect(c.at(ix + t.x + 1, iy + t.y + 1), `${id}: scout deck tile`).toBe(fillOf(id)); // PRESENT-1 S1 (d): the icon cell
+      // PRESENT-5 G5, old -> new: was G1's grid at iconCell over the box's top-left (every tile at ix + t.x + 1, iy + t.y + 1: PRESENT-1 S1 (d)), which hid the icon of a 2x2 part whole; now the drop row's footprint MARK (shapePic.ts drawIconMark,
+      // 7 x 7 px at most) in the box's bottom-right corner: each tile's last row is the kind's fill (a 1 px tile is the highlight); tests/present5.marksurfaces.test.ts holds the icon counts
+      const mz = shapeMarkSize(id), hi = ITEMS[id].kind === "gate" ? C.wood3 : C.steel3;
+      for (const t of gridGeom({ ...gridSpecOf(id), arrows: [] }, markCell(id)).tiles) expect(c.at(ix + 14 - mz.w + t.x, iy + 14 - mz.h + t.y + t.h - 1), `${id}: scout deck tile`).toBe(t.h > 1 ? fillOf(id) : hi);
     }
     const plain = fresh(160, 80);
     drawReveal(G(plain), { x: 0, y: 0, w: 150, h: 72 }, foe(["whetstone"]));
