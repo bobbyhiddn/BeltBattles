@@ -9,6 +9,7 @@ import { gapsAtLeast, planPanel, rulesWhole, visibleLines, type PanelPlan } from
 import { ENCHANT, setEnchant, withEnchant } from "../src/sim/enchant";
 import { lineText } from "../src/ui/richText";
 import { VIEW_NAMES, abilityLeft, faces, isSix, oldFacePlan, plain, viewOf, type Face, type ViewName } from "./polish3b.helpers";
+import { p3bFacePlan } from "./polish4.helpers";
 
 installRaster();
 afterEach(() => setEnchant(ENCHANT));
@@ -18,7 +19,9 @@ const planOf = (f: Face, name: ViewName, side: 0 | 1, o: { small?: boolean } = {
   const { fa, tp } = viewOf(name, side);
   return withEnchant(() => planPanel(f.t, fa.area, f.fam, { tap: tp, band: fa.band, wrap: true, ...o })); // facePlan plans every battle face with `wrap` (P1): the candidates are the wrap plans
 };
-const drawn = (f: Face, name: ViewName, side: 0 | 1): PanelPlan => { const { fa, tp } = viewOf(name, side); return withEnchant(() => facePlan(f.t, fa, f.fam, tp)); };
+// POLISH-4 (P4-3): P2's rule is a rule of the face WITH its CLOSE row, which is what these tests pin: `drawn` is that plan (tests/polish4.helpers.ts p3bFacePlan: facePlan as POLISH-3b left it). facePlan now also draws a face
+// WITHOUT the row (`bare`) where the row costs an ability line: the six below are such faces (their SPEED line is drawn; the first test's last block and tests/polish4.bare.test.ts say so).
+const drawn = (f: Face, name: ViewName, side: 0 | 1): PanelPlan => { const { fa, tp } = viewOf(name, side); return withEnchant(() => p3bFacePlan(f.t, fa, f.fam, tp)); };
 const SIX_TAGS = ["rivalBuild d8", "rivalBuild d12", "rivalBuild d16", "standInBuild d8", "standInBuild d12", "standInBuild d16"].map((t) => `A sparkfang ${t} turret0`);
 
 describe("POLISH-3b P2: SPARKFANG's RISING SCRAP CANNON gives away SPEED only", () => {
@@ -42,6 +45,12 @@ describe("POLISH-3b P2: SPARKFANG's RISING SCRAP CANNON gives away SPEED only", 
         expect(abilityGone(f.t, old), `${f.tag}: the old plan gave away five ability blocks of the full text`).toBe(5);
         expect(JSON.stringify(p), `${f.tag}: it is the 3x5 plan`).toBe(JSON.stringify(planOf(f, name, 1, { small: true })));
         expect(rulesWhole(p), `${f.tag}: still not the rule text whole (SPEED fits neither face)`).toBe(false);
+        // POLISH-4 (P4-3): the CLOSE row was what SPEED lacked room for: facePlan draws the face without it, whole, SPEED drawn
+        const bare = withEnchant(() => facePlan(f.t, fa, f.fam, tp));
+        expect(bare.bare, `${f.tag}: drawn without its CLOSE row`).toBe(true);
+        expect(rulesWhole(bare), `${f.tag}: the rule text whole`).toBe(true);
+        expect(abilityGone(f.t, bare), f.tag).toBe(0);
+        expect(drawnText(bare).join(" "), `${f.tag}: SPEED is drawn`).toMatch(/SPEED: LEVEL 2\/4\./);
       }
     });
   }
@@ -56,7 +65,7 @@ describe("POLISH-3b P2: the rule, over every battle face of both corpora, own an
         const { fa, tp } = viewOf(name, side);
         for (const f of faces(side === 1).filter((x) => side === 0 || x.corpus === "A")) { // corpus B is the player's own pieces
           total++;
-          const p = withEnchant(() => facePlan(f.t, fa, f.fam, tp));
+          const p = withEnchant(() => p3bFacePlan(f.t, fa, f.fam, tp));
           const plan = planOf(f, name, side), sm = planOf(f, name, side, { small: true });
           if (!plan.column || rulesWhole(plan)) { expect(JSON.stringify(p), `${f.tag}: a plan that is whole is kept`).toBe(JSON.stringify(plan)); continue; }
           if (rulesWhole(sm)) { expect(JSON.stringify(p), `${f.tag}: the 3x5 plan where it is whole`).toBe(JSON.stringify(sm)); continue; }
@@ -80,7 +89,7 @@ describe("POLISH-3b P2: the rule on a sweep of face areas (ties and losses inclu
       const { tp } = viewOf("desk-1920x1080", foe ? 1 : 0);
       for (const f of faces(foe).filter(isSix)) for (let w = 96; w <= 144; w += 4) for (let h = 100; h <= 230; h += 10) {
         const fa = { area: { x: 2, y: 2, w, h }, band: false };
-        const p = withEnchant(() => facePlan(f.t, fa, f.fam, tp)), plan = withEnchant(() => planPanel(f.t, fa.area, f.fam, { tap: tp, band: false, wrap: true }));
+        const p = withEnchant(() => p3bFacePlan(f.t, fa, f.fam, tp)), plan = withEnchant(() => planPanel(f.t, fa.area, f.fam, { tap: tp, band: false, wrap: true }));
         const sm = withEnchant(() => planPanel(f.t, fa.area, f.fam, { tap: tp, band: false, small: true, wrap: true }));
         cells++;
         if (!plan.column || rulesWhole(plan)) { expect(JSON.stringify(p), `${f.tag} ${w}x${h}`).toBe(JSON.stringify(plan)); continue; }
@@ -118,8 +127,8 @@ describe("POLISH-3b P2: the foe's faces that moved are those twelve; nothing els
     expect(moved).toEqual([...SIX_TAGS.map((t) => `desk-1920x1080 ${t}`), ...SIX_TAGS.map((t) => `land-844x390 ${t}`)]);
   });
 
-  it("REQ-BFG-087: the foe's faces with a gap under min (gaps.px < gaps.min) are the same count as at polish3-accepted on every view; the twelve are under min before and after (content first: SPACE-1 D3)", () => {
-    const UNDER: Record<ViewName, number> = { "desk-1920x1080": 57, "laptop-1366x768": 88, "desk-1280x800": 47, "land-844x390": 109, "op-402x690": 503, "phone-360x640": 28 };
+  it("REQ-BFG-087: the foe's faces with a gap under min (gaps.px < gaps.min) are the same count as at polish3-accepted on every view, but 844x390's (POLISH-4 P4-3: the six drawn without their CLOSE row have the room: 109 -> 103); the twelve are under min before (content first: SPACE-1 D3)", () => {
+    const UNDER: Record<ViewName, number> = { "desk-1920x1080": 57, "laptop-1366x768": 88, "desk-1280x800": 47, "land-844x390": 103, "op-402x690": 503, "phone-360x640": 28 };
     for (const name of VIEW_NAMES) {
       const { fa, tp } = viewOf(name, 1);
       let under = 0;
@@ -129,8 +138,9 @@ describe("POLISH-3b P2: the foe's faces that moved are those twelve; nothing els
         if (isSix(f) && (name === "desk-1920x1080" || name === "land-844x390")) {
           const old = withEnchant(() => oldFacePlan(f.t, fa, f.fam, tp));
           expect(gapsAtLeast(old, old.gaps.min), `${name} ${f.tag}: under min before`).toBe(false);
-          expect(gapsAtLeast(p, p.gaps.min), `${name} ${f.tag}: under min after`).toBe(false);
-          expect(p.gaps.px, `${name} ${f.tag}: the gap px`).toBe(name === "desk-1920x1080" ? 0 : 1);
+          // POLISH-4 (P4-3): drawn without the CLOSE row (SPEED drawn too) the six have the room 1 px of gap more at 1920x1080 (1 px: still under min 2) and are clear of min at 844x390
+          expect(gapsAtLeast(p, p.gaps.min), `${name} ${f.tag}: under min after`).toBe(name === "land-844x390");
+          if (name === "desk-1920x1080") expect(p.gaps.px, `${name} ${f.tag}: the gap px`).toBe(1);
         }
       }
       expect(under, `${name}: foe faces under min`).toBe(UNDER[name]);

@@ -1667,6 +1667,9 @@ export interface PanelPlan {
    *  `px`, each slot's gap (all alike: `G` where the room holds it, less where it doesn't, 0 with no room or a cut);
    *  `G` and `min`, the body face's GAP and GAP_MIN (src/ui/spacing.ts). */
   gaps: PanelGaps;
+  /** POLISH-4 (REQ-BFG-089; P4-3, cap's ruling 2): a battle face planned without its CLOSE button row (battleScout.ts facePlan), because the row would cost one of the piece's own ability lines on a landscape phone. The face is closed by a press
+   *  on the battlefield off any part (BattleFaces.press) or by BACK, as every face is; drawOn lays no button for it. Absent on every other plan. */
+  bare?: true;
 }
 
 /** SPACE-1 (REQ-BFG-087): a panel plan's gaps (PanelPlan.gaps). */

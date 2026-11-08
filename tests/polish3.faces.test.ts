@@ -203,8 +203,10 @@ describe("POLISH-3 Q2 (b): a face keeps every one of its own rule lines wherever
       const { faces } = corpus(name);
       const left = faces.filter((f) => !rulesWhole(f.p));
       expect(left.filter((f) => rulesWhole(f.small)).map((f) => f.tag), "a face drawn short although the 3x5 plan is whole").toEqual([]);
-      // the faces neither face can show whole: SPARKFANG's turret with its SPEED level line (6 faces at 1920x1080 and at 844x390; its 3x5 plan is 6 px short in a 100 px column once the header wraps), none elsewhere
-      expect(left.map((f) => f.tag.replace(`${name} `, "")), name).toEqual(name === "desk-1920x1080" || name === "land-844x390" ? SIX : []);
+      // the faces neither face can show whole with its CLOSE row: SPARKFANG's turret with its SPEED level line (6 faces at 1920x1080 and at 844x390; its 3x5 plan is 6 px short in a 100 px column once the header wraps).
+      // POLISH-4 (P4-3, cap's ruling 2): facePlan draws those six without the CLOSE row, the rule text whole: no face is left short on any of these views
+      expect(left.map((f) => f.tag.replace(`${name} `, "")), name).toEqual([]);
+      if (name === "desk-1920x1080" || name === "land-844x390") for (const f of faces.filter((x) => SIX.includes(x.tag.replace(`${name} `, "")))) expect(f.p.bare && rulesWhole(f.p), `${f.tag}: bare, whole`).toBe(true);
       // no ability sentence is given way in the plan a face draws wherever the 3x5 plan has them all
       for (const f of faces) if (rulesWhole(f.small)) expect(f.p.body.dropped.some((b) => b.role === "ability"), f.tag).toBe(false);
     });
@@ -233,8 +235,9 @@ describe("POLISH-3 Q2 (b): a face keeps every one of its own rule lines wherever
       for (const f of corpus(name).faces) {
         if (f.p === f.p0 || JSON.stringify(f.p) === JSON.stringify(f.p0)) continue; // planPanel's own plan
         if ((name === "desk-1920x1080" || name === "land-844x390") && SIX.includes(f.tag.replace(`${name} `, ""))) { // POLISH-3b (P2, the review's N1): the one turret neither plan shows whole is drawn from the 3x5 plan, which gives away fewer ability blocks (tests/polish3b.sparkfang.test.ts)
-          expect(rulesWhole(f.p) || rulesWhole(f.small), `${f.tag}: neither plan is the full text`).toBe(false);
-          expect(JSON.stringify(f.p), `${f.tag}: the 3x5 plan`).toBe(JSON.stringify(f.small));
+          expect(rulesWhole(f.small) || rulesWhole(f.p0), `${f.tag}: neither plan WITH its CLOSE row is the full text`).toBe(false);
+          expect(f.p.bare, `${f.tag}: POLISH-4 (P4-3): drawn without the CLOSE row`).toBe(true);
+          expect(rulesWhole(f.p), `${f.tag}: and the full text`).toBe(true);
           continue;
         }
         n++;

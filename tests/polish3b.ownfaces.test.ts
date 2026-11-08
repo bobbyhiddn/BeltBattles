@@ -19,6 +19,7 @@ import { UI } from "../src/ui/ui";
 import { C } from "../src/render/palette";
 import type { Game } from "../src/game/game";
 import { VIEW_NAMES, abilityLeft, faces, isSix, oldFacePlan, plain, titleCut, drawnSubs, viewOf, type Face, type ViewName } from "./polish3b.helpers";
+import { p3bFacePlan } from "./polish4.helpers";
 import { textWidth } from "../src/render/font";
 
 installRaster();
@@ -87,11 +88,16 @@ describe("POLISH-3b P1: at 1920x1080 no own face is cut with a dot", () => {
     expect(changed).toEqual({ A: 322, B: 1078 });
   });
 
-  it("the six own SPARKFANG faces (turret slot 0, days 8/12/16, both decks) read short once they wrap (the 3x5 plan is 6 px short): they take P2's plan, giving away SPEED: LEVEL 2/4. only", () => {
+  it("the six own SPARKFANG faces (turret slot 0, days 8/12/16, both decks) read short once they wrap (the 3x5 plan is 6 px short): with their CLOSE row they take P2's plan, giving away SPEED: LEVEL 2/4. only; POLISH-4 (P4-3) draws them without the row, SPEED drawn too", () => {
     const six = OWN().filter(isSix);
     expect(six.length).toBe(6);
     for (const f of six) {
-      const p = drawnOwn(f, "desk-1920x1080");
+      const { fa, tp } = viewOf("desk-1920x1080", 0);
+      const p = withEnchant(() => p3bFacePlan(f.t, fa, f.fam, tp)); // the face with its CLOSE row: facePlan as POLISH-3b left it
+      const bare = drawnOwn(f, "desk-1920x1080");
+      expect(bare.bare, `${f.tag}: POLISH-4 P4-3: drawn without the CLOSE row`).toBe(true);
+      expect(rulesWhole(bare), `${f.tag}: the rule text whole`).toBe(true);
+      expect(abilityLeft(f.t, bare), `${f.tag}: nothing given away`).toEqual([]);
       expect(p.titleRows, f.tag).toEqual(["RISING SCRAP", "CANNON ★"]);
       expect(p.subs, f.tag).toEqual(["HEAVY TURRET IN", "SLOT 1"]);
       expect(p.body.font, f.tag).toBe("3");
@@ -175,8 +181,9 @@ describe("POLISH-3b P1: an own face's header, drawn", () => {
 describe("POLISH-3b P1: REQ-BFG-089 and REQ-BFG-087 keep", () => {
   // REQ-BFG-087: own faces with a gap under min (gaps.px < gaps.min) after, and at polish3-accepted (A: 72 -> 82 and B: 165 -> 132 at 1920x1080 with POLISH-3b; every other view unchanged).
   // POLISH-4 (P4-1): B 132 -> 162 at 1920x1080: a family head under a two-row title takes a gap slot, and the gap yields to the head (content first, SPACE-1 D3); the real builds (A) stay at 82.
+  // POLISH-4 (P4-3): A 82 -> 76 at 1920x1080: the six SPARKFANG turrets drawn without their CLOSE row have the room for their gaps (6 fewer faces under min).
   const UNDER: Record<ViewName, { A: number; B: number; was: { A: number; B: number } }> = {
-    "desk-1920x1080": { A: 82, B: 162, was: { A: 72, B: 165 } },
+    "desk-1920x1080": { A: 76, B: 162, was: { A: 72, B: 165 } },
     "laptop-1366x768": { A: 48, B: 83, was: { A: 48, B: 83 } },
     "desk-1280x800": { A: 57, B: 2, was: { A: 57, B: 2 } },
     "land-844x390": { A: 105, B: 161, was: { A: 105, B: 161 } },

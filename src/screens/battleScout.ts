@@ -169,6 +169,18 @@ export const CLOSE_LABEL = "CLOSE";
  * breaks onto a second 3x5 row (`RISING RAMPART` / `CANNON ★`) and a sub wider than its room breaks at a space (`HEAVY TURRET IN` / `SLOT 1`), so the star and the slot number show and nothing is cut with a dot.
  */
 export function facePlan(t: PanelText, fa: { area: Rect; band: boolean }, families: Parameters<typeof planPanel>[2], tap: number): PanelPlan {
+  const plan = facePlanWith(t, fa, families, tap);
+  if (!plan.column || rulesWhole(plan) || !t.labels.length) return plan;
+  // POLISH-4 (REQ-BFG-089; P4-3, cap's ruling 2): the CLOSE row yields to the piece's own ability lines. On a landscape phone at a pixel ratio of 2.625 to 3 the face is the whole floor between the boards (106-122 x 162-169 px) and the finger-sized
+  // CLOSE row (19-22 px and the 6 under the text) took the room of `IT TAKES BELTS ON COLUMNS ...` and `SPEED: LEVEL n/4.`: 156 of 2,242 own faces at 851x393@2.75, 127 at 915x412@2.625, 74 at 926x428@3, 36 at 812x375@3 and 6 at 1920x1080 were short
+  // of a rule line. Where the face with its row is not the rule text whole and the same face WITHOUT the row is, or gives away fewer ability blocks, it is drawn without the row (`bare`); every other face keeps its CLOSE row exactly as before.
+  // A press on the battlefield off any part closes a face (BattleFaces.press) and so does BACK: nothing is added for it, no hint and no words.
+  const bare = facePlanWith({ ...t, labels: [] }, fa, families, tap);
+  return rulesWhole(bare) || abilityGone(t, bare) < abilityGone(t, plan) ? { ...bare, bare: true } : plan;
+}
+
+/** facePlan as POLISH-3b left it (the face with its CLOSE row): planPanel's 5x7 plan, the 3x5 plan where that is the rule text whole, else the one that gives away fewer ability blocks (the 3x5 on a tie). */
+function facePlanWith(t: PanelText, fa: { area: Rect; band: boolean }, families: Parameters<typeof planPanel>[2], tap: number): PanelPlan {
   const plan = planPanel(t, fa.area, families, { tap, band: fa.band, wrap: true });
   if (!plan.column || rulesWhole(plan)) return plan;
   const small = planPanel(t, fa.area, families, { tap, band: fa.band, small: true, wrap: true });
@@ -382,8 +394,8 @@ export class BattleFaces {
     rect(g, r.x + 5, r.y + 5, 14, 14, C.slate0);
     const icon = faceIcon(build, o.sel);
     if (icon) g.drawImage(icon, r.x + 12 - Math.floor(icon.width / 2), r.y + 12 - Math.floor(icon.height / 2));
-    // its one button, CLOSE: under the text in the column, else on the header row (planPanel's places)
-    const cr = plan.column ? columnButtons(1, r, tp)[0] : plan.rects ? plan.rects[0] : null;
+    // its one button, CLOSE: under the text in the column, else on the header row (planPanel's places); POLISH-4 (P4-3): none for a bare plan (facePlan), which a press off any part or BACK closes as any face
+    const cr = plan.bare ? null : plan.column ? columnButtons(1, r, tp)[0] : plan.rects ? plan.rects[0] : null;
     const hit = cr ? tapRect(cr, tp, r, tp) : null;
     if (cr) button(ui, g, "faceclose", cr, CLOSE_LABEL, { font: "3", onTap: () => this.close(), hit: hit ?? undefined });
     // POLISH-3 (REQ-BFG-087; Q2 (a)): a title the column cannot hold in one row breaks at a space onto two 3x5 rows (planOnce: titleRows); the sub rows start 6 px lower (dy)

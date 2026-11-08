@@ -5,7 +5,8 @@
 //   (812x375@3, 851x393@2.75, 915x412@2.625, 926x428@3) + the two narrow bands (280x653@3, 300x640@3).
 import { battleLayout, battleScale, laneLayout, battleGrid } from "../src/game/battleLayout";
 import { viewWithSub } from "../src/game/viewGrid";
-import { faceArea } from "../src/screens/battleScout";
+import { abilityGone, faceArea } from "../src/screens/battleScout";
+import { planPanel, rulesWhole, type PanelPlan, type PanelText, type selFamilies } from "../src/screens/build/inspector";
 import { tapPx } from "../src/ui/tap";
 import { UI, type Rect } from "../src/ui/ui";
 import type { Game } from "../src/game/game";
@@ -22,6 +23,16 @@ export const VIEW13_NAMES = Object.keys(VIEWS13) as View13[];
 export const LANDSCAPE_PHONES: View13[] = ["land-812x375@3", "pixel5-851x393@2.75", "land-915x412@2.625", "promax-926x428@3"];
 
 const pickSub = (pw: number, ph: number, p: boolean, scale: number): number => { const g = battleGrid(pw, ph, p); return g.close === scale ? g.sub : 1; };
+/** facePlan as POLISH-3b left it (battleScout.ts at polish3b-accepted): the face WITH its CLOSE row. planPanel's 5x7 plan, the 3x5 plan where that is the rule text whole and the first is not, else the one that gives away fewer
+ *  ability blocks (the 3x5 on a tie). The reference POLISH-4's P4-3 is measured against: a face that facePlan does not draw `bare` is exactly this plan. */
+export function p3bFacePlan(t: PanelText, fa: { area: Rect; band: boolean }, fam: ReturnType<typeof selFamilies>, tp: number): PanelPlan {
+  const plan = planPanel(t, fa.area, fam, { tap: tp, band: fa.band, wrap: true });
+  if (!plan.column || rulesWhole(plan)) return plan;
+  const small = planPanel(t, fa.area, fam, { tap: tp, band: fa.band, small: true, wrap: true });
+  if (rulesWhole(small)) return small;
+  return abilityGone(t, small) <= abilityGone(t, plan) ? small : plan;
+}
+
 /** A view's screen and a Game stub holding what BattleFaces.drawOn reads (the view, a UI, a canvas of the logical screen's size). */
 export function gameAt(name: View13): { v: ReturnType<typeof viewWithSub>; game: Game } {
   const [w, h, dpr] = VIEWS13[name];
