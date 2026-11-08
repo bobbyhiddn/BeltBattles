@@ -214,18 +214,41 @@ export interface WordCardView {
   hit: Rect;
 }
 
-/** The ENCHANTER's wagon as drawn this frame (its cards slide in with the caravan at the dawn), or null. */
-export function wagonView(s: BuildScreen): { cards: WordCardView[]; tag: { x: number; y: number } | null; lift: number } | null {
+/** POLISH-7 (P7-4, P6-R1; cap's ruling "fade"): the longest the ENCHANTER's cards and tag take to fade out at the caravan's roll-out, in seconds. */
+export const FADE_MAX = 0.12;
+
+/**
+ * POLISH-7 (P7-4, P6-R1): how long the cards and the tag take to fade out at the caravan's roll-out: gone before the caravan's first card reaches the nearest of them, and never longer than FADE_MAX. The shop's cards (and REROLL) leave to
+ * the left, card i from t = i x 0.04 s, by W k^2 px with k = (t - i x 0.04) / 0.25 (Caravan.dx); a word card (or the tag) with one of them to its right in its rows (the desk's margin, a portrait phone's) is reached when that displacement
+ * covers the gap between them. A wagon in the right column's gap or in a row has nothing to its right that moves over it: FADE_MAX. Pure (wagonView, tests).
+ */
+export function fadeSeconds(L: Pick<BuildLayout, "cards" | "reroll" | "W">, rects: readonly Rect[]): number {
+  let t = FADE_MAX;
+  const movers = [...L.cards, L.reroll];
+  rects.forEach((q) => movers.forEach((r, i) => {
+    if (r.y >= q.y + q.h || r.y + r.h <= q.y || r.x < q.x + q.w) return; // not in its rows, or not to its right
+    t = Math.min(t, i * 0.04 + 0.25 * Math.sqrt(Math.max(0, r.x - (q.x + q.w)) / L.W));
+  }));
+  return Math.max(t, 1e-3);
+}
+
+/**
+ * The ENCHANTER's wagon as drawn this frame (its cards slide in with the caravan at the dawn), or null. POLISH-7 (P7-4, P6-R1): at the caravan's roll-out the cards and the tag stay where they rest and fade out (`alpha` 1 -> 0 over fadeSeconds), they
+ * never move; they crossed the deck for 0.1-0.2 s on their way left, the tag trailing them and card 2 over card 1. The roll-in is as it was. (Only a roll-out with the wagon sliding takes this path: BuildScreen.doReroll leaves the wagon where it is.)
+ */
+export function wagonView(s: BuildScreen): { cards: WordCardView[]; tag: { x: number; y: number } | null; lift: number; alpha: number } | null {
   const run = s.run, lay = s.L.wagon;
   if (!wagonUp(run) || !lay) return null;
   const offers = run.shop.enchanter!.offers, L = s.L;
   const base = s.offers().length + 1;
-  const dx = (j: number): number => (wagonSlides(s) ? s.caravan.dx(base + j, L.W) : 0);
+  const out = wagonSlides(s) && s.caravan.state === "out";
+  const dx = (j: number): number => (wagonSlides(s) && !out ? s.caravan.dx(base + j, L.W) : 0);
+  const alpha = out ? Math.max(0, 1 - s.caravan.t / fadeSeconds(L, [...lay.rects, ...(lay.tag ? [{ x: lay.tag.x, y: lay.tag.y, w: tagWidth(), h: 5 }] : [])])) : 1;
   const cards = offers.map((o, i): WordCardView => ({
     pick: false, i, id: o.ench as EnchantId, price: o.price, sold: o.sold,
     rect: { ...lay.rects[i], x: lay.rects[i].x + dx(i) }, hit: { ...lay.hits[i], x: lay.hits[i].x + dx(i) },
   }));
-  return { cards, tag: lay.tag ? { x: lay.tag.x + dx(0), y: lay.tag.y } : null, lift: lay.lift ?? LIFT };
+  return { cards, tag: lay.tag ? { x: lay.tag.x + dx(0), y: lay.tag.y } : null, lift: lay.lift ?? LIFT, alpha };
 }
 
 // ---------------------------------------------------------------------------------------------------------------- the pick strip
@@ -307,9 +330,11 @@ function wordIcon2(id: EnchantId): HTMLCanvasElement {
  * One word card, in a shop card's frame (REQ-BFG-115: the icon and the price, nothing else): the word's icon at x2 (x1 on a card too
  * short for it), the price under it, the word's colour on the bar; a sold card is dim and prices nothing; a pick's card has no price.
  */
-export function drawWordCard(g: G, r: Rect, id: EnchantId, o: { price: number | null; sold: boolean; affordable: boolean; selected: boolean; hover: boolean; t: number; maxLift?: number }): void {
+export function drawWordCard(g: G, r: Rect, id: EnchantId, o: { price: number | null; sold: boolean; affordable: boolean; selected: boolean; hover: boolean; t: number; maxLift?: number; alpha?: number }): void {
   const def = ENCHANT_DEFS[id];
   const lift = Math.min(o.selected ? LIFT : o.hover ? 1 : 0, o.maxLift ?? LIFT), x = r.x, y = r.y - lift; // POLISH-6 (P6-6): `maxLift`, a card in the gap lifts no further than the clear above it (WagonPlace.lift)
+  const A = o.alpha ?? 1; // POLISH-7 (P7-4): the roll-out's fade (wagonView's alpha): the card is drawn at it throughout; 1, the default, is every card's draw as it was (the context's alpha is not touched)
+  if (A < 1) g.globalAlpha = A;
   if (lift) {
     rect(g, r.x + 2, r.y + r.h - 1, r.w - 1, 2, C.ink);
     rect(g, r.x + r.w, r.y + 2, 1, r.h - 1, C.ink);
@@ -318,9 +343,9 @@ export function drawWordCard(g: G, r: Rect, id: EnchantId, o: { price: number | 
   const z = cardZones(r.w, r.h, o.price ?? undefined);
   const big = r.h >= 38, ic = big ? wordIcon2(id) : enchantIcon(id);
   const pic = z.pic, ix = Math.floor((r.w - ic.width) / 2), iy = pic.y + Math.floor((pic.h - ic.height) / 2) + (o.price === null && big ? 2 : 0);
-  if (o.sold) g.globalAlpha = SOLD_ALPHA;
+  if (o.sold) g.globalAlpha = A * SOLD_ALPHA;
   g.drawImage(ic, x + ix, y + iy);
-  g.globalAlpha = 1;
+  g.globalAlpha = A < 1 ? A : 1;
   if (!o.sold && o.price !== null) {
     const px = cardPriceX(x, r.w, o.price, false, false);
     g.drawImage(coinIcon(), px, y + r.h - 11);
@@ -328,6 +353,7 @@ export function drawWordCard(g: G, r: Rect, id: EnchantId, o: { price: number | 
   }
   if (o.selected) frame(g, x - 1, y - 1, r.w + 2, r.h + 2, Math.floor(o.t * 6) % 2 ? C.white : C.yellow);
   else if (o.hover) frame(g, x - 1, y - 1, r.w + 2, r.h + 2, C.bone);
+  if (A < 1) g.globalAlpha = 1;
 }
 
 /** The merchant tag above the wagon's first card: a ring (a shape beside the colour, as every merchant's) and ENCHANTER. */
@@ -345,13 +371,17 @@ const isSel = (s: BuildScreen, pick: boolean, i: number): boolean => s.sel.kind 
 /** The ENCHANTER's wagon: its tag (on the desk) and its two word cards (chrome.ts drawShop calls it after the regular cards). */
 export function drawWagon(g: G, s: BuildScreen): void {
   const v = wagonView(s);
-  if (!v) return;
-  if (v.tag) drawEnchanterTag(g, v.tag.x, v.tag.y);
+  if (!v || v.alpha <= 0) return; // POLISH-7 (P7-4): faded out at the roll-out: nothing is drawn
+  if (v.tag) {
+    g.globalAlpha = v.alpha;
+    drawEnchanterTag(g, v.tag.x, v.tag.y);
+    g.globalAlpha = 1;
+  }
   const hov = wordHover(s);
   for (const c of v.cards) {
     drawWordCard(g, c.rect, c.id, {
       price: c.price, sold: c.sold, affordable: s.run.gold >= (c.price ?? 0), selected: isSel(s, false, c.i) && !s.ed.carry,
-      hover: !!hov && !hov.pick && hov.i === c.i, t: s.t, maxLift: v.lift,
+      hover: !!hov && !hov.pick && hov.i === c.i, t: s.t, maxLift: v.lift, alpha: v.alpha,
     });
   }
 }
