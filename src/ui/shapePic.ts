@@ -295,7 +295,7 @@ export function shapeMarkSize(defId: string): { w: number; h: number } {
 /**
  * PRESENT-5 G2a (REQ-BFG-113; backlog #537 (1), (5)): the ONE place a surface puts the footprint mark over its icon's box. The box is `boxSize` px square with its top-left at (boxX, boxY); the mark
  * (shapeMark) goes in its bottom-right corner, flush with the box's edges (PRESENT-4 G's place: the road's drop row passed its 14 x 14 box, the icon's carriage gun and wheel stay clear there). Returns the
- * rect the mark covers. G2a moves no pixel (tests/present5.dropmark.test.ts compares the drop row with PRESENT-4's drawing); G2b's variant, if it stays, changes this function alone, so every surface that calls it follows.
+ * rect the mark covers. G2a moves no pixel (tests/present5.dropmark.test.ts compares the drop row with PRESENT-4's drawing). PRESENT-5 G2b (variant (a): a 1 px ink backing under the mark, to part it from the icon's own pale wheel patch) was tried (50eca68a) and PUT BACK (9d29624d): its cold read's K-03 missed the bar (cells four strict 2 of 6 after the fix round; a cannon or a gun named 4 of 6): the mark is PRESENT-4's again. A later variant changes this function alone, so every surface that calls it follows.
  */
 export function drawIconMark(g: G, defId: string, boxX: number, boxY: number, boxSize: number): { x: number; y: number; w: number; h: number } {
   const m = shapeMarkSize(defId), x = boxX + boxSize - m.w, y = boxY + boxSize - m.h;
