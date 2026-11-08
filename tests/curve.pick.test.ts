@@ -42,8 +42,8 @@ const RULE = { ...PICK_RULE, lead: LEAD };
 const SEEDS = Array.from({ length: 24 }, (_, i) => i + 1);
 
 describe("BUMP-1H CURVE: the switch and its rules gate", () => {
-  it("the switch is a module switch in effectFloor.ts's form: off at P1, set by setCurve, put back by withCurve even on a throw", () => {
-    expect(CURVE).toBe(false); // BUMP-1H P1: off (P2's flip sets it true and re-pins this line)
+  it("the switch is a module switch in effectFloor.ts's form: on from P2's flip, set by setCurve, put back by withCurve even on a throw", () => {
+    expect(CURVE).toBe(true); // BUMP-1H P2: was false (P1's switch-off proof was read with it off)
     expect(curveRules()).toBe(CURVE);
     expect(withCurve(() => curveRules())).toBe(true);
     expect(withCurve(() => curveRules(), false)).toBe(false);

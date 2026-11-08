@@ -18,8 +18,9 @@
 // Shared and dependency-free (no DOM, no catalogue): src/net/rulesGate.ts, src/net/pick.ts and tools/samplePool.ts read the
 // same switch, and this file imports nothing so it adds no cycle.
 
-/** THE switch (REQ-BFG-124): off at P1 (the switch-off proof); P2 flips it with the rules bump to bb-0.15.0. */
-export const CURVE: boolean = false;
+/** THE switch (REQ-BFG-124): ON since BUMP-1H P2 (battle rules bb-0.15.0). It was false at P1, where the switch-off proof was read (fp, parBench, the seed pool
+ *  and SOFT-1's rows byte for byte); this line is the flip, with RULES_VERSION's bump. */
+export const CURVE: boolean = true;
 
 let curveOn = false;
 

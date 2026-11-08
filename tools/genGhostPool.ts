@@ -32,6 +32,7 @@ import { setLongRun } from "../src/sim/longRun"; // RUN-1 T8: --long-run (last i
 import { scaleRules, setScaleRigs } from "../src/sim/scale"; // BUMP-1E P2e (REQ-BFG-098): the scaling world held on while the pool is dealt
 import { gatesRules, setGates } from "../src/sim/gates"; // GATES-1 (REQ-BFG-052, G6): --gates (already loaded above: samplePool.ts); BUMP-1F: its switch is put back in the finally below
 import { enchantRules, setEnchant } from "../src/sim/enchant"; // BUMP-1F P2 (REQ-BFG-085): the words held on while the pool is dealt
+import { curveRules, setCurve } from "../src/net/curve"; // BUMP-1H P2 (REQ-BFG-124): the difficulty curve held on while the pool is dealt (set inside the try/finally, never withCurve(async ...))
 
 function flag(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -48,9 +49,11 @@ function flag(name: string): string | undefined {
 const wasScale = scaleRules();
 const wasGates = gatesRules();
 const wasEnchant = enchantRules();
+const wasCurve = curveRules();
 setScaleRigs(true);
 setGates(true);
 setEnchant(true);
+setCurve(true); // BUMP-1H (REQ-BFG-124): the difficulty curve's world for the whole run (slot 1, the streak tier and the depth ghosts), put back in the finally below
 try {
   // RUN-1 T8: the long run's pool (scratch): the switch before anything is generated, the pick rows named before the first pick
   const longRunPool = process.argv.includes("--long-run");
@@ -92,6 +95,7 @@ try {
     console.log(`wrote one snapshot (${pool[0].hero} day ${pool[0].day}) to ${resolve(one)}`);
   }
 } finally {
+  setCurve(wasCurve);
   setEnchant(wasEnchant);
   setGates(wasGates);
   setScaleRigs(wasScale);
