@@ -70,9 +70,11 @@ describe("TXT-AZ item 6: the pickers' title block on a clean ground (REQ-BFG-073
   });
 
   // BACKDROP-1 (REQ-BFG-073), old -> new: LAST CHANCE's picker no longer calls drawTitlePlate: its title plate is the TOP of lcGround's one "dark" panel (the card column's ground, the plate
-  // grown down to the last card's foot: tests/backdrop1.ground.test.ts), drawn at the same place (after the scrim, before the title). The dawn picker keeps drawTitlePlate. Cause: the ground.
+  // grown down to the last card's foot: tests/backdrop1.ground.test.ts), drawn at the same place (after the scrim, before the title). Cause: the ground.
+  // BACKDROP-2 (REQ-BFG-058), old -> new: nor does the dawn picker: its title plate is the TOP of pickGround's one "dark" panel (the column's ground, the plate grown down to the foot of the YOUR RUNES tray:
+  // tests/backdrop2.ground.test.ts), drawn at the same place (after the scrim, before the title). Cause: the ground.
   it("both pickers draw it after their scrim and before their title (one plate for both)", () => {
-    const MARK = { "src/screens/lastChancePicker.ts": 'panel(g, lcGround(W, H, L), "dark")', "src/screens/runePicker.ts": "drawTitlePlate(g, W, L.top, L.cardW)" };
+    const MARK = { "src/screens/lastChancePicker.ts": 'panel(g, lcGround(W, H, L), "dark")', "src/screens/runePicker.ts": 'panel(g, pickGround(W, H, L), "dark")' };
     for (const [file, title] of [["src/screens/lastChancePicker.ts", "drawText(g, LC_TITLE"], ["src/screens/runePicker.ts", "drawText(g, PICK_TITLE"]] as const) {
       const src = readFileSync(join(ROOT, file), "utf8");
       const scrim = src.indexOf("rect(g, 0, 0, W, H, C.ink)"), plate = src.indexOf(MARK[file]), text = src.indexOf(title);
@@ -80,5 +82,6 @@ describe("TXT-AZ item 6: the pickers' title block on a clean ground (REQ-BFG-073
       expect(src.split(MARK[file]).length - 1, file).toBe(1);
     }
     expect(readFileSync(join(ROOT, "src/screens/lastChancePicker.ts"), "utf8").includes("drawTitlePlate("), "LAST CHANCE draws no separate title plate").toBe(false);
+    expect(readFileSync(join(ROOT, "src/screens/runePicker.ts"), "utf8").includes("drawTitlePlate("), "the dawn picker draws no separate title plate").toBe(false);
   });
 });
