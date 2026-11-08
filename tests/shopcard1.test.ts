@@ -58,12 +58,12 @@ const clear = (a: Box, b: Box): boolean => a.x + a.w < b.x || b.x + b.w < a.x ||
 const shaped = (): string[] => buyableModules().filter((d) => shapedPiece(d.id)).map((d) => d.id);
 /** PRESENT-1 S1 (d): the cell a card of width `w` draws a piece's grid at: a wide card (CARD_TEXT_MIN_W, 69 px, and up: the landscape row, the desk) has room for PICKAXE at 5 px; the phone's 46 px card keeps the 16 px face's 4 (gridCell's `face`) */
 const cellOn = (id: string, w: number): number => gridCell(id, w >= CARD_TEXT_MIN_W ? Infinity : CARGO_FACE);
-/** PRESENT-2 K: a wide card has room: its grid is drawn with no `cell` given and the 4 px arrow (HEAD_BIG); the phone's narrow card keeps its icon cell and HEAD_LEN. */
-const headOn = (w: number): number => (w >= CARD_TEXT_MIN_W ? HEAD_BIG : HEAD_LEN);
+/** PRESENT-2 K: a wide card has room: its grid is drawn with no `cell` given and the 4 px arrow (HEAD_BIG); the phone's narrow card keeps its icon cell. PRESENT-5 A (REQ-BFG-113; #537 (2)), old -> new: and now ITS arrowhead is HEAD_BIG too (shapeGrid's `headLen`; was HEAD_LEN, 3 px): the plate's room under the card's marks holds it (tests/present5.narrowhead.test.ts). */
+const headOn = (_w: number): number => HEAD_BIG;
 /** The grid's plate on a card (`o`: the zone map's grid corner): its ink box, 1 px round the grid. */
 const plateAt = (id: string, o: { x: number; y: number }, cell = gridCell(id)): Box => { const z = shapeGridSize(id, cell); return { x: o.x, y: o.y, w: z.w + 2, h: z.h + 2 }; }; // SC-0912: the piece's own cell (gridCell: GRID_CELL, 4 for PICKAXE)
 /** PRESENT-2 K: the plate of a card of width `w` as drawCard draws it (a wide card: no cell given, the arrow of HEAD_BIG; a narrow one: the icon cell, HEAD_LEN). */
-const plateOn = (id: string, o: { x: number; y: number }, w: number): Box => { const z = shapeGridSize(id, w >= CARD_TEXT_MIN_W ? undefined : cellOn(id, w)); return { x: o.x, y: o.y, w: z.w + 2, h: z.h + 2 }; };
+const plateOn = (id: string, o: { x: number; y: number }, w: number): Box => { const z = shapeGridSize(id, w >= CARD_TEXT_MIN_W ? undefined : cellOn(id, w), HEAD_BIG); return { x: o.x, y: o.y, w: z.w + 2, h: z.h + 2 }; }; // PRESENT-5 A: HEAD_BIG on the narrow card too
 
 function draw(id: string, w: number, h: number, s: Partial<CardState>, price = ITEMS[id].price): RasterCanvas {
   const c = fresh(w + 2 * OX, h + 2 * OY + 2);
@@ -225,7 +225,7 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
     const rows: string[] = [];
     for (const id of ids) for (const [wn, w, h] of WIDTHS) {
       const c = draw(id, w, h, {}), z = cardZones(w, h), d = ITEMS[id], rig = d.kind === "gate", cell = cellOn(id, w);
-      const head = headOn(w), spec = gridSpecOf(id), geom = gridGeom(spec, cell, head), sz = shapeGridSize(id, w >= CARD_TEXT_MIN_W ? undefined : cell); // PRESENT-2 K: a wide card's arrow is HEAD_BIG
+      const head = headOn(w), spec = gridSpecOf(id), geom = gridGeom(spec, cell, head), sz = shapeGridSize(id, w >= CARD_TEXT_MIN_W ? undefined : cell, HEAD_BIG); // PRESENT-2 K: a wide card's arrow is HEAD_BIG; PRESENT-5 A: and the narrow card's
       expect([geom.w, geom.h], id).toEqual([sz.w, sz.h]);
       expect(spec.cells, `${id}: the footprint at rot 0`).toEqual(footOffsets(d, 0));
       // the plate: ink round the grid's box
@@ -241,7 +241,7 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
         const [cx, cy] = spec.cells[k], t = geom.tiles[k], across = spec.cells.some(([u, v]) => u === cx + 1 && v === cy);
         expect(c.at(gx + t.x + (across ? cell - 1 : 1), gy + t.y + (across ? 1 : cell - 1)), `${id} ${wn}: a seam between two cells`).toBe(seam);
       }
-      // the arrowheads: lime, HEAD_LEN (3) px long, one per arrow, none on a factory
+      // the arrowheads: lime, HEAD_BIG (4) px long on every card (PRESENT-5 A: was HEAD_LEN, 3, on the narrow card), one per arrow, none on a factory
       expect(geom.heads.length, id).toBe(rig ? spec.arrows.length : 0);
       // SC-0912: SHAPES2's six join (arrows by rule set B, deck.ts rigArrowCells: every outward edge a rig's arrow direction faces): SAW BAR
       // (I3, forward) 3, CINDER HOOK (L3, left and right) 4, JAW CRUSHER (2x2, left and right) 4, PICKAXE (T4, forward, left and right) 7;
@@ -266,7 +266,8 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
       if (id === "pickaxe" && wn === "phone") {
         // SC-0912 (oracle 0ab73cb56a4abcbf): PICKAXE at 4 px, measured exception: its plate hides 98 of the icon's 336 opaque px on the phone card
         // (29.2%; 147 = 43.8% at 5 px); the desk cards (70 and 69) hide 0 and keep the rule, as does every other piece
-        expect([hidden, opaque], `${id} ${wn}: the plate hides 98/336 of the icon (the measured exception)`).toEqual([98, 336]);
+        // PRESENT-5 A (REQ-BFG-113; #537 (2)), old -> new: 98 of 336 (29.2%) with HEAD_LEN; with the narrow card's HEAD_BIG heads the plate is 21 x 14 (was 19 x 13) and hides 128 of 336 (38.1%): the cost the K-01n read weighs
+        expect([hidden, opaque], `${id} ${wn}: the plate hides 128/336 of the icon (the measured exception; 98/336 with HEAD_LEN)`).toEqual([128, 336]);
       } else expect(hidden / opaque, `${id} ${wn}: the plate hides at most 25% of the icon`).toBeLessThanOrEqual(0.25);
       rows.push(`${id} ${wn} ${w}x${h}: grid ${sz.w}x${sz.h} (plate ${plate.w}x${plate.h} at ${plate.x},${plate.y}), icon ${z.icon.x},${z.icon.y} ${CARD_ICON}x${CARD_ICON}, hides ${hidden}/${opaque} = ${((100 * hidden) / opaque).toFixed(1)}%`);
     }

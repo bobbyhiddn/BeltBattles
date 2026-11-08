@@ -19,7 +19,7 @@ import { abilityText, type TextOpts } from "../../ui/abilityText"; // TXT-095: i
 import { CARD_TEXT_MIN_W, CARD_W } from "./layout";
 import { faceBlocks } from "./faceBlocks"; // SHOPCARD-1 (REQ-BFG-115, F5): the panel's own face blocks, for the hover tooltip's whole face
 import { shapeWord } from "../../ui/faces"; // SHAPES-1 (REQ-BFG-086.1): the type line's shape
-import { CARGO_FACE, drawShapePlate, gridCell, hasGrid } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G1): the card's shape grid (was SHAPES-1's miniShape); SC-0912: gridCell (was GRID_CELL)
+import { CARGO_FACE, HEAD_BIG, drawShapePlate, gridCell, hasGrid } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G1): the card's shape grid (was SHAPES-1's miniShape); SC-0912: gridCell (was GRID_CELL)
 import { GAP } from "../../ui/spacing"; // CARD-3 (REQ-BFG-087, D4): the tooltip's family line's gap
 
 export const MERCHANT_COLOR: Record<MerchantId, string> = {
@@ -332,7 +332,7 @@ export function drawCard(g: G, r: Rect, def: ItemDef, price: number, merchant: M
   if (s.sold) g.globalAlpha = SOLD_ALPHA;
   g.drawImage(iconX2(def.id), x + z.icon.x, y + z.icon.y);
   g.globalAlpha = 1;
-  if (hasGrid(def.id)) drawShapePlate(g, def.id, x + z.grid.x, y + z.grid.y, r.w >= CARD_TEXT_MIN_W ? undefined : gridCell(def.id, CARGO_FACE), s.sold ? SOLD_ALPHA : 1); // PRESENT-2 K: a wide card has room: no cell given, the piece's own cell with the 4 px arrow (shapePic.ts HEAD_BIG) // SC-0912: the piece's own cell (PICKAXE 4 where the 16 px face binds); PRESENT-1 S1: every piece bigger than one cell (hasGrid), a plain 2x2 factory and a size-2 turret too; a wide card (landscape, desk: 69 px and up) has room for PICKAXE at 5 (S1 (d))
+  if (hasGrid(def.id)) drawShapePlate(g, def.id, x + z.grid.x, y + z.grid.y, r.w >= CARD_TEXT_MIN_W ? undefined : gridCell(def.id, CARGO_FACE), s.sold ? SOLD_ALPHA : 1, HEAD_BIG); // PRESENT-5 A (REQ-BFG-113; #537 (2)): the narrow phone card's heads are HEAD_BIG (4 px) too, at its icon-sized cell (was HEAD_LEN: 3 px); PRESENT-2 K: a wide card has room: no cell given, the piece's own cell with the 4 px arrow (shapePic.ts HEAD_BIG) // SC-0912: the piece's own cell (PICKAXE 4 where the 16 px face binds); PRESENT-1 S1: every piece bigger than one cell (hasGrid), a plain 2x2 factory and a size-2 turret too; a wide card (landscape, desk: 69 px and up) has room for PICKAXE at 5 (S1 (d))
   if (!s.sold) {
     // F4: the bottom-left corner holds the merge mark (MERGE ★2, ★3) or the owned marker (a copy that won't merge yet, or
     // only ★3 copies: was the MAX word); the sale mark sits against the price (1c). PRESENT-1 S4 (a) (REQ-BFG-115; LIVE-PACKETS-0912

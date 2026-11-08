@@ -109,7 +109,7 @@ export const HEAD_LEN = 3;
 /** PRESENT-2 K (REQ-BFG-113; backlog #492 (2)): a surface WITH ROOM (the grid drawn at the piece's own cell: shapeGrid, shapeGridSize and drawShapePlate called without a `cell`; the wide shop
  *  card, LAST CHANCE's plate, the drop card and list, the road cards, the warlord pick) draws every rig's arrowheads 4 px long, an arrow: the tip, the head's full width, then a 2 px shaft
  *  (headRowsBig). In PRESENT-1's re-read the PICKAXE's T (4 cells, 7 arrows) read right 4 of 6 on the shop card and on the SWAP card (readers miscounted the arrows or saw one pointing down):
- *  its 3 px heads were a block with a 2 px nub. An icon-sized surface (the cargo slot, the narrow phone card, the icon rows, a corner over an icon: a `cell` given, iconCell) keeps HEAD_LEN. */
+ *  its 3 px heads were a block with a 2 px nub. An icon-sized surface (the cargo slot, the icon rows, a corner over an icon: a `cell` given, iconCell) keeps HEAD_LEN. PRESENT-5 A (REQ-BFG-113; #537 (2)): the narrow phone shop card asks for HEAD_BIG at its icon-sized cell (shapeGrid's `headLen`): the plate's room under the card's marks holds it (tests/present5.narrowhead.test.ts). */
 export const HEAD_BIG = 4;
 
 /** One arrow of a piece: the cell it shines from, as [dx, dy] in the footprint, and its direction in the picture
@@ -233,8 +233,8 @@ export const iconCell = (defId: string): number => gridCell(defId, CARGO_FACE);
 
 /** G1: the grid as a canvas (cached per piece and cell): its box is gridGeom's. Only for a shaped piece. SC-0912: at the piece's own
  *  cell (gridCell: GRID_CELL, or 4 for PICKAXE) unless a cell is given. */
-export function shapeGrid(defId: string, cell?: number): HTMLCanvasElement {
-  const head = headOf(cell), cl = cell ?? gridCell(defId); // PRESENT-2 K: no `cell` given = a surface with room: the 4 px arrow
+export function shapeGrid(defId: string, cell?: number, headLen?: number): HTMLCanvasElement {
+  const head = headLen ?? headOf(cell), cl = cell ?? gridCell(defId); // PRESENT-2 K: no `cell` given = a surface with room: the 4 px arrow; PRESENT-5 A: `headLen`, the arrowhead's length a caller asks for (the narrow phone shop card: HEAD_BIG at its icon-sized cell)
   const k = `grid:${defId}:${cl}:${head}`;
   let c = CACHE.get(k);
   if (!c) {
@@ -249,8 +249,8 @@ export function shapeGrid(defId: string, cell?: number): HTMLCanvasElement {
 const headOf = (cell: number | undefined): number => (cell === undefined ? HEAD_BIG : HEAD_LEN);
 
 /** G1: the grid's box in px, without drawing (tests, layout). SC-0912: at the piece's own cell (gridCell) unless a cell is given. PRESENT-2 K: with no `cell` (a surface with room) the arrowheads are HEAD_BIG. */
-export function shapeGridSize(defId: string, cell?: number): { w: number; h: number } {
-  const geom = gridGeom(gridSpecOf(defId), cell ?? gridCell(defId), headOf(cell));
+export function shapeGridSize(defId: string, cell?: number, headLen?: number): { w: number; h: number } {
+  const geom = gridGeom(gridSpecOf(defId), cell ?? gridCell(defId), headLen ?? headOf(cell)); // PRESENT-5 A: `headLen` as shapeGrid's
   return { w: geom.w, h: geom.h };
 }
 
@@ -331,11 +331,11 @@ export function drawGridRight(g: G, defId: string, x: number, y: number, w: numb
 /** G3: the grid on an ink plate (a 1 px ink margin round its box: an arrowhead stays readable over an icon's corner) with the
  *  plate's top-left at (x, y). Returns the plate's rect. `alpha` dims it (a sold card). SC-0912: at the piece's own cell (gridCell)
  *  unless a cell is given (or `undefined`, as event/cards.ts passes it). */
-export function drawShapePlate(g: G, defId: string, x: number, y: number, cell?: number, alpha = 1): { x: number; y: number; w: number; h: number } {
-  const { w, h } = shapeGridSize(defId, cell);
+export function drawShapePlate(g: G, defId: string, x: number, y: number, cell?: number, alpha = 1, headLen?: number): { x: number; y: number; w: number; h: number } {
+  const { w, h } = shapeGridSize(defId, cell, headLen); // PRESENT-5 A: `headLen`, the arrowhead's length (default: headOf(cell), as before)
   if (alpha < 1) g.globalAlpha = alpha;
   rect(g, x, y, w + 2, h + 2, C.ink);
-  g.drawImage(shapeGrid(defId, cell), x + 1, y + 1);
+  g.drawImage(shapeGrid(defId, cell, headLen), x + 1, y + 1);
   if (alpha < 1) g.globalAlpha = 1;
   return { x, y, w: w + 2, h: h + 2 };
 }
