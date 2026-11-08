@@ -53,6 +53,7 @@ import { scaleRules } from "../../src/sim/scale";
 import { shapesRules } from "../../src/sim/shapes";
 import { shapes2Rules } from "../../src/sim/shapes2";
 import { pickRules } from "../../src/net/pick";
+import { curveRules } from "../../src/net/curve"; // BUMP-1H: THE CURVE's switch (a SWITCHES row below)
 import type { HeroId } from "../../src/sim/content";
 import type { GhostSnapshot } from "../../src/net/snapshot";
 
@@ -182,6 +183,9 @@ export const SWITCHES: ReadonlyArray<readonly [string, () => boolean]> = [
   // GATES-on or ENCHANT-on pool from an off one (ENCHANT off does not change ITEMS' keys or content). A correctness fix, not a re-pin.
   ["gates", gatesRules],
   ["enchant", enchantRules],
+  // BUMP-1H (REQ-BFG-124): THE CURVE (src/net/curve.ts, in the closure through tools/samplePool.ts and src/net/pick.ts): slot 1's casual grade, the streak tier and the
+  // depth ghosts are dealt only with it on. Without it the key could not tell a curve-on pool from an off one. A correctness fix, not a re-pin.
+  ["curve", curveRules],
 ];
 
 interface ProcessInfo { pid: number; arch: string; platform: string; versions: Record<string, string> }
@@ -223,6 +227,7 @@ export function defaultCtx(): KeyCtx {
 function envPart(env: Record<string, string | undefined>, read: Reader, names: readonly string[]): string {
   const lines = names.map((k) => `${k}=${env[k]}`);
   for (const f of (env[real.SOFT1_PICKS_FILE_ENV] ?? "").split(",").filter(Boolean)) lines.push(`file ${f} ${sha(read(f) ?? "\u0000missing")}`);
+  for (const f of (env[real.CURVE_PICKS_FILE_ENV] ?? "").split(",").filter(Boolean)) lines.push(`file ${f} ${sha(read(f) ?? "\u0000missing")}`); // BUMP-1H: the scratch rows of the streak and depth picks (BB_CURVE_PICKS_FILE)
   return lines.join("\n");
 }
 
