@@ -10,7 +10,7 @@ import { C } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
 import { drawText, textWidth } from "../../render/font";
 import { itemIcon } from "../../render/sprites";
-import { drawShapePlate, hasGrid, iconCell, shapeGrid, shapeGridSize, shapeMark, shapeMarkSize } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on the drop surfaces; PRESENT-4 G: the drop row's mark
+import { drawIconMark, drawShapePlate, hasGrid, iconCell, shapeGrid, shapeGridSize } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on the drop surfaces; PRESENT-4 G: the drop row's mark; PRESENT-5 G2a: drawIconMark, the one helper that draws it
 import { panel, type Rect } from "../../ui/ui";
 import { drawInfoMarkIn } from "../../ui/infoGlyph"; // POLISH-2 (REQ-BFG-089; Q3): the one ⓘ mark
 import { isPhone, tapPx } from "../../ui/tap";
@@ -68,10 +68,8 @@ export function drawDropIcons(g: G, t: DropTable, x: number, y: number, w: numbe
     g.drawImage(ic, px + 7 - Math.floor(ic.width / 2), y + 7 - Math.floor(ic.height / 2));
     // SHOPCARD-1 (G4), PRESENT-1 S1 (d): a shaped part shows its footprint. PRESENT-4 G (REQ-BFG-113; F9): as a small cells-only MARK (shapePic.ts shapeMark: 7 x 7 px at most) in the box's bottom-right corner
     // over the icon's corner, not G1's grid over the box's top-left (11 x 11 for a 2x2: it covered the icon whole, so the carriage gun showed as a grey grid). The box, the 19 px pitch and the odds' row are as they were.
-    if (hasGrid(l.def)) {
-      const m = shapeMarkSize(l.def);
-      g.drawImage(shapeMark(l.def), px + 14 - m.w, y + 14 - m.h);
-    }
+    // PRESENT-5 G2a (REQ-BFG-113): the mark is drawn by shapePic.ts drawIconMark (the one helper every surface with an icon box calls), over this 14 x 14 box.
+    if (hasGrid(l.def)) drawIconMark(g, l.def, px, y, 14);
     drawText(g, pctText(l.odds), px + 7, y + 16, C.bone, { font: "3", align: "center" });
     px += 19;
     n++;

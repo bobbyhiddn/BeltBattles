@@ -292,6 +292,17 @@ export function shapeMarkSize(defId: string): { w: number; h: number } {
   return { w: geom.w, h: geom.h };
 }
 
+/**
+ * PRESENT-5 G2a (REQ-BFG-113; backlog #537 (1), (5)): the ONE place a surface puts the footprint mark over its icon's box. The box is `boxSize` px square with its top-left at (boxX, boxY); the mark
+ * (shapeMark) goes in its bottom-right corner, flush with the box's edges (PRESENT-4 G's place: the road's drop row passed its 14 x 14 box, the icon's carriage gun and wheel stay clear there). Returns the
+ * rect the mark covers. G2a moves no pixel (tests/present5.dropmark.test.ts compares the drop row with PRESENT-4's drawing); G2b's variant, if it stays, changes this function alone, so every surface that calls it follows.
+ */
+export function drawIconMark(g: G, defId: string, boxX: number, boxY: number, boxSize: number): { x: number; y: number; w: number; h: number } {
+  const m = shapeMarkSize(defId), x = boxX + boxSize - m.w, y = boxY + boxSize - m.h;
+  g.drawImage(shapeMark(defId), x, y);
+  return { x, y, w: m.w, h: m.h };
+}
+
 /** G4: a shaped piece's grid (no plate) at the right end of a row `x`..`x + w` whose top is `y`, where it clears `left` (the row's
  *  own words end there) and ends above `floor` (a badge's top): the warlord's pick buttons. Returns whether it drew.
  *  PRESENT-1 (S1 (a), REQ-BFG-113 (1)): `corner`, where the grid goes when the words leave it no room at the row's end: over the
