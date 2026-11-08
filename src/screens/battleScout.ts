@@ -322,8 +322,9 @@ export function drawSummaries(g: G, a: Arena, L: BattleLayout): void {
 export const fingerPx = (game: Pick<Game, "view">): number => tapPx(game.view);
 
 /** VIEW BATTLEFIELD's bar, where the playback bar sits: the fight's clock, BACK, and the card's primary action (null:
- *  none, a warlord's part pick still waiting on the card). Returns the buttons' hit rects (tooling), and BACK's drawn button (`backBtn`: what a hit rect that is trimmed must still hold). */
-export function drawViewBar(g: G, game: Game, r: Rect, clock: string, back: () => void, primary: { label: string; onTap: () => void } | null): { back: Rect; backBtn: Rect; primary: Rect | null } {
+ *  none, a warlord's part pick still waiting on the card). Returns the buttons' hit rects (tooling), and their drawn buttons (`backBtn`, `primaryBtn`: what a hit rect that is trimmed must still hold;
+ *  POLISH-6 P6-2 (REQ-BFG-089): ON TO DAWN's too, its tap target lay under an open face at the five landscape phones like BACK's did). */
+export function drawViewBar(g: G, game: Game, r: Rect, clock: string, back: () => void, primary: { label: string; onTap: () => void } | null): { back: Rect; backBtn: Rect; primary: Rect | null; primaryBtn: Rect | null } {
   const ui = game.ui, tp = fingerPx(game);
   const screen = { x: 0, y: 0, w: game.W, h: game.H };
   panel(g, r, "dark");
@@ -334,12 +335,12 @@ export function drawViewBar(g: G, game: Game, r: Rect, clock: string, back: () =
   const br = { x: x0, y: by, w: bw, h: bh };
   const bhit = tapRect(br, tp, screen, tp);
   button(ui, g, "viewback", br, BACK_LABEL, { font: "3", onTap: back, hit: bhit });
-  if (!primary) return { back: bhit, backBtn: br, primary: null };
+  if (!primary) return { back: bhit, backBtn: br, primary: null, primaryBtn: null };
   const pw = Math.min(r.x + r.w - 2 - (x0 + bw + 3), textWidth(primary.label, "3") + 12);
   const pr = { x: r.x + r.w - 2 - pw, y: by, w: pw, h: bh };
   const phit = tapRect(pr, tp, { ...screen, x: br.x + br.w + 1, w: game.W - (br.x + br.w + 1) }, tp);
   button(ui, g, "viewnext", pr, primary.label, { font: "3", primary: true, onTap: primary.onTap, hit: phit });
-  return { back: bhit, backBtn: br, primary: phit };
+  return { back: bhit, backBtn: br, primary: phit, primaryBtn: pr };
 }
 
 /**
