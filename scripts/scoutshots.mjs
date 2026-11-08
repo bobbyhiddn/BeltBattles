@@ -8,10 +8,11 @@
 //    EASY warlord) with the bar on 2X before its first step, 2X picked in the dusk (next-2x); VIEW BATTLEFIELD with both
 //    summaries (view-summaries) and with a turret's face and its fight line (view-face: an open face takes the open floor
 //    where the summaries sit, so one still can't show both); a Hard warlord's result card, VIEW BATTLEFIELD above its PICK
-//    line (warlord-card); the 1366x768 laptop's dusk card, whole (laptop-card); the desk 1920x1080's VIEW BATTLEFIELD
-//    (desk-view). Then one contact sheet of them all (sheet).
+//    line (warlord-card; POLISH-5: with NPC_DAY on, between the drop card and ON TO THE ROAD); the 1366x768 laptop's dusk
+//    card, whole (laptop-card); the desk 1920x1080's VIEW BATTLEFIELD (desk-view). Then one contact sheet of them all (sheet).
 //  - video (--sets video): phone 390x844 at DPR 3, rendered frame by frame at the device's 1170x2532 (the page's clock
-//    stepped 1/25 s a frame: real time at 25 fps): the build screen (day 4, after a Hard warlord's REFIT) and FIGHT!; the
+//    stepped 1/25 s a frame: real time at 25 fps): the build screen (day 4, after a Hard warlord's REFIT: POLISH-5, with
+//    NPC_DAY on, after ON TO THE ROAD and the day's event: scripts/warlordSetup.mjs) and FIGHT!; the
 //    sail-in straight into the 3-2-1 and the fight at WIDE; 1X, then 2X tapped; the fight's end and the card; VIEW
 //    BATTLEFIELD (a part on each board, both summaries); ON TO DAWN and the next day's build screen; FIGHT!, the road
 //    fork's EASY warlord, and that battle with the bar already on 2X, running at 2X; an mp4 and a webm, <prefix>-tour.
@@ -25,6 +26,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { takeRuneCard } from "./runeTake.mjs"; // CARD-4 (REQ-BFG-081, P): the one scripted rune take
 import { BARE_TEXT, closeBare, isBare } from "./faceClose.mjs"; // POLISH-4c (REQ-BFG-089): a BARE face (no CLOSE: close null) closes by a press off any part
+import { betweenDropAndRoad, isNpcDayCard, rectOf, toTheBuildScreen } from "./warlordSetup.mjs"; // POLISH-5 (REQ-BFG-089; P5-1): the warlord card and set-up with NPC_DAY's drop card (ON TO THE ROAD, the day's event, REFIT) or the 0.9.7 part pick
 
 const argv = process.argv.slice(2);
 const opt = (n, d) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : d; };
@@ -195,11 +197,21 @@ const viewFace = (side = null) => async (page, touch) => {
   return { part: p, line: s.face?.line };
 };
 
-/** A Hard warlord won (its part pick waiting), the card with VIEW BATTLEFIELD above its PICK line (SCOUT-1b). */
+/** A Hard warlord won (its part pick waiting), the card with VIEW BATTLEFIELD above its PICK line (SCOUT-1b).
+ *  POLISH-5 (REQ-BFG-089; P5-1): with NPC_DAY on (TOUCH-099) a Hard win gives no pick: the card shows the drop (or NO DROP) and its one way on, ON TO THE ROAD; VIEW BATTLEFIELD sits between them (touchcheck.mjs
+ *  scoutWarlordNpcDay's rule: scripts/warlordSetup.mjs betweenDropAndRoad). A card without the drop chance keeps the old check (above its picks). */
 const warlordCard = async (page) => {
   await page.evaluate(() => { window.bb.openWarlord("hard", { hero: "furnace", day: 4, seed: 9, outcome: 0 }); });
   await steps(page, 80);
-  const v = await region(page, "viewfield"), t = await region(page, "take0");
+  const v = await region(page, "viewfield");
+  if (await isNpcDayCard(page)) {
+    const road = await region(page, "toroad"), s = await scout(page);
+    const k = await page.evaluate(() => window.bb.game.view.scale / window.bb.game.view.dpr); // CSS px a logical px
+    const r = betweenDropAndRoad({ vf: rectOf(v), road: rectOf(road), card: s?.card, k });
+    must(!!v && !!road && r.ok, `the warlord's card shows VIEW BATTLEFIELD between the drop card and ON TO THE ROAD (${r.gap.toFixed(1)} logical px under the drop card)`);
+    return { view: v, road, phase: await page.evaluate(() => window.bb.screen(true)) };
+  }
+  const t = await region(page, "take0");
   must(!!v && !!t && v.y + v.h / 2 < t.y - t.h / 2, "the warlord's card shows VIEW BATTLEFIELD above its picks");
   return { view: v, pick: t, phase: await page.evaluate(() => window.bb.screen(true)) };
 };
@@ -310,14 +322,13 @@ async function tour(browser) {
     await mark(`tap ${side === 0 ? "your" : "enemy"} ${p.name}`);
     await hold(secs);
   };
-  // set up (no frames): a Hard warlord won on day 4, its part taken, REFIT: the build screen, FIGHT! on to the dusk
+  // set up (no frames): a Hard warlord won on day 4, then REFIT: the build screen, FIGHT! on to the dusk. POLISH-5 (REQ-BFG-089; P5-1): with NPC_DAY on, the drop card's ON TO THE ROAD, the day's road event, REFIT
+  // (scripts/warlordSetup.mjs); a card without the drop chance keeps the old path (its part taken, REFIT)
   await page.evaluate(() => window.bb.openWarlord("hard", { hero: "furnace", day: 4, seed: 9, outcome: 0 }));
   await steps(page, 80);
-  for (const id of ["take0", "refit"]) {
-    const q = await region(page, id);
-    if (must(!!q, `the set-up's ${id}`)) await tap(page, q.x, q.y, true);
-    await steps(page, 60);
-  }
+  const setup = await toTheBuildScreen(page, { region: (id) => region(page, id), tap: (x, y) => tap(page, x, y, true), steps: (n) => steps(page, n) });
+  for (const problem of setup.problems) must(false, problem);
+  log(`set-up: ${setup.how}`);
   must((await page.evaluate(() => window.bb.screen())) === "build", "the set-up ends on the build screen");
   await mark("the build screen (day 4, after REFIT)");
   await hold(2.4);
