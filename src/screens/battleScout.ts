@@ -179,10 +179,19 @@ export function facePlan(t: PanelText, fa: { area: Rect; band: boolean }, famili
   return rulesWhole(bare) || abilityGone(t, bare) < abilityGone(t, plan) ? { ...bare, bare: true } : plan;
 }
 
-/** facePlan as POLISH-3b left it (the face with its CLOSE row): planPanel's 5x7 plan, the 3x5 plan where that is the rule text whole, else the one that gives away fewer ability blocks (the 3x5 on a tie). */
+/** facePlan as POLISH-3b left it (the face with its CLOSE row): planPanel's 5x7 plan, the 3x5 plan where that is the rule text whole, else the one that gives away fewer ability blocks (the 3x5 on a tie).
+ *  POLISH-4 (REQ-BFG-089; P4-4, cap's ruling 3): and a belt's face, where its plan is the rule text whole but gives hit rows away, takes the 3x5 plan if that gives away fewer (hitRowsGone). */
 function facePlanWith(t: PanelText, fa: { area: Rect; band: boolean }, families: Parameters<typeof planPanel>[2], tap: number): PanelPlan {
   const plan = planPanel(t, fa.area, families, { tap, band: fa.band, wrap: true });
-  if (!plan.column || rulesWhole(plan)) return plan;
+  if (!plan.column) return plan;
+  // POLISH-4 (REQ-BFG-089; P4-4, cap's ruling 3): a belt's hit rows are the belt's own text (planRung's reason for the build screen's panel). In the column (the desk, the laptop, a landscape phone) the 5x7 plan gives whole trailing rows away
+  // (`+N MORE HIT TILES`) on 84 of 316 belts at 1920x1080 (519 rows), 63 at 1366x768 and 844x390, 131 at 851x393@2.75; a face tall enough for every row does not exist (+44 px at the median, +149 at most, where the face is 198 of 216 px).
+  // The 3x5 plan gives away fewer (519 -> 290 rows at 1920x1080, 389 -> 203 at 1366x768 and 844x390): it is the face where it does, though no belt becomes whole by it. The build screen's belt panel (planRung) is as it was.
+  if (rulesWhole(plan)) {
+    if (!hitRowsGone(plan)) return plan;
+    const sm = planPanel(t, fa.area, families, { tap, band: fa.band, small: true, wrap: true });
+    return rulesWhole(sm) && hitRowsGone(sm) < hitRowsGone(plan) ? sm : plan;
+  }
   const small = planPanel(t, fa.area, families, { tap, band: fa.band, small: true, wrap: true });
   if (rulesWhole(small)) return small;
   return abilityGone(t, small) <= abilityGone(t, plan) ? small : plan;
@@ -197,6 +206,11 @@ export function abilityGone(t: Pick<PanelText, "body">, plan: PanelPlan): number
   const keyOf = (b: Block): string => `${b.role}|${b.text}|${b.label ?? ""}`;
   const shown = new Set(plan.body.shown.filter((l) => l.lines.length > 0 && l.lines.every((ln) => drawn.has(ln))).map((l) => keyOf(l.b)));
   return t.body.filter((b) => b.role === "ability" && !shown.has(keyOf(b))).length;
+}
+
+/** POLISH-4 (REQ-BFG-089; P4-4): how many of a belt's hit rows (the `trim` blocks that are not JOINS rows) the plan gives away: the rows `+N MORE HIT TILES` counts. Pure (facePlan, tests). */
+export function hitRowsGone(plan: Pick<PanelPlan, "body">): number {
+  return plan.body.dropped.filter((b) => b.trim && !b.join).length;
 }
 
 /** The face's icon, as the build screen's panel draws it. */

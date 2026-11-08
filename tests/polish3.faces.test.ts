@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { G, fresh, installRaster } from "./raster.helpers";
 import { battleLayout, battleScale, laneLayout, battleGrid } from "../src/game/battleLayout";
 import { viewWithSub } from "../src/game/viewGrid";
-import { BattleFaces, facePlan, faceArea, faceRun, faceText, type PartSel } from "../src/screens/battleScout";
+import { BattleFaces, facePlan, faceArea, faceRun, faceText, hitRowsGone, type PartSel } from "../src/screens/battleScout";
 import { fitTitleRows, gapsAtLeast, planPanel, rulesWhole, selFamilies, visibleLines, wrapAt, type PanelPlan, type PanelText } from "../src/screens/build/inspector";
 import { turretSlots, type Build } from "../src/sim/deck";
 import { ENCHANT, ENCHANT_DEFS, setEnchant, withEnchant } from "../src/sim/enchant";
@@ -234,6 +234,7 @@ describe("POLISH-3 Q2 (b): a face keeps every one of its own rule lines wherever
       let low = 0, n = 0;
       for (const f of corpus(name).faces) {
         if (f.p === f.p0 || JSON.stringify(f.p) === JSON.stringify(f.p0)) continue; // planPanel's own plan
+        if (f.sel.kind === "route" && rulesWhole(f.p0)) { expect(hitRowsGone(f.p), `${f.tag}: POLISH-4 P4-4: a belt face whose 5x7 plan was whole, swapped for the 3x5 plan that gives away fewer hit rows`).toBeLessThan(hitRowsGone(f.p0)); continue; } // tests/polish4.beltrows.test.ts
         if ((name === "desk-1920x1080" || name === "land-844x390") && SIX.includes(f.tag.replace(`${name} `, ""))) { // POLISH-3b (P2, the review's N1): the one turret neither plan shows whole is drawn from the 3x5 plan, which gives away fewer ability blocks (tests/polish3b.sparkfang.test.ts)
           expect(rulesWhole(f.small) || rulesWhole(f.p0), `${f.tag}: neither plan WITH its CLOSE row is the full text`).toBe(false);
           expect(f.p.bare, `${f.tag}: POLISH-4 (P4-3): drawn without the CLOSE row`).toBe(true);

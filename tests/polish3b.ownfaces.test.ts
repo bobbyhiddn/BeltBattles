@@ -20,6 +20,7 @@ import { C } from "../src/render/palette";
 import type { Game } from "../src/game/game";
 import { VIEW_NAMES, abilityLeft, faces, isSix, oldFacePlan, plain, titleCut, drawnSubs, viewOf, type Face, type ViewName } from "./polish3b.helpers";
 import { p3bFacePlan } from "./polish4.helpers";
+import { hitRowsGone } from "../src/screens/battleScout";
 import { textWidth } from "../src/render/font";
 
 installRaster();
@@ -77,15 +78,16 @@ describe("POLISH-3b P1: at 1920x1080 no own face is cut with a dot", () => {
     expect(n.B.heads, "B: every two-row title carries its head").toBe(883);
   });
 
-  it("a face changes if and only if its old plan cut a title or a sub with a dot (every other own face is drawn exactly as polish3-accepted drew it); A 322 of 2,242 and B 1,078 of 1,809 change", () => {
+  it("a face changes if and only if its old plan cut a title or a sub with a dot, or (POLISH-4 P4-4) it is a belt that gives away fewer hit rows in the 3x5 plan (every other own face is drawn exactly as polish3-accepted drew it); A 322 + 69 belts of 2,242 and B 1,078 of 1,809 change", () => {
     const changed = { A: 0, B: 0 };
     for (const f of OWN()) {
       const p = drawnOwn(f, "desk-1920x1080"), old = oldOwn(f, "desk-1920x1080");
       const differs = JSON.stringify(p) !== JSON.stringify(old), wasCut = titleCut(f.t, old) || subCut(f, old);
-      expect(differs, `${f.tag}: changes iff it was cut (old: title cut ${titleCut(f.t, old)}, sub cut ${subCut(f, old)})`).toBe(wasCut);
+      const belt = f.kind === "route" && hitRowsGone(p) < hitRowsGone(old); // P4-4: the 3x5 plan, fewer hit rows given away (tests/polish4.beltrows.test.ts)
+      expect(differs, `${f.tag}: changes iff it was cut (old: title cut ${titleCut(f.t, old)}, sub cut ${subCut(f, old)}) or is a belt that gives fewer rows away`).toBe(wasCut || belt);
       if (differs) changed[f.corpus]++;
     }
-    expect(changed).toEqual({ A: 322, B: 1078 });
+    expect(changed).toEqual({ A: 322 + 69, B: 1078 });
   });
 
   it("the six own SPARKFANG faces (turret slot 0, days 8/12/16, both decks) read short once they wrap (the 3x5 plan is 6 px short): with their CLOSE row they take P2's plan, giving away SPEED: LEVEL 2/4. only; POLISH-4 (P4-3) draws them without the row, SPEED drawn too", () => {
@@ -114,6 +116,7 @@ describe("POLISH-3b P1: where nothing was cut, an own face is drawn as before", 
       for (const f of OWN()) {
         const p = drawnOwn(f, name), old = oldOwn(f, name);
         if (JSON.stringify(p) === JSON.stringify(old)) continue;
+        if (f.kind === "route") { expect(hitRowsGone(p), `${name} ${f.tag}: POLISH-4 P4-4: a belt that moved gives away fewer hit rows`).toBeLessThan(hitRowsGone(old)); continue; }
         differ.push(f.tag);
         expect(titleCut(f.t, old), `${name} ${f.tag}: it was cut with a dot`).toBe(true);
         expect(titleCut(f.t, p) || subCut(f, p), `${name} ${f.tag}: and is not now`).toBe(false);
@@ -186,7 +189,7 @@ describe("POLISH-3b P1: REQ-BFG-089 and REQ-BFG-087 keep", () => {
     "desk-1920x1080": { A: 76, B: 162, was: { A: 72, B: 165 } },
     "laptop-1366x768": { A: 48, B: 83, was: { A: 48, B: 83 } },
     "desk-1280x800": { A: 57, B: 2, was: { A: 57, B: 2 } },
-    "land-844x390": { A: 105, B: 161, was: { A: 105, B: 161 } },
+    "land-844x390": { A: 106, B: 161, was: { A: 105, B: 161 } }, // POLISH-4 P4-4: +1, a belt that shows more hit rows in the 3x5 plan has a thinner gap
     "op-402x690": { A: 503, B: 644, was: { A: 503, B: 644 } },
     "phone-360x640": { A: 28, B: 0, was: { A: 28, B: 0 } },
   };
@@ -208,7 +211,7 @@ describe("POLISH-3b P1: REQ-BFG-089 and REQ-BFG-087 keep", () => {
         const now = !gapsAtLeast(p, p.gaps.min), before = !gapsAtLeast(old, old.gaps.min);
         if (now) under[f.corpus]++;
         if (before) was[f.corpus]++;
-        if (now && !before) expect(!!p.titleRows || p.subs.length > 1, `${name} ${f.tag}: newly under min and not wrapped`).toBe(true);
+        if (now && !before) expect(!!p.titleRows || p.subs.length > 1 || (f.kind === "route" && hitRowsGone(p) < hitRowsGone(old)), `${name} ${f.tag}: newly under min and not wrapped (or a belt that shows more hit rows: POLISH-4 P4-4)`).toBe(true);
       }
       expect({ A: under.A, B: under.B }, `${name}: under min now`).toEqual({ A: UNDER[name].A, B: UNDER[name].B });
       expect(was, `${name}: under min at polish3-accepted`).toEqual(UNDER[name].was);

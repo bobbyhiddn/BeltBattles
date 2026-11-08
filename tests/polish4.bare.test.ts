@@ -47,7 +47,7 @@ const TABLE: Record<View13, [number, number][]> = {
 
 describe("POLISH-4 P4-3: a face is bare only where its CLOSE row costs an ability line; every other face is the plan it was", () => {
   for (const name of VIEW13_NAMES) {
-    it(`${name}: bare / still short [own A, own B, foe A, foe B] = ${JSON.stringify(TABLE[name])}; a bare face gives away fewer ability blocks than the same face with its row, and every other face is JSON-equal to POLISH-3b's plan`, () => {
+    it(`${name}: bare / still short [own A, own B, foe A, foe B] = ${JSON.stringify(TABLE[name])}; a bare face gives away fewer ability blocks than the same face with its row, and every other face (a belt aside: tests/polish4.beltrows.test.ts) is JSON-equal to POLISH-3b's plan`, () => {
       const got: [number, number][] = [];
       for (const foe of [false, true]) for (const co of ["A", "B"] as const) {
         const { fa, tp } = viewAt(name, foe ? 1 : 0);
@@ -60,7 +60,7 @@ describe("POLISH-4 P4-3: a face is bare only where its CLOSE row costs an abilit
             expect(rulesWhole(ref), `${name} ${f.tag}: with its row the face was short of a rule line`).toBe(false);
             expect(abilityGone(f.t, plan), `${name} ${f.tag}: without the row it gives away fewer ability blocks`).toBeLessThan(abilityGone(f.t, ref));
             expect(plan.r.y + plan.r.h, `${name} ${f.tag}: inside the floor`).toBeLessThanOrEqual(fa.area.y + fa.area.h);
-          } else {
+          } else if (f.kind !== "route") {
             expect(JSON.stringify(plan), `${name} ${f.tag}: no row dropped, the plan is POLISH-3b's`).toBe(JSON.stringify(ref));
           }
           if (plan.column && !rulesWhole(plan)) short++;

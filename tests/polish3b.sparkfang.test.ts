@@ -4,7 +4,7 @@
 //   (counted against its full text: five ability blocks), and `IT TAKES BELTS ON COLUMNS` and `SPEED: LEVEL 2/4.` at 844x390. The 3x5 plan gives away `SPEED: LEVEL 2/4.` only.
 import { afterEach, describe, expect, it } from "vitest";
 import { installRaster } from "./raster.helpers";
-import { abilityGone, facePlan } from "../src/screens/battleScout";
+import { abilityGone, facePlan, hitRowsGone } from "../src/screens/battleScout";
 import { gapsAtLeast, planPanel, rulesWhole, visibleLines, type PanelPlan } from "../src/screens/build/inspector";
 import { ENCHANT, setEnchant, withEnchant } from "../src/sim/enchant";
 import { lineText } from "../src/ui/richText";
@@ -117,6 +117,7 @@ describe("POLISH-3b P2: the foe's faces that moved are those twelve; nothing els
       for (const f of faces(true).filter((x) => x.corpus === "A")) {
         const p = withEnchant(() => facePlan(f.t, fa, f.fam, tp)), old = withEnchant(() => oldFacePlan(f.t, fa, f.fam, tp));
         if (JSON.stringify(p) === JSON.stringify(old)) continue;
+        if (f.kind === "route") { expect(hitRowsGone(p), `${name} ${f.tag}: POLISH-4 P4-4: a belt that moved gives away fewer hit rows`).toBeLessThan(hitRowsGone(old)); continue; } // the belts: tests/polish4.beltrows.test.ts
         moved.push(`${name} ${f.tag}`);
         expect(abilityGone(f.t, p), `${name} ${f.tag}: fewer ability blocks given away`).toBeLessThan(abilityGone(f.t, old));
         // REQ-BFG-089: what the new plan draws that the old one did not is a piece's own ability lines: role `ability`, never a default-text block (a note flagged kind or rig, flavour, reminder, hint, caveat)
@@ -128,7 +129,7 @@ describe("POLISH-3b P2: the foe's faces that moved are those twelve; nothing els
   });
 
   it("REQ-BFG-087: the foe's faces with a gap under min (gaps.px < gaps.min) are the same count as at polish3-accepted on every view, but 844x390's (POLISH-4 P4-3: the six drawn without their CLOSE row have the room: 109 -> 103); the twelve are under min before (content first: SPACE-1 D3)", () => {
-    const UNDER: Record<ViewName, number> = { "desk-1920x1080": 57, "laptop-1366x768": 88, "desk-1280x800": 47, "land-844x390": 103, "op-402x690": 503, "phone-360x640": 28 };
+    const UNDER: Record<ViewName, number> = { "desk-1920x1080": 42, "laptop-1366x768": 88, "desk-1280x800": 47, "land-844x390": 104, "op-402x690": 503, "phone-360x640": 28 }; // POLISH-4 P4-4: 1920x1080 57 -> 42 (belts in the 3x5 plan), 844x390 103 -> 104
     for (const name of VIEW_NAMES) {
       const { fa, tp } = viewOf(name, 1);
       let under = 0;
