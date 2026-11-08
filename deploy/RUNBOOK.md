@@ -4799,7 +4799,7 @@ nothing under src/sim, src/net, src/game, src/core, server/, tools/, docs/ or de
 src/version.ts before the label); scripts-only commits (the first: scripts/rcruns.mjs's version check follows the label, the brief's ruling 8; any later tooling fix is named in O/STAGE-REPORT.md); the label
 commit 8916ac159bca (src/version.ts, package.json, package-lock.json, the label pins in tests/; the pages are built here) and the CHANGELOG commit
 4d20549fabb8 (docs/CHANGELOG.md only); and the release record, commit
-[[T12]] (tag r09151-T): deploy/GAME_BUILD.txt and this runbook. After r09151-rides only those files change (the label's three files, the label pins in
+6562173238bc (tag r09151-T): deploy/GAME_BUILD.txt and this runbook. After r09151-rides only those files change (the label's three files, the label pins in
 tests/, scripts/ tooling fixes, docs/CHANGELOG.md and deploy/). No pool or stand-in is regenerated (ledger A2 of O/LEDGER-09151.md, the STAGE's check ledger:
 no file of the stand-in generators' closure, 104 files, changed since 0.9.15; the six generated files are 0.9.15's bytes).
 - **The page** is BeltBattles-0.9.15.1-8916ac159bca-online.html, 1,176,557 bytes, sha256 `0e6b7aed33fc9297…` (GAME_BUILD.txt holds the
