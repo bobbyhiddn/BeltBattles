@@ -1801,7 +1801,8 @@ export function wrapAt(s: string, max: number, font: FontId = "3"): [string, str
 /**
  * POLISH-5 (REQ-BFG-087; P5-3): a turret's sub (`MASTER VOSS'S MEDIUM TURRET IN SLOT 1`) in the shortest wording that fits `max` px in the 3x5 face, for a band that has no row to break it onto (a second sub row would cost the face an ability or a
  * CORE / GEAR line: 19 of 24 faces in corpus A, 21 of 24 in B). The owner, the weight and the slot always stay: ` IN` goes first (`... TURRET SLOT 1`, the wording turretPanel's slotSub already uses for an empty slot), then ` TURRET IN`
- * for a comma (`OLD BULWARK'S ADAPTABLE, SLOT 2`; the widest of all 228 owner x weight x slot subs is 128 px). A sub that fits, or is not a turret's, is returned as it is. Pure (planOnce, tests).
+ * for a comma (`OLD BULWARK'S ADAPTABLE, SLOT 2`). Of the 228 owner x weight x slot subs 162 fit as they were, 48 take ` TURRET SLOT` and 18 the comma form (128 px is that form's widest); after this the widest of the 228 is 136 px of the
+ * band's 137 (POLISH-6 P6-5, REVIEW-POLISH5 N2: this comment said the widest of all 228 was 128 px, which is the comma form's alone; tests/polish5.bandsub.test.ts pins 136). A sub that fits, or is not a turret's, is returned as it is. Pure (planOnce, tests).
  */
 export function slotSubFit(s: string, max: number): string {
   if (textWidth(s, "3") <= max) return s;
