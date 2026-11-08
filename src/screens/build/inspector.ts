@@ -1779,12 +1779,16 @@ export function wrapAt(s: string, max: number, font: FontId = "3"): [string, str
 }
 
 /** ENCHANT-2W (REQ-BFG-085; W5): a sub line as one line, or as two where it is wider than `max` and has a " · " (broken after the last one, as planIn breaks a sub on the desk column) or a full stop.
- *  POLISH-3 (REQ-BFG-087; Q2 (a)): or, with neither, at a space (wrapAt: `HEAVY TURRET IN` / `SLOT 1`), so a foe's turret sub keeps its slot number where the column is 100 px wide. */
+ *  POLISH-3 (REQ-BFG-087; Q2 (a)): or, with neither, at a space (wrapAt: `HEAVY TURRET IN` / `SLOT 1`), so a foe's turret sub keeps its slot number where the column is 100 px wide.
+ *  POLISH-4 (REQ-BFG-087; P4-2, cap's ruling 2 on the scout's mode b): and where the split's second piece is wider than `max` too (a rig's `RIG · 1/1 ARROWS ON BELTS`, whose second piece is 72 px in the 96 px column's 69 px room),
+ *  it breaks again instead of being cut with a dot: the WHOLE sub at a space where that gives two rows that fit (`RIG · 1/1 ARROWS ON` / `BELTS`), else the two pieces with the second one's own break (three rows). */
 function breakSub(s: string, max: number): string[] {
   const cut = s.lastIndexOf(" · "), stop = s.lastIndexOf(". ");
   if (textWidth(s, "3") <= max) return [s];
   if (cut <= 0 && stop <= 0) return wrapAt(s, max) ?? [s];
-  return cut > 0 ? [s.slice(0, cut + 2), s.slice(cut + 3)] : [s.slice(0, stop + 1), s.slice(stop + 2)];
+  const two = cut > 0 ? [s.slice(0, cut + 2), s.slice(cut + 3)] : [s.slice(0, stop + 1), s.slice(stop + 2)];
+  if (textWidth(two[1], "3") <= max) return two;
+  return wrapAt(s, max) ?? [two[0], ...(wrapAt(two[1], max) ?? [two[1]])];
 }
 
 /** POLISH-2 (Q2): a panel's text without its `hold` blocks (the body and every variant; a variant that shared the body's blocks shares the new body, as withoutHint keeps them). */
@@ -1873,10 +1877,12 @@ function planOnce(sp: PanelText, area: Rect, families: readonly ModuleTag[], o: 
   // POLISH-3b (REQ-BFG-087; P1): a BATTLE face wraps (`o.wrap`: battleScout.ts facePlan passes it for every face; the foe's text, the one with `subOwner`, always did): your own turret's sub
   // (`HEAVY TURRET IN SLOT 1`, 83 px against the 100 px column's 73) breaks at a space as the foe's rest does (breakSub); a sub with a ` · ` or `. ` breaks there, as before.
   const wrap = o.wrap === true || !!sp.subOwner;
+  // POLISH-4 (REQ-BFG-087; P4-2): in a battle face (`wrap`) the split's second piece is broken too where it is wider than the column (breakSub: a rig's `RIG · 1/1 ARROWS ON BELTS` in the 96 px column, 3040x1710);
+  // every other panel keeps the split of old (the build screen's desk column cannot move).
   const subs = ownerLine !== null ? [ownerLine, ...breakSub(sp.sub.slice(ownerLine.length + 1), area.w - 27)]
+    : column && wrap && wideSub ? breakSub(sp.sub, area.w - 27)
     : column && (cut > 0 || stop > 0) && wideSub
       ? cut > 0 ? [sp.sub.slice(0, cut + 2), sp.sub.slice(cut + 3)] : [sp.sub.slice(0, stop + 1), sp.sub.slice(stop + 2)]
-      : column && wrap && wideSub ? breakSub(sp.sub, area.w - 27)
       : [sp.sub];
   // POLISH-3 (REQ-BFG-087; Q2 (a)): a foe's face never cuts its title with a dot where the column is 100 px wide (1920x1080: the star and the slot's number were lost on 92 titles): a title wider than
   // the column's text room in the 3x5 face too breaks at a space onto a second 3x5 row (`RISING RAMPART` / `CANNON ★`); the header takes that row's 6 px (`shift`) and the body starts under it.
