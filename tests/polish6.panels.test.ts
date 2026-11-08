@@ -1,7 +1,7 @@
 // POLISH-6 P6-3 (REQ-BFG-087, REQ-BFG-089; RULING-REVIEW-POLISH5 N6, REVIEW-POLISH5 F2): no test pinned that P5-2's rungs (inspector.ts planRung: the 3x5 plan and the 3x5 plan at the tight pitch, taken where they give away
 // fewer hit rows) reach the BELT panel only. This one does: every NON-BELT build-screen panel kind (cargo, rig, factory, turret, offer: tests/polish4.famcorpus.ts's 1,303 panels) is planned through planPanel as the build
 // screen calls it (no `wrap`, no `band`; tap = tapPx) at the four landscape views (1920x1080, 1366x768, 844x390@3, 1280x800), in the harness's column (framed().L.info, no ENCHANTER row) and with the ENCHANTER's row up
-// (58 px shorter: the same area by hand, y + 58, h - 58 at 1920x1080, 1366x768 and 844x390; 1280x800's column is the same with and without the row; P6-4 moves this to framed(.., true)), with the default options and with
+// (the live column: framed(.., true), P6-4; 58 px shorter at 1920x1080, 1366x768 and 844x390; 1280x800's column is the same with and without the row), with the default options and with
 // `fewer: false`: the two plans must be the same plan, panel for panel (0 of 9,121 differ at polish5-accepted). A positive control: the flag is live (some real belt panel of the rival builds does differ), so the test cannot
 // pass vacuously. Green at polish5-accepted by design (it pins what is true); RED against a planRung that lets any dropped block, not only a belt's hit rows, start the rungs (37 panels differ at 1366x768 with the row up;
 // kit/p6-patch-n6mut.py).
@@ -18,7 +18,6 @@ import { tapPx } from "../src/ui/tap";
 
 installRaster();
 const VIEWS: [string, number, number, number][] = [["desk-1920x1080", 1920, 1080, 1], ["laptop-1366x768", 1366, 768, 1], ["land-844x390", 844, 390, 3], ["desk-1280x800", 1280, 800, 1]];
-const ROW = 58; // the ENCHANTER's row: the column starts this much lower (enchantStrip.ts inRow, a landscape screen whose margin does not hold the cards); 1280x800's margin holds them: no change
 const kindOf = (id: string): string => (id.startsWith("cargo") ? "cargo" : id.startsWith("rig") ? "rig" : id.startsWith("placed") ? "factory" : id.startsWith("installed") ? "turret" : id.startsWith("offer") ? "offer" : "other");
 /** the whole plan, as data (rects, rows, face, gaps, family head, the drawn lines): what `planPanel` returned */
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
@@ -29,8 +28,8 @@ describe("POLISH-6 P6-3: P5-2's rungs reach the belt panel only: every other bui
     for (const col of ["harness", "enchanter"] as const) {
       if (col === "enchanter" && w === 1280) continue; // the same column as the harness's (128x324 with and without the row)
       it(`${name}, ${col === "harness" ? "the harness's column" : "the ENCHANTER's row up"}: ${CASES.length} panels (cargo, rig, factory, turret, offer) plan the same`, () => {
-        const f = framed(w, h, dpr, 0), tp = tapPx(f.view), d = col === "enchanter" ? ROW : 0;
-        const area = { ...f.L.info, y: f.L.info.y + d, h: f.L.info.h - d };
+        const f = framed(w, h, dpr, 0, 5, col === "enchanter"), tp = tapPx(f.view); // the ENCHANTER's column: the page's own (enchantStrip.ts wordLayout), not a hand-set 58 px
+        const area = f.L.info;
         const kinds: Record<string, number> = {};
         const differ: string[] = [];
         CASES.forEach((c, i) => {

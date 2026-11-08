@@ -83,7 +83,8 @@ describe("POLISH-3 Q3 (phone): a belt panel keeps every hit row after a press, w
 });
 
 // ---------------------------------------------------------------------------------------------------------- the desk (cap's ruling A)
-// 1920x1080 (the build screen's desk column, 126 x 194), 844x390 (128 x 216) and 1280x800 (128 x 324); with the ENCHANTER's row up above the panel the column is 126 x 136. The rows were given way in
+// 1920x1080 (the build screen's desk column, 126 x 194), 844x390 (128 x 216) and 1280x800 (128 x 324); with the ENCHANTER's row up above the panel the column is 126 x 136 (at 1920x1080; 128 x 158 at 844x390@3: POLISH-6 P6-4 reads
+// the live column from framed(.., true)). The rows were given way in
 // 25 of 75 plans at 1920x1080 (4 hits 5 of 10; 5 and 6 hits all), 15 at 844x390 (5 hits 5 of 10, 6 hits all), none at 1280x800; with the row up 47, 46 and 46 of 75 (2 hits 7 or 6 of 12; 3 hits and more all).
 // A column plan that gives hit rows away takes the 3x5 face (the band's own face) where that keeps every row (inspector.ts planRung, inside planIn); every other column panel keeps the 5x7 face.
 const DESKS: ViewSpec[] = [
@@ -91,7 +92,9 @@ const DESKS: ViewSpec[] = [
 ];
 /** The belts that give rows away in the 5x7 face (planPanel's `rung: false`) at 1920x1080, 844x390 and 1280x800, and with the ENCHANTER's row up (the brief's numbers: 25, 15, 0 and 47, 46, 46; 16 each now). */
 const WAS: Record<string, number> = { "desk 1920x1080": 25, "land 844x390 @3": 15, "desk 1280x800": 0 };
-const ROW_UP = 136; // the column's height with the ENCHANTER's row up above the panel (126 x 136)
+/** POLISH-6 (P6-4, R7): the belts that still give rows away in the ENCHANTER's column, the live one (framed(.., true), the page's own): 126 x 136 at 1920x1080 (the row up), 128 x 158 at 844x390@3 and 128 x 324 at 1280x800
+ *  (the margin holds the cards). It was ROW_UP = 136 for all three views, which is right at 1920x1080 only: the pins move 844x390@3 5 -> 0 and 1280x800 5 -> 0 (1920x1080 stays 5). */
+const STILL_UP: Record<string, number> = { "desk 1920x1080": 5, "land 844x390 @3": 0, "desk 1280x800": 0 };
 
 describe("POLISH-3 Q3 (desk; cap's ruling A): a column belt panel keeps its hit rows in the 3x5 face where that keeps every one", () => {
   for (const spec of DESKS) {
@@ -114,9 +117,9 @@ describe("POLISH-3 Q3 (desk; cap's ruling A): a column belt panel keeps its hit 
       expect(rung, `${spec.name}: belts that take the 3x5 face (the rows the 5x7 face gave way)`).toBe(WAS[spec.name]);
     });
 
-    it(`${spec.name} with the ENCHANTER's row up (${ROW_UP} px of column): only the belts whose plan gives rows away at the tight 3x5 pitch too (5 and 6 hits: 5 of 75; POLISH-5 P5-2's tight rung: it was 16 of 75) still do, and the note counts only those`, () => {
-      const f = framed(spec.w, spec.h, spec.dpr, spec.runes);
-      const area = { ...f.L.info, h: ROW_UP };
+    it(`${spec.name} with the ENCHANTER's wagon up (framed(.., true): the live column, 126 x 136 at 1920x1080, 128 x 158 at 844x390@3, 128 x 324 at 1280x800): only the belts whose plan gives rows away at the tight 3x5 pitch too (5 and 6 hits; POLISH-5 P5-2's tight rung: it was 16 of 75) still do, and the note counts only those`, () => {
+      const f = framed(spec.w, spec.h, spec.dpr, spec.runes, 5, true);
+      const area = f.L.info;
       let gave = 0;
       for (const b of corpus()) {
         const c = casesOf(b, spec, f)[0], opts = optsFor(f, 0, c.t, area);
@@ -129,7 +132,7 @@ describe("POLISH-3 Q3 (desk; cap's ruling A): a column belt panel keeps its hit 
         } else expect(noteOf(p), b.label).toBeNull();
         expect(gapsAtLeast(p, p.gaps.min), `${b.label}: gaps at least min`).toBe(true);
       }
-      expect(gave, `${spec.name}: belts still giving rows away`).toBe(5); // POLISH-5 (P5-2, cap's ruling (A)): the column's plan now takes the 3x5 face at the tight pitch where that gives away fewer rows (was 16)
+      expect(gave, `${spec.name}: belts still giving rows away`).toBe(STILL_UP[spec.name]); // POLISH-5 (P5-2, cap's ruling (A)): the column's plan now takes the 3x5 face at the tight pitch where that gives away fewer rows (was 16)
     });
   }
 
