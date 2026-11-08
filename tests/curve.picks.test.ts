@@ -16,7 +16,7 @@ import { encodeStarred } from "../src/sim/standInPool";
 import { isReachable } from "../src/net/records";
 import { CURVE, setCurve, withCurve } from "../src/net/curve";
 import {
-  CASUAL_TARGET, CURVE_PICKS_FILE_ENV, DEPTH_SLOTS, DEPTH_VARIANT, SOFT1_CURVE, SOFT1_WORLD, STREAK_FIRST_DAY, STREAK_RECORDS, STREAK_TARGET, STREAK_VARIANT,
+  CASUAL_TARGET, CURVE_PICKS_FILE_ENV, DEPTH_SLOTS, DEPTH_VARIANT, SOFT1_CURVE, SOFT1_WORLD, STREAK_FIRST_DAY, STREAK_LAST_DAY, STREAK_RECORDS, STREAK_TARGET, STREAK_VARIANT,
   baseSamplePool, curveGhosts, depthDeckByRule, depthSlot, depthSlots, drawnLabel, poolDepth, seedable, softDeckOf, softPickKey, streakDeckByRule, streakRecord, streakSlot,
   type SoftDeck,
 } from "../tools/samplePool";
@@ -84,6 +84,8 @@ describe("BUMP-1H CURVE: the pool's new slots (shape; no battles)", () => {
     });
     expect(typeof CASUAL_TARGET).toBe("number");
     expect(typeof STREAK_TARGET).toBe("number");
+    expect(STREAK_LAST_DAY).toBeGreaterThanOrEqual(STREAK_FIRST_DAY); // BUMP-1H run 2: the tier's days are STREAK_FIRST_DAY..STREAK_LAST_DAY (16 = to the pool's last day)
+    expect(STREAK_LAST_DAY).toBeLessThanOrEqual(LONG_RUN_GEN_DAYS);
     expect(SOFT1_CURVE).toBe(false); // BUMP-1H P1: SOFT1_PICKS is bb-0.14.0's (slot 1 par-graded); P4's step R2 re-reads it under CURVE and sets this true
     expect(SOFT1_WORLD).toBe("111111111111g");
   });
@@ -95,7 +97,7 @@ describe("BUMP-1H CURVE (opt-in): the streak and depth picks' rule", () => {
   it.skipIf(process.env.BB_CURVE_RULE !== "1")("the rule: streak picks (BB_CURVE_UNITS) and, with BB_CURVE_DEPTH=1, depth picks, written to BB_CURVE_OUT", () => {
     const out = process.env.BB_CURVE_OUT;
     if (!out) throw new Error("BB_CURVE_OUT names the rows file to write");
-    const units = (process.env.BB_CURVE_UNITS ?? PLAYABLE_HEROES.map((h) => `${h}:${STREAK_FIRST_DAY}-${LONG_RUN_GEN_DAYS}`).join(","))
+    const units = (process.env.BB_CURVE_UNITS ?? PLAYABLE_HEROES.map((h) => `${h}:${STREAK_FIRST_DAY}-${Math.min(LONG_RUN_GEN_DAYS, STREAK_LAST_DAY)}`).join(",")) // BUMP-1H run 2: STREAK_LAST_DAY ends the tier
       .split(",").filter(Boolean).map((u) => { const [h, r] = u.split(":"); const [a, b] = r.split("-").map(Number); return { hero: h as HeroId, from: a, to: b ?? a }; });
     const rows: Rows = existsSync(out) ? (JSON.parse(readFileSync(out, "utf8")) as Rows) : { world: SOFT1_WORLD, streak: {}, depth: {} };
     expect(rows.world).toBe(SOFT1_WORLD);

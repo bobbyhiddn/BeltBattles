@@ -888,7 +888,7 @@ export function baseSamplePool(o: { botRunes?: boolean } = {}): GhostSnapshot[] 
  * BUMP-1H (REQ-BFG-124, H1 (b) and (c); BRIEF-BUMP1H P1): with the CURVE switch on (src/net/curve.ts) the seed pool holds the 192 ghosts of
  * 4 heroes x 3 slots x 16 days it holds with the switch off (the switch changes WHICH deck slot 1 holds: softDecks above), and two kinds of
  * new ghost appended after them, so those 192 keep their records, createdAt and order:
- *  - THE STREAK TIER (STREAK_VARIANT): one ghost a hero a day on days STREAK_FIRST_DAY..poolDepth(): a par-field dusk deck of that hero and day
+ *  - THE STREAK TIER (STREAK_VARIANT): one ghost a hero a day on days STREAK_FIRST_DAY..min(poolDepth(), STREAK_LAST_DAY): a par-field dusk deck of that hero and day
  *    whose PAR grade (gradeOne, at the slot it holds) is nearest STREAK_TARGET, at the record streakRecord(day) names (the record par often
  *    holds there). A run `lead.at` or more wins ahead of its losses meets it through the lead pick (pick.ts matchPick, rulesGate.ts LEAD_RULES);
  *    D1 keeps every weaker record away from it. 4 x 15 = 60 ghosts.
@@ -909,6 +909,9 @@ export const CASUAL_TARGET = 500;
 export const STREAK_TARGET = 300;
 /** BUMP-1H: the streak tier's first day (a run needs a win in hand to be on a streak). */
 export const STREAK_FIRST_DAY = 2;
+/** BUMP-1H (run 2; RULING-BUMP1H-R2 R2.4's reads K and L): the streak tier's last day. 16 = the pool's last day (the tier runs to the end, as in run 1's reads A-J); a variant that
+ *  stops earlier sets it lower (c5's near-winners meet the late streak ghosts, par's weak runs too: the one place the two cannot be told apart by record). */
+export const STREAK_LAST_DAY = 16;
 /** BUMP-1H: seedGhost's variant number of a streak ghost and of a depth ghost (the sample ghosts hold 0 and 1, the floor ghost FLOOR_VARIANT, 2). */
 export const STREAK_VARIANT = 3;
 export const DEPTH_VARIANT = 4;
@@ -997,7 +1000,8 @@ export function streakRecord(day: number): readonly [number, number] {
 /** BUMP-1H: the pool's ghost count before the new slots (4 heroes x 3 slots x poolDepth()), and the new slots' indexes in generateSamplePool()'s order
  *  (the grade's battle seeds read the index): the streak ghosts hero by hero and day by day, then the depth ghosts in DEPTH_SLOTS' order. */
 const curveBase = (): number => (STAND_IN_HEROES.length + RACE_SEED_HEROES.length) * (SAMPLE_VARIANTS + 1) * poolDepth();
-const streakDays = (): number => Math.max(0, poolDepth() - STREAK_FIRST_DAY + 1);
+const streakLast = (): number => Math.min(poolDepth(), STREAK_LAST_DAY);
+const streakDays = (): number => Math.max(0, streakLast() - STREAK_FIRST_DAY + 1);
 export const streakSlot = (hero: HeroId, day: number): number => curveBase() + PLAYABLE_HEROES.indexOf(hero) * streakDays() + (day - STREAK_FIRST_DAY);
 export const depthSlot = (i: number): number => curveBase() + PLAYABLE_HEROES.length * streakDays() + i;
 
@@ -1070,10 +1074,9 @@ export function curveGhosts(first: number, o: { botRunes?: boolean } = {}): Ghos
   if (!curveDealt()) return [];
   const rows = curvePickRows();
   const out: GhostSnapshot[] = [];
-  const depth = poolDepth();
-  const seedOf = (deck: SoftDeck, hero: HeroId): number | undefined => (deck.seed !== undefined ? (parRunSeed(hero, deck.seed) >>> 0) || undefined : undefined);
+  const seedOf =(deck: SoftDeck, hero: HeroId): number | undefined => (deck.seed !== undefined ? (parRunSeed(hero, deck.seed) >>> 0) || undefined : undefined);
   for (const hero of streakDealt(rows) ? PLAYABLE_HEROES : []) {
-    for (let day = STREAK_FIRST_DAY; day <= depth; day++) {
+    for (let day = STREAK_FIRST_DAY; day <= streakLast(); day++) {
       const pick = rows?.streak[hero]?.[String(day)] ?? STREAK_PICKS[hero]?.[day - STREAK_FIRST_DAY];
       if (pick === undefined) throw new Error(`CURVE: no streak pick for ${hero} day ${day}. Re-run the rule: ${CURVE_REBUILD}`);
       const deck = softDeckOf(hero, day, pick, o.botRunes);
