@@ -29,6 +29,9 @@ const drawnKeys = (p: PanelPlan): Map<string, string> => {
 };
 
 /** Per view and column [own A, own B, foe A, foe B]: [faces drawn bare, faces still short of a CORE or GEAR rule line] (the scout's table, POLISH-4 SCOUT section 4, with this build's counts). */
+// BUMP-1H (RULING-BUMP1H-R6 R6.4, the merge with 0.9.15.1): four views move, in corpus A only; the cause is H2 (src/sim/npcWords.ts: the four Easy captains' day-5 words are BRACED now, were RISING / FIERY;
+// H3 does not move this file): 812x375@3 foe A bare 119 -> 111; 851x393@2.75 foe A [130, 42] -> [138, 34] (eight faces go from still short to bare); 915x412@2.625 own A 111 -> 103 and foe A 123 -> 115; 926x428@3 own A 64 -> 56.
+// With npcWords.ts alone put back to bump1h-base this file passes at 0.9.15.1's table (kit-1h/revert6m.sh: 16 of 16).
 const TABLE: Record<View13, [number, number][]> = {
   "desk-1920x1080": [[6, 0], [0, 0], [6, 0], [0, 0]],
   "laptop-1366x768": [[0, 0], [0, 0], [0, 0], [0, 0]],
@@ -37,10 +40,10 @@ const TABLE: Record<View13, [number, number][]> = {
   "op-402x690": [[0, 0], [0, 0], [0, 0], [0, 0]],
   "phone-360x640": [[0, 0], [0, 0], [0, 0], [0, 0]],
   "col96-3040x1710": [[6, 0], [0, 0], [16, 0], [0, 0]],
-  "land-812x375@3": [[30, 6], [0, 0], [119, 6], [0, 0]],
-  "pixel5-851x393@2.75": [[156, 16], [2, 0], [130, 42], [7, 0]],
-  "land-915x412@2.625": [[111, 16], [2, 0], [123, 16], [2, 0]],
-  "promax-926x428@3": [[64, 10], [0, 0], [119, 16], [0, 0]],
+  "land-812x375@3": [[30, 6], [0, 0], [111, 6], [0, 0]],
+  "pixel5-851x393@2.75": [[156, 16], [2, 0], [138, 34], [7, 0]],
+  "land-915x412@2.625": [[103, 16], [2, 0], [115, 16], [2, 0]],
+  "promax-926x428@3": [[56, 10], [0, 0], [119, 16], [0, 0]],
   "band-280x653": [[0, 0], [0, 0], [0, 0], [0, 0]],
   "band-300x640": [[0, 0], [0, 0], [0, 0], [0, 0]],
 };

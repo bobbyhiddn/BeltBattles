@@ -1,5 +1,5 @@
 // POLISH-4 (REQ-BFG-089, REQ-BFG-087): what the tests/polish4.*.test.ts files share (not a test file).
-//   The corpora and the plan readers are POLISH-3b's (tests/polish3b.helpers.ts): A = every rival build's faces (2,242), read as your own faces or, with `foe`, as the foe's; B = every shop piece that takes an
+//   The corpora and the plan readers are POLISH-3b's (tests/polish3b.helpers.ts): A = every rival build's faces (2,242; BUMP-1H (RULING-BUMP1H-R6 R6.4): 2,234 since H3's two dropped rigs), read as your own faces or, with `foe`, as the foe's; B = every shop piece that takes an
 //   enchant word x every star x plain and each word, on your own build (1,809; the foe's: read as SPARKFANG's).
 //   The views are the scout's thirteen (POLISH-4 SCOUT, kit/p4-snip-own.test.ts): POLISH-3's six + the 96 px column (3040x1710@1) + the four landscape phones whose fixed integer scale leaves the face 106-122 px
 //   (812x375@3, 851x393@2.75, 915x412@2.625, 926x428@3) + the two narrow bands (280x653@3, 300x640@3).

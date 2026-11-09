@@ -51,8 +51,10 @@ describe("POLISH-5 P5-3: slotSubFit, the ladder", () => {
 
 describe("POLISH-5 P5-3: the 280x653 band's foe faces", () => {
   const foe = faces(true);
-  it("corpus A (2,242) and B (1,809): 24 + 24 subs were cut with a dot, 0 are now; each shortened sub is drawn whole, in the owner's words", () => {
-    expect(foe.filter((f) => f.corpus === "A").length).toBe(2242);
+  it("corpus A (2,234) and B (1,809): 24 + 24 subs were cut with a dot, 0 are now; each shortened sub is drawn whole, in the owner's words", () => {
+    // BUMP-1H (RULING-BUMP1H-R6 R6.4, the merge with 0.9.15.1): was 2242 (POLISH-5's pin over 0.9.15's rival decks). BUMP-1H's H3 (src/sim/rivalBuilds.ts) drops MOTH QUEEN's good-luck HEATJACKET and SILKSHADE's good-luck COUNTERWEIGHT from their warlord road decks:
+    // one face fewer on each of days 5/8/12/16 in each of the two decks, 8 in all (tests/polish4.rigsub.test.ts). With rivalBuilds.ts put back to bump1h-base this file passes at 2242 (kit-1h/revert6m.sh: 9 of 9).
+    expect(foe.filter((f) => f.corpus === "A").length).toBe(2234);
     expect(foe.filter((f) => f.corpus === "B").length).toBe(1809);
     const got = { A: { fit: 0, cut: 0 }, B: { fit: 0, cut: 0 } };
     for (const f of foe) {

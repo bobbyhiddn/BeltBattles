@@ -34,7 +34,7 @@ const OWN = (): Face[] => faces(false);
 const B8 = ["B frostbite 3 growing", "B frostbite 3 echoing", "B dragchain 2 growing", "B dragchain 2 echoing", "B dragchain 3 rising", "B dragchain 3 growing", "B dragchain 3 echoing", "B dragchain 3 braced"];
 
 describe("POLISH-3b P1: at 1920x1080 no own face is cut with a dot", () => {
-  it("corpus A (2,242 faces) and B (1,809): every title whole (one row, or two 3x5 rows with the star on the second), every sub row within the room with the slot number on the last row; POLISH-4 P4-1: a two-row title keeps its family head (A 72 of 92, B 883 of 883)", () => {
+  it("corpus A (2,234 faces) and B (1,809): every title whole (one row, or two 3x5 rows with the star on the second), every sub row within the room with the slot number on the last row; POLISH-4 P4-1: a two-row title keeps its family head (A 72 of 92, B 883 of 883)", () => {
     const { fa } = viewOf("desk-1920x1080", 0);
     expect(fa.area.w, "the face column of the 1920x1080 desk").toBe(100);
     const n = { A: { faces: 0, wrapped: 0, turrets: 0, rows3: 0, heads: 0 }, B: { faces: 0, wrapped: 0, turrets: 0, rows3: 0, heads: 0 } };
@@ -68,7 +68,10 @@ describe("POLISH-3b P1: at 1920x1080 no own face is cut with a dot", () => {
       expect(p.r.y + p.r.h, `${f.tag}: the panel is inside the column`).toBeLessThanOrEqual(fa.area.y + fa.area.h);
     }
     // 92 and 883 titles (the ones cut with a dot at polish3-accepted), every turret's sub (280 and 312)
-    expect(n.A.faces).toBe(2242);
+    // BUMP-1H (RULING-BUMP1H-R6 R6.4, the merge with 0.9.15.1): was 2242 (POLISH-3b's pin over 0.9.15's rival decks). BUMP-1H's H3 (src/sim/rivalBuilds.ts) drops MOTH QUEEN's good-luck HEATJACKET and SILKSHADE's good-luck COUNTERWEIGHT
+    // from their warlord road decks: one face fewer on each of days 5/8/12/16 in each of the two decks, 8 in all (rigs that put arrows on belts: tests/polish4.rigsub.test.ts counts 1,456 of them, was 1,464). With rivalBuilds.ts put back
+    // to bump1h-base this file's A count is 2242 again (kit-1h/revert6m.sh, kit-1h/soft6x.sh).
+    expect(n.A.faces).toBe(2234);
     expect(n.B.faces).toBe(1809);
     expect(n.A.wrapped, "A: the 92 titles that were cut with a dot").toBe(92);
     expect(n.B.wrapped, "B: the 883 titles that were cut with a dot").toBe(883);
@@ -78,7 +81,7 @@ describe("POLISH-3b P1: at 1920x1080 no own face is cut with a dot", () => {
     expect(n.B.heads, "B: every two-row title carries its head").toBe(883);
   });
 
-  it("a face changes if and only if its old plan cut a title or a sub with a dot, or (POLISH-4 P4-4) it is a belt that gives away fewer hit rows in the 3x5 plan (every other own face is drawn exactly as polish3-accepted drew it); A 322 + 69 belts of 2,242 and B 1,078 of 1,809 change", () => {
+  it("a face changes if and only if its old plan cut a title or a sub with a dot, or (POLISH-4 P4-4) it is a belt that gives away fewer hit rows in the 3x5 plan (every other own face is drawn exactly as polish3-accepted drew it); A 322 + 68 belts of 2,234 and B 1,078 of 1,809 change", () => {
     const changed = { A: 0, B: 0 };
     for (const f of OWN()) {
       const p = drawnOwn(f, "desk-1920x1080"), old = oldOwn(f, "desk-1920x1080"); // POLISH-4 (P4-5): oldFacePlan plans with `sub1: false`: the reference stays polish3-accepted's plan (a battle face never has the sub1 head either: `wrap`)
@@ -87,7 +90,9 @@ describe("POLISH-3b P1: at 1920x1080 no own face is cut with a dot", () => {
       expect(differs, `${f.tag}: changes iff it was cut (old: title cut ${titleCut(f.t, old)}, sub cut ${subCut(f, old)}) or is a belt that gives fewer rows away`).toBe(wasCut || belt);
       if (differs) changed[f.corpus]++;
     }
-    expect(changed).toEqual({ A: 322 + 69, B: 1078 });
+    // BUMP-1H (RULING-BUMP1H-R6 R6.4, the merge with 0.9.15.1): was { A: 322 + 69, B: 1078 }: the 322 cut faces are the same; the belts that take the 3x5 plan are 68 now, not 69. H3 moves it (tests/polish4.beltrows.test.ts, desk-1920x1080 own
+    // [76,486,76,258,68], was [77,492,77,261,69]); H2 does not (kit-1h/soft6x.sh: with rivalBuilds.ts alone put back this assertion passes at 322 + 69, and with both files put back the whole file passes at 0.9.15.1's pins).
+    expect(changed).toEqual({ A: 322 + 68, B: 1078 });
   });
 
   it("the six own SPARKFANG faces (turret slot 0, days 8/12/16, both decks) read short once they wrap (the 3x5 plan is 6 px short): with their CLOSE row they take P2's plan, giving away SPEED: LEVEL 2/4. only; POLISH-4 (P4-3) draws them without the row, SPEED drawn too", () => {
@@ -185,12 +190,15 @@ describe("POLISH-3b P1: REQ-BFG-089 and REQ-BFG-087 keep", () => {
   // REQ-BFG-087: own faces with a gap under min (gaps.px < gaps.min) after, and at polish3-accepted (A: 72 -> 82 and B: 165 -> 132 at 1920x1080 with POLISH-3b; every other view unchanged).
   // POLISH-4 (P4-1): B 132 -> 162 at 1920x1080: a family head under a two-row title takes a gap slot, and the gap yields to the head (content first, SPACE-1 D3); the real builds (A) stay at 82.
   // POLISH-4 (P4-3): A 82 -> 76 at 1920x1080: the six SPARKFANG turrets drawn without their CLOSE row have the room for their gaps (6 fewer faces under min).
+  // BUMP-1H (RULING-BUMP1H-R6 R6.4, the merge with 0.9.15.1): A at 1280x800 57 -> 50 and at 402x690 503 -> 500, now and at polish3-accepted's rules alike (`was`; B does not move). 402x690: H3 (src/sim/rivalBuilds.ts: the eight faces
+  // it drops from the two warlord decks), 503 -> 500. 1280x800: H3 +1 (58 with H3 alone) and H2 -8 (src/sim/npcWords.ts: the four Easy captains' day-5 words are BRACED now; 49 with H2 alone): 50.
+  // With npcWords.ts and rivalBuilds.ts both put back to bump1h-base every row reads 0.9.15.1's (kit-1h/revert6m.sh, kit-1h/soft6x.sh).
   const UNDER: Record<ViewName, { A: number; B: number; was: { A: number; B: number } }> = {
     "desk-1920x1080": { A: 76, B: 162, was: { A: 72, B: 165 } },
     "laptop-1366x768": { A: 48, B: 83, was: { A: 48, B: 83 } },
-    "desk-1280x800": { A: 57, B: 2, was: { A: 57, B: 2 } },
+    "desk-1280x800": { A: 50, B: 2, was: { A: 50, B: 2 } }, // BUMP-1H: was 57 / 57
     "land-844x390": { A: 106, B: 161, was: { A: 105, B: 161 } }, // POLISH-4 P4-4: +1, a belt that shows more hit rows in the 3x5 plan has a thinner gap
-    "op-402x690": { A: 503, B: 644, was: { A: 503, B: 644 } },
+    "op-402x690": { A: 500, B: 644, was: { A: 500, B: 644 } }, // BUMP-1H: was 503 / 503
     // POLISH-6 (P6-1): COPIES prints 1.3, not 1.3333333333333333: the readout's grid rows are one line, not two. At 360x640 six belt faces (tags `A grimhold rivalBuild d12 route0` and d16, `A highspire rivalBuild d12 route2` and d16,
     // `A nettle standInBuild d12 route1` and d16) then fit the 5x7 plan with a 1 px gap (min 3) where they were 3x5 with room, and two (`A nettle rivalBuild d12 route1` and d16) leave the list: 28 -> 32, at polish3-accepted's rules too (`was`).
     "phone-360x640": { A: 32, B: 0, was: { A: 32, B: 0 } },

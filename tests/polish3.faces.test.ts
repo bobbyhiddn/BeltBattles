@@ -1,5 +1,5 @@
 // POLISH-3 (REQ-BFG-089, REQ-BFG-087; BRIEF-POLISH3 Q2; the pieces lane's display list, item 5): A FOE'S FACE ON A LANDSCAPE VIEW SHOWS ITS TITLE, ITS SUB AND EVERY OWN-ABILITY LINE.
-//   Measured over every rival face (rivals x days 5/8/12/16 x the warlord deck and the dusk stand-in x every part: 2,242 faces, 280 of them turrets):
+//   Measured over every rival face (rivals x days 5/8/12/16 x the warlord deck and the dusk stand-in x every part: 2,242 faces, 280 of them turrets; BUMP-1H (RULING-BUMP1H-R6 R6.4): 2,234 faces since H3's two dropped rigs, still 280 turrets):
 //   (a) the header. At 1920x1080 the battle view is 384x216 game px (x5) and the face column is 100 px, so the sub's room is 73 px. 92 titles (`RISING RAMPART CAN.`) and every turret sub
 //       (`HEAVY TURRET IN SL.`: the slot number lost) were cut with a dot. Now a title wider than the room in the 3x5 face breaks at a space onto a second 3x5 row (`RISING RAMPART` / `CANNON ★`:
 //       PanelPlan.titleRows, drawn by fitTitleRows) and a sub with no ` · ` or `. ` breaks at a space (`HEAVY TURRET IN` / `SLOT 1`: breakSub, wrapAt); the header grows by those rows (`shift`) and
@@ -124,7 +124,10 @@ describe("POLISH-3 Q2 (a): at 1920x1080 no face's title or sub is cut with a dot
       }
       if (f.p.subs.length > 2) rows3++;
     }
-    expect(faces.length).toBe(2242);
+    // BUMP-1H (RULING-BUMP1H-R6 R6.4, the merge with 0.9.15.1): was 2242 (POLISH-3's pin over 0.9.15's rival decks). BUMP-1H's H3 (src/sim/rivalBuilds.ts) drops MOTH QUEEN's good-luck HEATJACKET and SILKSHADE's good-luck COUNTERWEIGHT
+    // from their warlord road decks: one face fewer on each of days 5/8/12/16 in each of the two decks, 8 in all (rigs that put arrows on belts: tests/polish4.rigsub.test.ts counts 1,456 of them, was 1,464); the corpus is the rival builds,
+    // so the count moves with them. With rivalBuilds.ts put back to bump1h-base this file passes at 2242 (kit-1h/revert6m.sh).
+    expect(faces.length).toBe(2234);
     expect(turrets).toBe(280);
     expect(wrapped, "the 92 titles that were cut with a dot are wrapped now").toBe(92);
     expect(rows3).toBeGreaterThan(1400);
