@@ -65,7 +65,7 @@ function expected(rules: string, deck: keyof typeof DECKS): { status: number; er
   // the hero gate's threshold: FOUNDRY travels from bb-0.8.0 on (rulesGate.ts HEROES_RULES), under BELTS's rules too
   if (deck === "foundry" && !rulesAtLeast(rules, "bb-0.8.0")) return { status: 400, error: /^snapshot\.hero: rules .* accept only FURNACE, WEAVER, not FOUNDRY$/ };
   // BUMP-1D: the server names this build's rules, bb-0.11.0 (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
-  return { status: 422, error: new RegExp(`^rules ${rules.replace(/[.]/g, "\\.")} not accepted: this server validates bb-0\\.14\\.0$`) }; // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0\\.13\\.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the server names bb-0.13.0 (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0).
+  return { status: 422, error: new RegExp(`^rules ${rules.replace(/[.]/g, "\\.")} not accepted: this server validates bb-0\\.15\\.0$`) }; // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the server's message): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0\\.13\\.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the server names bb-0.13.0 (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0).
 }
 
 /** FLIP-X2: the pool decks now hold their day's runes (v3, with a run seed), and rules before bb-0.8.7 (or unreadable)

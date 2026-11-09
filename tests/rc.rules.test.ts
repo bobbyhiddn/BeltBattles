@@ -133,7 +133,7 @@ function as070(identity: Identity, sent: GhostSnapshot[] = []): OnlineDeps {
 
 describe("rules bb-0.8.7: the version", () => {
   it("RULES_VERSION is bb-0.8.7 (RUNES-1), at or after bb-0.8.0, the first rules that carry the four playable heroes (HEROES_RULES); bb-0.6.2 carries FURNACE and WEAVER", () => {
-    expect(RULES_VERSION).toBe("bb-0.14.0") /* BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.15.0") /* BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     // the RC's bump made RULES_VERSION HEROES_RULES itself; BELTS's comes after it, and the table needs no new row
     expect(HEROES_RULES).toBe("bb-0.8.0");
     expect(rulesAtLeast(RULES_VERSION, HEROES_RULES)).toBe(true);
@@ -168,10 +168,10 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
   const ask = (rules: string, day = 3) => fetch(`${base}/v1/ghosts/match?rules=${rules}&day=${day}&wins=1&lives=5&player=rc-new&seen=&runs=0`);
 
   it("/v1/health names bb-0.8.7, and the match route serves bb-0.8.7 seed ghosts and no bb-0.6.2 ghost", async () => {
-    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.14.0") /* BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the served rules): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.15.0") /* BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the served rules): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     const now = await ask(RULES_VERSION);
     expect(now.status).toBe(200);
-    expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe("bb-0.14.0") /* BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the served rules): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(((await now.json()) as { snapshot: GhostSnapshot }).snapshot.rules).toBe("bb-0.15.0") /* BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the served rules): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     const old = await ask(OLD_RULES);
     expect(old.status).toBe(404);
     await old.text();
@@ -196,7 +196,7 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
       const old = await post(snapOf(hero, day, OLD_RULES, ref));
       if (hero === "furnace" || hero === "weaver") {
         expect(old.status, `${hero} d${day} ${OLD_RULES}`).toBe(422);
-        expect(old.body.error).toBe(`rules ${OLD_RULES} not accepted: this server validates bb-0.14.0`); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the server's rules message): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the server names bb-0.13.0 (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the server names bb-0.11.0 (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
+        expect(old.body.error).toBe(`rules ${OLD_RULES} not accepted: this server validates bb-0.15.0`); // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the server's message): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the server's rules message): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the server names bb-0.13.0 (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the server names bb-0.11.0 (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
       } else {
         expect(old.status, `${hero} d${day} ${OLD_RULES}`).toBe(400);
         expect(old.body.error).toBe(`snapshot.hero: rules ${OLD_RULES} accept only FURNACE, WEAVER, not ${hero.toUpperCase()}`);
@@ -237,7 +237,7 @@ describe.each(storeBackends())("the rules gate on the $name store (uploads open 
         expect(honest(deck, day, rules), `${hero} ${rules}: honest under its own rules`).toBe(true); // only the rules string is off. BUMP-1E: was validateUpload(deck, day, rules).ok (honest: the scaling switch outermost for the rules before bb-0.12.0, so ITEMS keeps its order)
         const r = await post({ ...snapOf(hero, day, rules, deck), v: SNAPSHOT_V3 });
         expect(r.status, `${hero} d${day} ${rules}`).toBe(422);
-        expect(r.body.error).toBe(`rules ${rules} not accepted: this server validates bb-0.14.0`); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the server's rules message): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1
+        expect(r.body.error).toBe(`rules ${rules} not accepted: this server validates bb-0.15.0`); // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the server's message): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the server's rules message): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1
       }
       expect(await app.store.bucket(rules, day)).toEqual([]);
     }

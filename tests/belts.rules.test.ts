@@ -59,7 +59,7 @@ const DAYS = [1, 5, 9];
 const NEAR = [OLD_RULES, "bb-0.8.2", "bb-0.8.4", "bb-0.8.3x", "BB-0.8.3", " bb-0.8.3", "bb-0.8.3 ", "bb-0.8.03", "bb-0.8.30", "bb-0.8.3.0", "bb-0.8", "bb_0.8.3"];
 const PATTERN_OK = (r: string) => /^[A-Za-z0-9._-]{1,32}$/.test(r); // src/net/snapshot.ts RULES_PATTERN
 // FLIP-X2: the one bump (was bb-0.8.7; the tests that read it were skipped while the seed pool failed its checks)
-const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.14.0`; // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the server's rules message): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
+const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.15.0`; // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the server's message): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the server's rules message): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
 const slotError = (name: string, routes: number, outs: number) => `route: ${name} uid 1 feeds ${routes} routes but has ${outs} output(s)`;
 
 /** A dusk snapshot on a record a run carries into it: every fight won, all 5 lives. FLIP-X2: under this build's rules the
