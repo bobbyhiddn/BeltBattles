@@ -150,14 +150,18 @@ describe("POLISH-2 R1: every plan of the corpus keeps its faces and its lines, a
 });
 
 /** The scouted foes' counts at this tip: [panels, with the line, in the panel, behind the ?] per view. */
+// BUMP-1H (P6; H2 and H3, REQ-BFG-124 lines 5 and 7): was [632, 428, 156, 272] / [632, 428, 152, 276] / [632, 428, 406, 22] / [632, 428, 416, 12] / [632, 428, 326, 102] / [632, 428, 344, 84] / [632, 428, 334, 94] (BUMP-1G's, the views in this order).
+// The 36 panels fewer with the line are H2's: the four Easy captains' day-5 words are BRACED now (src/sim/npcWords.ts: NETTLE loom, GRUBNOSE doublestamp, RATCHET scrapcannon, BRASSWICK temper; were RISING, FIERY, RISING, FIERY) and a BRACED part says no line.
+// Measured with kit-1h/revert3.sh (an export with the named src files put back to bump1h-base): both npcWords.ts and rivalBuilds.ts put back: this whole file passes at BUMP-1G's pins (428 on every view, 9 of 9); npcWords.ts alone put back: 428 again, and the
+// in-the-panel / behind-the-? split differs from BUMP-1G's (H3's two trimmed warlord decks move it); rivalBuilds.ts alone put back: 392 (H3 moves the split, not the count of lines).
 const SCOUT_PIN: Record<string, [number, number, number, number]> = {
-  "phone-390x844": [632, 428, 156, 272],
-  "op-402x690": [632, 428, 152, 276],
-  "phone-360x640": [632, 428, 406, 22],
-  "phone-320x568": [632, 428, 416, 12],
-  "land-844x390": [632, 428, 326, 102],
-  "desk-1920x1080": [632, 428, 344, 84],
-  "desk-1280x800": [632, 428, 334, 94],
+  "phone-390x844": [632, 392, 136, 256],
+  "op-402x690": [632, 392, 120, 272],
+  "phone-360x640": [632, 392, 370, 22],
+  "phone-320x568": [632, 392, 380, 12],
+  "land-844x390": [632, 392, 292, 100],
+  "desk-1920x1080": [632, 392, 318, 74],
+  "desk-1280x800": [632, 392, 296, 96],
 };
 
 describe("POLISH-2 R1: the scouted foes' belts (battleScout.ts faceText + the face area): 632 panels a view, seven views", () => {
@@ -201,7 +205,7 @@ describe("POLISH-2 R1: the scouted foes' belts (battleScout.ts faceText + the fa
       console.log(`POLISH-2 R1 scouted foes, per view [panels, with the line, in the panel, behind the ?]: ${JSON.stringify(got)}`);
       for (const [name, g] of Object.entries(got)) {
         expect(g[0], `${name}: 632 panels a view`).toBe(632);
-        expect(g[1], `${name}: panels with the line`).toBe(428);
+        expect(g[1], `${name}: panels with the line`).toBe(392); // BUMP-1H: was 428 (H2: the four Easy captains' day-5 words are BRACED, which says no line; see SCOUT_PIN)
       }
       expect(got).toEqual(SCOUT_PIN);
     });

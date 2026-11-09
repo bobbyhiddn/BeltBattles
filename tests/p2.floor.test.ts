@@ -34,6 +34,7 @@ import { withPlainRigs } from "../src/sim/plainRigs";
 import { withShapes2 } from "../src/sim/shapes2";
 import { withGuard } from "../src/sim/guard";
 import { withPick } from "../src/net/pick";
+import { withCurve } from "../src/net/curve"; // BUMP-1H (P6): the 10-day pool below is the world before the curve (CURVE ships on)
 import { withOpenRunes } from "../src/sim/openRunes";
 import { withFreeJoins } from "../src/sim/freeJoins";
 import { withGates } from "../src/sim/gates"; // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2)): the rolled-back worlds below have neither GATES nor ENCHANT (both bb-0.13.0)
@@ -104,7 +105,9 @@ const POOL_OFF_SHA256_BB0110 = "3a5f3e16491c3e79079b7e71e59883c3747a595e0341bd40
 // BUMP-1G: was 848b6f35... (BUMP-1F's) (the shipped world's NPC_DAY-off pool moved: EFFECT_FLOOR on, and B1 (the par bot's redraw keeps a rig's word, shopper.ts placeRig); the bb-0.11.0 world proof below still holds). Measured in a throwaway export of this tree:
 // with bump1g-base's shopper.ts, player.ts, lastChance.ts, npcWords.ts, rivalBuilds.ts and luckCapsData.ts put back and the floor off, this test's world reads BUMP-1F's pin exactly (the rules string put back to bb-0.13.0); adding the floor moves it, adding B1 moves it
 // again, and adding B2, G2's RATCHET and GRIMHOLD steps and the new luck caps (the tip) moves it no further: these 96 decks are the floor's and B1's alone [POOL_OFF_SHA256]
-const POOL_OFF_SHA256 = "e365dae30575be9c02f77fdb551c0dcff287f3f9cef34d11ee5337ac9f627846"; // BUMP-1E: was 3a5f3e16491c3e79079b7e71e59883c3747a595e0341bd40642b710125ec40e6 (the bb-0.11.0 world)
+// BUMP-1H (P6; the bump to bb-0.15.0): was e365dae3... (BUMP-1G's) (every ghost of raceGhosts() says bb-0.15.0 now, so the digest moved with the rules string ALONE). PROOF: in a throwaway export with this test's own world, the digest of the JSON with each "rules":"bb-0.15.0" put back
+// to "bb-0.14.0" is BUMP-1G's pin exactly (a scratch copy of this test, kit-1h/mk-p2floor-dump.py: DIGEST BACK true); the 96 race decks are the floor's and B1's alone, as BUMP-1G measured [POOL_OFF_SHA256]
+const POOL_OFF_SHA256 = "b5b50cf210db6a3f3f0ae82d64a927eb588dbcf1ee75bfec50afef5f68a69fd2"; // BUMP-1H: was e365dae3... BUMP-1E: was 3a5f3e16491c3e79079b7e71e59883c3747a595e0341bd40642b710125ec40e6 (the bb-0.11.0 world)
 /** BUMP-1D: `fn` in the bb-0.10.0 world: the 10-day run, without PLAIN_RIGS and SHAPES2 (each put back after it, even on a throw). */
 // Turning PLAIN_RIGS and SHAPES2 off and on again re-inserts their twelve pieces at the end of ITEMS (plainRigs.ts setPlainRigs, shapes2.ts setShapes2), in the
 // other order when SHAPES2 comes back first, and the shop's picks walk the catalogue in key order: a pool built after the toggle differs from one built before it
@@ -131,7 +134,9 @@ const offPools: { ten?: GhostSnapshot[]; long?: GhostSnapshot[] } = {};
  *  checkPool's count; samplePool.ts adds the grade last, after the labels and the coverage check, and the floor ghosts are
  *  v3 either way). So it no longer pays two full gradings (one per NPC_DAY world; the per-process memo keys the world).
  *  Proved once: the test passes with this wrapper and without it (output-hullon/logs/r4-p2*; run 2's qrun last-p2.floor) */
-const ungradedPool = (): GhostSnapshot[] => withPick(() => generateSamplePool(), false);
+// BUMP-1H (P6): ungradedPool is read only in the 10-day world (the bb-0.10.0 test below, withLongRun(fn, false)), which has no curve: with CURVE on (it ships on) generateSamplePool() would append the streak and depth ghosts of the 16-day world to a 10-day pool and curveGhosts
+// throws "CURVE: stale: the streak pick f5:f1c7d67e for foundry day 7 is one of the hero's variant 0 or 1 decks". So the switch goes off for the build, synchronously (withCurve(fn, false)); was: withPick(() => generateSamplePool(), false)
+const ungradedPool = (): GhostSnapshot[] => withCurve(() => withPick(() => generateSamplePool(), false), false);
 /** S8 (RULING-S8-R6 item 4; the cause: the pools, as POOL_OFF_SHA256's comment says): the off labels' world is as before (the
  *  shipped world with NPC_DAY, HULL_SCALE and LADDER_FIX off, SHAPES on, PICK off), but its pool is the NPC_DAY-off half
  *  alone: raceGhosts() (the race heroes' 60), the stand-in pool left out (was ungradedPool(), the whole seed pool, which
