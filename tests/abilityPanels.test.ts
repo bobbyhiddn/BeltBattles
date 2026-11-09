@@ -356,7 +356,15 @@ describe("0.6.2t T6: every inspect panel fits the phone band, the flavour whole 
       if (r.flavour === "whole") counts.flavourWhole++;
       else counts.flavourAbsent++;
     }
-    expect(small, small.join("; ")).toEqual([]); // the desk column's ability text never drops to the 3x5 face
+    // POLISH-3 (REQ-BFG-089; Q3, cap's ruling A): the desk column's ability text never drops to the 3x5 face, except for a BELT whose hit rows the 5x7 face would give way (`+N MORE HIT TILES`) and
+    // whose 3x5 face keeps every one of them (inspector.ts planRung: the rows are the belt's own text). Every other panel keeps the 5x7 face. The belts that take the 3x5 face here, listed: the busy
+    // join belt (a hit on every tile). Each keeps every hit row (nothing of its timeline is given way) and has two or more.
+    expect(small, small.join("; ")).toEqual(["belt busy route1"]);
+    for (const id of small) {
+      const t = PANELS.find((p) => p.id === id)!.t, p = planPanel(t, DESK);
+      expect(p.body.dropped.some((b) => b.trim && !b.join), `${id}: every hit row kept`).toBe(false);
+      expect(t.body.filter((b) => b.trim && !b.join).length, `${id}: its timeline`).toBeGreaterThanOrEqual(2);
+    }
     console.log(`desk fit: ${JSON.stringify(counts)}`);
   });
 
@@ -1019,7 +1027,9 @@ describe("0.6.2t2 F4: the desk column shows the action hint whenever it fits who
     // rig's title now carries its star at ★1 (a space and a star wider), so on this 161 px band the buttons of 15 placed rigs no longer fit beside it and drop under the sub line (portraitButtons, the 0.6.1r
     // F7 rule, unchanged); the body loses that row and the optional hint gives way first, as ever (spare0 and spare1 each): WHETSTONE idle; LONG HAUL 2hit, idle; SPLITTER 2hit, 3hit, idle;
     // TOLLBOOTH 1hit, idle; KINDLING (quench) 2hit, idle; LODESTONE 2hit, idle; SPARK GAP idle; ROT GAUGE 2hit, idle. No panel gains the hint; the kept blocks stay whole (the sweeps above pass)
-    expect(hints).toBe(1337); // POLISH-1: was 1367; BUMP-1F: was 1342; BUMP-1E: was 1229
+    // POLISH-3 (REQ-BFG-089; Q5, cap's ruling D): the NARROW step (inspector.ts portraitButtons: on a band under 176 px a lone trailing star does not move the buttons; this band is 161 px): 1337 -> 1367, the
+    // pre-POLISH-1 count: the 30 panels the star had taken the hint from (15 placed rigs, spare0 and spare1) keep it, the buttons stay in the top row and the title steps down to the 3x5 face where the star would reach them
+    expect(hints).toBe(1367); // POLISH-3: was 1337; POLISH-1: was 1367; BUMP-1F: was 1342; BUMP-1E: was 1229
   });
 });
 

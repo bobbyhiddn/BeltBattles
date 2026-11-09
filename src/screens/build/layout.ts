@@ -69,7 +69,7 @@ export interface BuildLayout {
   cam: CarrierCam;
   /** ENCHANT-1 (REQ-BFG-085, E5a): the ENCHANTER's wagon's cards and their tap targets (enchantStrip.ts wagonPlace), put in by
    *  BuildScreen.layoutAt on a day with the wagon and the switch on. Absent otherwise: buildLayout itself never sets it. */
-  wagon?: { rects: Rect[]; hits: Rect[]; tag: { x: number; y: number } | null; shift: number };
+  wagon?: { rects: Rect[]; hits: Rect[]; tag: { x: number; y: number } | null; shift: number; lift?: number }; // POLISH-6 (P6-6): `lift`, the most a card in the right column's gap may lift (enchantStrip.ts WagonPlace)
 }
 
 /**

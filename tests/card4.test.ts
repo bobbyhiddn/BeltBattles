@@ -553,8 +553,9 @@ describe("CARD-4 (k, d, s): first-sight notes beside the strip; no box over a he
         expect(overlaps(s, d.plan.r), `${name} ${p.id}: over the panel`).toBe(false);
         // the strip takes no press (CARD-3 C): nothing is registered over it. PRESENT-2 L (cap's ruling 0d0ef2465804aafb): except the note that hangs over where the strip would be
         // (a panel at the growth limit): the strip is not drawn while it shows, so it takes no press either
+        // PRESENT-4 T (F10), old -> new: and the rig sentence's box (`kwsight`) where it takes the strip's place (keywords.ts rigPlace (2)): the strip is not drawn while it shows
         const ui = pc.draw();
-        expect(ui.regions.filter((q) => overlaps(q.r, s) && q.id !== "details-over" && !(q.id === "kwdef" && !pc.stripDrawn(s))).map((q) => q.id), `${name} ${p.id}`).toEqual([]);
+        expect(ui.regions.filter((q) => overlaps(q.r, s) && q.id !== "details-over" && !((q.id === "kwdef" || q.id === "kwsight") && !pc.stripDrawn(s))).map((q) => q.id), `${name} ${p.id}`).toEqual([]);
         where.set(name, (where.get(name) ?? 0) + 1);
       }
     }
@@ -668,12 +669,18 @@ describe("CARD-4 (k, d, s): first-sight notes beside the strip; no box over a he
         seen.set(name, (seen.get(name) ?? 0) + 1);
         expect(sight.length + ui.regions.filter((q) => q.id === "kwdef").length, `${name} ${p.id}: one box`).toBe(1);
         const b = sight[0].r, strip = d.hint ? hintStrip(d.hint, d.plan.r, f.H).r : null;
-        const bad = [...shopRects(f).filter((q) => overlaps(b, q.r)).map((q) => q.what), ...(overlaps(b, d.plan.r) ? ["the panel"] : []), ...(strip && overlaps(b, strip) ? ["the strip"] : []),
+        // PRESENT-4 T (F10; cap's call), old -> new: the box may now sit INSIDE the panel's body (whole, under its last row: tests/present4.rigplace.test.ts holds the rows and the counts) or in the strip's place with the strip
+        // not drawn (keywords.ts rigPlace); it is over the panel or the strip only then. Everything else (a shop card, REROLL, a pack, FIGHT, CARGO, the screen) is as it was
+        const r = d.plan.r, inside = b.x >= r.x && b.x + b.w <= r.x + r.w && b.y >= r.y && b.y + b.h <= r.y + r.h;
+        const bad = [...shopRects(f).filter((q) => overlaps(b, q.r)).map((q) => q.what), ...(overlaps(b, r) && !inside ? ["the panel"] : []), ...(strip && overlaps(b, strip) && pc.stripDrawn(strip) ? ["the strip"] : []),
           ...(b.y < 0 || b.y + b.h > f.H ? ["off the screen"] : []), ...(overlaps(b, f.L.fight) ? ["FIGHT"] : []), ...(overlaps(b, f.L.cargo) ? ["CARGO"] : [])];
         const line = `${name} ${p.id}: box ${JSON.stringify(b)}${bad.length ? ` over ${bad.join(", ")}` : ""}`;
         if (ZOOMED.some(([n]) => n === name)) {
           if (bad.length) cant.push(line);
-          expect(b.y, `${name} ${p.id}: under the panel and its strip`).toBeGreaterThanOrEqual(Math.max(d.plan.r.y + d.plan.r.h, strip ? strip.y + strip.h : 0));
+          const place = (keywordState(pc.ctx) as unknown as { rigAt: { place: string } }).rigAt.place;
+          if (place === "inside") expect(inside, `${name} ${p.id}: inside the panel`).toBe(true);
+          else if (place === "strip") expect(b.y, `${name} ${p.id}: in the strip's place`).toBe(strip ? strip.y : r.y + r.h);
+          else expect(b.y, `${name} ${p.id}: under the panel and its strip`).toBeGreaterThanOrEqual(Math.max(r.y + r.h, strip ? strip.y + strip.h : 0));
         } else if (bad.length) other.push(line);
         keywordsIdle(pc.ctx);
       }

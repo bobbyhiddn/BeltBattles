@@ -455,7 +455,7 @@ describe("SHOPCARD-1 (REQ-BFG-115, F5): the desk's hover tooltip carries the who
 
 // ------------------------------------------------------------------------------------------------------ G4: every other card
 import { itemSlot } from "../src/ui/ui";
-import { hasGrid, shapeGrid } from "../src/ui/shapePic";
+import { hasGrid, markCell, shapeGrid, shapeMarkSize } from "../src/ui/shapePic"; // PRESENT-4 G: markCell, shapeMarkSize (the drop row's mark)
 import { lcPartPlate, lcPartSub } from "../src/screens/lastChancePicker";
 import { drawChoiceCard } from "../src/screens/event/cards";
 import { drawDropCard, drawDropIcons } from "../src/screens/fork/drops";
@@ -566,10 +566,13 @@ describe("SHOPCARD-1 (REQ-BFG-113, G4): a shaped piece's grid on every surface t
       const t = { name: ITEMS[id].name, sub: "DROP · TO CARGO · ★1" }, pw = sz.w + 2, px = 3 + 110 - 4 - pw;
       const roomy = 3 + 23 + Math.max(textWidth(t.name), textWidth(t.sub, "3")) + 4 <= px;
       expect(n.at(px, 3 + 1) === C.ink, `${id}: a 110 px card draws the plate only where the words leave room`).toBe(roomy);
-      // the icons' row: the grid over the first box's corner
+      // the icons' row: the footprint on the first box
       const row = fresh(60, 30);
       drawDropIcons(G(row), { chance: 0.5, lines: [{ def: id, cls: "rare", odds: 0.1 }] }, 3, 3, 50);
-      for (const t of gridGeom(gridSpecOf(id), iconCell(id)).tiles) expect(row.at(3 + t.x + 1, 3 + t.y + 1), `${id}: drop icon tile`).toBe(fillOf(id)); // PRESENT-1 S1 (d): the icon cell
+      // PRESENT-4 G (F9; REQ-BFG-113), old -> new: was G1's grid at iconCell over the box's top-left corner (every tile at 3 + t.x + 1, 3 + t.y + 1: PRESENT-1 S1 (d)), which hid the icon of a 2x2 part whole; now the small cells-only MARK
+      // (shapePic.ts shapeMark, 7 x 7 px at most) in the box's bottom-right corner: each tile's last row is the kind's fill (a 1 px tile is the highlight). tests/present4.dropgrid.test.ts holds the icon counts.
+      const mz = shapeMarkSize(id), hi = ITEMS[id].kind === "gate" ? C.wood3 : C.steel3;
+      for (const t of gridGeom({ ...gridSpecOf(id), arrows: [] }, markCell(id)).tiles) expect(row.at(3 + 14 - mz.w + t.x, 3 + 14 - mz.h + t.y + t.h - 1), `${id}: drop icon tile`).toBe(t.h > 1 ? fillOf(id) : hi);
     }
   });
 

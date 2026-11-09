@@ -27,10 +27,11 @@ import { beltIcon, itemIcon } from "../render/sprites";
 import { skinOf, type PanelId } from "../render/styles";
 import { button, panel, statsPanel, tapRect, type Rect } from "../ui/ui";
 import { tapPx } from "../ui/tap";
+import { TITLE_ROW_DY } from "../ui/spacing";
 import { fmtCount, fmtDmg } from "../ui/statFormat";
 import type { Sel } from "./build/layout";
 import {
-  columnButtons, drawFamHead, drawLine, fitHead, fitTitle, itemPanel, planPanel, routePanel, selFamilies, turretPanel, visibleLines,
+  columnButtons, drawFamHead, drawLine, fitHead, fitTitle, fitTitleRows, itemPanel, planPanel, routePanel, rulesWhole, selFamilies, turretPanel, visibleLines,
   explainPanel, type Block, type PanelPlan, type PanelText,
 } from "./build/inspector";
 import { slotIcon } from "./build/turretPanel";
@@ -136,7 +137,7 @@ export function faceText(build: Build, sel: PartSel, line: string | null = null,
   const def = sel.kind === "item" ? itemByUid(build, sel.uid)?.def : undefined;
   // ENCHANT-2W (REQ-BFG-085; W5, E2-02's WHOSE rider): `owner`, a FOE's name (battle.ts VIEW BATTLEFIELD's foe side, foeView.ts the scouted foe): the sub line names whose part it is
   // (`SPARKFANG'S HEAVY TURRET IN SLOT 1`), and so does its short form. Absent (your own parts, the text sheet, every other caller): the sub lines exactly as before.
-  // The desk column breaks a sub wider than it after the owner (planPanel: PanelText.subOwner), so the sub is never cut.
+  // The desk column breaks a sub wider than it after the owner (planPanel: PanelText.subOwner), so the sub is never cut; POLISH-3b: your own parts' subs break at a space as well (facePlan's `wrap`).
   const sub = owner ? { sub: ownerSub(owner, t.sub), subOwner: `${owner}'S`, ...(t.subShort ? { subShort: ownerSub(owner, t.subShort) } : {}) } : {};
   const vsub = (v: { sub?: string }): { sub?: string } => (owner && v.sub ? { sub: ownerSub(owner, v.sub) } : {}); // a compact form's own sub line (a rig's IDLE warning) names the owner too
   return explainPanel({ ...t, ...sub, body: strip(t.body), variants: t.variants?.map((v) => ({ ...v, ...vsub(v), body: strip(v.body) })), labels: [CLOSE_LABEL] }, def);
@@ -156,6 +157,61 @@ export function readOnlyBlock(b: Block): Block | null {
 
 /** The face's one button: it closes the face (as a tap on empty space does). */
 export const CLOSE_LABEL = "CLOSE";
+
+/**
+ * POLISH-3 (REQ-BFG-089; Q2 (b)): the plan a face is drawn from. A face keeps every one of its own rule lines: where the column's plan (the 5x7 face, with a shorter form of the same text where the
+ * full one does not fit: CORE and GEAR rows without their rule lines) is not the full rule text (rulesWhole: fullText less the belt rows) and the same text planned with `small` (the 3x5 face: planPanel's option, PRESENT-2 F's rule
+ * for a panel grown from the band) is, the face is drawn from that plan. Every other face (the band's, a plan that is the full text already, one the 3x5 face cannot make whole either) is planPanel's
+ * own plan, as before. `tap`: a finger's target (tapPx). Pure (drawOn, tests).
+ * POLISH-3b (REQ-BFG-089; P2, the review's N1): and where NEITHER plan is the rule text whole, the face is drawn from the plan that gives away fewer ability blocks (abilityGone), the 3x5 plan on a tie or a win.
+ * SPARKFANG's RISING SCRAP CANNON (turret slot 0, days 8/12/16) gave away its stat row and `IT TAKES BELTS ON COLUMNS` in the 5x7 plan's shorter form (five ability blocks of its full text); the 3x5 plan gives away `SPEED: LEVEL 2/4.` only.
+ * POLISH-3b (REQ-BFG-087; P1, cap's ruling 1 on POLISH-3's question 1): every battle face is planned with planPanel's `wrap`, yours as well as the foe's: in the column (the 100 px one at 1920x1080) a title wider than its room
+ * breaks onto a second 3x5 row (`RISING RAMPART` / `CANNON ★`) and a sub wider than its room breaks at a space (`HEAVY TURRET IN` / `SLOT 1`), so the star and the slot number show and nothing is cut with a dot.
+ */
+export function facePlan(t: PanelText, fa: { area: Rect; band: boolean }, families: Parameters<typeof planPanel>[2], tap: number): PanelPlan {
+  const plan = facePlanWith(t, fa, families, tap);
+  if (!plan.column || rulesWhole(plan) || !t.labels.length) return plan;
+  // POLISH-4 (REQ-BFG-089; P4-3, cap's ruling 2): the CLOSE row yields to the piece's own ability lines. On a landscape phone at a pixel ratio of 2.625 to 3 the face is the whole floor between the boards (106-122 x 162-169 px) and the finger-sized
+  // CLOSE row (19-22 px and the 6 under the text) took the room of `IT TAKES BELTS ON COLUMNS ...` and `SPEED: LEVEL n/4.`: 156 of 2,242 own faces at 851x393@2.75, 127 at 915x412@2.625, 74 at 926x428@3, 36 at 812x375@3 and 6 at 1920x1080 were short
+  // of a rule line. Where the face with its row is not the rule text whole and the same face WITHOUT the row is, or gives away fewer ability blocks, it is drawn without the row (`bare`); every other face keeps its CLOSE row exactly as before.
+  // A press on the battlefield off any part closes a face (BattleFaces.press) and so does BACK: nothing is added for it, no hint and no words.
+  const bare = facePlanWith({ ...t, labels: [] }, fa, families, tap);
+  return rulesWhole(bare) || abilityGone(t, bare) < abilityGone(t, plan) ? { ...bare, bare: true } : plan;
+}
+
+/** facePlan as POLISH-3b left it (the face with its CLOSE row): planPanel's 5x7 plan, the 3x5 plan where that is the rule text whole, else the one that gives away fewer ability blocks (the 3x5 on a tie).
+ *  POLISH-4 (REQ-BFG-089; P4-4, cap's ruling 3): and a belt's face, where its plan is the rule text whole but gives hit rows away, takes the 3x5 plan if that gives away fewer (hitRowsGone). */
+function facePlanWith(t: PanelText, fa: { area: Rect; band: boolean }, families: Parameters<typeof planPanel>[2], tap: number): PanelPlan {
+  const plan = planPanel(t, fa.area, families, { tap, band: fa.band, wrap: true });
+  if (!plan.column) return plan;
+  // POLISH-4 (REQ-BFG-089; P4-4, cap's ruling 3): a belt's hit rows are the belt's own text (planRung's reason for the build screen's panel). In the column (the desk, the laptop, a landscape phone) the 5x7 plan gives whole trailing rows away
+  // (`+N MORE HIT TILES`) on 84 of 316 belts at 1920x1080 (519 rows), 63 at 1366x768 and 844x390, 131 at 851x393@2.75; a face tall enough for every row does not exist (+44 px at the median, +149 at most, where the face is 198 of 216 px).
+  // The 3x5 plan gives away fewer (519 -> 290 rows at 1920x1080, 389 -> 203 at 1366x768 and 844x390): it is the face where it does, though no belt becomes whole by it. The build screen's belt panel (planRung) is as it was.
+  if (rulesWhole(plan)) {
+    if (!hitRowsGone(plan)) return plan;
+    const sm = planPanel(t, fa.area, families, { tap, band: fa.band, small: true, wrap: true });
+    return rulesWhole(sm) && hitRowsGone(sm) < hitRowsGone(plan) ? sm : plan;
+  }
+  const small = planPanel(t, fa.area, families, { tap, band: fa.band, small: true, wrap: true });
+  if (rulesWhole(small)) return small;
+  return abilityGone(t, small) <= abilityGone(t, plan) ? small : plan;
+}
+
+/**
+ * POLISH-3b (REQ-BFG-089; P2): how many ability blocks of a face's full text (variant 0: `t.body`) the plan does not draw whole. A block it leaves out, cuts, or draws in a shorter form (a compact variant's: the 5x7 plan's
+ * variant 6 has no rule lines of its own) counts as given away: a block is drawn when a block of the same role, words and label is shown and every one of its lines is within the plan's room. Pure (facePlan, tests).
+ */
+export function abilityGone(t: Pick<PanelText, "body">, plan: PanelPlan): number {
+  const drawn = new Set(visibleLines(plan).map((v) => v.line));
+  const keyOf = (b: Block): string => `${b.role}|${b.text}|${b.label ?? ""}`;
+  const shown = new Set(plan.body.shown.filter((l) => l.lines.length > 0 && l.lines.every((ln) => drawn.has(ln))).map((l) => keyOf(l.b)));
+  return t.body.filter((b) => b.role === "ability" && !shown.has(keyOf(b))).length;
+}
+
+/** POLISH-4 (REQ-BFG-089; P4-4): how many of a belt's hit rows (the `trim` blocks that are not JOINS rows) the plan gives away: the rows `+N MORE HIT TILES` counts. Pure (facePlan, tests). */
+export function hitRowsGone(plan: Pick<PanelPlan, "body">): number {
+  return plan.body.dropped.filter((b) => b.trim && !b.join).length;
+}
 
 /** The face's icon, as the build screen's panel draws it. */
 export function faceIcon(build: Build, sel: PartSel): HTMLCanvasElement | null {
@@ -266,8 +322,9 @@ export function drawSummaries(g: G, a: Arena, L: BattleLayout): void {
 export const fingerPx = (game: Pick<Game, "view">): number => tapPx(game.view);
 
 /** VIEW BATTLEFIELD's bar, where the playback bar sits: the fight's clock, BACK, and the card's primary action (null:
- *  none, a warlord's part pick still waiting on the card). Returns the buttons' hit rects (tooling). */
-export function drawViewBar(g: G, game: Game, r: Rect, clock: string, back: () => void, primary: { label: string; onTap: () => void } | null): { back: Rect; primary: Rect | null } {
+ *  none, a warlord's part pick still waiting on the card). Returns the buttons' hit rects (tooling), and their drawn buttons (`backBtn`, `primaryBtn`: what a hit rect that is trimmed must still hold;
+ *  POLISH-6 P6-2 (REQ-BFG-089): ON TO DAWN's too, its tap target lay under an open face at the five landscape phones like BACK's did). */
+export function drawViewBar(g: G, game: Game, r: Rect, clock: string, back: () => void, primary: { label: string; onTap: () => void } | null): { back: Rect; backBtn: Rect; primary: Rect | null; primaryBtn: Rect | null } {
   const ui = game.ui, tp = fingerPx(game);
   const screen = { x: 0, y: 0, w: game.W, h: game.H };
   panel(g, r, "dark");
@@ -278,12 +335,37 @@ export function drawViewBar(g: G, game: Game, r: Rect, clock: string, back: () =
   const br = { x: x0, y: by, w: bw, h: bh };
   const bhit = tapRect(br, tp, screen, tp);
   button(ui, g, "viewback", br, BACK_LABEL, { font: "3", onTap: back, hit: bhit });
-  if (!primary) return { back: bhit, primary: null };
+  if (!primary) return { back: bhit, backBtn: br, primary: null, primaryBtn: null };
   const pw = Math.min(r.x + r.w - 2 - (x0 + bw + 3), textWidth(primary.label, "3") + 12);
   const pr = { x: r.x + r.w - 2 - pw, y: by, w: pw, h: bh };
   const phit = tapRect(pr, tp, { ...screen, x: br.x + br.w + 1, w: game.W - (br.x + br.w + 1) }, tp);
   button(ui, g, "viewnext", pr, primary.label, { font: "3", primary: true, onTap: primary.onTap, hit: phit });
-  return { back: bhit, primary: phit };
+  return { back: bhit, backBtn: br, primary: phit, primaryBtn: pr };
+}
+
+/**
+ * POLISH-5 (REQ-BFG-089; P5-4): a button's hit rect `hit` (tapRect grew it past the drawn button `keep`: BACK's is 59 x 46 CSS px at 851x393@2.75, 11 px above the bar) trimmed so it no longer meets `over`, an open face drawn after the bar
+ * (its region is added last, so it wins a press in the overlap: 26 x 11 CSS px of BACK's rect lay under the face's foot, 1,166 of 10,856 sampled points reached the face). The tooling reports the rect, so the rect it reports is now what a press reaches.
+ * The largest rect inside `hit` that clears `over` and still holds `keep`, cut from one side only (the drawn button and its centre are never cut); `hit` is changed in place (the button's region and the tooling's rect are the one object).
+ * No overlap, or no cut that holds `keep`: nothing changes. True when it cut. Pure but for `hit`.
+ */
+export function trimHit(hit: Rect, over: Rect | null, keep: Rect): boolean {
+  if (!over) return false;
+  const meets = (a: Rect, b: Rect): boolean => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  if (!meets(hit, over)) return false;
+  const cuts: Rect[] = [
+    { x: hit.x, y: over.y + over.h, w: hit.w, h: hit.y + hit.h - (over.y + over.h) }, // the face lies over the top of the rect: keep what is under its foot
+    { x: hit.x, y: hit.y, w: hit.w, h: over.y - hit.y }, // over the bottom
+    { x: over.x + over.w, y: hit.y, w: hit.x + hit.w - (over.x + over.w), h: hit.h }, // over the left
+    { x: hit.x, y: hit.y, w: over.x - hit.x, h: hit.h }, // over the right
+  ];
+  const holds = (c: Rect): boolean => c.w > 0 && c.h > 0 && c.x >= hit.x && c.y >= hit.y && c.x + c.w <= hit.x + hit.w && c.y + c.h <= hit.y + hit.h && !meets(c, over)
+    && c.x <= keep.x && c.y <= keep.y && c.x + c.w >= keep.x + keep.w && c.y + c.h >= keep.y + keep.h;
+  let best: Rect | null = null;
+  for (const c of cuts) if (holds(c) && (!best || c.w * c.h > best.w * best.h)) best = c;
+  if (!best) return false;
+  hit.x = best.x; hit.y = best.y; hit.w = best.w; hit.h = best.h;
+  return true;
 }
 
 /**
@@ -293,7 +375,7 @@ export function drawViewBar(g: G, game: Game, r: Rect, clock: string, back: () =
 export class BattleFaces {
   open: FacePick | null = null;
   /** Tooling: the last face drawn (its title, sub line and body text) and its rects. */
-  last: { title: string; sub: string; lines: string[]; r: Rect; close: Rect | null; side: Side; sel: PartSel; line: string | null } | null = null;
+  last: { title: string; sub: string; subDrawn: string; lines: string[]; r: Rect; close: Rect | null; side: Side; sel: PartSel; line: string | null } | null = null;
 
   /** A press on the battlefield (not on a button or the face): a part opens its face (or swaps to it); anything else
    *  closes the face. True when a part was hit. */
@@ -344,7 +426,7 @@ export class BattleFaces {
       return;
     }
     const run = faceRun(build, day), tp = fingerPx(game);
-    const plan: PanelPlan = planPanel(t, fa.area, selFamilies(run, o.sel), { tap: tp, band: fa.band });
+    const plan: PanelPlan = facePlan(t, fa, selFamilies(run, o.sel), tp);
     const r = plan.r, ui = game.ui;
     statsPanel(g, r, style);
     ui.add({ id: "face", r, block: true });
@@ -352,15 +434,19 @@ export class BattleFaces {
     rect(g, r.x + 5, r.y + 5, 14, 14, C.slate0);
     const icon = faceIcon(build, o.sel);
     if (icon) g.drawImage(icon, r.x + 12 - Math.floor(icon.width / 2), r.y + 12 - Math.floor(icon.height / 2));
-    // its one button, CLOSE: under the text in the column, else on the header row (planPanel's places)
-    const cr = plan.column ? columnButtons(1, r, tp)[0] : plan.rects ? plan.rects[0] : null;
+    // its one button, CLOSE: under the text in the column, else on the header row (planPanel's places); POLISH-4 (P4-3): none for a bare plan (facePlan), which a press off any part or BACK closes as any face
+    const cr = plan.bare ? null : plan.column ? columnButtons(1, r, tp)[0] : plan.rects ? plan.rects[0] : null;
     const hit = cr ? tapRect(cr, tp, r, tp) : null;
     if (cr) button(ui, g, "faceclose", cr, CLOSE_LABEL, { font: "3", onTap: () => this.close(), hit: hit ?? undefined });
-    fitTitle(g, t, r.x + 23, r.y + 4, plan.subMax); // ENCHANT-1 (REQ-BFG-085, E7): an enchanted piece's word first in its colour (= fitHead for a plain one)
+    // POLISH-3 (REQ-BFG-087; Q2 (a)): a title the column cannot hold in one row breaks at a space onto two 3x5 rows (planOnce: titleRows); the sub rows start 6 px lower (dy)
+    if (plan.titleRows) fitTitleRows(g, t, r.x + 23, r.y + 4, plan.titleRows);
+    else fitTitle(g, t, r.x + 23, r.y + 4, plan.subMax); // ENCHANT-1 (REQ-BFG-085, E7): an enchanted piece's word first in its colour (= fitHead for a plain one)
+    const dy = plan.titleRows ? TITLE_ROW_DY : 0; // POLISH-4 (P4-1): spacing.ts, shared with the family head's place (headDy)
     const subColor = t.subColor ?? C.slate4;
-    if (plan.body.sub) fitHead(g, plan.body.sub, r.x + 23, r.y + 13, plan.subMax, plan.body.subColor ?? subColor, false);
-    else if (plan.subs.length > 1) plan.subs.forEach((s, i) => fitHead(g, s, r.x + 23, r.y + 13 + i * 6, plan.subMax, subColor, false));
-    else fitHead(g, t.subShort && textWidth(t.sub, "3") > plan.subMax ? t.subShort : t.sub, r.x + 23, r.y + 13, plan.subMax, subColor, false);
+    const sub1 = plan.subFit ?? (t.subShort && textWidth(t.sub, "3") > plan.subMax ? t.subShort : t.sub); // POLISH-5 (P5-3): subFit, the band's shorter wording of a turret's sub
+    if (plan.body.sub) fitHead(g, plan.body.sub, r.x + 23, r.y + 13 + dy, plan.subMax, plan.body.subColor ?? subColor, false);
+    else if (plan.subs.length > 1) plan.subs.forEach((s, i) => fitHead(g, s, r.x + 23, r.y + 13 + dy + i * 6, plan.subMax, subColor, false));
+    else fitHead(g, sub1, r.x + 23, r.y + 13 + dy, plan.subMax, subColor, false);
     drawFamHead(g, plan);
     const shown = visibleLines(plan);
     for (const v of shown) {
@@ -370,7 +456,7 @@ export class BattleFaces {
     // the ⓘ button and the keyword targets (the build screen's layer, on this side's build: the enemy's runes too)
     drawKeywordLayer(g, this, ui, run, { show: o.sel, t, plan }, shown, hit ? [hit] : [], tp, game.canvas, free(r));
     this.last = {
-      title: t.title, sub: t.sub, side: o.side, sel: o.sel, line, r: { ...r }, close: hit,
+      title: t.title, sub: t.sub, subDrawn: plan.body.sub ?? (plan.subs.length > 1 ? plan.subs.join(" ") : sub1), side: o.side, sel: o.sel, line, r: { ...r }, close: hit,
       lines: shown.flatMap((v) => (v.line === "rule" ? [] : [v.line.spans.map((s) => s.t).join("")])),
     };
   }

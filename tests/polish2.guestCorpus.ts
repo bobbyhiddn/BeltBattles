@@ -12,7 +12,8 @@
 import { newRun, type Run } from "../src/game/run";
 import { ITEMS } from "../src/sim/content";
 import { setTurretList, type Build } from "../src/sim/deck";
-import { ENCHANT_DEFS, freeSides, type EnchantId } from "../src/sim/enchant";
+import { ENCHANT_DEFS, freeSides, withEnchant, type EnchantId } from "../src/sim/enchant";
+import { wordLayout } from "../src/screens/build/enchantStrip";
 import { textWidth } from "../src/render/font";
 import { lineText } from "../src/ui/richText";
 import { runeRowFits, runeRowH, shiftLayout } from "../src/ui/runeBar";
@@ -128,8 +129,17 @@ export const VIEWS: ViewSpec[] = [
 ];
 
 const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
-/** The build screen as the game frames it (tests/present1.s4b.test.ts's framed). */
-export function framed(w: number, h: number, dpr: number, runes = 0, offers = 5) {
+/** POLISH-6 (P6-4, RULING-POLISH5 R7): a run at the dawn caravan of an ENCHANTER day (day 3) whose wagon holds two words: what enchantStrip.ts wagonUp and wordLayout read. */
+export function enchanterRun(day = 3): Run {
+  const run = newRun("furnace", 5, "polish6-enchanter");
+  run.day = day;
+  run.stage = "caravan";
+  run.shop.enchanter = { day, offers: [{ ench: "massive", price: 4, sold: false }, { ench: "fiery", price: 4, sold: false }] };
+  return run;
+}
+/** The build screen as the game frames it (tests/present1.s4b.test.ts's framed). POLISH-6 (P6-4, R7): `enchanter` true gives the layout with the ENCHANTER's wagon up, as the page draws it (build.ts layoutAt:
+ *  enchantStrip.ts wordLayout on the shifted layout): L.wagon, and the details column starting `shift` px lower where no margin or gap holds the cards. Every lane report measures the belt panel in both columns. */
+export function framed(w: number, h: number, dpr: number, runes = 0, offers = 5, enchanter = false) {
   const pw = Math.floor(w * dpr), ph = Math.floor(h * dpr), portrait = ph > pw * 1.05;
   const fake = { run: { build: { runes: Array.from({ length: runes }, () => ({ id: "many_hands" })) } }, refit: false, offers: () => Array.from({ length: offers }) } as unknown as Parameters<typeof runeRowFits>[0];
   let S = buildScale(pw, ph, portrait, dpr);
@@ -141,7 +151,8 @@ export function framed(w: number, h: number, dpr: number, runes = 0, offers = 5)
     return shiftLayout(buildLayout(W, H - row, portrait, offers, phone, tap, lift, { scale: S, unit }), row, H);
   };
   const Z = lay(1).cam.z, unit = gcd(S, Z), sub = S / unit;
-  return { S, W, H, L: lay(unit), tap, phone, portrait, view: { W, H, scale: S, dpr, portrait, sub } };
+  const L0 = lay(unit), L = enchanter ? withEnchant(() => wordLayout(L0, enchanterRun(), tap)) : L0; // the page: wordLayout(shiftLayout(buildLayout(...), row, H), run, packTap)
+  return { S, W, H, L, tap, phone, portrait, enchanter, view: { W, H, scale: S, dpr, portrait, sub } };
 }
 export type Framed = ReturnType<typeof framed>;
 

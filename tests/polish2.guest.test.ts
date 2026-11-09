@@ -65,8 +65,10 @@ const PIN: Record<string, [number, number, number]> = {
   "small 360x640 @2 press": [75, 73, 2],
   "phone 390x844 @3 band": [75, 71, 4],
   "phone 390x844 @3 press": [75, 71, 4],
-  "desk 1920x1080 band": [75, 61, 14],
-  "land 844x390 @3 band": [75, 67, 8],
+  // POLISH-3 (Q3 desk; cap's ruling A): a column belt panel that would give hit rows away takes the 3x5 face where that keeps every row (inspector.ts planRung, inside planIn: the plan with the line and the
+  // plan without it each take the rung, so they keep one face): more room, so more panels carry the line (was [75, 61, 14] and [75, 67, 8])
+  "desk 1920x1080 band": [75, 72, 3],
+  "land 844x390 @3 band": [75, 71, 4],
   "op690 402x690 @3, a rune band": [75, 0, 75],
   "op690 402x690 @3, a rune press": [75, 0, 75],
 };
@@ -155,10 +157,15 @@ describe("POLISH-2 R1: every plan of the corpus keeps its faces and its lines, a
 // Measured with kit-1h/revert3.sh (an export with the named src files put back to bump1h-base): both npcWords.ts and rivalBuilds.ts put back: this whole file passes at BUMP-1G's pins (428 on every view, 9 of 9); npcWords.ts alone put back: 428 again, and the
 // in-the-panel / behind-the-? split differs from BUMP-1G's (H3's two trimmed warlord decks move it); rivalBuilds.ts alone put back: 392 (H3 moves the split, not the count of lines).
 const SCOUT_PIN: Record<string, [number, number, number, number]> = {
+  // POLISH-6 (P6-1, REQ-BFG-089): COPIES prints 1.3 where it printed 1.3333333333333333 (the readout grid is 3 characters wide, not 18), so the rows have room and the guest line is spare in more panels:
+  // phone-390x844 156/272 -> 160/268, 844x390 334/94 -> 342/86, 1280x800 404/24 -> 396/32 (the other views are unchanged: they hold no belt that prints a fraction, or none that has room)
   "phone-390x844": [632, 392, 136, 256],
   "op-402x690": [632, 392, 120, 272],
   "phone-360x640": [632, 392, 370, 22],
   "phone-320x568": [632, 392, 380, 12],
+  // POLISH-3 (Q3 desk; cap's ruling A): the foe's belt faces in the landscape columns take the 3x5 rung where it keeps every hit row (was 326/102, 344/84 and 334/94)
+  // POLISH-5 (P5-2, cap's ruling (A)): the build screen's panel takes the plan that gives away the fewest hit rows (the 3x5 plan, at the tight pitch where that gives away fewer still), and the rows win the room: the guest line uses only
+  // what is spare and goes first behind the ⓘ when there is none (R1's own move). In the landscape columns: 844x390 352/76 -> 334/94 (18 lines move behind the ⓘ), 1920x1080 374/54 -> 333/95 (41), 1280x800 400/28 -> 404/24 (4 come in). Phones: bands, unchanged.
   "land-844x390": [632, 392, 292, 100],
   "desk-1920x1080": [632, 392, 318, 74],
   "desk-1280x800": [632, 392, 296, 96],

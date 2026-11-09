@@ -1,3 +1,8 @@
+# LAUNCH CONFIG (0.9.15.1, RIDE L1; release lane 4228a395): the release command's throwaway machine gets one dedicated
+# core and 15 minutes. Through 0.9.15 these lines lived only in an untracked launch.toml that launchcfg.py built from
+# this file at each launch; from 0.9.15.1 they are tracked here (only added lines: nothing else in this file changed).
+# Why: on a shared-cpu-1x the release command's seed is held to the 1/16-core baseline (0.9.14 run 1: ~95 s of CPU,
+# 11.6 min; Fly v26 failed at the 5 min default; nothing was replaced).
 # BeltBattles on Fly: the game page and the ghost API from one small machine, ghosts in Tigris.
 # Deploy from this directory (the repo root) after `node deploy/stage.mjs <game.html>`; the exact
 # commands, checks, rollback and teardown are in deploy/RUNBOOK.md. The Tigris variables
@@ -15,6 +20,12 @@ primary_region = "iad"
   # Every deploy first writes the bundled sample pool into Tigris on a throwaway machine with the
   # app's env and secrets. It prints written/unchanged/removed counts; a failure aborts the deploy.
   release_command = "node /app/dist/ghost-server.mjs seed"
+  # LAUNCH CONFIG: the throwaway machine gets one dedicated core (performance-1x, for the seed's ~1 min), and the
+  # wait for it is 15 min (it was 5 min).
+  release_command_timeout = "15m"
+
+  [deploy.release_command_vm]
+    size = "performance-1x"
 
 [env]
   BB_GHOST_STORE = "tigris"

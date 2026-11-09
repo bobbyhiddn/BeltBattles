@@ -263,6 +263,35 @@ export function hasGrid(defId: string): boolean {
   return !!d && (((d.kind === "gate" || d.kind === "factory") && isShaped(d)) || ((d.kind === "factory" || d.kind === "turret") && footCount(d) > 1));
 }
 
+/**
+ * PRESENT-4 G (REQ-BFG-113; STAGE-0915's F9): the footprint MARK, a small cells-only grid for a surface whose box is the icon's own and has no room beside it: the road's drop row (a 14 x 14 box on a
+ * 19 px pitch, the odds under it). G1's grid over that box's corner (iconCell: 11 x 11 for a 2x2) covered the icon whole: PRESENT-3 C's carriage gun showed there as a grey grid. The mark is that grid's
+ * own drawing (drawGrid: the footprint at rot 0, a 1 px seam between two cells, a 1 px ink outline, the kind's colours) with no arrowheads (a rig's arrows are on its card, in its panel and in the
+ * ⓘ list's row), at 3 px a cell where the footprint is 2 cells either way and at 2 px for 3: 7 x 7 px at the most (a 2x2 is 7 x 7, a 3x1 7 x 3, SPIKE RAIL's 1x3 3 x 7). The caller puts it in the
+ * box's bottom-right corner (the diagonal carriage gun and the wheel stay clear there), over the icon's corner.
+ */
+export function markCell(defId: string): number {
+  const cells = gridSpecOf(defId).cells;
+  return Math.max(...cells.map((c) => Math.max(c[0], c[1]))) + 1 <= 2 ? 3 : 2;
+}
+const markSpec = (defId: string): GridSpec => ({ ...gridSpecOf(defId), arrows: [] });
+/** PRESENT-4 G: the mark as a canvas (cached per piece and cell). Only for a shaped piece (hasGrid). */
+export function shapeMark(defId: string): HTMLCanvasElement {
+  const cl = markCell(defId), k = `mark:${defId}:${cl}`;
+  let c = CACHE.get(k);
+  if (!c) {
+    const spec = markSpec(defId), geom = gridGeom(spec, cl), [cv, g] = makeCanvas(geom.w, geom.h);
+    drawGrid(g, spec, 0, 0, cl);
+    CACHE.set(k, (c = cv));
+  }
+  return c;
+}
+/** PRESENT-4 G: the mark's box in px, without drawing (tests, layout). */
+export function shapeMarkSize(defId: string): { w: number; h: number } {
+  const geom = gridGeom(markSpec(defId), markCell(defId));
+  return { w: geom.w, h: geom.h };
+}
+
 /** G4: a shaped piece's grid (no plate) at the right end of a row `x`..`x + w` whose top is `y`, where it clears `left` (the row's
  *  own words end there) and ends above `floor` (a badge's top): the warlord's pick buttons. Returns whether it drew.
  *  PRESENT-1 (S1 (a), REQ-BFG-113 (1)): `corner`, where the grid goes when the words leave it no room at the row's end: over the
