@@ -25,6 +25,7 @@ import { Rng } from "../src/core/rng";
 import { RULES_VERSION, type HeroId } from "../src/sim/content";
 import { startingBuild } from "../src/sim/ai";
 import { STAND_IN_HEROES } from "../src/net/fallback";
+import { curveRules } from "../src/net/curve"; // BUMP-1H run 3: the scratch pool's size follows the CURVE switch
 import { floorRecord, isReachable, reachableRecords } from "../src/net/records";
 import { eligible } from "../src/net/matchmaking";
 import { checkSnapshot, encodeSnapshot, ghostId, MAX_DAY, type GhostSnapshot } from "../src/net/snapshot";
@@ -36,6 +37,7 @@ import { checkPool } from "../server/seed";
 import { parRunSeed } from "../src/sim/harness/player"; // BUMP-1D: the floor ghosts' run seed is their FLOOR_PICKS run's
 import {
   CASUAL_FLOOR_SEED, FLOOR_PICKS, // BUMP-1D: the chosen casual floor runs
+  DEPTH_SLOTS, STREAK_FIRST_DAY, STREAK_LAST_DAY, // BUMP-1H run 3: the curve's new ghosts (the scratch pool's size)
   FLOOR_VARIANT, MIN_ELIGIBLE, RACE_SEED_HEROES, RACE_VARIANTS, SAMPLE_VARIANTS, SOFT1_PICKS, SOFT1_PICKS_FILE_ENV, SOFT1_WORLD,
   drawRecord, drawnLabel, poolDepth, raceDeck, sampleDeckOf, sampleEntry, seedSlot, softDecks, softPickKey, softPickRows, softPicked,
   softStaleCheck, statedLosses, uncoveredStates, type RaceDeck,
@@ -440,21 +442,24 @@ describe("T8 (opt-in): SOFT-1's rule in the long-run world", () => {
 
 describe("T8 (opt-in): the scratch seed pool for days 1-16", () => {
   const file = process.env.BB_SEEDPOOL_SCRATCH;
-  it.skipIf(!file || !existsSync(file))("holds 192 ghosts of days 1-16, each stating its losses, every reachable state of days 1-16 covered", () => {
+  // BUMP-1H run 3 (step R3): was 192 (4 heroes x 3 slots x 16 days, the CURVE off). With the CURVE on the pool holds those 192 and, after them, the streak ghosts (4 heroes x STREAK_FIRST_DAY..STREAK_LAST_DAY: 24)
+  // and the depth ghosts (DEPTH_SLOTS: 14): 230 (tools/samplePool.ts curveGhosts).
+  const SIZE = (): number => 192 + (curveRules() ? PLAYABLE_HEROES.length * (STREAK_LAST_DAY - STREAK_FIRST_DAY + 1) + DEPTH_SLOTS.length : 0);
+  it.skipIf(!file || !existsSync(file))("holds the 192 ghosts of days 1-16 and, with the CURVE on, the streak and depth ghosts (230), each stating its losses, every reachable state of days 1-16 covered", () => {
     withLongRun(() => {
       const pool = (JSON.parse(readFileSync(file!, "utf8")) as unknown[]).map((raw) => checkSnapshot(raw));
-      expect(pool).toHaveLength(192);
+      expect(pool).toHaveLength(SIZE());
       expect(new Set(pool.map((s) => s.day))).toEqual(new Set(Array.from({ length: 16 }, (_, i) => i + 1)));
       for (const s of pool) {
         expect(s.rules).toBe(RULES_VERSION);
         expect(s.losses, `${s.playerId} d${s.day}`).toBeDefined();
         expect(isReachable(s.day, s.wins, s.lives, { losses: s.losses }), `${s.playerId} d${s.day} ${s.wins}W ${s.lives} losses ${s.losses}`).toBe(true);
       }
-      expect(new Set(pool.map(ghostId)).size).toBe(192);
+      expect(new Set(pool.map(ghostId)).size).toBe(SIZE()); // BUMP-1H run 3: was 192
       expect(uncoveredStates(pool)).toEqual([]);
       // the seed step's own check (server/seed.ts checkPool: the player mode with each ghost's road log and run seed, its rules, its record with
-      // its stated losses) takes all 192
-      expect(checkPool(JSON.parse(readFileSync(file!, "utf8")) as unknown[])).toHaveLength(192);
+      // its stated losses) takes all of them (BUMP-1H run 3: was all 192)
+      expect(checkPool(JSON.parse(readFileSync(file!, "utf8")) as unknown[])).toHaveLength(SIZE());
       // the numbers behind it: states per day, the fewest eligible ghosts at any state (D1: the floor ghosts cover every state)
       const entries = pool.map((s) => ({ id: ghostId(s), snapshot: s }));
       let states = 0, least = Infinity;
