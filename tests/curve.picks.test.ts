@@ -25,15 +25,31 @@ import { playerRoadLog, playerRun } from "../src/sim/harness/player";
 afterEach(() => setCurve(CURVE));
 
 describe("BUMP-1H CURVE: the pool's new slots (shape; no battles)", () => {
-  it("a CURVE-on pool holds no new ghost while both tables are empty and no scratch rows are named (P1 to P3's take and P4's R2)", () => {
+  // BUMP-1H run 3 (step R2; the tables are filled): was "a CURVE-on pool holds no new ghost while both tables are empty and no scratch rows are named (P1 to P3's take and P4's R2)"
+  // (withCurve(() => expect(curveGhosts(192)).toEqual([]))). Now the tables STREAK_PICKS and DEPTH_PICKS hold the rules' picks: a CURVE-on pool holds, after its 192, the streak ghosts
+  // (variant 3: 4 heroes x days STREAK_FIRST_DAY..STREAK_LAST_DAY, the record streakRecord names) and then the depth ghosts (variant 4, DEPTH_SLOTS' days and records), in the slot order.
+  it("a CURVE-on pool holds the tables' new ghosts after the 192: the streak ghosts hero by hero and day by day, then the depth ghosts in DEPTH_SLOTS' order (R2's tables)", () => {
     const was = process.env[CURVE_PICKS_FILE_ENV];
     delete process.env[CURVE_PICKS_FILE_ENV];
     try {
-      withCurve(() => expect(curveGhosts(192)).toEqual([]));
+      withLongRun(() => withCurve(() => {
+        const ghosts = curveGhosts(192);
+        const days = STREAK_LAST_DAY - STREAK_FIRST_DAY + 1;
+        expect(ghosts).toHaveLength(PLAYABLE_HEROES.length * days + DEPTH_SLOTS.length); // 24 + 14
+        ghosts.slice(0, PLAYABLE_HEROES.length * days).forEach((g, i) => {
+          const hero = PLAYABLE_HEROES[Math.floor(i / days)], day = STREAK_FIRST_DAY + (i % days);
+          const [wins, lost] = streakRecord(day), rec = drawnLabel(day, wins, lost);
+          expect([g.playerId, g.day, g.wins, g.lives], `streak ${hero} day ${day}`).toEqual([`sample-${hero}-${STREAK_VARIANT}`, day, rec.wins, rec.lives]);
+        });
+        ghosts.slice(PLAYABLE_HEROES.length * days).forEach((g, i) => {
+          const [day, wins, lost] = DEPTH_SLOTS[i], rec = drawnLabel(day, wins, lost);
+          expect([g.day, g.wins, g.lives, g.playerId.endsWith(`-${DEPTH_VARIANT}`)], `depth slot ${i}`).toEqual([day, rec.wins, rec.lives, true]);
+        });
+      }));
     } finally {
       if (was !== undefined) process.env[CURVE_PICKS_FILE_ENV] = was;
     }
-  });
+  }, 600_000);
 
   it("the slot indexes continue generateSamplePool's order: 192 ghosts (4 heroes x 3 slots x 16 days), then the streak ghosts hero by hero and day by day, then the depth ghosts", () => {
     withLongRun(() => {
@@ -92,7 +108,7 @@ describe("BUMP-1H CURVE: the pool's new slots (shape; no battles)", () => {
     expect(DEPTH_SLOTS[13]).toEqual([11, 4, 1]);
     expect(STREAK_LAST_DAY).toBeGreaterThanOrEqual(STREAK_FIRST_DAY); // BUMP-1H run 2: the tier's days are STREAK_FIRST_DAY..STREAK_LAST_DAY (16 = to the pool's last day)
     expect(STREAK_LAST_DAY).toBeLessThanOrEqual(LONG_RUN_GEN_DAYS);
-    expect(SOFT1_CURVE).toBe(false); // BUMP-1H P1: SOFT1_PICKS is bb-0.14.0's (slot 1 par-graded); P4's step R2 re-reads it under CURVE and sets this true
+    expect(SOFT1_CURVE).toBe(true); // BUMP-1H run 3 (step R2): was false (P1: SOFT1_PICKS was bb-0.14.0's, slot 1 par-graded); R2 re-read the table under CURVE and set this true
     expect(SOFT1_WORLD).toBe("111111111111g");
   });
 });

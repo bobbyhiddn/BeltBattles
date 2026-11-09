@@ -350,10 +350,10 @@ export const SOFT_TARGET = 150; // BUMP-1F (RULING-BUMP1F-R9 R9.1; R10.1 PATH S)
  *  bb-0.13.0, so worldKey() ends with g. */
 export const SOFT1_WORLD = "111111111111g";
 
-/** BUMP-1H (REQ-BFG-124): was SOFT1_PICKS read with the CURVE switch on (slot 1 picked on the casual grade, softDecks)? false: the table is
- *  bb-0.14.0's (1G's), slot 1 par-graded. P4's step R2 re-reads the table under CURVE and sets this true; until then softStaleCheck refuses to
- *  write the bundled pool with CURVE on (the stale table never ships). The world key is untouched: CURVE moves a rule, not a world. */
-export const SOFT1_CURVE = false;
+/** BUMP-1H (REQ-BFG-124): was SOFT1_PICKS read with the CURVE switch on (slot 1 picked on the casual grade, softDecks)? TRUE since P4's step R2 (BUMP-1H run 3): the table
+ *  was re-read under CURVE (it was bb-0.14.0's, 1G's, slot 1 par-graded, and this was false until then); softStaleCheck refuses to write the bundled pool when this and
+ *  the process's CURVE differ (the stale table never ships). The world key is untouched: CURVE moves a rule, not a world. */
+export const SOFT1_CURVE = true;
 
 /** SOFT-1: the rule's 128 picks (BUMP-1D: days 1-16, SOFT_TARGET 250; 80 picks, days 1-10, before) in SOFT1_WORLD, per hero, day 1-16: [variant 0, variant 1], each "s<i>" (the i-th entry of
  *  standInPool(hero, day)) or "f<seed>" (the par field's run of that field seed), ":" the hash of its deck's code (softHash).
@@ -373,12 +373,17 @@ export const SOFT1_CURVE = false;
  *  src/sim/standInPoolData.ts, commit a5fb26be, sha16 f9f0437d8276c420): FURNACE and WEAVER by tests/run1.seedpool.test.ts BB_SOFT1_LONG_RULE=1 on the committed module
  *  (kit-1g/r2all.sh: 12 processes, six day ranges a hero, 5.5 min); FOUNDRY and BASTION are the dryF rows of the frozen content (they read no stand-in pool; foundry day 16
  *  and bastion day 10 re-read on the new module gave the same pair, kit-1g/r2cmpdry.mjs). 49 of the 128 picks differ from BUMP-1F's table (furnace 12 of 16 days,
- *  weaver 2, foundry 7, bastion 10; kit-1g/picksdiff.mjs). */
+ *  weaver 2, foundry 7, bastion 10; kit-1g/picksdiff.mjs).
+ *  BUMP-1H run 3 (step R2; REQ-BFG-124; RULING-BUMP1H-R1 to R3): all 128 picks re-read with the CURVE on (SOFT1_CURVE true: slot 0 par-graded nearest SOFT_TARGET 150, slot 1
+ *  casual-graded nearest CASUAL_TARGET 500, softDecks) in bb-0.15.0's content on the new stand-in pool (R1: src/sim/standInPoolData.ts, commit 0859e473, sha16 63e7d49ea34c9f3f:
+ *  the same 192 decks as BUMP-1G's, only its rules literal moved), all four heroes by tests/run1.seedpool.test.ts BB_SOFT1_LONG_RULE=1 on an export of that commit (kit-1h/h1dry.sh
+ *  soft r2: 12 processes, three day ranges a hero, 3.6 minutes). The rows are identical to P3's dry rows (the take's reads, label k1b) in 64 of 64 hero-days. 37 of the 128 picks
+ *  differ from BUMP-1G's table, every one of them slot 1 (furnace 12 of 16 days, weaver 8, foundry 7, bastion 10; kit-1h/picksdiff.mjs); slot 0 is unchanged in 64 of 64. */
 export const SOFT1_PICKS: Readonly<Record<string, readonly (readonly [string, string])[]>> = {
-  furnace: [["f9:a38c3052", "f12:23d4f749"], ["f7:f6f17288", "f9:6fea3280"], ["f3:3df53092", "f9:71210507"], ["f3:5ea8b7ab", "f9:149c5a31"], ["f1:c9c07b3b", "f9:70b1ba6b"], ["f1:6d59af54", "f2:dd92d091"], ["f1:18ef7839", "f3:3e0b0cbb"], ["f1:6dbd196a", "f2:316dff3a"], ["f1:3f302759", "f2:775f7ff9"], ["f1:49627271", "f9:3d9dc2ac"], ["f1:23d8ec42", "f9:89129b27"], ["f3:3851d59f", "f9:3e467d24"], ["f3:307dc16c", "f2:c8f1a60d"], ["f1:0fc536d4", "f5:8343a34a"], ["f1:4c62da3f", "f3:39cd3523"], ["f5:a1af8420", "f3:26e52ddd"]],
-  weaver: [["f11:2c9fe8e0", "f4:b22bacb6"], ["f5:200b3ee0", "f6:51405db2"], ["f7:999a4f4a", "f5:97438e57"], ["f5:d6fd145a", "f6:8556dfdf"], ["f5:7aa6599e", "f3:15b1896b"], ["f3:e1abe7b4", "f5:def5ca2d"], ["f12:8bbe2dc7", "f7:8564c161"], ["f5:eb7345f5", "f7:b1d176e7"], ["f7:9665d67e", "f5:d46ecd7d"], ["f5:bbe831db", "f7:8fe76323"], ["f7:565e1ce5", "f10:228b238a"], ["f7:5568c020", "f10:7452a0f0"], ["f7:99a48187", "f10:93c9d88d"], ["f10:91884ff6", "f7:a1a12481"], ["f10:2c98b34d", "f5:0d921a73"], ["f10:3f9cd56a", "f5:402a33d7"]],
-  foundry: [["f8:7dae2d4b", "f3:d7e4de68"], ["f11:65d7143d", "f7:cbda1eb1"], ["f9:3667b6a5", "f8:7cb0b4cb"], ["f11:72efc72e", "f3:320ec74f"], ["f3:d262425a", "f1:bcc43e7a"], ["f3:6e3e8cb3", "f7:87347e96"], ["f9:b76d2ddb", "f3:613f1a27"], ["f3:86ef34a6", "f9:9e548323"], ["f3:53f9dfb8", "f9:27446efa"], ["f3:0e23735a", "f9:48e9e49c"], ["f9:977e0f47", "f10:924d4f98"], ["f10:17bcd79e", "f3:351899bf"], ["f9:cd34dcc1", "f3:de413e32"], ["f3:c30dbe0b", "f10:4072ee8a"], ["f9:2afb119b", "f3:d58e848b"], ["f9:792842e0", "f3:498e64b1"]],
-  bastion: [["f1:1b04a970", "f5:04340423"], ["f12:8c9903e4", "f8:88032da7"], ["f10:936e515f", "f3:256a89be"], ["f10:05ee4934", "f8:52c396d6"], ["f10:e0b62c59", "f7:b8a893ff"], ["f12:e05559a0", "f1:07e2d55c"], ["f12:6cc4fecb", "f3:faf706f3"], ["f3:2e9012c7", "f12:bb4ee89f"], ["f3:a982d909", "f9:090331a2"], ["f12:f4be6556", "f9:acd0cf82"], ["f1:c2a9b93b", "f9:600fe26d"], ["f1:3f8007e4", "f3:9f3df306"], ["f1:ad12cead", "f9:7b577f02"], ["f3:4dba9897", "f1:3ba1c9b5"], ["f3:9c38af5d", "f9:de9d39c2"], ["f3:444a387a", "f9:86a87ae0"]],
+  furnace: [["f9:a38c3052", "f3:25c8a972"], ["f7:f6f17288", "f9:6fea3280"], ["f3:3df53092", "f7:63926679"], ["f3:5ea8b7ab", "f7:2d6dcee5"], ["f1:c9c07b3b", "f7:4fc47078"], ["f1:6d59af54", "f7:3ac5f2a3"], ["f1:18ef7839", "f7:af0e9ab7"], ["f1:6dbd196a", "f2:316dff3a"], ["f1:3f302759", "f7:b525a412"], ["f1:49627271", "f7:98eed840"], ["f1:23d8ec42", "f7:b737b68c"], ["f3:3851d59f", "f2:e4d60ac5"], ["f3:307dc16c", "f7:17de7b49"], ["f1:0fc536d4", "f5:8343a34a"], ["f1:4c62da3f", "f3:39cd3523"], ["f5:a1af8420", "f4:1a7e7eb1"]],
+  weaver: [["f11:2c9fe8e0", "f2:a4ff354e"], ["f5:200b3ee0", "f6:51405db2"], ["f7:999a4f4a", "f10:eb55a618"], ["f5:d6fd145a", "f7:356b9bf9"], ["f5:7aa6599e", "f7:1ba59596"], ["f3:e1abe7b4", "f5:def5ca2d"], ["f12:8bbe2dc7", "f10:8772ad22"], ["f5:eb7345f5", "f10:6d007b35"], ["f7:9665d67e", "f10:77197783"], ["f5:bbe831db", "f10:1d5ec9b9"], ["f7:565e1ce5", "f10:228b238a"], ["f7:5568c020", "f10:7452a0f0"], ["f7:99a48187", "f10:93c9d88d"], ["f10:91884ff6", "f7:a1a12481"], ["f10:2c98b34d", "f5:0d921a73"], ["f10:3f9cd56a", "f5:402a33d7"]],
+  foundry: [["f8:7dae2d4b", "f10:76156a2a"], ["f11:65d7143d", "f7:cbda1eb1"], ["f9:3667b6a5", "f3:81ecbede"], ["f11:72efc72e", "f3:320ec74f"], ["f3:d262425a", "f9:07ec8a84"], ["f3:6e3e8cb3", "f9:a91a2d6a"], ["f9:b76d2ddb", "f3:613f1a27"], ["f3:86ef34a6", "f10:a88af2dc"], ["f3:53f9dfb8", "f9:27446efa"], ["f3:0e23735a", "f9:48e9e49c"], ["f9:977e0f47", "f3:d6e0fc81"], ["f10:17bcd79e", "f3:351899bf"], ["f9:cd34dcc1", "f3:de413e32"], ["f3:c30dbe0b", "f9:bc690473"], ["f9:2afb119b", "f3:d58e848b"], ["f9:792842e0", "f3:498e64b1"]],
+  bastion: [["f1:1b04a970", "f3:6fcc613e"], ["f12:8c9903e4", "f3:d04292bf"], ["f10:936e515f", "f8:3de36519"], ["f10:05ee4934", "f1:0a8a4fc3"], ["f10:e0b62c59", "f12:6974f3a1"], ["f12:e05559a0", "f1:07e2d55c"], ["f12:6cc4fecb", "f1:10ced3f2"], ["f3:2e9012c7", "f1:861263d3"], ["f3:a982d909", "f1:0adeb68a"], ["f12:f4be6556", "f1:ab80b6c9"], ["f1:c2a9b93b", "f9:600fe26d"], ["f1:3f8007e4", "f3:9f3df306"], ["f1:ad12cead", "f9:7b577f02"], ["f3:4dba9897", "f9:48e604bb"], ["f3:9c38af5d", "f9:de9d39c2"], ["f3:444a387a", "f9:86a87ae0"]],
 };
 
 /** SOFT-1: a deck code's hash in SOFT1_PICKS (8 hex digits). */
@@ -647,6 +652,10 @@ export const FLOOR_PICKS: Readonly<Record<string, string>> = {
   // their seed AND hash (weaver, foundry, bastion: the casual runs did not move); FURNACE keeps its seed and its score (1.95%) but its hash moved (the hash covers the casual
   // run's days 1-16, the score only days 1-7: the change is in a deck after day 7, or in one that plays no differently). Variant B (nearest 35%, not taken) would be furnace 9011:2f1cc8d9, weaver 9010:585caa58, foundry 9003:676b7e8c, bastion
   // 9004:5cea8850. Was (BUMP-1F, variant A on bb-0.13.0): furnace 9010:8d7dd6aa, weaver 9013:63dd911b, foundry 9008:08f1e1aa, bastion 9006:868fa6c7
+  // BUMP-1H run 3 (step R2; the full 64-candidate re-run again, variant A again, on bb-0.15.0's content: the CURVE on, SOFT1_CURVE true; kit-1h/floorjoin.mjs floor1 over output-bump1h/floor/rows-floor1-*.json, read in the FINAL world:
+  // an export of the R1 commit 0859e473 with its stand-in module and the SOFT-1 rows of all four heroes read there (kit-1h/h1dry.sh soft r2, kit-1h/r2fl.sh; 16 units of 4 seeds, 21 minutes). The WEAKEST qualifying run: furnace
+  // 9010 1.95% (the first seed, 9001, scored 82.27%), weaver 9013 7.63% (9001: 19.61%), foundry 9008 14.84% (9001: 55.82%), bastion 9006 11.64% (9001: 82.96%); all 16 seeds qualified for every hero. THE FOUR PICKS ARE BUMP-1G'S, seed,
+  // score and hash (the casual runs did not move under BUMP-1H's changes). Variant B (nearest 35%, not taken): furnace 9011:2f1cc8d9, weaver 9010:585caa58, foundry 9003:676b7e8c, bastion 9004:5cea8850.
   furnace: "9010:a957b3b2",
   weaver: "9013:63dd911b",
   foundry: "9008:08f1e1aa",
@@ -938,10 +947,34 @@ export const DEPTH_SLOTS: readonly (readonly [number, number, number])[] = [
   [3, 1, 1], [4, 1, 2], [6, 1, 3], [8, 2, 4], [9, 4, 4], [11, 1, 6], [13, 4, 1], [13, 4, 1], [14, 5, 7], [15, 8, 6], [15, 8, 6], [16, 8, 6], [16, 8, 6], [11, 4, 1],
 ];
 
-/** BUMP-1H: the streak picks, per hero, one per day STREAK_FIRST_DAY.. (index day - STREAK_FIRST_DAY): empty until P4's step R2 pastes the rule's rows. */
-export const STREAK_PICKS: Readonly<Record<string, readonly string[]>> = {};
-/** BUMP-1H: the depth picks, parallel to DEPTH_SLOTS ("<hero>:<pick>"): empty until P4's step R2. */
-export const DEPTH_PICKS: readonly string[] = [];
+/** BUMP-1H (step R2, run 3): the streak picks, per hero, one per day STREAK_FIRST_DAY..STREAK_LAST_DAY (index day - STREAK_FIRST_DAY). THEY ARE THE PICKS THE TAKE WAS READ WITH (RULING-BUMP1H-R3 R3.3: k1b at K 96,
+ *  c5 27.1%, par 87.8%): days 7-12 of the streak rule's rows of P3's dry flow (kit-1h/h1dry.sh curve, label s450, run 1: par-field dusk decks nearest STREAK_TARGET 450 on the par grade), so the committed pool is the pool
+ *  that the confirm read. The grade's battle seeds read the slot index (streakSlot) and those rows were made with the screens' days 2-16 numbering (15 slots a hero), not this tier's (6): the rule re-run at the committed
+ *  constants (kit-1h/h1dry.sh curve r2, output-bump1h/pool/curve-rows-r2.json) picks 15 of these 24 decks differently (the same kind of deck, nearest the target by another draw of battle seeds). REPORT section 9 names the choice. */
+export const STREAK_PICKS: Readonly<Record<string, readonly string[]>> = {
+  furnace: ["f5:7d3bd1b6", "f5:d7f4e32e", "f8:b4ea2b84", "f11:e0e0e945", "f11:6c7c4086", "f4:e4a47cd7"],
+  weaver: ["f9:2544ed5d", "f3:6aee97eb", "f3:5e218eba", "f3:88c46b41", "f5:b6ec00de", "f12:38a6d516"],
+  foundry: ["f5:f1c7d67e", "f6:5b2e1be9", "f11:a14e4fbd", "f1:7b1f1204", "f7:1d8e74cb", "f5:e04203ae"],
+  bastion: ["f11:5c2da9fe", "f11:b2fbc27c", "f8:a938424e", "f8:a0958ff0", "f7:970fd9ab", "f11:741303ab"],
+};
+/** BUMP-1H (step R2, run 3): the depth picks, parallel to DEPTH_SLOTS ("<hero>:<pick>"): the depth rule's rows of P3's dry flow (the casual-graded candidates nearest CASUAL_TARGET 500 that the pool does not hold that
+ *  day), as the take was read with them (the note at STREAK_PICKS). */
+export const DEPTH_PICKS: readonly string[] = [
+  "bastion:f12:bbf8ebc0", // slot 0: day 3, 1-1
+  "bastion:f8:52c396d6", // slot 1: day 4, 1-2
+  "weaver:f7:ddb893a9", // slot 2: day 6, 1-3
+  "furnace:f7:b0854194", // slot 3: day 8, 2-4
+  "furnace:f2:775f7ff9", // slot 4: day 9, 4-4
+  "furnace:f2:47024111", // slot 5: day 11, 1-6
+  "furnace:f2:c8f1a60d", // slot 6: day 13, 4-1
+  "furnace:f1:9c45b444", // slot 7: day 13, 4-1
+  "furnace:f3:449ac9f5", // slot 8: day 14, 5-7
+  "furnace:f2:eae4c8c9", // slot 9: day 15, 8-6
+  "furnace:f6:fcb98d73", // slot 10: day 15, 8-6
+  "furnace:f3:26e52ddd", // slot 11: day 16, 8-6
+  "furnace:f6:3aa29645", // slot 12: day 16, 8-6
+  "bastion:f3:9f3e4fc6", // slot 13: day 11, 4-1
+];
 
 /** BUMP-1H: how the streak and depth picks are rebuilt; every stale message names it. */
 export const CURVE_REBUILD = "BB_CURVE_RULE=1 BB_CURVE_OUT=<rows.json> npx vitest run tests/curve.picks.test.ts -t \"the rule\" (CURVE on, in SOFT1_PICKS' world, with the SOFT-1 rows of the same run named by BB_SOFT1_PICKS_FILE), paste the printed rows into STREAK_PICKS and DEPTH_PICKS (tools/samplePool.ts), then npm run gen:ghosts";
