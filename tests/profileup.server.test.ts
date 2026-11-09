@@ -537,7 +537,7 @@ describe("PUT /v1/profile on Tigris: the S3 client's own log lines", () => {
     expect(res.status).toBe(201);
     const s3 = r.log.filter((l) => l.startsWith("s3 PUT ghosts/"));
     expect(s3).toHaveLength(1);
-    expect(s3[0]).toMatch(/^s3 PUT ghosts\/bb-0\.14\.0\/d01\/player\/g[0-9a-f]+\.json: HTTP 503/); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the object key's rules): was bb-0\.13\.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, the object key's rules): was bb-0\.12\.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the key holds this build's rules (was bb-0\.10\.0)
+    expect(s3[0]).toMatch(/^s3 PUT ghosts\/bb-0\.15\.0\/d01\/player\/g[0-9a-f]+\.json: HTTP 503/); // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the object key's rules): was bb-0\.13\.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, the object key's rules): was bb-0\.12\.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the key holds this build's rules (was bb-0\.10\.0)
   });
 });
 

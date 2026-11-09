@@ -40,7 +40,7 @@ const CASES: [string, Build, HeroId, number][] = [
 
 describe("pacing (rounds 1-3 at 1x)", () => {
   it("uses the bb-0.4.0 hull values (unchanged through bb-0.9.0; bb-0.9.1 moves FURNACE's and WEAVER's; bb-0.9.3 and bb-0.9.7 keep them; bb-0.10.0 keeps FURNACE's, moves WEAVER's behind FREE_JOINS (1500 on, 1700 off), and its M scales them by the day in battle)", () => {
-    expect(RULES_VERSION).toBe("bb-0.14.0") /* BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.15.0") /* BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     expect(HEROES.furnace.hull).toBe(2100); // BAL-2 (REVIEW-BAL1 row 8): 2000 -> 2100 (was 10 * 200; NUM-1: hull x10, was 200)
     // bb-0.10.0 (HULL-ON, FREE_JOINS; src/sim/freeJoins.ts FREE_JOINS_HULL, cap's ruling 84ad10254e1855c8 = RULING-HULLON-R9,
     // re-pinned by RULING-HULLON-R10 0bbcee55b6ba281a (a)): WEAVER 1500 with free joins on, content.ts's 1700 with them off
