@@ -73,7 +73,7 @@ function packed(hero: HeroId, armors: number, belts = 0): Build {
 
 describe("rules bb-0.8.7: the version", () => {
   it("RULES_VERSION is bb-0.8.7 (RUNES-1; PACKS's bb-0.8.6 before); the label is 0.9.15 since the Prime staged it (the 0.9.15 label commit; 0.9.14.1 before)", () => {
-    expect(RULES_VERSION).toBe("bb-0.14.0") /* BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.15.0") /* BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     expect(VERSION).toBe("0.9.15");
   });
 });
@@ -106,7 +106,7 @@ describe.each(storeBackends())("rules bb-0.8.7 and the packs on the $name store 
   const fresh = (s: GhostSnapshot): GhostSnapshot => ({ ...s, runId: `${s.runId}-${k++}` });
 
   it("/v1/health names bb-0.8.7; an honest deck under bb-0.8.3 (0.8.5's rules) and every near miss of bb-0.8.6 (bb-0.8.6 itself too) is refused, and nothing is stored", async () => {
-    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.14.0") /* BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the served rules): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.15.0") /* BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the served rules): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     const before = backend.storedRecords();
     const seen: Record<string, number> = {};
     for (const rules of NEAR) {

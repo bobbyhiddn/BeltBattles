@@ -97,7 +97,7 @@ function runeless(s: GhostSnapshot): GhostSnapshot {
 
 describe("H2 M1b: the near-miss rules strings (pure)", () => {
   it("are all different from RULES_VERSION, and the three decks are honest bb-0.8.3 seed decks with a reachable record", () => {
-    expect(RULES_VERSION).toBe("bb-0.14.0") /* BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(RULES_VERSION).toBe("bb-0.15.0") /* BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     for (const r of NEAR) expect(r).not.toBe(RULES_VERSION);
     expect(new Set(NEAR).size).toBe(NEAR.length);
     for (const s of Object.values(DECKS)) expect([s.rules, isReachable(s.day, s.wins, s.lives)]).toEqual([RULES_VERSION, true]);

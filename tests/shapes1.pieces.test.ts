@@ -247,7 +247,7 @@ describe("SHAPES-1 S4: the rot rule and the rules gate", () => {
   it("SHAPES_RULES is bb-0.10.0, this build's rules until the bump (RULES_VERSION is bb-0.11.0 since BUMP-1D); the three rigs travel only with the switch on and under rules that have them", () => {
     // BUMP-1D: was expect(SHAPES_RULES).toBe(RULES_VERSION) (both bb-0.10.0). SHAPES_RULES is a literal (S6's: the first rules
     // version with shaped rigs) and stays "bb-0.10.0"; RULES_VERSION is "bb-0.11.0", which is after it (the gate below passes)
-    expect([SHAPES_RULES, RULES_VERSION]).toEqual(["bb-0.10.0", "bb-0.14.0"]); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: label bb-0.12.0 -> bb-0.13.0): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0).
+    expect([SHAPES_RULES, RULES_VERSION]).toEqual(["bb-0.10.0", "bb-0.15.0"]); // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: label bb-0.12.0 -> bb-0.13.0): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0).
     const deck = { items: [{ uid: 1, def: "nailstrip", x: 0, y: 1 }] };
     withShapes(() => { // SHAPES-1 flip: the switch set off (it ships on)
       expect(shapesGateProblem(RULES_VERSION, deck)).toBe("shaped rigs (NAIL STRIP, EMBER TROUGH, SPIKE RAIL): not in this rules version yet");
@@ -454,7 +454,7 @@ describe("SHAPES-1 S6, cap's RUN2 note Q4: the load notice for a reshaped factor
 
 describe("SHAPES-1 S1/S4 after the merge of c099-pre8 (cap's RUN2 note 1.3-1.4): shapes ride under bb-0.10.0", () => {
   it("SHAPES_RULES is S6's literal; a bb-0.9.7 record holding a shaped piece is refused, a bb-0.10.0 one is judged in shapes' world", () => {
-    expect([SHAPES_RULES, RULES_VERSION]).toEqual(["bb-0.10.0", "bb-0.14.0"]); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: label bb-0.12.0 -> bb-0.13.0): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: was ["bb-0.10.0", "bb-0.10.0"]: RULES_VERSION moved, the literal stays
+    expect([SHAPES_RULES, RULES_VERSION]).toEqual(["bb-0.10.0", "bb-0.15.0"]); // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), cause: label bb-0.12.0 -> bb-0.13.0): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: was ["bb-0.10.0", "bb-0.10.0"]: RULES_VERSION moved, the literal stays
     const fx = fixtures();
     const rigs = fx.find((f) => f.name === "rigs")!.s, gantry = fx.find((f) => f.name === "gantry-rot1")!.s;
     withShapes(() => {
