@@ -78,7 +78,7 @@ describe("SHAPES-2 S4: the seed pool's generators with the six on", () => {
   it("generateSamplePool() in the shipped world: SOFT-1's picks were re-picked at the bump, so the whole pool builds (192 ghosts, every one graded)", () => {
     expect(SCALE_RIGS).toBe(true); // BUMP-1E: the shipped world has the scaling rules on (the picks were re-read in it again: R2, bb-0.12.0)
     const pool = on(() => generateSamplePool());
-    expect(pool.length).toBe(192); // 4 heroes x 16 days x 3 variants
+    expect(pool.length).toBe(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). 4 heroes x 16 days x 3 variants
     expect(pool.every((s) => s.v === SNAPSHOT_V3 && typeof s.grade === "number")).toBe(true);
   }, 900_000);
 

@@ -77,7 +77,7 @@ describe("snapshot contract: src/game/ghostSnapshot.ts agrees with src/net/snaps
 
   it("both accept every sample-pool snapshot (the four heroes, days 1-10, lives 1..START_LIVES)", () => {
     // BUMP-1D: 192 = 4 heroes x days 1-16 x 3 variants (the long run's pool: SOFT-1's two picks and the hero's floor ghost a day), was 120 (days 1-10)
-    expect(POOL).toHaveLength(192); // 0.7.0a D5: the 40 sample ghosts and the 20 floor ghosts; 0.8.0 RC: and the 60 race ghosts (was 60)
+    expect(POOL).toHaveLength(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). 0.7.0a D5: the 40 sample ghosts and the 20 floor ghosts; 0.8.0 RC: and the 60 race ghosts (was 60)
     for (const s of POOL) {
       expect(local.isSnapshot(s), `local ${s.hero} d${s.day}`).toBe(true);
       expect(netOk(s), `net ${s.hero} d${s.day}`).toBe(true);
