@@ -50,7 +50,7 @@ import type { Block, PLine, PanelPlan, PanelText } from "./inspector";
 import { levelLines, levelSpans, type LevelLine } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS
 import { fusible } from "../../sim/stars"; // U2e step 5
 import type { BuildLayout } from "./layout"; // U2f: the room the ⓘ view grows into (infoFree)
-import { GAP } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between the ⓘ view's entries
+import { GAP, headDy } from "../../ui/spacing"; // SPACE-1 (REQ-BFG-087): the gaps between the ⓘ view's entries; POLISH-4 (P4-1): where a family head sits under a two-row title
 import { plainSlugRig } from "../../ui/faces"; // EXPLAIN-1 (REQ-BFG-084 step 0b, E9): HIT on the plain rigs' KEYWORDS (SHAPES-1: isPlainRig; PLAIN-1F M3: plainSlugRig)
 import { RIG_SENTENCE, faceLines } from "../../ui/faces"; // CARD-2 (REQ-BFG-004, K1): the rig sentence on the first rig
 import { rigSeen, sawRig, sawWord, sightsLeft, sightWord } from "../../ui/firstSight"; // CARD-2 (K1): the first-sight notes
@@ -307,10 +307,12 @@ export function keywordTargets(lines: readonly { line: PLine | "rule"; y: number
  * names (3x5), each name; where only the marks fit, each 3x3 mark. Each glyph grown to a 7 px pitch (the header's), inside
  * the panel (1 px in from its frame) and clear of `avoid` (the buttons' grown rects and the ⓘ button's), its middle in its
  * target; its key is "<TAG> FAMILY", apart from the PLATE keyword's. Pure (drawKeywordLayer, tests).
+ * POLISH-4 (REQ-BFG-089; P4-1): the head's place is drawFamHead's, under a two-row title and beside the last of three or more sub rows too (`dy`, spacing.ts headDy).
  */
-export function familyTargets(plan: Pick<PanelPlan, "r" | "famHead">, avoid: readonly Rect[] = []): KwTarget[] {
+export function familyTargets(plan: Pick<PanelPlan, "r" | "famHead"> & Partial<Pick<PanelPlan, "titleRows">>, avoid: readonly Rect[] = []): KwTarget[] {
   const fh = plan.famHead, r = plan.r;
   if (!fh) return [];
+  const dy = headDy(plan);
   const within = { x: r.x + 1, y: r.y + 1, w: r.w - 2, h: r.h - 2 }, out: KwTarget[] = [];
   const push = (tag: ModuleTag, glyph: Rect) => {
     let q: Rect | null = clamp(grow({ x: glyph.x - 1, y: glyph.y, w: glyph.w + 2, h: glyph.h }, 7, 7), within);
@@ -324,7 +326,7 @@ export function familyTargets(plan: Pick<PanelPlan, "r" | "famHead">, avoid: rea
     // drawFamHead: `FORGE FAMILY` or `FAMILIES: FORGE, TEMPO` in 3x5 (PRESENT-2 W (b); was "FORGE, TEMPO"), under the sub line (x + 23, y + 19), or
     // right-aligned on the sub line's second row (y + 19) or the title's (y + 5)
     const parts = famHeadParts(fh.tags, !!fh.explained), words = parts.names, text = famHeadText(fh.tags, !!fh.explained), x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - textWidth(text, "3"); // CARD-3
-    const y0 = r.y + (fh.at === "title" ? 5 : 19);
+    const y0 = r.y + dy + (fh.at === "title" ? 5 : fh.at === "sub1" ? 13 : 19); // POLISH-4 (P4-5): `sub1`, the sub line's first row
     if (fh.tags.length === 1) {
       // one family: the whole head is its target (`FORGE FAMILY`: a tap on either word opens the note, whose key is `FORGE FAMILY`; the plain `FORGE`: the name)
       push(fh.tags[0], { x: x0, y: y0, w: textWidth(text, "3"), h: GLYPH_H["3"] });
@@ -338,7 +340,7 @@ export function familyTargets(plan: Pick<PanelPlan, "r" | "famHead">, avoid: rea
   }
   // drawFamHead's marks: 3x3 each, 4 px apart, from (x + 23, y + 20) under the sub line, else right-aligned (y + 6 by the
   // title, y + 20 by the sub line's second row)
-  const x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - (fh.tags.length * 4 - 1), y0 = r.y + (fh.at === "title" ? 6 : 20);
+  const x0 = fh.at === "sub" ? r.x + 23 : r.x + r.w - 4 - (fh.tags.length * 4 - 1), y0 = r.y + dy + (fh.at === "title" ? 6 : 20);
   fh.tags.forEach((tag, i) => push(tag, { x: x0 + i * 4, y: y0, w: 3, h: 3 }));
   return out;
 }
@@ -435,12 +437,14 @@ interface KwState {
   text: string | null;
   /** PRESENT-2 P: the lines the last shown note drew (a box beside the column wraps to its own width); null: none shown. Read by the tests. */
   note: RichLine[] | null;
+  /** PRESENT-4 T (F10): where the rig sentence's box went on its first frame (rigPlace); kept while it shows (no jumps), null when it is not shown. Read by the tests and by rigAhead. */
+  rigAt: RigPlace | null;
 }
 const STATE = new WeakMap<object, KwState>();
 const stateOf = (owner: object, key: string): KwState => {
   let s = STATE.get(owner);
   if (!s || s.key !== key) {
-    s = { key, word: null, page: null, hover: null, opened: false, auto: null, rig: false, chain: false, held: 0, place: null, face: null, text: null, note: null };
+    s = { key, word: null, page: null, hover: null, opened: false, auto: null, rig: false, chain: false, held: 0, place: null, face: null, text: null, note: null, rigAt: null };
     STATE.set(owner, s);
   }
   return s;
@@ -1070,13 +1074,14 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   }
   // the rig sentence's box: by the panel's icon, in the icon tooltip's look (iconTipRect, drawIconTip), a UI region.
   // CARD-4 run 2 (REQ-BFG-087): where the screen has no room beside the panel (a phone's band panel), under the panel and
-  // its strip, off the shop (rigTipRect)
+  // its strip, off the shop (rigTipRect). PRESENT-4 T (F10): there, its place is rigPlace's (inside the panel's body, else
+  // the strip's place with the strip yielding, else rigTipRect's), chosen once from the box's first frame (KwState.rigAt)
   if (s.rig) {
-    const items = [RIG_SENTENCE], tr = rigTipRect(items, r, screen, d.strip ?? null);
-    drawIconTip(g, items, tr);
-    ui.add({ id: SIGHT_REGION, r: tr, block: true });
+    const items = [RIG_SENTENCE], pl = s.rigAt ?? (s.rigAt = rigPlace(items, r, screen, d.strip ?? null, rigRowsEnd(lines, plan), d.deck));
+    drawIconTip(g, items, pl.box);
+    ui.add({ id: SIGHT_REGION, r: pl.box, block: true });
     sawRig();
-  }
+  } else s.rigAt = null;
 }
 
 /** FLIP-X1 (N4-b): one text row the ⓘ view draws: a section's header (3x5, `section`) or one line of an entry (5x7,
@@ -1092,7 +1097,7 @@ export interface InfoRow {
 }
 
 /** FLIP-X1 (N4-b): page `page` of the ⓘ view as drawView draws it: its areas and pages (infoView), each area's box (null
- *  where none is drawn), every text row, and the footer's top (`TAP FOR MORE n/m`, 3x5) where there are more pages. */
+ *  where none is drawn), every text row, and the footer's top (`TAP FOR MORE n/m`, on the last page `TAP TO CLOSE m/m`: infoFootText; 3x5) where there are more pages. */
 export interface InfoDrawn {
   view: InfoView;
   boxes: (Rect | null)[];
@@ -1185,8 +1190,14 @@ function drawView(g: G, ui: UI, s: KwState, items: readonly InfoItem[], r: Rect,
     }
     ui.add({ id: `${KW_REGION}view`, r: box, onTap: turn });
   });
-  if (foot !== null) drawText(g, `TAP FOR MORE ${(s.page ?? 0) + 1}/${pages.length}`, r.x + r.w - 5, foot, C.slate4, { font: "3", align: "right" });
+  if (foot !== null) drawText(g, infoFootText(s.page ?? 0, pages.length), r.x + r.w - 5, foot, C.slate4, { font: "3", align: "right" });
 }
+
+/**
+ * PRESENT-4 N (REQ-BFG-089; STAGE-0915's F7 and F12: every page of the ⓘ view, the last one included, read `TAP FOR MORE n/N`): the footer's words. A tap on a page turns it (drawView's `turn`), and past the
+ * last page it closes the view, so the last page says `TAP TO CLOSE N/N`; the others are as they were. Both are 12 letters and spaces in the 3x5 face, 45 px wide: the new words fit wherever the old ones did.
+ */
+export const infoFootText = (page: number, pages: number): string => `${page + 1 >= pages ? "TAP TO CLOSE" : "TAP FOR MORE"} ${page + 1}/${pages}`;
 
 /** EXPLAIN-1 (REQ-BFG-089, E3): the icon tooltip's text width (3x5 px), as the word tooltip's (drawHoverTip). */
 export const ICON_TIP_W = 150;
@@ -1231,6 +1242,59 @@ export function rigTipRect(items: readonly string[], r: Rect, screen?: { W: numb
   const above = Math.min(r.y, strip && strip.y < r.y ? strip.y : r.y) - tr.h - 6;
   if (above >= 2) return { ...tr, y: above };
   return tr;
+}
+
+/**
+ * PRESENT-4 T (REQ-BFG-087, REQ-BFG-004; STAGE-0915's F10; cap's call): the first-run rig sentence's box on a phone's band panel went just under the panel and its how-to strip (rigTipRect), so on 402x690 it
+ * covered the hull's top and the deck's first row (546 of 546 boxes on every one of the five checked phone views, every tip new; the strip above it tells the player to drag the rig onto that deck). Where the box
+ * is placed (chosen ONCE, from its first frame: KwState.rigAt; never moved while it shows), in this order:
+ *   (1) `inside`: inside the panel's own body, under its last row (`rowsEnd`: the lowest text row's foot) and 2 px clear of it, where the box fits whole 2 px clear of the panel's edge (its 2 px drop shadow, drawIconTip's, ends inside the frame);
+ *   (2) `strip`: the how-to strip yields (it is not drawn from the box's first frame, back in the frame the box closes, never moved: cap's ruling 0d0ef2465804aafb item 2, as definitionAhead's `yieldsStrip`) and
+ *       the box takes the strip's place (its top at the strip's top), where it then covers no deck cell (`deck`: a touch panel on a portrait layout, inspector.ts deckOf). With no strip this open (the tips are
+ *       done and only the first sight is left) there is nothing to yield: the place is the panel's foot, taken only where rigTipRect's place would cover a deck cell (a box that clears the deck stays where it was);
+ *   (3) `today`: rigTipRect's place (the tests list the panels that land here).
+ * Where the box goes beside the panel (the desk's, the landscape phone's column) its place is rigTipRect's, as before. Its x and size are rigTipRect's; only y moves. Pure (the layer, rigAhead, the tests).
+ */
+export interface RigPlace {
+  box: Rect;
+  place: "inside" | "strip" | "today";
+  /** the box is in the strip's place and a strip is under the panel: the strip is not drawn while the box shows */
+  yieldsStrip: boolean;
+}
+export function rigPlace(items: readonly string[], r: Rect, screen: { W: number; H: number } | undefined, strip: Rect | null, rowsEnd: number, deck: Rect | null | undefined): RigPlace {
+  const today = rigTipRect(items, r, screen, strip);
+  if (today.x >= r.x + r.w || today.x + today.w <= r.x) return { box: today, place: "today", yieldsStrip: false }; // beside the panel: as before
+  const inside: Rect = { ...today, y: rowsEnd + 2 };
+  if (inside.y + inside.h + 2 <= r.y + r.h) return { box: inside, place: "inside", yieldsStrip: false };
+  if (deck) {
+    const top = Math.floor(deck.y), H = screen?.H ?? Infinity; // the deck's top is fractional under the carrier's zoom: whole px, as deckClear
+    const clear = (b: Rect): boolean => b.y + b.h <= top && b.y + b.h <= H;
+    const at: Rect = { ...today, y: strip ? strip.y : r.y + r.h };
+    if (strip ? clear(at) : !clear(today) && clear(at)) return { box: at, place: "strip", yieldsStrip: !!strip };
+  }
+  return { box: today, place: "today", yieldsStrip: false };
+}
+/** PRESENT-4 T: the foot of the panel's lowest text row (5x7 rows are 7 px tall, 3x5 rows 5), at least the body's top. */
+export const rigRowsEnd = (lines: readonly { line: PLine | "rule"; y: number }[], plan: Pick<PanelPlan, "y">): number =>
+  Math.max(plan.y, ...lines.filter((v) => v.line !== "rule").map((v) => v.y + ((v.line as { font: FontId }).font === "5" ? 7 : 5)));
+/**
+ * PRESENT-4 T: the place the rig sentence's box has in THIS frame, worked out before the panel draws its strip (inspector.ts drawDetails, as definitionAhead is for a note): the place of its first frame while it
+ * shows, or, on a new open where the layer will open it now (the screen asks for first sights, the body draws no how-to hint, the rig is one the sentence is true of and it is not seen yet, the layer has
+ * something to draw), the place rigPlace gives. null: no sentence this frame. Pure.
+ */
+export function rigAhead(owner: object, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; strip?: Rect | null; deck?: Rect | null },
+  lines: readonly { line: PLine | "rule"; y: number }[], screen: { W: number; H: number } | undefined, sight: boolean): RigPlace | null {
+  const s0 = STATE.get(owner), s = s0 && s0.key === JSON.stringify(d.show) ? s0 : undefined;
+  // shown: the place of its first frame, unless a tapped word's note or the ⓘ view takes the panel this frame (the layer closes the sentence then: drawKeywordLayer's `if (s.page !== null || box) s.rig = false`)
+  if (s?.rig && s.rigAt) return s.word !== null || s.page !== null ? null : s.rigAt;
+  if (s?.opened) return null; // this open's first sight is decided: the sentence shows only through rigAt
+  if (!sight || lines.some((v) => v.line !== "rule" && v.line.block.role === "hint")) return null;
+  const piece = panelPiece(run, d.show);
+  if (!(rigSentenceRig(piece) && !rigSeen())) return null;
+  const own = explainWords(d.t, piece, run.day);
+  const words = [...own, ...runeWords(run).filter((w) => !own.some((o) => o.word === w.word))];
+  if (!words.length && !infoLevels(run, d.show).length && !(d.t.notes ?? []).length) return null; // the layer draws nothing here
+  return rigPlace([RIG_SENTENCE], d.plan.r, screen, d.strip ?? null, rigRowsEnd(lines, d.plan), d.deck);
 }
 
 /** EXPLAIN-1 (E3): the icon's hover tooltip in `tr` (iconTipRect), drawHoverTip's style: an ink frame and shadow, night,

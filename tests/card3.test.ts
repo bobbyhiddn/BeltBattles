@@ -595,8 +595,10 @@ describe("CARD-3 (b, c): the phone band (REQ-BFG-080) and the first-run band (RE
     expect(s.lines.map(lineText).join(" ")).toBe(TOUCH_TURN);
     expect(s.lines.every((l) => lineWidth(l, "3") <= d.plan.r.w - 10)).toBe(true);
     // the strip takes no press: drawDetails registers nothing over it (a press there reaches what is under it)
+    // PRESENT-4 T (F10; cap's call), old -> new: except the rig sentence's box (`kwsight`) on this view (402x690 with a rune, TEMPER placed): it takes the strip's place while it shows (keywords.ts rigPlace (2)),
+    // the strip is not drawn then, and a press on the box closes it (tests/present4.rigplace.test.ts holds the places)
     const ui = fresh1.draw();
-    expect(ui.regions.filter((q) => ov(q.r, s.r)).map((q) => q.id)).toEqual([]);
+    expect(ui.regions.filter((q) => ov(q.r, s.r)).map((q) => q.id)).toEqual(["kwsight"]);
     // its once-only rule (tips.ts): it shows while either of its tips (turn, move) is new; both done, the strip goes
     completeTip("turn");
     expect(panelCtx(run, sel, f, true).d().hint).toBe(TOUCH_TURN);
