@@ -68,7 +68,8 @@ describe("PRESENT-1 S1 (c): every piece bigger than one cell has a grid, a plain
       const c = fresh(w + 8, h + 10);
       drawCard(G(c), { x: 4, y: 4, w, h }, ITEMS[d.id], d.price, merchantOf(d.id), { ...BASE }, 0);
       const z = cardZones(w, h, d.price), sz = shapeGridSize(d.id), plate: Box = { x: 4 + z.grid.x, y: 4 + z.grid.y, w: sz.w + 2, h: sz.h + 2 };
-      expect(c.at(plate.x, plate.y), `${d.id} ${wn}: the plate's corner`).toBe(C.ink);
+      // PRESENT-6 A2 (REQ-BFG-115; #583 (2)), old -> new: the phone card's plate is shaped (ink only behind the grid's px and 1 px round them: shapePic.ts shapePlateInk), so its box's corner px is bare and the plate's first ink px is the one beside the grid's corner; a desk card's plate is the whole box
+      expect(c.at(wn === "phone" ? plate.x + 1 : plate.x, plate.y), `${d.id} ${wn}: the plate's corner`).toBe(C.ink);
       for (const t of gridGeom(gridSpecOf(d.id), gridCell(d.id)).tiles) expect(c.at(plate.x + 1 + t.x + 1, plate.y + 1 + t.y + 1), `${d.id} ${wn}: a tile`).toBe(C.steel2);
       expect(limeIn(c, plate), `${d.id} ${wn}: no arrowhead on a plain piece`).toBe(0);
       // the plate hides at most 25% of the icon's opaque px (SHOPCARD-1 G3)

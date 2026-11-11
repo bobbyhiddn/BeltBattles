@@ -321,13 +321,38 @@ export function drawGridRight(g: G, defId: string, x: number, y: number, w: numb
   return true;
 }
 
+/**
+ * PRESENT-6 A2 (REQ-BFG-115, REQ-BFG-113; backlog #583 (2); cap's ruling 5 on PRESENT-5's Q5): the narrow phone shop card's plate, shaped. Since PRESENT-5 A (4 px heads) PICKAXE's plate, the grid in a 1 px ink margin, was a 21 x 14 box that hid 128 of its icon's 336 opaque
+ * px (38.1%; the guide is 25%). The plate's ink is now only where the grid draws a px (tiles, seams, outline, arrowheads) and 1 px round it, up, down, left and right (a cross: the 3 x 3 square hid 91, 27.1%): the box's empty corners show the icon (82 of 336, 24.4%;
+ * 111 px of the plate lie on the icon's 24 x 24 box where the whole box had 168). The grid's own px are drawn over it as ever, so the tiles and the 4 px heads keep their backing; the rect (shapeGridSize + 2) is the box's.
+ * Computed from the game's own drawGrid (its fillRect calls recorded; no pixel readback), at the plate's offset (1, 1), and cached per piece, cell and head.
+ */
+function gridRects(spec: GridSpec, cell: number, head: number): [number, number, number, number][] {
+  const out: [number, number, number, number][] = [];
+  const rec = { fillStyle: "", fillRect: (x: number, y: number, w: number, h: number): void => { out.push([x, y, w, h]); } } as unknown as G;
+  drawGrid(rec, spec, 0, 0, cell, head);
+  return out;
+}
+export function shapePlateInk(defId: string, cell?: number, headLen?: number): HTMLCanvasElement {
+  const head = headLen ?? headOf(cell), cl = cell ?? gridCell(defId), k = `plate:${defId}:${cl}:${head}`;
+  let c = CACHE.get(k);
+  if (!c) {
+    const spec = gridSpecOf(defId), geom = gridGeom(spec, cl, head), [cv, g] = makeCanvas(geom.w + 2, geom.h + 2);
+    for (const [x, y, w, h] of gridRects(spec, cl, head)) for (const [dx, dy] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]) rect(g, x + 1 + dx, y + 1 + dy, w, h, C.ink);
+    CACHE.set(k, (c = cv));
+  }
+  return c;
+}
+
 /** G3: the grid on an ink plate (a 1 px ink margin round its box: an arrowhead stays readable over an icon's corner) with the
  *  plate's top-left at (x, y). Returns the plate's rect. `alpha` dims it (a sold card). SC-0912: at the piece's own cell (gridCell)
  *  unless a cell is given (or `undefined`, as event/cards.ts passes it). */
-export function drawShapePlate(g: G, defId: string, x: number, y: number, cell?: number, alpha = 1, headLen?: number): { x: number; y: number; w: number; h: number } {
+export function drawShapePlate(g: G, defId: string, x: number, y: number, cell?: number, alpha = 1, headLen?: number, trim = false): { x: number; y: number; w: number; h: number } {
   const { w, h } = shapeGridSize(defId, cell, headLen); // PRESENT-5 A: `headLen`, the arrowhead's length (default: headOf(cell), as before)
   if (alpha < 1) g.globalAlpha = alpha;
-  rect(g, x, y, w + 2, h + 2, C.ink);
+  // PRESENT-6 A2: `trim`, the narrow phone shop card's plate: ink only behind the grid's own px and 1 px round them (a shaped plate, shapePlateInk), not its whole box; the rect returned is the box's, as ever
+  if (trim) g.drawImage(shapePlateInk(defId, cell, headLen), x, y);
+  else rect(g, x, y, w + 2, h + 2, C.ink);
   g.drawImage(shapeGrid(defId, cell, headLen), x + 1, y + 1);
   if (alpha < 1) g.globalAlpha = 1;
   return { x, y, w: w + 2, h: h + 2 };
