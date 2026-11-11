@@ -1,6 +1,6 @@
 // PRESENT-6 N (REQ-BFG-081, REQ-BFG-004; the release lane's F8, STAGE-09151's ruling 14): a MOUSE's first-sight box keeps off its own panel's text rows. In a first run the box that opens by itself for a mouse is the hover tooltip's look under its word
 //  (keywords.ts drawKeywordLayer, `s.auto`), which lay over the rows below the word: 402x690's belt 0 in the STAGE's scene (the `sides` deck, its SPLITTER out, a SORTING ARM at (1,5) turned east: COPIES 1.3) had the COPIES note over rows T4-T6 and the
-//  readout's first labels (0.9.15 drew the same). N0's sweep (tests/present6.sight.helpers.ts: every panel a finger can open and the showcase decks' belts, eight views, both pointers, both tip states) showed a FINGER's first-sight notes cover no text row on any of
+//  readout's first labels (0.9.15 drew the same). N0's sweep (tests/present6.sight.helpers.ts: every panel a finger can open and the showcase decks' belts, ten views, both pointers, both tip states) showed a FINGER's first-sight notes cover no text row on any of
 //  them (so N2 has nothing to fix) and a mouse's covered one in 5,247 of 29,000-odd notes. N1 (keywords.ts sightTipPlace, wordTipBox, drawWordTip's `place`; inspector.ts deckAny): the place is the first of: under the word where that covers no text row, header row, button,
 //  how-to strip or its own word and is whole on the screen (x moved left only as far as the screen needs); inside the panel's body under its last text row, 2 px clear; off the panel (the landscape column's under, band and corner, never over a hard rect; a phone's band
 //  panel: just under the panel and its strip, ending above the deck's top); else today's place (listed below by name). The box keeps its size, look and text; the place is chosen ONCE from its first frame (KwState.sightAt). The player's own hover tip and a rune card's tip are
@@ -81,6 +81,8 @@ describe("PRESENT-6 N1: the ladder's order (keywords.ts sightTipPlace), on built
 /** the first note's place on the F8 panel (the `sides` deck at day 5, its SPLITTER out, a SORTING ARM at (1,5) east, belt 1: COPIES 1.3) at each swept view with a mouse, every tip new (the STAGE's state) */
 const F8_PLACE: Record<string, string | null> = {
   "op-402x690, no rune": "below", "op-402x690, a rune": null, "phone-390x844": "inside", "phone-390x660": "below", "iphone15pm-430x739": "below", "desk-1280x800": "under", "desk-1366x768": "under", "desk-1920x1080": "fallback",
+  // no rune held (the browser scene's own state: 1920x1080 is framed at x4, 480x270): 1280x800 under the column, 1920x1080 in the band between the shop row and the carrier
+  "desk-1280x800, no rune": "under", "desk-1920x1080, no rune": "band",
 };
 function chainOf(view: SweepView, p: Panel, state: TipState, pointer: Pointer = "mouse") {
   const f = framed(view.w, view.h, view.dpr, view.runes);
@@ -157,6 +159,14 @@ const PINS: Record<string, { base: number[]; tip: number[] }> = {
   "desk-1920x1080|new|finger": { base: [19, 0, 19, 0, 0, 0, 0], tip: [19, 0, 19, 0, 0, 0, 0] },
   "desk-1920x1080|sight|mouse": { base: [19, 19, 385, 182, 161, 222, 0], tip: [19, 19, 385, 142, 154, 163, 0] },
   "desk-1920x1080|sight|finger": { base: [19, 0, 385, 0, 109, 0, 0], tip: [19, 0, 385, 0, 109, 0, 0] },
+  "desk-1280x800, no rune|new|mouse": { base: [19, 19, 19, 19, 4, 0, 0], tip: [19, 0, 19, 0, 0, 0, 0] },
+  "desk-1280x800, no rune|new|finger": { base: [19, 0, 19, 0, 0, 0, 0], tip: [19, 0, 19, 0, 0, 0, 0] },
+  "desk-1280x800, no rune|sight|mouse": { base: [19, 19, 385, 182, 17, 222, 0], tip: [19, 0, 385, 0, 0, 0, 0] },
+  "desk-1280x800, no rune|sight|finger": { base: [19, 0, 385, 0, 0, 0, 0], tip: [19, 0, 385, 0, 0, 0, 0] },
+  "desk-1920x1080, no rune|new|mouse": { base: [19, 19, 19, 19, 19, 0, 0], tip: [19, 0, 19, 0, 0, 0, 0] },
+  "desk-1920x1080, no rune|new|finger": { base: [19, 0, 33, 0, 0, 0, 0], tip: [19, 0, 33, 0, 0, 0, 0] },
+  "desk-1920x1080, no rune|sight|mouse": { base: [19, 19, 377, 174, 112, 222, 0], tip: [19, 0, 377, 5, 5, 14, 0] },
+  "desk-1920x1080, no rune|sight|finger": { base: [19, 0, 385, 0, 0, 0, 0], tip: [19, 0, 385, 0, 0, 0, 0] },
 };
 const STRIDE = 5;
 const sample = (): Panel[] => [...allPanels().filter((_, i) => i % STRIDE === 0), ...beltPanels()];
@@ -183,7 +193,7 @@ describe("PRESENT-6 N1: the sweep's counts, base -> tip, per view, pointer and t
     }
   }, BIG);
 
-  it("1920x1080 keeps today's place for the belts (the carrier's reach leaves 153 px under the 128 px column, the box is 157-160 px): the panels that land at the fallback there are the 19 belt notes, listed", () => {
+  it("1920x1080 with a rune held (framed at x3, 640x360) keeps today's place for the belts (the carrier's reach leaves 153 px under the 128 px column, the box is 157-160 px): the panels that land at the fallback there are the 19 belt notes, listed", () => {
     const view = SWEEP_VIEWS.find((v) => v.name === "desk-1920x1080")!, notes = sweep(view, "mouse", beltPanels(), "new");
     const left = notes.filter((n) => n.kind === "belt" && n.textRows);
     expect(left.length).toBe(19);

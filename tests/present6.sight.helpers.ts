@@ -53,6 +53,8 @@ export const SWEEP_VIEWS: SweepView[] = [
   { name: "op-402x690, no rune", w: 402, h: 690, dpr: 3, runes: 0 }, { name: "op-402x690, a rune", w: 402, h: 690, dpr: 3, runes: 1 }, { name: "phone-390x844", w: 390, h: 844, dpr: 3, runes: 1 },
   { name: "phone-390x660", w: 390, h: 660, dpr: 3, runes: 1 }, { name: "iphone15pm-430x739", w: 430, h: 739, dpr: 3, runes: 1 },
   { name: "desk-1280x800", w: 1280, h: 800, dpr: 1, runes: 1 }, { name: "desk-1366x768", w: 1366, h: 768, dpr: 1, runes: 1 }, { name: "desk-1920x1080", w: 1920, h: 1080, dpr: 1, runes: 1 },
+  // the desks with no rune held (a first run before its dawn rune; the browser scene's own state): the build screen frames 1920x1080 at x4 (480x270) there, not the x3 (640x360) a held rune's row leaves
+  { name: "desk-1280x800, no rune", w: 1280, h: 800, dpr: 1, runes: 0 }, { name: "desk-1920x1080, no rune", w: 1920, h: 1080, dpr: 1, runes: 0 },
 ];
 
 /** What a note never covers (cap's ruling 0d0ef2465804aafb): the deck's cells, FIGHT, the cargo bar, the top bar; and, here too, a shop card. */
