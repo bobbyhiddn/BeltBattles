@@ -15,6 +15,7 @@ import { factorySprite, itemIcon } from "./sprites";
 import { gear } from "./factoryArt";
 import { SHAPES2_ANIMATED, shapes2BodyH } from "./shapes2Art"; // SHAPES-2 (REQ-BFG-114): the six more shaped rigs' bodies
 import { isShapes2Piece } from "../sim/shapes2";
+import { artBBody, artBBodySil } from "./artB"; // ARTB-CODE-1 (REQ-BFG-126): NAIL STRIP's and EMBER TROUGH's own bodies; each answers null with the switch off or for any other id
 
 type Cv = HTMLCanvasElement;
 const cache = new Map<string, Cv>();
@@ -151,6 +152,8 @@ function drawRigBodyH(id: string, W: number, H: number, cells: [number, number][
  * spikes out of both long sides. Its nozzles are drawn over it per arrow (machinery.ts).
  */
 export function shapedRigBody(id: string, w: number, h: number, frameIdx: number, active: boolean, mask = ""): Cv {
+  const ab = artBBody(id, w, h, frameIdx, active, mask); // ARTB-CODE-1: the slice's body (idle and working phases), lying or transposed; null for any other id or with the switch off
+  if (ab) return ab;
   const f = ((frameIdx % 8) + 8) % 8;
   const fr = id === "embertrough" || SHAPES2_ANIMATED.includes(id) ? f : 0; // the trough animates, and (SHAPES-2) the spark, the ember and the jaws
   return cached(`srig:${id}:${w}x${h}:${mask}:${fr}:${active ? 1 : 0}`, () => {
@@ -164,7 +167,7 @@ export function shapedRigBody(id: string, w: number, h: number, frameIdx: number
 
 /** The white silhouette of a shaped rig's body (its hit flash, as gateSil). */
 export function shapedRigSil(id: string, w: number, h: number, mask = ""): Cv {
-  return cached(`srigS:${id}:${w}x${h}:${mask}`, () => silhouette(shapedRigBody(id, w, h, 0, false, mask), C.white));
+  return artBBodySil(id, w, h, mask) ?? cached(`srigS:${id}:${w}x${h}:${mask}`, () => silhouette(shapedRigBody(id, w, h, 0, false, mask), C.white)); // ARTB-CODE-1: the hit flash follows the new body
 }
 
 // ------------------------------------------------------------------ factories
