@@ -28,7 +28,7 @@ import { tapPx } from "../../ui/tap";
 import { cardFrame, cardPriceX, cardZones, priceColour, SOLD_ALPHA } from "./shop";
 import { shapedPiece } from "./shapeEdit";
 import { dragSlop } from "./edit";
-import { CARD_H, CARD_W, cornerTap, screenRect, type BuildLayout } from "./layout";
+import { CARD_H, CARD_W, cornerTap, idleFoeRect, screenRect, type BuildLayout } from "./layout";
 import {
   answerMerge, applyState, cancelApply, chooseTarget, mergePrompt, pressOf, setPress, skipPick, tapWord, wagonSlides, wagonUp, wordHover,
 } from "./apply";
@@ -195,11 +195,13 @@ export function wordLayout(L: BuildLayout, run: Run, tap = 0): BuildLayout {
   return mergeShift(out, run, tap);
 }
 
-/** The details band (portrait) or column (landscape) of `L` starting `d` px lower (the NEXT BATTLE strip of a portrait band with it). */
+/** The details band (portrait) or column (landscape) of `L` starting `d` px lower (the NEXT BATTLE strip of a portrait band with it).
+ *  POLISH-8 (P8-1, REVIEW-POLISH7 V1): the band's foot does not move, so a portrait card moved down by `d` with the band's top ended `d` px below the foot (over the hull's rim and the bow turrets' mounts) and the hero card above it was cut from
+ *  the wrong top. The card goes where buildLayout's own rule puts it for the band as it is now (layout.ts idleFoeRect: null under FOE_H, so the hero card follows heroCardRect and chrome.ts as they are); the landscape column's card is unchanged. */
 function lowerInfo(L: BuildLayout, d: number): BuildLayout {
   if (d <= 0) return L;
   const info = { ...L.info, y: L.info.y + d, h: Math.max(0, L.info.h - d) };
-  return { ...L, info, foe: L.portrait && L.foe ? (info.h >= L.foe.h ? { ...L.foe, y: L.foe.y + d } : null) : L.foe };
+  return { ...L, info, foe: L.portrait && L.foe ? idleFoeRect(info) : L.foe };
 }
 
 /** One word card on the screen: which card it is, its word, its price (null: a pick's card is free), whether it is sold, where it is drawn
