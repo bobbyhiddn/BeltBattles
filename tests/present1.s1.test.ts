@@ -19,7 +19,7 @@ import { drawChoiceCard } from "../src/screens/event/cards";
 import { drawDropCard } from "../src/screens/fork/drops";
 import { lcPartGrid, lcPartPlate, lcPartSub } from "../src/screens/lastChancePicker";
 import { faceIcon } from "../src/screens/battleScout";
-import { HEAD_BIG, HEAD_LEN, drawGridRight, gridCell, gridGeom, gridSpecOf, hasGrid, iconCell, shapeGridSize, shapePic } from "../src/ui/shapePic";
+import { HEAD_BIG, HEAD_LEN, drawGridRight, gridCell, gridGeom, gridSpecOf, hasGrid, iconCell, markCell, shapeGridSize, shapeMarkSize, shapePic } from "../src/ui/shapePic";
 import { itemSlot } from "../src/ui/ui";
 import { ENCHANT_DEFS } from "../src/sim/enchant";
 import { footCount } from "../src/sim/foot";
@@ -127,16 +127,20 @@ describe("PRESENT-1 S1 (a): the grid is not dropped where it was", () => {
     expect(corners).toBeGreaterThan(20); // the narrow cards and the long enchanted names that used to lose the grid
   });
 
-  it("the victory drop card: the plate beside the words where they leave room, else the grid over the icon box's corner (plain and shaped pieces, 90-220 px)", () => {
+  it("the victory drop card: the plate beside the words where they leave room, else the footprint mark in the icon box's corner (plain and shaped pieces, 90-220 px)", () => { // PRESENT-6 G6, old -> new: the fallback was G1's grid at iconCell over the box's top-left; now the footprint MARK (drawIconMark), the icon whole
     for (const id of bigger) for (const w of [90, 110, 140, 170, 200, 220]) {
       const c = fresh(w + 10, 30), x = 3, y = 3;
       drawDropCard(G(c), id, false, x, y, w, 1);
       const sz = shapeGridSize(id), pw = sz.w + 2, px = x + w - 4 - pw;
       const name = ITEMS[id].name, sub = "DROP · TO CARGO · ★1", room = x + 23 + Math.max(textWidth(name), textWidth(sub, "3")) + 4 <= px;
-      const tiles = gridGeom(gridSpecOf(id), room ? gridCell(id) : iconCell(id), room ? HEAD_BIG : HEAD_LEN).tiles; // PRESENT-1 S1 (d): the plate at the roomy cell, the corner fallback at the icon cell (PICKAXE 5 / 4); PRESENT-2 K: the plate's 4 px arrow, the corner's 3
-      // wherever the grid is, its tiles are in the kind's colour: on the plate (the image's top-left 1 px in from the plate's) or over the icon box's corner (x + 4, y + 4)
-      const origin = room ? { x: px + 1, y: y + 1 + 1 } : { x: x + 4, y: y + 4 };
-      for (const t of tiles) expect(c.at(origin.x + t.x + 1, origin.y + t.y + 1), `${id} ${w}: a tile ${room ? "on the plate" : "over the icon's corner"}`).toBe(fillOf(id));
+      if (room) {
+        // the plate at the roomy cell (PICKAXE 5), the 4 px arrow (PRESENT-2 K): the tiles are in the kind's colour on the plate (the image's top-left 1 px in from the plate's)
+        for (const t of gridGeom(gridSpecOf(id), gridCell(id), HEAD_BIG).tiles) expect(c.at(px + 1 + t.x + 1, y + 1 + 1 + t.y + 1), `${id} ${w}: a tile on the plate`).toBe(fillOf(id));
+      } else {
+        // the mark (7 x 7 px at most, no arrowheads) flush in the bottom-right corner of the card's 14 x 14 icon box at (x + 4, y + 4): each tile's last row is the kind's fill (a 1 px tile is the highlight)
+        const mz = shapeMarkSize(id), hi = ITEMS[id].kind === "gate" ? C.wood3 : C.steel3;
+        for (const t of gridGeom({ ...gridSpecOf(id), arrows: [] }, markCell(id)).tiles) expect(c.at(x + 4 + 14 - mz.w + t.x, y + 4 + 14 - mz.h + t.y + t.h - 1), `${id} ${w}: a mark tile in the icon box's corner`).toBe(t.h > 1 ? fillOf(id) : hi);
+      }
       expect(c.at(px, y + 1) === C.ink, `${id} ${w}: the plate only where there is room`).toBe(room);
     }
   });
