@@ -13,7 +13,7 @@ import { drawPlainGate } from "./plainArt"; // PLAIN-1 (REQ-BFG-084): the six pl
 import { drawShapes2Gate } from "./shapes2Art"; // SHAPES-2 (REQ-BFG-114): the six more shaped rigs' icons
 import { drawScaleGate } from "./scaleArt"; // ART-1E (REQ-BFG-098): the seven new scaling rigs' own art
 import { beltStyle, type BeltId } from "./styles"; // CUSTOM-1 (REQ-BFG-072) hook: belt styles
-import { artBBoard, artBBoardSil, artBIcon } from "./artB"; // ARTB-CODE-1 (REQ-BFG-126): art direction B's first slice (KILN and ten rigs); each answers null with the switch off or for any other id
+import { artBBoard, artBBoardSil, artBFactory, artBFactorySil, artBIcon } from "./artB"; // ARTB-CODE-1 (REQ-BFG-126): art direction B's first slice (KILN and ten rigs); each answers null with the switch off or for any other id
 import {
   bevel, disc, flipX, flipY, frame, fromRows, hline, line, makeCanvas, outlined,
   px, rect, ring, rot90, silhouette, vline, type G,
@@ -203,6 +203,8 @@ function starLevel(stars: number): number {
 export function factorySprite(id: string, frameIdx: number, flash: boolean, stars = 1): Cv {
   const f = ((frameIdx % 8) + 8) % 8;
   const s = starLevel(stars);
+  const ab = artBFactory(id, f, flash); // ARTB-CODE-1: KILN's own drawing (idle phases, flash); null for any other id or with the switch off
+  if (ab) return ab;
   return cached(`fac:${id}:${f}:${flash ? 1 : 0}${s > 1 ? `:${s}` : ""}`, () => {
     if (id === "kiln") return drawKiln(f, flash);
     if (id === "loom") return drawLoom(f, flash);
@@ -311,7 +313,7 @@ function drawPress(f: number, flash: boolean): Cv {
 
 export function factoryFlashSil(id: string, stars = 1): Cv {
   const s = starLevel(stars); // 0.6.1c: as factorySprite
-  return cached(`facS:${id}${s > 1 ? `:${s}` : ""}`, () => silhouette(factorySprite(id, 0, false, s), C.white));
+  return artBFactorySil(id) ?? cached(`facS:${id}${s > 1 ? `:${s}` : ""}`, () => silhouette(factorySprite(id, 0, false, s), C.white)); // ARTB-CODE-1: KILN's flash follows its new sprite
 }
 
 // ------------------------------------------------------------------ gates
