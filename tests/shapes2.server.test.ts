@@ -109,7 +109,7 @@ describe("SHAPES-2 S4: the client check and POST /v1/ghosts agree on the six, in
     // BUMP-1E: was expect(SHAPES2_RULES).toBe(RULES_VERSION) (both bb-0.11.0). SHAPES2_RULES is a literal gate (the rules that brought the six) and stays
     // bb-0.11.0; this build's rules are bb-0.12.0 (content.ts RULES_VERSION), the version after it, so the fixtures (stated under this build's rules) have the six
     expect(SHAPES2_RULES).toBe("bb-0.11.0");
-    expect(RULES_VERSION).toBe("bb-0.15.0"); // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): was bb-0.12.0 (SHAPES2_RULES stays the literal bb-0.11.0)
+    expect(RULES_VERSION).toBe("bb-0.16.0"); // BUMP-1I (rules bb-0.15.0 -> bb-0.16.0, the stamped literal): was bb-0.15.0. BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): was bb-0.12.0 (SHAPES2_RULES stays the literal bb-0.11.0)
     expect(SHAPES2_RULES).not.toBe(RULES_VERSION);
     expect(rulesAtLeast(RULES_VERSION, SHAPES2_RULES)).toBe(true);
     const fx = fixtures();

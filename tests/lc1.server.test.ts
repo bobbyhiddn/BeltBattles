@@ -98,7 +98,7 @@ describe("LC-1: the decoder (snapshot.lastChance)", () => {
   it("accepted under LAST_CHANCE_RULES (bb-0.9.7, a literal since Z-BUMP) and this build's later rules, refused under older rules", () => {
     const { s } = honest("hull");
     expect(LAST_CHANCE_RULES).toBe("bb-0.9.7"); // AZ-BUMP: the bump (was RULES_VERSION's value until it)
-    expect([RULES_VERSION, lastChanceGateProblem(RULES_VERSION)]).toEqual(["bb-0.15.0", null]); // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G: was bb-0.13.0 (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION). AZ-BUMP: this build's rules have LAST CHANCE; BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: bb-0.11.0 (was bb-0.10.0)
+    expect([RULES_VERSION, lastChanceGateProblem(RULES_VERSION)]).toEqual(["bb-0.16.0", null]); // BUMP-1I (rules bb-0.15.0 -> bb-0.16.0, the stamped literal): was bb-0.15.0. BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G: was bb-0.13.0 (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION). AZ-BUMP: this build's rules have LAST CHANCE; BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: bb-0.11.0 (was bb-0.10.0)
     expect(checkSnapshot(s).lastChance).toEqual({ day: D, boon: "hull" });
     expect(isSnapshot(s)).toBe(true);
     // written last, after the seed; a snapshot without one encodes as before
