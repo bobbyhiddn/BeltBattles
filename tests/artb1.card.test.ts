@@ -5,6 +5,8 @@
 //   piece and for KILN's plain 2x2 grid), in every state and on every width;
 // - the plate guide (cap's ruling 5 on PRESENT-5, kept by REQ-BFG-126): a plate hides at most 25% of its picture's opaque px. The table is printed (and written to
 //   $ARTB_PLATE_LOG when that is set: logs/c-platecover.log); the shares are measured on the data, never typed.
+// ARTB-CODE-1B (after the merge of PRESENT-6, A2): the narrow phone card's plate is SHAPED (ink only behind the grid's px and 1 px round them: shapePic.ts shapePlateInk), so "under the plate"
+//   is "where the plate has ink" (plateInk below); a wide card's plate is the whole box, as it was.
 // No pixel, digest or pixel count of a slice sprite is typed here: the expectations are decoded from the JSON.
 import { readFileSync, writeFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
@@ -17,7 +19,7 @@ import { C } from "../src/render/palette";
 import { artBCard, setArtB } from "../src/render/artB";
 import { CARD_H, CARD_TEXT_MIN_W, CARD_W, WIDE_CARD_H, WIDE_CARD_MAX_W } from "../src/screens/build/layout";
 import { CARD_ICON, cardZones, drawCard, iconX2, type CardState } from "../src/screens/build/shop";
-import { HEAD_BIG, CARGO_FACE, gridCell, hasGrid, shapeGridSize } from "../src/ui/shapePic";
+import { HEAD_BIG, CARGO_FACE, gridCell, hasGrid, shapeGridSize, shapePlateInk } from "../src/ui/shapePic";
 import type { ShopBadge } from "../src/game/run";
 
 type Box = { x: number; y: number; w: number; h: number };
@@ -55,6 +57,14 @@ function draw(id: string, w: number, h: number, s: Partial<CardState>): RasterCa
 }
 /** The footprint plate on a card of width `w`, in px from the card's top-left (the box drawCard's drawShapePlate covers): ink round the grid. */
 const plateOn = (id: string, w: number): Box => { const z = cardZones(w, 42), g = shapeGridSize(id, w >= CARD_TEXT_MIN_W ? undefined : gridCell(id, CARGO_FACE), HEAD_BIG); return { x: z.grid.x, y: z.grid.y, w: g.w + 2, h: g.h + 2 }; };
+/** ARTB-CODE-1B (REQ-BFG-126), after the merge of PRESENT-6 (A2, REQ-BFG-115): where the plate has ink (x, y: px from the plate box's top-left). The narrow phone card's plate is SHAPED
+ *  (shapePic.ts shapePlateInk: ink only behind the grid's own px and 1 px round them, drawShapePlate's `trim`, shop.ts passes r.w < CARD_TEXT_MIN_W); a wide card's (69 px and up) is the whole box as it was. */
+function plateInk(id: string, w: number): (x: number, y: number) => boolean {
+  const pl = plateOn(id, w);
+  if (w >= CARD_TEXT_MIN_W) return (x, y) => x >= 0 && y >= 0 && x < pl.w && y < pl.h;
+  const mask = R(shapePlateInk(id, gridCell(id, CARGO_FACE), HEAD_BIG));
+  return (x, y) => mask.at(x, y) !== null;
+}
 
 afterEach(() => setArtB(true));
 
@@ -67,10 +77,11 @@ describe("ARTB-CODE-1 C: the shop card's picture", () => {
       expect([ic.width, ic.height], `${id}: iconX2 is 24x24`).toEqual([CARD_ICON, CARD_ICON]);
       expect(ic.px, `${id}: iconX2 is the data`).toEqual(pic);
       for (const [wn, w, h] of WIDTHS) {
-        const c = draw(id, w, h, {}), z = cardZones(w, h, ITEMS[id].price), plate = hasGrid(id) ? plateOn(id, w) : null;
+        const c = draw(id, w, h, {}), z = cardZones(w, h, ITEMS[id].price), plate = hasGrid(id) ? plateOn(id, w) : null, ink = hasGrid(id) ? plateInk(id, w) : null;
         let seen = 0;
         for (let j = 0; j < CARD_ICON; j++) for (let i = 0; i < CARD_ICON; i++) {
-          if (plate && inBox(plate, z.icon.x + i, z.icon.y + j)) continue; // the plate lies over the picture's corner
+          // the plate lies over the picture's corner: skip the px it has ink on (ARTB-CODE-1B: the narrow card's plate is shaped, so its box's empty corners show the picture)
+          if (plate && ink && inBox(plate, z.icon.x + i, z.icon.y + j) && ink(z.icon.x + i - plate.x, z.icon.y + j - plate.y)) continue;
           expect(c.at(OX + z.icon.x + i, OY + z.icon.y + j), `${id} ${wn}: card px ${i},${j}`).toBe(pic[j * CARD_ICON + i] ?? C.slate0); // clear px show the card's face
           seen++;
         }
@@ -103,14 +114,15 @@ describe("ARTB-CODE-1 C: the shop card's picture", () => {
       const off = draw(id, w, h, s);
       const z = cardZones(w, h, ITEMS[id].price), dy = -lift(s);
       const pic: Box = { x: OX + z.icon.x, y: OY + dy + z.icon.y, w: CARD_ICON, h: CARD_ICON };
-      const pl = hasGrid(id) ? plateOn(id, w) : null;
+      const pl = hasGrid(id) ? plateOn(id, w) : null, ink = hasGrid(id) ? plateInk(id, w) : null;
       const plate: Box | null = pl ? { x: OX + pl.x, y: OY + dy + pl.y, w: pl.w, h: pl.h } : null;
       let changed = 0;
       for (let y = 0; y < on.height; y++) for (let x = 0; x < on.width; x++) {
         if (on.at(x, y) === off.at(x, y)) continue;
         changed++;
         expect(inBox(pic, x, y), `${id} ${wn} ${sn}: a px that differs at ${x},${y} lies in the picture's box`).toBe(true);
-        expect(plate !== null && inBox(plate, x, y), `${id} ${wn} ${sn}: a px that differs at ${x},${y} lies under the plate`).toBe(false);
+        // ARTB-CODE-1B: under the plate = where the plate has ink (the narrow card's plate is PRESENT-6's shaped one; a wide card's the whole box)
+        expect(plate !== null && ink !== null && inBox(plate, x, y) && ink(x - plate.x, y - plate.y), `${id} ${wn} ${sn}: a px that differs at ${x},${y} lies under the plate`).toBe(false);
       }
       expect(changed, `${id} ${wn} ${sn}: the picture changed something`).toBeGreaterThan(0);
     }
@@ -126,16 +138,17 @@ describe("ARTB-CODE-1 C: the shop card's picture", () => {
       if (!hasGrid(id)) continue;
       const pic = picture(id), opaque = pic.filter((p) => p !== null).length;
       for (const [wn, w, h] of cases) {
-        const z = cardZones(w, h), pl = plateOn(id, w);
+        const z = cardZones(w, h), pl = plateOn(id, w), ink = plateInk(id, w);
         let hidden = 0, onBox = 0;
         for (let j = 0; j < CARD_ICON; j++) for (let i = 0; i < CARD_ICON; i++) {
-          const inside = inBox(pl, z.icon.x + i, z.icon.y + j);
+          // ARTB-CODE-1B (PRESENT-6 A2): a px is under the plate where the plate has ink (the narrow card's plate is shaped)
+          const inside = inBox(pl, z.icon.x + i, z.icon.y + j) && ink(z.icon.x + i - pl.x, z.icon.y + j - pl.y);
           if (inside) onBox++;
           if (inside && pic[j * CARD_ICON + i] !== null) hidden++;
         }
         const share = hidden / opaque;
         worst[id] = Math.max(worst[id] ?? 0, share);
-        rows.push(`${id} ${wn} ${w}x${h}: plate ${pl.w}x${pl.h} at ${pl.x},${pl.y} (${onBox} px on the picture's box ${z.icon.x},${z.icon.y} ${CARD_ICON}x${CARD_ICON}); hides ${hidden} of ${opaque} opaque px = ${((100 * share).toFixed(1))}%`);
+        rows.push(`${id} ${wn} ${w}x${h}: plate ${pl.w}x${pl.h} at ${pl.x},${pl.y}, ${w >= CARD_TEXT_MIN_W ? "whole box" : "shaped"} (ink on ${onBox} px of the picture's box ${z.icon.x},${z.icon.y} ${CARD_ICON}x${CARD_ICON}); hides ${hidden} of ${opaque} opaque px = ${((100 * share).toFixed(1))}%`);
       }
     }
     const log = `ARTB1 PLATECOVER (a plate hides at most 25% of its picture's opaque px): ${rows.length} rows\n${rows.join("\n")}\nworst share per piece: ${Object.entries(worst).map(([id, v]) => `${id} ${(100 * v).toFixed(1)}%`).join(", ")}`;
