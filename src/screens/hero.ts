@@ -15,6 +15,7 @@ import { frame, rect, type G } from "../render/pixel";
 import { drawText, wrap } from "../render/font";
 import { HULL_A, HULL_L, frameForHull } from "../render/frame";
 import { portraitImage, type PortraitHero } from "../render/portraits";
+import { artBFace } from "../render/artB"; // ARTB-CODE-1 (REQ-BFG-127): FURNACE's 32x32 face
 import { heroTrick } from "../ui/abilityText";
 import { heroFace, heroPlaystyle, ruleSpans } from "../ui/faces"; // U2a (REQ-BFG-046): a TEXT hero's face
 import { colourize, drawRich, wrapRich } from "../ui/richText"; // U2a: the face wraps with the number rule (font.ts wrap has none)
@@ -147,10 +148,15 @@ export class HeroScreen implements Screen {
     const iw = infoW;
     let iy = portrait ? py0 + ph + 14 : py0;
     // 0.8.0 H1: the hero's portrait, framed in ink and its faction's trim, with the faction, name and playstyle beside it
-    rect(g, ix, iy, PORTRAIT + 2, PORTRAIT + 2, C.ink);
-    frame(g, ix - 1, iy - 1, PORTRAIT + 4, PORTRAIT + 4, P.trim1);
-    g.drawImage(portraitImage(id as PortraitHero), ix + 1, iy + 1);
-    const tx = ix + PORTRAIT + 7;
+    // ARTB-CODE-1 (REQ-BFG-127): FURNACE's face is art B's own 32x32 (artBFace; null for the other three heroes and with the switch off: their 24x24
+    // faces, the frame and the text column exactly as before). The same frame (ink, the faction's trim) round the bigger face; the head's rows do not
+    // move: the ring (iy - 1 .. iy + 34) still ends inside HEAD_H, and the text column starts the face's 8 extra px to the right.
+    const face32 = artBFace(id);
+    const side = face32 ? face32.width : PORTRAIT;
+    rect(g, ix, iy, side + 2, side + 2, C.ink);
+    frame(g, ix - 1, iy - 1, side + 4, side + 4, P.trim1);
+    g.drawImage(face32 ?? portraitImage(id as PortraitHero), ix + 1, iy + 1);
+    const tx = ix + side + 7;
     drawText(g, h.factionName, tx, iy, P.trim2, { font: "3" });
     drawText(g, h.name, tx, iy + 8, C.white, { scale: 2 });
     drawText(g, `PLAYSTYLE: ${heroPlaystyle(id)}`, tx, iy + 26, C.yellow, { font: "3" });
