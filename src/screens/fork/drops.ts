@@ -10,7 +10,7 @@ import { C } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
 import { drawText, textWidth } from "../../render/font";
 import { itemIcon } from "../../render/sprites";
-import { drawIconMark, drawShapePlate, hasGrid, iconCell, shapeGrid, shapeGridSize } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on the drop surfaces; PRESENT-4 G: the drop row's mark; PRESENT-5 G2a: drawIconMark, the one helper that draws it
+import { drawIconMark, drawShapePlate, hasGrid, shapeGrid, shapeGridSize } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on the drop surfaces; PRESENT-4 G: the drop row's mark; PRESENT-5 G2a: drawIconMark, the one helper that draws it
 import { panel, type Rect } from "../../ui/ui";
 import { drawInfoMarkIn } from "../../ui/infoGlyph"; // POLISH-2 (REQ-BFG-089; Q3): the one ⓘ mark
 import { isPhone, tapPx } from "../../ui/tap";
@@ -178,6 +178,6 @@ export function drawDropCard(g: G, drop: string | null, legendary: boolean, x: n
   if (hasGrid(drop)) {
     const pw = shapeGridSize(drop).w + 2, px = x + w - 4 - pw;
     if (x + 23 + Math.max(textWidth(t.name), textWidth(t.sub, "3")) + 4 <= px) drawShapePlate(g, drop, px, y + 1);
-    else g.drawImage(shapeGrid(drop, iconCell(drop)), x + 4, y + 4); // PRESENT-1 S1 (a): a card too narrow for the plate beside the words draws the grid over its icon's corner (was dropped)
+    else drawIconMark(g, drop, x + 4, y + 4, 14); // PRESENT-1 S1 (a): a card too narrow for the plate beside the words shows the footprint over its icon's corner (was dropped); PRESENT-6 G6 (REQ-BFG-113): as the mark in the 14 x 14 box's corner, the icon whole (was G1's grid at iconCell over the box's top-left: the icon showed as a grey grid)
   }
 }
