@@ -3,23 +3,33 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
-## Next release (the label is set when it is staged): a fairer climb to the tenth win
+## 0.9.16: a fairer climb to the tenth win
 
 New battle rules: bb-0.15.0. This release is matched only with bb-0.15.0 ghosts (it turns away any other), and its server takes
 uploads only under bb-0.15.0, so ghosts and uploads from bb-0.14.0 and older no longer meet its players. The stand-in and seed
-pools were rebuilt for the new rules and still cover days 1 to 16 (230 ghosts in the seed pool: the 192 of 0.9.15, 24 streak
-ghosts and 14 for the busiest matchups).
+pools were rebuilt for the new rules and still cover days 1 to 16 (230 ghosts in the seed pool: the 192 of 0.9.15, 37 of them
+with a new deck, 24 streak ghosts and 14 for the busiest matchups).
 - **Ghosts picked for casual players:** on every day, one of each hero's two everyday ghosts is now chosen as the deck that a
-  casual player's decks beat about half the time (before, both were chosen by how a strong player fares against them).
-- **A tougher ghost for a run that keeps winning:** from day 7 to day 12 each hero's pool holds one more ghost, built from a
-  strong player's deck and sitting at the record a strong run has by then (6 wins and no loss on day 7, up to 9 wins and 2
-  losses on day 12). A run with that record can meet it.
-- **More than one ghost where most runs pass:** 14 matchups (a record on a day, such as 4 wins and 4 losses on day 9) now hold
-  a second ghost, so one ghost no longer decides a whole day for most runs.
-- **The captains:** the four Easy captains' first words (from day 5) are gentler: NETTLE's loom, GRUBNOSE's doublestamp,
-  RATCHET's scrapcannon and BRASSWICK's temper hold BRACED (they held RISING, FIERY, RISING and FIERY). Two Hard captains hold
-  one rare part less in their road fights: MOTH QUEEN has no HEATJACKET from day 5 and SILKSHADE no COUNTERWEIGHT from day 4, so
-  neither holds more parts than the luckiest shop could give by day 6.
+  casual player's decks beat about half the time (before, both were chosen by how the AI's decks of the day fare against them).
+- **A tougher ghost for a run that keeps winning:** from day 7 to day 12 each hero's pool holds one more ghost, built from
+  one of the AI's decks of that day and sitting at the record the AI's runs most often have by then (6 wins and no loss on
+  day 7, up to 9 wins and 2 losses on day 12). A run with that record can meet it.
+- **More than one ghost at the busiest matchups:** 11 matchups (a record on a day, such as 4 wins and 4 losses on day 9) now
+  hold a second ghost, and 3 of those a third, so the fights there are split over more than one ghost.
+- **The captains:** the four Easy captains' first words (from day 5) are gentler: NETTLE's LOOM, GRUBNOSE's DOUBLE STAMP,
+  RATCHET's SCRAP CANNON and BRASSWICK's TEMPER hold BRACED (they held RISING, FIERY, RISING and FIERY). Two Hard captains hold
+  one rare part less in their road fights: MOTH QUEEN has no HEAT JACKET from day 5 and SILKSHADE no COUNTERWEIGHT from day 4,
+  so on day 6 neither holds more rare parts than the luck cap allows.
+- **Icons and cards:** the heavy turrets' gun icon no longer has a stray white dot off the end of its barrel. On a phone held
+  upright, a rig's arrows on its shop card now have arrowheads 4 px long (they were 3), as on the wider cards. A shaped part's
+  icon now shows whole, with a small mark of its footprint in the corner instead of a grid over it, in the scout report's deck,
+  on the IRON MATRIARCH's legendary part on her card at the fork (on a phone held upright, where the card has room) and on LAST
+  CHANCE's part card where the name leaves no room for the footprint beside it. LAST CHANCE's cards now stand on one solid dark
+  panel, so nothing of the screen behind shows between them. The dawn rune pick (PICK A RUNE) has the same panel under its
+  cards and its YOUR RUNES tray.
+
+The battle rules are now bb-0.15.0, so players of 0.9.16 meet only 0.9.16's ghosts; a run saved on 0.9.15.1 loads and goes on,
+keeps the foe already picked for its day, and from then on meets bb-0.15.0's ghosts.
 
 ## 0.9.15.1: clearer faces, panels and drop rows
 
