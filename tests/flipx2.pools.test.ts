@@ -47,7 +47,7 @@ describe("FLIP-X2: the regenerated pools hold their runes", () => {
 
   it("every seed ghost is a v3 snapshot whose deck holds exactly `day` runes and passes the upload check", () => {
     const pool = generateSamplePool();
-    expect(pool).toHaveLength(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: the long world's pool, days 1-16 (was 120, days 1-10)
+    expect(pool).toHaveLength(254); // BUMP-1I (REQ-BFG-125; P3's take E525, R3 6aff36f7: 254 ghosts = the 192 + the tier's 48 (days 5-16) + the 14 depth ghosts): was 230. BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: the long world's pool, days 1-16 (was 120, days 1-10)
     for (const s of pool) {
       const at = `${s.hero} d${s.day} ${s.playerId}`;
       expect(s.v, at).toBe(SNAPSHOT_V3);

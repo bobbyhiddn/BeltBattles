@@ -321,7 +321,7 @@ describe("the server and the client, both ways", () => {
 
   it("the seed check refuses a FOUNDRY ghost under bb-0.6.2; the real seed pool (the four playable heroes, 192 ghosts since BUMP-1D, 120 from the RC) passes", () => {
     const pool = generateSamplePool();
-    expect(checkPool(pool)).toHaveLength(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). 0.8.0 RC: FOUNDRY and BASTION joined FURNACE and WEAVER's 60 (oracle 96e0ebe434a93f2b). BUMP-1D: was 120 (days 1-10); 4 heroes x 16 days x 3 variants = 192
+    expect(checkPool(pool)).toHaveLength(254); // BUMP-1I (REQ-BFG-125; P3's take E525, R3 6aff36f7: 254 ghosts = the 192 + the tier's 48 (days 5-16) + the 14 depth ghosts): was 230. BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). 0.8.0 RC: FOUNDRY and BASTION joined FURNACE and WEAVER's 60 (oracle 96e0ebe434a93f2b). BUMP-1D: was 120 (days 1-10); 4 heroes x 16 days x 3 variants = 192
     expect(new Set(pool.map((p) => p.hero))).toEqual(new Set(["furnace", "weaver", "foundry", "bastion"]));
     // HULL-ON (the flip, HEARTS): the bad entry is on bb-0.6.2's 5-lives scale (START_LIVES): pool[0] (day 1, 0W) carries
     // 10 hearts under this build's rules, which the decoder's lives bound for bb-0.6.2 (1..9) refused before the hero gate

@@ -170,7 +170,7 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
     expect(POOL.every((s) => typeof s.grade === "number")).toBe(true);
     // BUMP-1H (P6): the pool is these three parts (the 192) and, after them, the CURVE's 24 streak ghosts (variant 3) and 14 depth ghosts (variant 4) (tools/samplePool.ts curveGhosts; pinned by tests/rc.seedpool): was the whole pool
     expect(POOL.slice(0, 192).map(({ grade: _grade, ...s }) => s)).toEqual([...SAMPLE, ...FLOOR, ...RACE]);
-    expect(POOL.slice(192).map((s) => Number(s.playerId.slice(-1)))).toEqual([...Array(24).fill(3), ...Array(14).fill(4)]);
+    expect(POOL.slice(192).map((s) => Number(s.playerId.slice(-1)))).toEqual([...Array(48).fill(3), ...Array(14).fill(4)]); // BUMP-1I (REQ-BFG-125; P3's take E525, R3 6aff36f7: 254 ghosts = the 192 + the tier's 48 (days 5-16) + the 14 depth ghosts): was Array(24).fill(3) (the tier's days 7-12)
     expect([SAMPLE.length, FLOOR.length, RACE.length]).toEqual([64, 32, 96]); // BUMP-1D: was [40, 20] (and 60 race ghosts)
     for (const s of POOL) {
       expect(s.rules).toBe(RULES_VERSION);

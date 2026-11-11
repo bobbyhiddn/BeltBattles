@@ -485,7 +485,7 @@ describe("superset (D1): the player mode accepts every deck the strict mode acce
   it("the bundled ghost pool (tools/samplePool.ts): the strict loader takes every snapshot and the player mode accepts each", () => {
     const load = loadGhostPool(samplePoolJson(generateSamplePool())); // CACHE-1: was samplePoolJson() (its default argument, generateSamplePool(), run for real)
     expect(load.rejected).toEqual([]);
-    expect(load.entries).toHaveLength(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). 0.7.0a D5: 40 sample ghosts and 20 floor ghosts; 0.8.0 RC: 60 race ghosts (was 60). BUMP-1D: was 120 (days 1-10); days 1-16: 4 heroes x 16 days x 3 variants = 192
+    expect(load.entries).toHaveLength(254); // BUMP-1I (REQ-BFG-125; P3's take E525, R3 6aff36f7: 254 ghosts = the 192 + the tier's 48 (days 5-16) + the 14 depth ghosts): was 230. BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). 0.7.0a D5: 40 sample ghosts and 20 floor ghosts; 0.8.0 RC: 60 race ghosts (was 60). BUMP-1D: was 120 (days 1-10); days 1-16: 4 heroes x 16 days x 3 variants = 192
     let turrets = 0, joined = 0;
     for (const { snapshot: s } of load.entries) {
       expect(s.rules).toBe(RULES_VERSION);
