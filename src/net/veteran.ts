@@ -15,7 +15,7 @@
 // imports it, and V1 changes no line of any file on that list, so the stand-in pool's regeneration stays a re-stamp of its rules
 // literals (BRIEF-BUMP1I P1, the CLOSURE RULE). It reads pick.ts, fallback.ts, matchmaking.ts and rulesGate.ts and changes none.
 //
-// THE SWITCH: VETERAN (false until P2's flip), in curve.ts's and effectFloor.ts's form: veteranRules(), setVeteran(on) and
+// THE SWITCH: VETERAN (on since P2's flip), in curve.ts's and effectFloor.ts's form: veteranRules(), setVeteran(on) and
 // withVeteran(fn, on = true), which puts the switch back even on a throw. While it is off every request picks exactly as at bb-0.15.0
 // (tests/veteran.pick.test.ts); a request under rules before VETERAN_RULES picks as before even with the switch on.
 //
@@ -29,8 +29,10 @@ import { matchPick, PICK_RULE, type PickRule } from "./pick";
 import { rulesAtLeast } from "./rulesGate";
 import type { PoolEntry } from "./snapshot";
 
-/** THE switch (REQ-BFG-125): false until BUMP-1I P2's flip (battle rules bb-0.16.0). */
-export const VETERAN: boolean = false;
+/** THE switch (REQ-BFG-125): ON since BUMP-1I P2 (battle rules bb-0.16.0). It was false at P1, where the switch-off proof was read (fp, parBench, the stand-in bundle, the seed
+ *  pool and a bench spot byte for byte); this line is the flip, and RULES_VERSION's bump (src/sim/content.ts) is the next commit. The switch does nothing under rules before
+ *  VETERAN_RULES, so the flip alone changes no request that the game sends. */
+export const VETERAN: boolean = true;
 
 let veteranOn = false;
 

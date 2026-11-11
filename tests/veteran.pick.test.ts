@@ -48,8 +48,9 @@ beforeAll(() => setVeteran(true));
 afterAll(() => setVeteran(VETERAN));
 
 describe("the switch and its constants", () => {
-  it("VETERAN is false before P2's flip, and setVeteran / withVeteran put it back (even on a throw)", () => {
-    expect(veteranRules()).toBe(true); // beforeAll turned it on
+  it("VETERAN is on (P2's flip; it was false at P1), and setVeteran / withVeteran put it back (even on a throw)", () => {
+    expect(VETERAN).toBe(true); // BUMP-1I P2: was false (P1's switch-off proof)
+    expect(veteranRules()).toBe(true); // the module sets it from the constant (and beforeAll sets it again)
     expect(withVeteran(() => veteranRules(), false)).toBe(false);
     expect(() => withVeteran(() => { throw new Error("x"); }, false)).toThrow("x");
     expect(veteranRules()).toBe(true);
