@@ -39,7 +39,7 @@ import { freeJoinsRules } from "../../sim/freeJoins"; // JOINS-1 (REQ-BFG-091): 
 import { drawKeywordLayer, keywordCursorOff } from "./keywords"; // U2c (REQ-BFG-045): tap to explain
 import { infoFree } from "./keywords"; // U2f (REQ-BFG-070): the room the ⓘ view grows into
 import { keywordsIdle } from "./keywords"; // CARD-2 (REQ-BFG-004, K1): a closed panel's next draw is a new open
-import { definitionAhead, type ColumnSpec, type NoteHang } from "./keywords"; // PRESENT-1 (S4 (b)): the note a finger's panel is about to show, for panelFit; PRESENT-2 L: NoteHang; P: ColumnSpec
+import { definitionAhead, rigAhead, type ColumnSpec, type NoteHang } from "./keywords"; // PRESENT-1 (S4 (b)): the note a finger's panel is about to show, for panelFit; PRESENT-2 L: NoteHang; P: ColumnSpec; PRESENT-4 T: rigAhead (the rig sentence's place)
 import { nextBlocks } from "./levels"; // U2e step 5 (REQ-BFG-070): the ⓘ view's LEVELS and the next-star line
 
 /**
@@ -2506,8 +2506,10 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   // it is back in the frame the note closes. Its tip stays new: only the action completes it (tips.ts)
   // PRESENT-3 H: the same for a first-run note that was moved up off the deck's top rows and lands on the strip (deckClear): the strip yields, from the note's first frame
   const hang = noteHang(ctx, plan, shown), deck = deckOf(ctx);
-  const yields = !!strip && !!(hang || deck) && !!definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip: strip.r, hang, deck }, shown, hits, tap,
-    ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan").place?.yieldsStrip;
+  // PRESENT-4 T (F10; cap's call): the same for the first-run rig sentence's box when it takes the strip's place (keywords.ts rigPlace (2)): rigAhead works its place out here, before the strip draws, from its first frame
+  const screenWH = ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined;
+  const yields = !!strip && ((!!(hang || deck) && !!definitionAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip: strip.r, hang, deck }, shown, hits, tap,
+    screenWH, ctx.run.stage === "caravan").place?.yieldsStrip) || !!rigAhead(ctx, ctx.run, { show: d.show, t: d.t, plan, strip: strip.r, deck }, shown, screenWH, ctx.run.stage === "caravan")?.yieldsStrip);
   if (strip && !yields) drawHintStrip(g, strip);
   // U2c (REQ-BFG-045, REQ-BFG-046): tap to explain (keywords.ts): the words' underlines and targets, the `?` button, the
   // shown definition or the KEYWORDS view, the desk's hover tooltip

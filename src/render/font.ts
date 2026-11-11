@@ -518,6 +518,26 @@ function pass(g: G, s: string, font: FontId, color: string, outline: string, ox:
     }
     cx += (glyphWidth(font, ch) + adv) * scale;
   }
+  // PRESENT-4 S2 (REQ-BFG-081; F14): a run of ★ in OUTLINED 3x5 text. The sprites above are one per glyph (its 8-way outline, then its body over it), drawn left to
+  // right, and a star is 5 wide over a 4 px pitch: star k+1's outline (its column -1, rows 1-3) landed on star k's column 3 and cut it (`★★★` read as half, half, whole), and
+  // the same outline cut the letter or bracket just before a ★ (`NEXT★`'s T, `(★`'s bracket). So when the face is 3x5, the text has an outline and holds a ★, every glyph's
+  // BODY is drawn once more, over every outline, in the first loop's colour (tint included), at its own place (the star's 2 columns of overhang and the scale included):
+  // no body sits under another glyph's outline, two stars touch at one arm pixel as they do in plain text, and no width or advance moves. Any other string (no ★, plain,
+  // the shadow pass, the 5x7 face) draws as before: one drawImage per glyph.
+  if (font === "3" && outline && s.includes("★")) {
+    cx = ox;
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      const big = ch === "★";
+      const gl = glyph(font, big ? STAR5_KEY : ch, tint && ch.charCodeAt(0) >= ICON_BASE ? ICON_COLOUR[ch] ?? color : color, "");
+      if (gl) {
+        const left = cx - (big ? 2 * scale : 0);
+        if (scale === 1) g.drawImage(gl, left, oy);
+        else g.drawImage(gl, 0, 0, gl.width, gl.height, left, oy, gl.width * scale, gl.height * scale);
+      }
+      cx += (glyphWidth(font, ch) + adv) * scale;
+    }
+  }
 }
 
 const NO_OPTS: TextOpts = {};

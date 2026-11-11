@@ -3,7 +3,75 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
-## 0.9.15: a SHOCK and a BURN part in every shop, and clearer panels
+## Next release (the label is set when it is staged): a fairer climb to the tenth win
+
+New battle rules: bb-0.15.0. This release is matched only with bb-0.15.0 ghosts (it turns away any other), and its server takes
+uploads only under bb-0.15.0, so ghosts and uploads from bb-0.14.0 and older no longer meet its players. The stand-in and seed
+pools were rebuilt for the new rules and still cover days 1 to 16 (230 ghosts in the seed pool: the 192 of 0.9.15, 24 streak
+ghosts and 14 for the busiest matchups).
+- **Ghosts picked for casual players:** on every day, one of each hero's two everyday ghosts is now chosen as the deck that a
+  casual player's decks beat about half the time (before, both were chosen by how a strong player fares against them).
+- **A tougher ghost for a run that keeps winning:** from day 7 to day 12 each hero's pool holds one more ghost, built from a
+  strong player's deck and sitting at the record a strong run has by then (6 wins and no loss on day 7, up to 9 wins and 2
+  losses on day 12). A run with that record can meet it.
+- **More than one ghost where most runs pass:** 14 matchups (a record on a day, such as 4 wins and 4 losses on day 9) now hold
+  a second ghost, so one ghost no longer decides a whole day for most runs.
+- **The captains:** the four Easy captains' first words (from day 5) are gentler: NETTLE's loom, GRUBNOSE's doublestamp,
+  RATCHET's scrapcannon and BRASSWICK's temper hold BRACED (they held RISING, FIERY, RISING and FIERY). Two Hard captains hold
+  one rare part less in their road fights: MOTH QUEEN has no HEATJACKET from day 5 and SILKSHADE no COUNTERWEIGHT from day 4, so
+  neither holds more parts than the luckiest shop could give by day 6.
+
+## 0.9.15.1: clearer faces, panels and drop rows
+
+- **Battle faces:** in VIEW BATTLEFIELD on a wide desk (1920x1080), a part's face, a rival's or your own, no longer cuts its
+  name or its slot number with a dot: a name too long for the column goes on two rows with its stars on the second (RISING
+  RAMPART / CANNON ★), and a turret's slot number stays (HEAVY TURRET IN / SLOT 1). A face with a two-row title shows its family
+  tag under the sub line or beside its last sub row, wherever that row leaves room. On the narrowest face column (a 3040x1710
+  screen) a rig's sub line wraps instead of ending in a dot (RIG · 1/1 ARROWS ON / BELTS). A rival's CORE and GEAR keep their
+  rule lines on the desk, a laptop and a landscape phone (the small text is used where it shows them all), and a rival's turret
+  face whose text does not fit in either size is drawn in the size that leaves out fewer of its own lines. A belt's face shows
+  more of its hit rows, in the smaller type, where that gives away fewer (the desk, the laptop and the landscape phones). On the
+  narrowest phones (the 280 px class) a foe's turret line is no longer cut off with a dot: MASTER VOSS'S MEDIUM TURRET SLOT 1
+  where MASTER VOSS'S MEDIUM TURRET IN SLOT 1 did not fit (the owner, the weight and the slot stay; a few read OLD BULWARK'S
+  ADAPTABLE, SLOT 2), in VIEW BATTLEFIELD and in the scouted foe's view on the build screen. In VIEW BATTLEFIELD, on small
+  screens a face drops its CLOSE button where the button would hide one of its own lines (the landscape phones, and a few faces
+  on the big desks): press an empty tile (on a phone, of either board) or another part, which shows that part's face, or press
+  BACK, which leaves the view. With a face open on a landscape phone, the tap areas of BACK and ON TO DAWN no longer reach under
+  the face: each is trimmed at the face's edge.
+- **Panels:** a run of small stars in a part's title (DRAG CHAIN FOUNDRY ★★★, an enchanted BRACED TEMPER ★★ on the desk) now
+  shows every star whole; none is cut by its neighbour's outline. A belt's panel on the build screen shows more of the belt's own
+  hit rows before it says +N MORE HIT TILES: on a phone held upright the panel grows after a tap, with a rune held too, so that a
+  belt of up to six hits shows every row; on the desk, the laptop and the landscape phones it takes the smaller type, and the
+  tight line spacing the rig, turret and offer panels already use, wherever that gives away fewer rows (the phone band is as it
+  was). The longest belts still give some rows away. Where the rows take the room, the NOT COUNTED line is the first item of the
+  panel's ? view instead of a line in the panel. A one-star SORTING ARM's belt reads COPIES 1.3, not 1.3333333333333333 (a whole
+  number is shown whole), and the readout then takes one line for each pair where it took two, so the belt's panel and its face
+  in VIEW BATTLEFIELD have room for more of the belt's own hit rows. On very narrow phones (280 and 300 px wide) a one-star part
+  keeps its buttons on the top row where its name leaves room for them, and its family names under its sub line where they fit;
+  on the narrowest (the 280 px class) and on the laptop's STOKER, one-star panels whose family names had given way to marks show
+  the names (HARASS FAMILY, SWARM, TEMPO) beside the sub line's first row, where they fit. On a phone held upright, while the
+  how-to hints still show (as on a first run), the sentence about a rig's arrows (EACH ARROW THAT POINTS AT A BELT TILE GIVES ITS
+  STATS TO EVERY SLUG ON THAT TILE. ONE ARROW, ONE HIT.) no longer covers the deck: it sits inside the panel under its last row,
+  or takes the how-to strip's place, and the strip hides while it shows.
+- **The ENCHANTER's days:** on desks and landscape phones where the free margin beside the shop does not hold them, the two word
+  cards stand in the right column between NEXT BATTLE and FIGHT instead of in a row above the details panel, so that panel keeps
+  its full height and shows more of its own lines. The ENCHANTER's name stands right of the cards; where the column is narrow the
+  cards slim down (41 px wide at the least) to leave room for it, and below that the name is dropped. A selected word card never
+  draws over NEXT BATTLE or FIGHT. Where the gap is too short for the cards, or the shop's packs lie in it (844x390 with a rune
+  held and 5 offers; 7 offers on 812x375, 851x393 and 915x412), the cards keep their old row at the top of the details column;
+  1280x800 keeps them in the margin, and the portrait phones are as they were. FIGHT's pointing arrow (shown once you have placed
+  something) stands left of FIGHT, pointing at it, where the word cards stand above FIGHT, so it never lies over a card;
+  everywhere else it is above FIGHT as before.
+- **The road and the shop:** on the road, a shaped part's drop box shows the part's icon (the gun, not a grey grid), with a small
+  mark of its footprint in the box's corner. A shop offer's tap panel shows its star in the title, like every other part's panel.
+- **Words:** LAST CHANCE's heading line fits its box on narrow phones (280 and 300 px wide), in smaller text where the larger is
+  too wide, instead of running past the box's edges. GRAPNEL GUN's rule text says it destroys slugs (it said rip off payloads). On
+  the last page of a ? view the footer says TAP TO CLOSE (TAP TO CLOSE 4/4 on a view of four pages) where it said TAP FOR MORE
+  4/4; the pages before it still say TAP FOR MORE.
+
+The battle rules stay bb-0.14.0, so 0.9.15.1 meets the same ghosts as 0.9.15, and a run saved on 0.9.15 goes on.
+
+## 0.9.15: every run's shops offer a SHOCK and a BURN part, and clearer panels
 
 New battle rules: bb-0.14.0. This release is matched only with bb-0.14.0 ghosts (it turns away any other), and its server takes
 uploads only under bb-0.14.0, so ghosts and uploads from bb-0.13.0 and older no longer meet its players. The stand-in and seed

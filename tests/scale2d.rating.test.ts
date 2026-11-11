@@ -201,6 +201,22 @@ describe("SCALE-2d D1: the rating with SCALE_RIGS on", () => {
       // day-5 decks lack it and rate 35.784 lower in offense on both curves (the defense and every other key are M0's, or the moves above). Measured in this world with ENCHANT and SCALE_RIGS off; the move is the one plan step (days 6 and later are as before)
       "rival/grimhold/4": [89.50328834355827, 2820.025, 97.90704, 2878.75], // BUMP-1G (G2): was M0's [125.28728834355826, 2820.025, 133.69104000000002, 2878.75]
       "rival/grimhold/5": [90.36063905325443, 3184.075, 97.90704, 3238.75], // BUMP-1G (G2): was M0's [126.14463905325442, 3184.075, 133.69104000000002, 3238.75]
+      // BUMP-1H (P6; H3, REQ-BFG-124 line 7, commit ca014437, src/sim/rivalBuilds.ts, in every world: the captains' decks are not switch-aware): the two good-luck road parts dropped from the Hard captains' day-6 plans: MOTH QUEEN's HEATJACKET (a rare, road, from
+      // day 5) and SILKSHADE's COUNTERWEIGHT (a rare, road, from day 4). A Hard captain's warlord deck is his good-luck deck, so MOTH QUEEN's days 5-10 and SILKSHADE's days 4-10 rate other offense numbers (the defense and every other key are as before, or the moves above).
+      // Measured in this world with ENCHANT and SCALE_RIGS off. The cause is the one file: in an export with bump1h-base's rivalBuilds.ts put back (kit-1h/revert3.sh) this whole file passes at the keys above (12 of 12); with npcWords.ts (H2) put back instead it stays red.
+      "rival/mothqueen/5": [97.4435926102658, 2420, 105.73012477453969, 2420], // BUMP-1H (H3): was [119.06055672259791, 2420, 130.33950403447622, 2420]
+      "rival/mothqueen/6": [148.62127414069457, 2829.251363, 157.7088488954646, 2824.1666666666665], // BUMP-1H (H3): was [165.98046857800486, 2829.251363, 176.25514618179687, 2824.1666666666665]
+      "rival/mothqueen/7": [229.80517608208976, 3187.04704, 243.34193426337998, 3184.1666666666665], // BUMP-1H (H3): was [247.1887981667886, 3187.04704, 261.88823154971226, 3184.1666666666665]
+      "rival/mothqueen/8": [273.9157509614701, 3796.8282383333335, 289.7076774792107, 3794.1666666666665], // BUMP-1H (H3): was [291.34725693765665, 3796.8282383333335, 308.253974765543, 3794.1666666666665]
+      "rival/mothqueen/9": [313.1360419888526, 3904.1494946666667, 334.15936332322974, 3904.1666666666665], // BUMP-1H (H3): was [330.3941350119759, 3904.1494946666667, 352.705660609562, 3904.1666666666665]
+      "rival/mothqueen/10": [529.0550883171202, 4764.972372666667, 581.7047736801942, 4764.166666666667], // BUMP-1H (H3): was [561.1634476109133, 4764.972372666667, 618.135640636448, 4764.166666666667]
+      "rival/silkshade/4": [120.92211697341514, 2060, 135.82413226666665, 2060], // BUMP-1H (H3): was [129.87553210633948, 2060, 147.0209589333333, 2060]
+      "rival/silkshade/5": [149.8045506903353, 2170, 167.92893226666666, 2170], // BUMP-1H (H3): was [158.98683865877712, 2170, 179.12575893333332, 2170]
+      "rival/silkshade/6": [201.87237428214732, 2530, 221.9243624888889, 2530], // BUMP-1H (H3): was [211.369040948814, 2530, 233.12118915555558, 2530]
+      "rival/silkshade/7": [262.87023343678874, 2890, 292.639173362963, 2890], // BUMP-1H (H3): was [216.57790912476725, 2890, 242.8572122666667, 2890]
+      "rival/silkshade/8": [281.2634925885001, 3750, 311.2337857007408, 3750], // BUMP-1H (H3): was [291.82596854511974, 3750, 325.05728496000006, 3750]
+      "rival/silkshade/9": [276.89500908471695, 4110, 311.2337857007408, 4110], // BUMP-1H (H3): was [286.982156807152, 4110, 325.05728496000006, 4110]
+      "rival/silkshade/10": [386.4184243549044, 4720, 423.6693315081482, 4720], // BUMP-1H (H3): was [316.19145094017097, 4720, 348.7103608177778, 4720]
     };
     const want = { ...pins, ...MOVED };
     expect(Object.keys(want).length).toBe(Object.keys(pins).length); // the two keys are the fixture's own: nothing is added or dropped

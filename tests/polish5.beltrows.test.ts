@@ -23,7 +23,7 @@ const DAYS = [5, 8, 12, 16];
  *  POLISH-4c's plans 18 / 126 -> 14 / 106 (1920x1080), 36 / 255 -> 30 / 227 (1366x768), 9 / 71 -> 6 / 50 (844x390@3); this tip's plans 6 / 16 -> 4 / 8, 10 / 34 -> 8 / 24, 4 / 12 -> 2 / 4. */
 const VIEWS: [string, number, number, number, [number, number], [number, number]][] = [
   ["desk 1920x1080", 1920, 1080, 1, [14, 106], [4, 8]],
-  ["laptop 1366x768", 1366, 768, 1, [30, 227], [8, 24]],
+  ["laptop 1366x768", 1366, 768, 1, [30, 225], [8, 24]], // BUMP-1H (RULING-BUMP1H-R6 R6.4, the merge with 0.9.15.1): was [30, 227] (POLISH-5's pin over 0.9.15's rival decks): H3 (src/sim/rivalBuilds.ts) drops MOTH QUEEN's good-luck HEATJACKET and SILKSHADE's good-luck COUNTERWEIGHT, so POLISH-4c's plans lose 225 rows, not 227; the other views and the new plans do not move (with rivalBuilds.ts put back to bump1h-base this file passes at 227: kit-1h/revert6m.sh, 6 of 6)
   ["desk 1280x800", 1280, 800, 1, [0, 0], [0, 0]],
   ["land 844x390@3", 844, 390, 3, [6, 50], [2, 4]],
 ];

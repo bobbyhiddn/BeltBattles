@@ -13,13 +13,13 @@ import { frame, rect } from "../render/pixel";
 import { C, RARITY_COLOR } from "../render/palette";
 import { drawText, icons, textWidth } from "../render/font";
 import { itemIcon } from "../render/sprites";
-import { drawShapePlate, hasGrid, iconCell, shapeGrid, shapeGridSize } from "../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its card
+import { drawIconMark, drawShapePlate, hasGrid, shapeGridSize } from "../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its card; PRESENT-5 G5: the corner fallback is the drop row's mark (drawIconMark)
 import { isPhone, tapPx } from "../ui/tap"; // a finger's target for the ⓘ on a phone
 import { panel, type Rect } from "../ui/ui";
 import { drawInfoMarkIn } from "../ui/infoGlyph"; // POLISH-2 (REQ-BFG-089; Q3): the one ⓘ mark
 import { colourize, drawRich, wrapRich, type RichLine } from "../ui/richText";
 import { faceLines } from "../ui/faces";
-import { drawTitlePlate } from "./pickHead"; // TXT-AZ (REQ-BFG-073; REVIEW-STAGE097 R5): the title block on the cards' panel
+import { titlePlate } from "./pickHead"; // TXT-AZ (REQ-BFG-073; REVIEW-STAGE097 R5): the title block's plate; BACKDROP-1: lcGround starts at its top (the ground is that plate grown down the column, drawn here, no longer drawTitlePlate)
 import { plainRigStats } from "../ui/faces"; // CARD-2 (REQ-BFG-084, K6): the plain rigs' faces (SHAPES-1 x c099-card3, RUN5 2: isPlainRig)
 import { plainNotes } from "../ui/faces"; // PLAIN-1F (REQ-BFG-089, M3): the PART card's NOTES lead (was isPlainRig ? RIG_SENTENCE)
 import { statRow } from "../ui/icons"; // CARD-2 (K6)
@@ -223,6 +223,36 @@ export function lcLayout(W: number, H: number, hs: readonly number[]): LcLayout 
     y += h + (i < hs.length - 1 ? GAP : 0);
   });
   return { top, cardW, cards, infos, bottom: y };
+}
+
+/**
+ * BACKDROP-1 (REQ-BFG-073; BUMP-1G run 5's review, item 4): how far the card column's ground stands out past the cards' sides, and below the last card's foot. The open card's ring is one
+ * px outside its card, so both are at least 1; 4 puts the ring on the panel's first fill column and row (bevel2's frame and bevel take the 3 px before it).
+ */
+export const GROUND_SIDE = 4;
+export const GROUND_FOOT = 4;
+
+/**
+ * BACKDROP-1 (REQ-BFG-073; BUMP-1G run 5's review, item 4): the one solid ground under the card column. The picker's scrim (draw: ink at 0.86) is not opaque, so every gap between two
+ * cards (GAP, 7 px) showed the build screen behind it, dimmed, with its words cut across the gap (the next battle's rival name, half in the gap between the PART and HULL cards). The ground
+ * is ONE "dark" panel (the cards' own look; ui.ts panel) from the title plate's top (pickHead.ts titlePlate: the plate and the ground read as one ground, no seam or frame line under the
+ * title block) to the last card's foot, GROUND_SIDE px wider than the cards on each side and GROUND_FOOT px under the foot, clamped inside the screen (the Gmin layout's `bottom` can reach
+ * H; a tight screen's `top` of 4 puts the plate's top 2 px above it). It holds the plate and every card, the open card's ring too. Drawn after the scrim and before the title's text and
+ * the cards (draw), in place of drawTitlePlate. Pure (draw, tests); nothing of the layout moves.
+ */
+export function lcGround(W: number, H: number, L: Pick<LcLayout, "top" | "cardW" | "cards" | "bottom">): Rect {
+  const p = titlePlate(W, L.top, L.cardW);
+  let x0 = p.x, x1 = p.x + p.w, y1 = Math.max(p.y + p.h, L.bottom);
+  for (const c of L.cards) {
+    x0 = Math.min(x0, c.x);
+    x1 = Math.max(x1, c.x + c.w);
+    y1 = Math.max(y1, c.y + c.h);
+  }
+  x0 = Math.max(0, x0 - GROUND_SIDE);
+  x1 = Math.min(W, x1 + GROUND_SIDE);
+  const y0 = Math.max(0, p.y);
+  y1 = Math.min(H, y1 + GROUND_FOOT);
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
 /** The ⓘ button in its box: the one mark of every info button (ui/infoGlyph.ts: the 5x7 face's `?`, the glyph keywords.ts drawInfoGlyph draws on a part's panel),
@@ -470,7 +500,7 @@ export class LastChancePicker {
     // CARD-2 (K2): a press anywhere off the RUNE card's words closes a word's definition (the regions over it close it too)
     ui.add({ id: "lcpick", r: { x: 0, y: 0, w: W, h: H }, block: true, onTap: () => { if (!this.eat()) this.word = null; } });
     const cx = Math.round(W / 2);
-    drawTitlePlate(g, W, L.top, L.cardW); // TXT-AZ (REVIEW-STAGE097 R5): a clean ground under the title, its line and the hint
+    panel(g, lcGround(W, H, L), "dark"); // TXT-AZ (REVIEW-STAGE097 R5): a clean ground under the title, its line and the hint; BACKDROP-1: and under every card and gap (lcGround: the plate grown down the column), in place of drawTitlePlate
     drawText(g, LC_TITLE, cx, L.top, C.yellow, { align: "center", outline: C.ink });
     const lcl = lcLineFit(lcLine(s.run), L.cardW - 6); // POLISH-3 (REQ-BFG-087): the line steps down to the 3x5 face where its 5x7 width would pass the plate (280x653, 300x640)
     drawText(g, lcl.text, cx, L.top + 11 + (lcl.small ? 1 : 0), C.lime, lcl.small ? { font: "3", align: "center" } : { align: "center" }); // RETUNE-1 run 2: a hearts run's words
@@ -506,7 +536,7 @@ export class LastChancePicker {
         // the card's top (the head is 31 px: the tallest plate, SPIKE RAIL's 18, ends 25 px down); the name and the sub line end well before it
         const where = lcPartGrid(r, def.id, word ? `${ENCHANT_DEFS[word.ench].name} ${def.name}` : def.name, lcPartSub(def.rarity, o.partStars ?? 1));
         if (where && "plate" in where) drawShapePlate(g, def.id, where.plate.x, where.plate.y);
-        else if (where) g.drawImage(shapeGrid(def.id, iconCell(def.id)), where.corner.x, where.corner.y); // PRESENT-1 S1 (a): a card too narrow for the plate beside the words draws the grid over its icon's corner (was dropped)
+        else if (where) drawIconMark(g, def.id, where.corner.x, where.corner.y, 20); // PRESENT-1 S1 (a): a card too narrow for the plate beside the words never loses its footprint; PRESENT-5 G5 (REQ-BFG-113; #537 (5)): it is the drop row's footprint MARK in the corner of the 20 x 20 icon floor (where.corner is the floor's top-left; the 12 x 12 icon sits 4 px in, so the mark covers at most 3 x 3 px of it), where it was G1's grid at iconCell over the floor's top-left (11 x 11 for a 2x2 part, covering most of the icon); the card's rects and its click areas do not move
         drawBody(g, r, t.lines, t.info, hint, L.gap);
         if (word) { const sp = lcSparkAt(r); drawSparkAt(g, sp.x, sp.y, ENCHANT_DEFS[word.ench].color); } // ENCHANT-1 (E7); POLISH-1 (P2): the word's spark whole inside the card, on its part's plate (lcSparkAt; was on the frame's top-right corner, half outside it)
       } else {

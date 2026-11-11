@@ -1,5 +1,5 @@
 // POLISH-3b (REQ-BFG-089, REQ-BFG-087): the corpus the tests/polish3b.*.test.ts files share (not a test file).
-//   A = POLISH-3's corpus: every rival build (rivals x days 5/8/12/16 x the warlord deck and the dusk stand-in x every part: 2,242 faces, 280 turrets), read as the player's OWN faces (faceText without an owner:
+//   A = POLISH-3's corpus: every rival build (rivals x days 5/8/12/16 x the warlord deck and the dusk stand-in x every part: 2,242 faces, 280 turrets; BUMP-1H (RULING-BUMP1H-R6 R6.4): 2,234 faces since H3's two dropped rigs, 280 turrets), read as the player's OWN faces (faceText without an owner:
 //       no `subOwner`) or, with `foe`, as the FOE's (the owner given).
 //   B = every shop piece that takes an enchant word (rig, factory, turret) x every star it has x plain and every word it takes, placed or installed on the player's own build, day 8: 1,809 faces, 312 turrets.
 //   The six views of POLISH-3's measurement: the face column is 100 px at 1920x1080 (subMax 73), 136/136/135 px at 1366x768, 1280x800 and 844x390, a band at 402x690 and 360x640.

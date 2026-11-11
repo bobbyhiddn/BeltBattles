@@ -110,7 +110,8 @@ describe("ENCHANT-2 T2: forged and honest fixtures (ENCHANT on)", () => {
 
   it("FORGED: one over the bound: day 5 has one drop, so two parts that only drops can explain are refused; day 6 has two and accepts them", () => {
     const s = seedWithout("fiery", 6);
-    const d = deckOf([{ def: "temper", ench: "fiery" }, { def: "doublestamp", ench: "fiery" }]); // both are rival pairs from day 5 (SOOTJAW's TEMPER, GRUBNOSE's DOUBLE STAMP)
+    // BUMP-1H (P6; H2, src/sim/npcWords.ts): was { def: "doublestamp", ench: "fiery" } (GRUBNOSE's DOUBLE STAMP held FIERY from day 5; it is BRACED now, so no rival holds that pair and the server refuses it on day 6 too). VOSS's TWIN LATCH is the other FIERY pair from day 5
+    const d = deckOf([{ def: "temper", ench: "fiery" }, { def: "twinlatch", ench: "fiery" }]); // both are rival pairs from day 5 (SOOTJAW's TEMPER, VOSS's TWIN LATCH). BUMP-1H: was SOOTJAW's TEMPER and GRUBNOSE's DOUBLE STAMP
     const five = on(() => enchantProblems(d, 5, { seed: s }));
     expect(five.length, five.join(" | ")).toBe(1);
     expect(five[0]).toMatch(/but the seed's offers of it by day 5 are used up by other parts/);

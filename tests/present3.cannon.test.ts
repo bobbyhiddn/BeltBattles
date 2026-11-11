@@ -43,13 +43,15 @@ describe("PRESENT-3 C: the heavy turrets' icon", () => {
       for (let x = 3; x <= 6; x++) expect(now[10 * 12 + x], `${id}: the rarity rim at ${x},10`).toBe(RARITY_COLOR[ITEMS[id].rarity]);
       // brighter: the steel3 and white pixels in the barrel's rows (0-7) are at least three times the old icon's
       const bright = (a: (string | null)[]): number => a.slice(0, 8 * 12).filter((c) => c === C.steel3 || c === C.white).length;
-      expect(bright(now), `${id}: bright pixels in rows 0-7 (was ${bright(was)})`).toBeGreaterThanOrEqual(bright(was) * 3);
+      // PRESENT-5 M2 (REQ-BFG-113; #537 (4)), old -> new: was `at least three times` (18 of the old icon's 6): the white muzzle pixel is gone, so the carriage gun has 17 bright pixels in rows 0-7 (2.83 times); the floor is two and a half times
+      expect(bright(now), `${id}: bright pixels in rows 0-7 (was ${bright(was)})`).toBeGreaterThanOrEqual(bright(was) * 2.5);
     }
     // the SCRAP CANNON's picture, pinned (common: its rim is steel3): `.` clear, `#` ink, `w` white, `s` steel3, `1` steel1
     const g = px("scrapcannon").map((c) => (c === null ? "." : c === C.ink ? "#" : c === C.white ? "w" : c === C.steel3 ? "s" : c === C.steel1 ? "1" : "?"));
     const rows = Array.from({ length: 12 }, (_, y) => g.slice(y * 12, y * 12 + 12).join(""));
+    // PRESENT-5 M2 (REQ-BFG-113; #537 (4)), old -> new: row 0 was `......#ws#w#` (a white muzzle pixel at 10, 0, off the barrel's end: three of six readers saw a spark); it is now `......#ws###` (the ink cap alone). The other eleven rows are PRESENT-3's.
     expect(rows).toEqual([
-      "......#ws#w#", ".....#wss###", "....#wss##..", "...#wss##...", "..##ss##....", ".##ss##.....",
+      "......#ws###", ".....#wss###", "....#wss##..", "...#wss##...", "..##ss##....", ".##ss##.....",
       ".#ss##111#..", ".#########..", "..#1111#....", "..#1ss1#....", "..#ssss#....", "..######....",
     ]);
   });

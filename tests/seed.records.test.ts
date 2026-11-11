@@ -168,7 +168,9 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
     // HULL-ON (the flip, PICK): every seed ghost carries the seed step's grade (generateSamplePool writes it last), which
     // the three parts' own generators don't write, so the pool compares without it
     expect(POOL.every((s) => typeof s.grade === "number")).toBe(true);
-    expect(POOL.map(({ grade: _grade, ...s }) => s)).toEqual([...SAMPLE, ...FLOOR, ...RACE]);
+    // BUMP-1H (P6): the pool is these three parts (the 192) and, after them, the CURVE's 24 streak ghosts (variant 3) and 14 depth ghosts (variant 4) (tools/samplePool.ts curveGhosts; pinned by tests/rc.seedpool): was the whole pool
+    expect(POOL.slice(0, 192).map(({ grade: _grade, ...s }) => s)).toEqual([...SAMPLE, ...FLOOR, ...RACE]);
+    expect(POOL.slice(192).map((s) => Number(s.playerId.slice(-1)))).toEqual([...Array(24).fill(3), ...Array(14).fill(4)]);
     expect([SAMPLE.length, FLOOR.length, RACE.length]).toEqual([64, 32, 96]); // BUMP-1D: was [40, 20] (and 60 race ghosts)
     for (const s of POOL) {
       expect(s.rules).toBe(RULES_VERSION);
@@ -189,7 +191,7 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
       expect(budget.length, `${s.playerId} d${s.day}: at most its one budget line`).toBeLessThanOrEqual(1);
       expect(strict.filter((e) => !budget.includes(e)), `${s.playerId} d${s.day}: every other strict line`).toEqual([]);
     }
-    expect(checkPool(POOL)).toHaveLength(192); // BUMP-1D: was 120 (0.8.0 RC: was 60)
+    expect(checkPool(POOL)).toHaveLength(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: was 120 (0.8.0 RC: was 60)
   }, 120_000); // BUMP-1G P7: 120 s (was the 30-s default): 13 s alone, 33 s beside twelve workers: a host timeout, not the rule
 
   it("every label is reachable; the three drawn labels the refund rules out keep their wins at the nearest reachable lives", () => {
@@ -260,7 +262,9 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
   // committed server/seedPoolData.ts too: its first 64 lines and the next 32; the 96 race ghosts add 53 and 32, so the whole pool is 114 and 110, as tests/net-upload.test.ts pins)
   // BUMP-1F (the pools regenerated under bb-0.13.0, RULING-BUMP1F-R5 R5.2 (2); server/seedPoolData.ts, SOFT_TARGET 150): title "the sample ghosts' 45 and 48, plus the floor ghosts' 16 and 30" -> 55 and 34, 27 and 24
   // (measured by this test; with the race ghosts the whole pool is 145 and 101, as tests/net-upload.test.ts pins)
-  it("keeps its turret and join decks: the sample ghosts' 55 and 34, plus the floor ghosts' 27 and 24 (each a deck of its own)", () => {
+  // BUMP-1H (P6; the pools regenerated under bb-0.15.0, R2 4cd2ca08: SOFT1_PICKS' slot 1 is casual-graded, 37 of the 128 picks differ from BUMP-1G's): title "the sample ghosts' 55 and 34, plus the floor ghosts' 27 and 24" -> 55 and 38, 27 and 24
+  // (measured by this test; with the race ghosts and the CURVE's 38 the whole pool is 179 and 127, as tests/net-upload.test.ts pins)
+  it("keeps its turret and join decks: the sample ghosts' 55 and 38, plus the floor ghosts' 27 and 24 (each a deck of its own)", () => {
     const carry = (ps: readonly GhostSnapshot[]) => [ps.filter((s) => (s.build.turrets ?? []).length > 0).length, ps.filter((s) => s.build.routes.some((r) => r.join !== undefined)).length];
     // BAL-2 (c5e4780, the pools changed): [3, 24] -> [4, 25]
     // Y7b2 (the pools): was [4, 25] (4d772e4, the pool regenerated on bb-0.9.3)
@@ -270,7 +274,7 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
     // BUMP-1D (the seed pool regenerated, 5e93e1e): was [22, 23] (SOFT-1's picks over days 1-10)
     // BUMP-1E (the pools regenerated under bb-0.12.0, R1-R3): was [35, 47]
     // BUMP-1F (RULING-BUMP1F-R5 R5.2 (2), the pools regenerated under bb-0.13.0: server/seedPoolData.ts, SOFT_TARGET 150, from the regenerated stand-in pool): was [45, 48]
-    expect(carry(SAMPLE)).toEqual([55, 34]); // FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
+    expect(carry(SAMPLE)).toEqual([55, 38]); // BUMP-1H: was [55, 34] (R2: SOFT1_PICKS' slot 1 re-read on the casual grade). FLIP-X2: [9, 24] -> [5, 21]; REDO-X (09ce97c, the pools changed): [5, 21] -> [3, 24]
     // BAL-2 (c5e4780, the pools changed): [2, 14] -> [4, 16]
     // Y7b2 (the pools): was [4, 16] (4d772e4, the pool regenerated on bb-0.9.3)
     // Z-BUMP (the pools): was [3, 15] (2c4ba76, the stand-in pool regenerated once under bb-0.9.7)
@@ -305,7 +309,7 @@ describe.each(storeBackends())("D5 end to end on the $name store: a new player g
     await backend.setup();
     app = backend.server({ rateLimit: { windowMs: 60_000, max: 100_000 }, log: () => {}, matchSalt: () => 0 });
     base = `http://127.0.0.1:${await app.listen(0)}`;
-    expect((await seedStore(app.store)).entries).toBe(192); // BUMP-1D: was 120 (0.8.0 RC: was 60)
+    expect((await seedStore(app.store)).entries).toBe(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: was 120 (0.8.0 RC: was 60)
   });
   afterAll(async () => {
     await app.close();

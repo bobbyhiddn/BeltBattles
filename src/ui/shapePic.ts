@@ -109,7 +109,7 @@ export const HEAD_LEN = 3;
 /** PRESENT-2 K (REQ-BFG-113; backlog #492 (2)): a surface WITH ROOM (the grid drawn at the piece's own cell: shapeGrid, shapeGridSize and drawShapePlate called without a `cell`; the wide shop
  *  card, LAST CHANCE's plate, the drop card and list, the road cards, the warlord pick) draws every rig's arrowheads 4 px long, an arrow: the tip, the head's full width, then a 2 px shaft
  *  (headRowsBig). In PRESENT-1's re-read the PICKAXE's T (4 cells, 7 arrows) read right 4 of 6 on the shop card and on the SWAP card (readers miscounted the arrows or saw one pointing down):
- *  its 3 px heads were a block with a 2 px nub. An icon-sized surface (the cargo slot, the narrow phone card, the icon rows, a corner over an icon: a `cell` given, iconCell) keeps HEAD_LEN. */
+ *  its 3 px heads were a block with a 2 px nub. An icon-sized surface (the cargo slot, the icon rows, a corner over an icon: a `cell` given, iconCell) keeps HEAD_LEN. PRESENT-5 A (REQ-BFG-113; #537 (2)): the narrow phone shop card asks for HEAD_BIG at its icon-sized cell (shapeGrid's `headLen`): the plate's room under the card's marks holds it (tests/present5.narrowhead.test.ts). */
 export const HEAD_BIG = 4;
 
 /** One arrow of a piece: the cell it shines from, as [dx, dy] in the footprint, and its direction in the picture
@@ -233,8 +233,8 @@ export const iconCell = (defId: string): number => gridCell(defId, CARGO_FACE);
 
 /** G1: the grid as a canvas (cached per piece and cell): its box is gridGeom's. Only for a shaped piece. SC-0912: at the piece's own
  *  cell (gridCell: GRID_CELL, or 4 for PICKAXE) unless a cell is given. */
-export function shapeGrid(defId: string, cell?: number): HTMLCanvasElement {
-  const head = headOf(cell), cl = cell ?? gridCell(defId); // PRESENT-2 K: no `cell` given = a surface with room: the 4 px arrow
+export function shapeGrid(defId: string, cell?: number, headLen?: number): HTMLCanvasElement {
+  const head = headLen ?? headOf(cell), cl = cell ?? gridCell(defId); // PRESENT-2 K: no `cell` given = a surface with room: the 4 px arrow; PRESENT-5 A: `headLen`, the arrowhead's length a caller asks for (the narrow phone shop card: HEAD_BIG at its icon-sized cell)
   const k = `grid:${defId}:${cl}:${head}`;
   let c = CACHE.get(k);
   if (!c) {
@@ -249,8 +249,8 @@ export function shapeGrid(defId: string, cell?: number): HTMLCanvasElement {
 const headOf = (cell: number | undefined): number => (cell === undefined ? HEAD_BIG : HEAD_LEN);
 
 /** G1: the grid's box in px, without drawing (tests, layout). SC-0912: at the piece's own cell (gridCell) unless a cell is given. PRESENT-2 K: with no `cell` (a surface with room) the arrowheads are HEAD_BIG. */
-export function shapeGridSize(defId: string, cell?: number): { w: number; h: number } {
-  const geom = gridGeom(gridSpecOf(defId), cell ?? gridCell(defId), headOf(cell));
+export function shapeGridSize(defId: string, cell?: number, headLen?: number): { w: number; h: number } {
+  const geom = gridGeom(gridSpecOf(defId), cell ?? gridCell(defId), headLen ?? headOf(cell)); // PRESENT-5 A: `headLen` as shapeGrid's
   return { w: geom.w, h: geom.h };
 }
 
@@ -261,6 +261,46 @@ export function shapeGridSize(defId: string, cell?: number): { w: number; h: num
 export function hasGrid(defId: string): boolean {
   const d = Object.prototype.hasOwnProperty.call(ITEMS, defId) ? ITEMS[defId] : undefined;
   return !!d && (((d.kind === "gate" || d.kind === "factory") && isShaped(d)) || ((d.kind === "factory" || d.kind === "turret") && footCount(d) > 1));
+}
+
+/**
+ * PRESENT-4 G (REQ-BFG-113; STAGE-0915's F9): the footprint MARK, a small cells-only grid for a surface whose box is the icon's own and has no room beside it: the road's drop row (a 14 x 14 box on a
+ * 19 px pitch, the odds under it). G1's grid over that box's corner (iconCell: 11 x 11 for a 2x2) covered the icon whole: PRESENT-3 C's carriage gun showed there as a grey grid. The mark is that grid's
+ * own drawing (drawGrid: the footprint at rot 0, a 1 px seam between two cells, a 1 px ink outline, the kind's colours) with no arrowheads (a rig's arrows are on its card, in its panel and in the
+ * ⓘ list's row), at 3 px a cell where the footprint is 2 cells either way and at 2 px for 3: 7 x 7 px at the most (a 2x2 is 7 x 7, a 3x1 7 x 3, SPIKE RAIL's 1x3 3 x 7). The caller puts it in the
+ * box's bottom-right corner (the diagonal carriage gun and the wheel stay clear there), over the icon's corner.
+ */
+export function markCell(defId: string): number {
+  const cells = gridSpecOf(defId).cells;
+  return Math.max(...cells.map((c) => Math.max(c[0], c[1]))) + 1 <= 2 ? 3 : 2;
+}
+const markSpec = (defId: string): GridSpec => ({ ...gridSpecOf(defId), arrows: [] });
+/** PRESENT-4 G: the mark as a canvas (cached per piece and cell). Only for a shaped piece (hasGrid). */
+export function shapeMark(defId: string): HTMLCanvasElement {
+  const cl = markCell(defId), k = `mark:${defId}:${cl}`;
+  let c = CACHE.get(k);
+  if (!c) {
+    const spec = markSpec(defId), geom = gridGeom(spec, cl), [cv, g] = makeCanvas(geom.w, geom.h);
+    drawGrid(g, spec, 0, 0, cl);
+    CACHE.set(k, (c = cv));
+  }
+  return c;
+}
+/** PRESENT-4 G: the mark's box in px, without drawing (tests, layout). */
+export function shapeMarkSize(defId: string): { w: number; h: number } {
+  const geom = gridGeom(markSpec(defId), markCell(defId));
+  return { w: geom.w, h: geom.h };
+}
+
+/**
+ * PRESENT-5 G2a (REQ-BFG-113; backlog #537 (1), (5)): the ONE place a surface puts the footprint mark over its icon's box. The box is `boxSize` px square with its top-left at (boxX, boxY); the mark
+ * (shapeMark) goes in its bottom-right corner, flush with the box's edges (PRESENT-4 G's place: the road's drop row passed its 14 x 14 box, the icon's carriage gun and wheel stay clear there). Returns the
+ * rect the mark covers. G2a moves no pixel (tests/present5.dropmark.test.ts compares the drop row with PRESENT-4's drawing). PRESENT-5 G2b (variant (a): a 1 px ink backing under the mark, to part it from the icon's own pale wheel patch) was tried (50eca68a) and PUT BACK (9d29624d): its cold read's K-03 missed the bar (cells four strict 2 of 6 after the fix round; a cannon or a gun named 4 of 6): the mark is PRESENT-4's again. A later variant changes this function alone, so every surface that calls it follows.
+ */
+export function drawIconMark(g: G, defId: string, boxX: number, boxY: number, boxSize: number): { x: number; y: number; w: number; h: number } {
+  const m = shapeMarkSize(defId), x = boxX + boxSize - m.w, y = boxY + boxSize - m.h;
+  g.drawImage(shapeMark(defId), x, y);
+  return { x, y, w: m.w, h: m.h };
 }
 
 /** G4: a shaped piece's grid (no plate) at the right end of a row `x`..`x + w` whose top is `y`, where it clears `left` (the row's
@@ -282,11 +322,11 @@ export function drawGridRight(g: G, defId: string, x: number, y: number, w: numb
 /** G3: the grid on an ink plate (a 1 px ink margin round its box: an arrowhead stays readable over an icon's corner) with the
  *  plate's top-left at (x, y). Returns the plate's rect. `alpha` dims it (a sold card). SC-0912: at the piece's own cell (gridCell)
  *  unless a cell is given (or `undefined`, as event/cards.ts passes it). */
-export function drawShapePlate(g: G, defId: string, x: number, y: number, cell?: number, alpha = 1): { x: number; y: number; w: number; h: number } {
-  const { w, h } = shapeGridSize(defId, cell);
+export function drawShapePlate(g: G, defId: string, x: number, y: number, cell?: number, alpha = 1, headLen?: number): { x: number; y: number; w: number; h: number } {
+  const { w, h } = shapeGridSize(defId, cell, headLen); // PRESENT-5 A: `headLen`, the arrowhead's length (default: headOf(cell), as before)
   if (alpha < 1) g.globalAlpha = alpha;
   rect(g, x, y, w + 2, h + 2, C.ink);
-  g.drawImage(shapeGrid(defId, cell), x + 1, y + 1);
+  g.drawImage(shapeGrid(defId, cell, headLen), x + 1, y + 1);
   if (alpha < 1) g.globalAlpha = 1;
   return { x, y, w: w + 2, h: h + 2 };
 }

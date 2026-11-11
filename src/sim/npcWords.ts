@@ -11,8 +11,12 @@
 // HAND-PICKED, NOT COMPUTED: each line is a literal with the reason beside it. They were picked from the bots' score on that rival's deck for that
 // day (tools/enchant2/npcPick.ts prints it: enchantBot.ts wordGain, the change in a piece's route damage), then for IDENTITY (the rival's trick,
 // blurb and hero), and tiered in intent: the Easy captains carry the gentler words (ECHOING, BRACED), the Hard ones the sharper (FIERY, MASSIVE, RISING). As the table stands that is only PARTLY so, and the ladder is
-// set by the margins (tests/rivals.difficulty.test.ts), not by the names: NETTLE, GRUBNOSE, RATCHET and BRASSWICK (Easy) each still hold RISING or FIERY on some piece. Steps taken: SWIFT was RATCHET's kiln and is gone (BUMP-1F,
+// set by the margins (tests/rivals.difficulty.test.ts), not by the names. Steps taken: SWIFT was RATCHET's kiln and is gone (BUMP-1F,
 // RULING-BUMP1F-Q2); RATCHET's day-12 FIERY on the temper is BRACED (BUMP-1G G2: the one word that put the Easy slot at or below Medium on days 12-16).
+// BUMP-1H H2 (the late ladder, REQ-BFG-124 line 5): the Easy captains' DAY-5 words are BRACED now, all four (NETTLE's loom was RISING, GRUBNOSE's press FIERY, RATCHET's scrapcannon RISING,
+// BRASSWICK's temper FIERY): with them, Easy > Medium > Hard holds by mean margin on every day 1-16 at K 96 and par beats the Easy slot on day 10 (it was 3 days short: 9, 10 and 11).
+// After H2 two Easy captains still hold a sharper word from day 8: NETTLE's temper FIERY and GRUBNOSE's keg RISING (RATCHET and BRASSWICK hold none); BRACED and ECHOING both score 0 on a keg, so
+// GRUBNOSE's keg could not be gentled without a grant that is worth nothing to its rival.
 // The bench (tools/enchant2/rivals.ts, REPORT T5a) holds par's win rate against them within 5 points of ENCHANT off; T5's levers are, in
 // order, NPC_WORD_DAYS, then which pieces and words, then the shrine's hull price.
 //
@@ -49,12 +53,12 @@ export const NPC_WORDS: Readonly<Record<RivalId, readonly NpcGrant[]>> = {
     { from: D3, def: "kiln", word: "echoing" }, // the long cooker puts out an extra slug now and then
   ],
   nettle: [ // SHORT STITCH: the loom parked under the guns, fires first (weaver, tier 1)
-    { from: D1, def: "loom", word: "rising" }, // fires first: every slug the loom makes hits harder than the last (SWIFT: par 99% to 81%, T5a pass 1)
+    { from: D1, def: "loom", word: "braced" }, // fires first: the loom holds under stun. BUMP-1H H2 (the late ladder; rivals.difficulty's instrument, K 96): was RISING (every slug the loom makes hit harder than the last; SWIFT: par 99% to 81%, T5a pass 1), the fourth of the Easy captains' day-5 words H2 gentled
     { from: D2, def: "temper", word: "fiery" }, // she grows with burn: a temper on the short belt
     { from: D3, def: "dartgun", word: "echoing" }, // every fifth dart hits twice
   ],
   grubnose: [ // PRESS GANG: a stamp press feeds the second intake (furnace, tier 1)
-    { from: D1, def: "doublestamp", word: "fiery" }, // the press stamps hot: its slugs come out burning (ECHOING and SWIFT on the press score below 0 on his belts)
+    { from: D1, def: "doublestamp", word: "braced" }, // the press holds under stun. BUMP-1H H2: was FIERY (the press stamped hot: its slugs came out burning; ECHOING and SWIFT on the press score below 0 on his belts). The keg's word below stays RISING: BRACED and ECHOING both score 0 on a keg (tests/enchant2.npcwords.test.ts' "worth something" check refuses a grant that scores 0), so H2 took the press instead
     { from: D2, def: "keg", word: "rising" }, // his keg flares up: each slug it hits lands harder than the last
     { from: D3, def: "kiln", word: "braced" }, // the gang holds the line: the cooker shrugs off the first stuns
   ],
@@ -74,7 +78,7 @@ export const NPC_WORDS: Readonly<Record<RivalId, readonly NpcGrant[]>> = {
     { from: D3, def: "dartgun", word: "echoing" }, // the swarm darts hit twice now and then
   ],
   ratchet: [ // OVERCLOCK: overdrive belt, calibrated gun (furnace, tier 1)
-    { from: D1, def: "scrapcannon", word: "rising" }, // calibrated: each shot lands harder than the last
+    { from: D1, def: "scrapcannon", word: "braced" }, // calibrated: the gun holds under stun. BUMP-1H H2: was RISING (each shot landed harder than the last); BRACED and ECHOING both score above 0 on a scrapcannon, and BRACED is the gentler (ECHOING made RATCHET stronger in BUMP-1G G2)
     { from: D2, def: "kiln", word: "braced" }, // overclocked: the kiln keeps its pace under stun. BUMP-1F: was SWIFT (the kiln worked twice as often), which put the Easy slot below Medium on days 9-16 by rivals.difficulty's instrument (d9 -0.040, d10 -0.034; RATCHET's margin -0.139 / -0.312) (RULING-BUMP1F-Q2: the word changes, the day and the piece stay; BRACED on a kiln is legal and other rivals hold it from day 5, so npcDropPairs and firstDay keep their pins)
     { from: D3, def: "temper", word: "braced" }, // the hot belt holds under stun. BUMP-1G G2 (the late ladder; RULING-BUMP1F-R11 R11.5; kit-1g/g2run.sh): was FIERY (one more BURN on every temper hit). With it RATCHET was the strongest Easy captain on days 12-16 (its margin against the FURNACE par field 0.08-0.20 below the BRACED read, K 24) and the Easy slot's mean margin sat at or below the Medium slot's on days 12, 13, 15 and 16 (rivals.difficulty's instrument, K 96: E-M -0.0156, -0.0091, -0.0458, -0.0119); with BRACED those four days and day 14 are in order. The two RISING reads (scrapcannon RISING -> BRACED, or ECHOING) moved RATCHET far less (BRACED +0.01 to +0.05) or the wrong way (ECHOING: stronger), so RISING stays
   ],
@@ -109,7 +113,7 @@ export const NPC_WORDS: Readonly<Record<RivalId, readonly NpcGrant[]>> = {
     { from: D3, def: "kiln", word: "fiery" }, // the foundry fire, once she has been seen
   ],
   brasswick: [ // MATCHED POUR: mirrored belts, gauged, every pour fuses (foundry, tier 1)
-    { from: D1, def: "temper", word: "fiery" }, // the matched pour runs hot (FIERY on the twin gauge: par 90% to 75% on day 6, T5a pass 2)
+    { from: D1, def: "temper", word: "braced" }, // the matched pour holds under stun. BUMP-1H H2: was FIERY (the matched pour ran hot; FIERY on the twin gauge: par 90% to 75% on day 6, T5a pass 2)
     { from: D2, def: "twinmould", word: "echoing" }, // every pour fuses: an extra slug in a fifth pour
     { from: D3, def: "crucible", word: "braced" }, // the gauger crucible holds
   ],

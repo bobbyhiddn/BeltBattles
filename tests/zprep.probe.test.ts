@@ -76,7 +76,8 @@ const digest = (x: unknown): string => createHash("sha256").update(JSON.stringif
 // (the 400 rows name the rules too) and recompute their ghost ids, and the digest of the rows reproduces 970c168f833c197554be2dd4cae21151ee29612615099693796bb2b8b21cb52b
 // (the GATES and ENCHANT flips move none of the nine rows: start decks and reference decks hold no converter and no word)
 // BUMP-1G (the bump to bb-0.14.0, label bb-0.13.0 -> bb-0.14.0, PROBE_RULES: the nine rows' bytes carry the new rules string, so the digest moved with it alone): was 55df8822... [PRE_FLIP_NINE]
-const PRE_FLIP_NINE = "ec9ed2e82145940456bdebcad4a3c785e14702969001f5f2c43158459c677dfc";
+// BUMP-1H (the bump to bb-0.15.0, label bb-0.14.0 -> bb-0.15.0, PROBE_RULES: the nine rows' bytes carry the new rules string, so the digest moved with it alone; tests/ghost-probe holds the rows' texts and expected lines at bb-0.15.0, 14 of 14): was ec9ed2e8... [PRE_FLIP_NINE]
+const PRE_FLIP_NINE = "f7b6edeaf32f52900db9a8314c9ed9a83d0e7a7ee2369743d907c3b40d3d9112";
 /** HULL-ON (the flip, HEARTS and OPEN_RUNES; ruling 12a42239093fb6ec): digest(rows(plan.slice(0, 9))) with every switch on:
  *  the start rows at 10 hearts (HEARTS: was 5 lives) and BASTION's, METRONOME's and SIPHON's dawn runes from the open
  *  offers (OPEN_RUNES). With HEARTS alone off it reads 3c5741a1...; with both off, PRE_FLIP_NINE.
@@ -89,7 +90,8 @@ const PRE_FLIP_NINE = "ec9ed2e82145940456bdebcad4a3c785e14702969001f5f2c43158459
  *  alone; was 5fc4f91d... under bb-0.12.0 (BUMP-1E's pin). Put bb-0.12.0 back into the nine rows' text and expected lines, recompute their ghost ids, and the
  *  digest of the rows reproduces 5fc4f91d1edda0a64e0f2295d1d18148c4ffa0902390e12161a5209ef4c0dfd4 (the GATES and ENCHANT flips move none of the nine rows). */
 // BUMP-1G (the bump to bb-0.14.0, label bb-0.13.0 -> bb-0.14.0, PROBE_RULES: the nine rows' bytes carry the new rules string, so the digest moved with it alone): was a0880060... [FLIP_NINE]
-const FLIP_NINE = "0e30a5926711f46d11ece7554c569bd71729c5c87d1e021bd972c938a1c17bd9";
+// BUMP-1H (the bump to bb-0.15.0, label bb-0.14.0 -> bb-0.15.0, PROBE_RULES: the nine rows' bytes carry the new rules string, so the digest moved with it alone): was 0e30a592... [FLIP_NINE]
+const FLIP_NINE = "59c658e1d73d59c26ca8891b0f7f9bd98ce5dc09e46c438f7adfd992ac996e3d";
 /** HULL-ON (the off check): the plan with HEARTS and OPEN_RUNES off, the probe's rows as before the flip.
  *  BUMP-1D: and with the long run off (no row states `losses`: the decoder refuses the field there), so these are still the
  *  rows as they were before the flip, but for the rules string. */

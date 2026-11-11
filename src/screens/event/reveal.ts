@@ -9,7 +9,7 @@ import { C } from "../../render/palette";
 import { rect, type G } from "../../render/pixel";
 import { drawText } from "../../render/font";
 import { itemIcon } from "../../render/sprites";
-import { hasGrid, iconCell, shapeGrid } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's grid on its deck icon
+import { drawIconMark, hasGrid } from "../../ui/shapePic"; // SHOPCARD-1 (REQ-BFG-113, G4): a shaped part's footprint on its deck icon; PRESENT-5 G5: as the drop row's mark (drawIconMark)
 import { panel, type Rect } from "../../ui/ui";
 import { drawPortrait, tag } from "../../ui/captain";
 
@@ -56,7 +56,9 @@ export function drawReveal(g: G, r: Rect, foe: DuskFoe): void {
     rect(g, ix, iy, 14, 14, C.ink);
     rect(g, ix + 1, iy + 1, 12, 12, C.slate0);
     g.drawImage(ic, ix + 7 - Math.floor(ic.width / 2), iy + 7 - Math.floor(ic.height / 2));
-    if (hasGrid(p.def)) g.drawImage(shapeGrid(p.def, iconCell(p.def)), ix, iy); // SHOPCARD-1 (G4): over the icon's corner, inside the 17 px row pitch; PRESENT-1 S1 (d): the icon cell
+    // PRESENT-5 G5 (REQ-BFG-113; backlog #537 (5)): the drop row's footprint MARK in this 14 x 14 box's corner (shapePic.ts drawIconMark), where it was G1's grid at iconCell over the box's top-left (11 x 11 for a 2x2 part, which covered
+    // the icon whole: SHOPCARD-1 G4, PRESENT-1 S1 (d)); the box, the 17 px row pitch and the count's `x2` (at ix + 15, outside the box) are as they were
+    if (hasGrid(p.def)) drawIconMark(g, p.def, ix, iy, 14);
     if (p.n > 1) drawText(g, `x${p.n}`, ix + 15, iy + 8, C.white, { font: "3" });
     ix += p.n > 1 ? 26 : 17;
   }

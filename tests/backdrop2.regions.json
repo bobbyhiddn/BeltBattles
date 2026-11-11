@@ -1,0 +1,672 @@
+{
+ "402x690|empty": [
+  "runepick:0,0,241,414,block",
+  "runepick-0:4,73,233,44",
+  "runepick-1:4,124,233,44",
+  "runepick-2:4,175,233,44",
+  "runepick-0-chip:7,77,27,27",
+  "runepick-1-chip:7,128,27,27",
+  "runepick-2-chip:7,179,27,27"
+ ],
+ "402x690|closed": [
+  "runepick:0,0,241,414,block",
+  "runepick-0:4,73,233,44",
+  "runepick-1:4,124,233,44",
+  "runepick-2:4,175,233,44",
+  "runepick-0-chip:9,77,27,27",
+  "runepick-1-chip:7,128,27,27",
+  "runepick-2-chip:7,179,27,27"
+ ],
+ "402x690|open0": [
+  "runepick:0,0,241,414,block",
+  "runepick-0:4,73,233,78,block",
+  "runepick-take:61,122,119,28",
+  "runepick-1:4,158,233,44",
+  "runepick-2:4,209,233,44",
+  "runepick-chip:9,77,27,27",
+  "runepick-w0:SHIELD:106,94,37,27",
+  "runepick-1-chip:7,162,27,27",
+  "runepick-2-chip:7,213,27,27"
+ ],
+ "402x690|open1": [
+  "runepick:0,0,241,414,block",
+  "runepick-0:4,73,233,44",
+  "runepick-1:4,124,233,85,block",
+  "runepick-take:61,180,119,28",
+  "runepick-2:4,216,233,44",
+  "runepick-0-chip:9,77,27,27",
+  "runepick-chip:7,128,27,27",
+  "runepick-w0:HEAT:36,145,25,27",
+  "runepick-2-chip:7,220,27,27"
+ ],
+ "402x690|open2": [
+  "runepick:0,0,241,414,block",
+  "runepick-0:4,73,233,44",
+  "runepick-1:4,124,233,44",
+  "runepick-2:4,175,233,85,block",
+  "runepick-take:61,231,119,28",
+  "runepick-0-chip:9,77,27,27",
+  "runepick-1-chip:7,128,27,27",
+  "runepick-chip:7,179,27,27",
+  "runepick-w0:FRAY:36,196,25,27",
+  "runepick-w1:FRAY:110,196,25,27"
+ ],
+ "402x690|word": [
+  "runepick:0,0,241,414,block",
+  "runepick-0:4,73,233,44",
+  "runepick-1:4,124,233,85,block",
+  "runepick-take:61,180,119,28",
+  "runepick-2:4,216,233,44",
+  "runepick-0-chip:9,77,27,27",
+  "runepick-chip:7,128,27,27",
+  "runepick-w0:HEAT:36,145,25,27",
+  "runepick-def:6,163,229,10,block",
+  "runepick-2-chip:7,220,27,27"
+ ],
+ "402x690|late": [
+  "runepick:0,0,241,414,block",
+  "runepick-0:4,73,233,44",
+  "runepick-1:4,124,233,44",
+  "runepick-0-chip:7,77,27,27",
+  "runepick-1-chip:7,128,27,27"
+ ],
+ "402x690|tall": [
+  "runepick:0,0,241,414,block",
+  "runepick-0:4,62,233,44",
+  "runepick-1:4,113,233,78,block",
+  "runepick-take:61,162,119,28",
+  "runepick-2:4,198,233,44",
+  "runepick-0-chip:7,66,27,27",
+  "runepick-chip:7,117,27,27",
+  "runepick-w0:WARD:94,134,25,27",
+  "runepick-2-chip:7,202,27,27"
+ ],
+ "402x690|endless": [
+  "runepick:0,0,241,414,block",
+  "runepick-0:4,73,233,44",
+  "runepick-1:4,124,233,44",
+  "runepick-2:4,175,233,53",
+  "runepick-0-chip:7,77,27,27",
+  "runepick-1-chip:7,128,27,27",
+  "runepick-2-chip:7,179,27,27"
+ ],
+ "402x690|endless-open": [
+  "runepick:0,0,241,414,block",
+  "runepick-0:4,73,233,44",
+  "runepick-1:4,124,233,78,block",
+  "runepick-take:61,173,119,28",
+  "runepick-2:4,209,233,53",
+  "runepick-0-chip:7,77,27,27",
+  "runepick-chip:7,128,27,27",
+  "runepick-w0:HEAL:128,145,25,27",
+  "runepick-2-chip:7,213,27,27"
+ ],
+ "402x690|plain-tall": [
+  "runepick:0,0,241,414,block",
+  "runepick-0:4,62,233,44",
+  "runepick-1:4,113,233,78,block",
+  "runepick-take:61,162,119,28",
+  "runepick-2:4,198,233,44",
+  "runepick-0-chip:7,66,27,27",
+  "runepick-chip:7,117,27,27",
+  "runepick-w0:WARD:94,134,25,27",
+  "runepick-2-chip:7,202,27,27"
+ ],
+ "390x660|empty": [
+  "runepick:0,0,234,396,block",
+  "runepick-0:4,73,226,53",
+  "runepick-1:4,133,226,44",
+  "runepick-2:4,184,226,44",
+  "runepick-0-chip:7,77,27,27",
+  "runepick-1-chip:7,137,27,27",
+  "runepick-2-chip:7,188,27,27"
+ ],
+ "390x660|closed": [
+  "runepick:0,0,234,396,block",
+  "runepick-0:4,73,226,44",
+  "runepick-1:4,124,226,44",
+  "runepick-2:4,175,226,44",
+  "runepick-0-chip:9,77,27,27",
+  "runepick-1-chip:7,128,27,27",
+  "runepick-2-chip:7,179,27,27"
+ ],
+ "390x660|open0": [
+  "runepick:0,0,234,396,block",
+  "runepick-0:4,73,226,78,block",
+  "runepick-take:58,122,119,28",
+  "runepick-1:4,158,226,44",
+  "runepick-2:4,209,226,44",
+  "runepick-chip:9,77,27,27",
+  "runepick-w0:SHIELD:106,94,37,27",
+  "runepick-1-chip:7,162,27,27",
+  "runepick-2-chip:7,213,27,27"
+ ],
+ "390x660|open1": [
+  "runepick:0,0,234,396,block",
+  "runepick-0:4,73,226,44",
+  "runepick-1:4,124,226,85,block",
+  "runepick-take:58,180,119,28",
+  "runepick-2:4,216,226,44",
+  "runepick-0-chip:9,77,27,27",
+  "runepick-chip:7,128,27,27",
+  "runepick-w0:HEAT:36,145,25,27",
+  "runepick-2-chip:7,220,27,27"
+ ],
+ "390x660|open2": [
+  "runepick:0,0,234,396,block",
+  "runepick-0:4,73,226,44",
+  "runepick-1:4,124,226,44",
+  "runepick-2:4,175,226,92,block",
+  "runepick-take:58,238,119,28",
+  "runepick-0-chip:9,77,27,27",
+  "runepick-1-chip:7,128,27,27",
+  "runepick-chip:7,179,27,27",
+  "runepick-w0:FRAY:36,196,25,27",
+  "runepick-w1:FRAY:110,196,25,27"
+ ],
+ "390x660|word": [
+  "runepick:0,0,234,396,block",
+  "runepick-0:4,73,226,44",
+  "runepick-1:4,124,226,85,block",
+  "runepick-take:58,180,119,28",
+  "runepick-2:4,216,226,44",
+  "runepick-0-chip:9,77,27,27",
+  "runepick-chip:7,128,27,27",
+  "runepick-w0:HEAT:36,145,25,27",
+  "runepick-def:6,163,222,10,block",
+  "runepick-2-chip:7,220,27,27"
+ ],
+ "390x660|late": [
+  "runepick:0,0,234,396,block",
+  "runepick-0:4,73,226,44",
+  "runepick-1:4,124,226,53",
+  "runepick-0-chip:7,77,27,27",
+  "runepick-1-chip:7,128,27,27"
+ ],
+ "390x660|tall": [
+  "runepick:0,0,234,396,block",
+  "runepick-0:4,56,226,44",
+  "runepick-1:4,107,226,78,block",
+  "runepick-take:58,156,119,28",
+  "runepick-2:4,192,226,44",
+  "runepick-0-chip:7,60,27,27",
+  "runepick-chip:7,111,27,27",
+  "runepick-w0:WARD:94,128,25,27",
+  "runepick-2-chip:7,196,27,27"
+ ],
+ "390x660|endless": [
+  "runepick:0,0,234,396,block",
+  "runepick-0:4,73,226,44",
+  "runepick-1:4,124,226,44",
+  "runepick-2:4,175,226,53",
+  "runepick-0-chip:7,77,27,27",
+  "runepick-1-chip:7,128,27,27",
+  "runepick-2-chip:7,179,27,27"
+ ],
+ "390x660|endless-open": [
+  "runepick:0,0,234,396,block",
+  "runepick-0:4,67,226,44",
+  "runepick-1:4,118,226,78,block",
+  "runepick-take:58,167,119,28",
+  "runepick-2:4,203,226,53",
+  "runepick-0-chip:7,71,27,27",
+  "runepick-chip:7,122,27,27",
+  "runepick-w0:HEAL:128,139,25,27",
+  "runepick-2-chip:7,207,27,27"
+ ],
+ "390x660|plain-tall": [
+  "runepick:0,0,234,396,block",
+  "runepick-0:4,56,226,44",
+  "runepick-1:4,107,226,78,block",
+  "runepick-take:58,156,119,28",
+  "runepick-2:4,192,226,44",
+  "runepick-0-chip:7,60,27,27",
+  "runepick-chip:7,111,27,27",
+  "runepick-w0:WARD:94,128,25,27",
+  "runepick-2-chip:7,196,27,27"
+ ],
+ "360x220@1|empty": [
+  "runepick:0,0,360,220,block",
+  "runepick-0:30,46,300,44",
+  "runepick-1:30,97,300,44",
+  "runepick-2:30,148,300,44",
+  "runepick-0-chip:31,47,44,42",
+  "runepick-1-chip:31,98,44,42",
+  "runepick-2-chip:31,149,44,42"
+ ],
+ "360x220@1|closed": [
+  "runepick:0,0,360,220,block",
+  "runepick-0:30,37,300,44",
+  "runepick-1:30,88,300,44",
+  "runepick-2:30,139,300,44",
+  "runepick-0-chip:31,38,44,42",
+  "runepick-1-chip:31,89,44,42",
+  "runepick-2-chip:31,140,44,42"
+ ],
+ "360x220@1|open0": [
+  "runepick:0,0,360,220,block",
+  "runepick-0:30,37,300,95,block",
+  "runepick-take:121,86,119,45",
+  "runepick-1:30,139,300,44",
+  "runepick-2:30,190,300,44",
+  "runepick-chip:31,38,44,44",
+  "runepick-w0:SHIELD:132,50,37,36",
+  "runepick-1-chip:31,140,44,42",
+  "runepick-2-chip:31,191,44,42"
+ ],
+ "360x220@1|open1": [
+  "runepick:0,0,360,220,block",
+  "runepick-0:30,37,300,44",
+  "runepick-1:30,88,300,102,block",
+  "runepick-take:121,144,119,45",
+  "runepick-2:30,197,300,44",
+  "runepick-0-chip:31,38,44,42",
+  "runepick-chip:31,89,44,44",
+  "runepick-2-chip:31,198,44,42"
+ ],
+ "360x220@1|open2": [
+  "runepick:0,0,360,220,block",
+  "runepick-0:30,37,300,44",
+  "runepick-1:30,88,300,44",
+  "runepick-2:30,139,300,102,block",
+  "runepick-take:121,195,119,45",
+  "runepick-0-chip:31,38,44,42",
+  "runepick-1-chip:31,89,44,42",
+  "runepick-chip:31,140,44,44",
+  "runepick-w0:FRAY:136,152,25,43"
+ ],
+ "360x220@1|word": [
+  "runepick:0,0,360,220,block",
+  "runepick-0:30,37,300,44",
+  "runepick-1:30,88,300,102,block",
+  "runepick-take:121,144,119,45",
+  "runepick-2:30,197,300,44",
+  "runepick-0-chip:31,38,44,42",
+  "runepick-chip:31,89,44,44",
+  "runepick-2-chip:31,198,44,42"
+ ],
+ "360x220@1|late": [
+  "runepick:0,0,360,220,block",
+  "runepick-0:30,50,300,44",
+  "runepick-1:30,101,300,44",
+  "runepick-0-chip:31,51,44,42",
+  "runepick-1-chip:31,102,44,42"
+ ],
+ "360x220@1|tall": [
+  "runepick:0,0,360,220,block",
+  "runepick-0:30,37,300,44",
+  "runepick-1:30,88,300,95,block",
+  "runepick-take:121,137,119,45",
+  "runepick-2:30,190,300,44",
+  "runepick-0-chip:31,38,44,42",
+  "runepick-chip:31,89,44,44",
+  "runepick-w0:WARD:120,101,25,36",
+  "runepick-2-chip:31,191,44,42"
+ ],
+ "360x220@1|endless": [
+  "runepick:0,0,360,220,block",
+  "runepick-0:30,37,300,44",
+  "runepick-1:30,88,300,44",
+  "runepick-2:30,139,300,53",
+  "runepick-0-chip:31,38,44,42",
+  "runepick-1-chip:31,89,44,42",
+  "runepick-2-chip:31,140,44,44"
+ ],
+ "360x220@1|endless-open": [
+  "runepick:0,0,360,220,block",
+  "runepick-0:30,37,300,44",
+  "runepick-1:30,88,300,95,block",
+  "runepick-take:121,137,119,45",
+  "runepick-2:30,190,300,53",
+  "runepick-0-chip:31,38,44,42",
+  "runepick-chip:31,89,44,44",
+  "runepick-w0:HEAL:154,101,25,36",
+  "runepick-2-chip:31,191,44,44"
+ ],
+ "360x220@1|plain-tall": [
+  "runepick:0,0,360,220,block",
+  "runepick-0:30,37,300,44",
+  "runepick-1:30,88,300,95,block",
+  "runepick-take:121,137,119,45",
+  "runepick-2:30,190,300,44",
+  "runepick-0-chip:31,38,44,42",
+  "runepick-chip:31,89,44,44",
+  "runepick-w0:WARD:120,101,25,36",
+  "runepick-2-chip:31,191,44,42"
+ ],
+ "480x270@1|empty": [
+  "runepick:0,0,480,270,block",
+  "runepick-0:90,63,300,44",
+  "runepick-1:90,114,300,44",
+  "runepick-2:90,165,300,44",
+  "runepick-0-chip:91,64,44,42",
+  "runepick-1-chip:91,115,44,42",
+  "runepick-2-chip:91,166,44,42"
+ ],
+ "480x270@1|closed": [
+  "runepick:0,0,480,270,block",
+  "runepick-0:90,50,300,44",
+  "runepick-1:90,101,300,44",
+  "runepick-2:90,152,300,44",
+  "runepick-0-chip:91,51,44,42",
+  "runepick-1-chip:91,102,44,42",
+  "runepick-2-chip:91,153,44,42"
+ ],
+ "480x270@1|open0": [
+  "runepick:0,0,480,270,block",
+  "runepick-0:90,37,300,95,block",
+  "runepick-take:181,86,119,45",
+  "runepick-1:90,139,300,44",
+  "runepick-2:90,190,300,44",
+  "runepick-chip:91,38,44,44",
+  "runepick-w0:SHIELD:192,50,37,36",
+  "runepick-1-chip:91,140,44,42",
+  "runepick-2-chip:91,191,44,42"
+ ],
+ "480x270@1|open1": [
+  "runepick:0,0,480,270,block",
+  "runepick-0:90,37,300,44",
+  "runepick-1:90,88,300,102,block",
+  "runepick-take:181,144,119,45",
+  "runepick-2:90,197,300,44",
+  "runepick-0-chip:91,38,44,42",
+  "runepick-chip:91,89,44,44",
+  "runepick-2-chip:91,198,44,42"
+ ],
+ "480x270@1|open2": [
+  "runepick:0,0,480,270,block",
+  "runepick-0:90,37,300,44",
+  "runepick-1:90,88,300,44",
+  "runepick-2:90,139,300,102,block",
+  "runepick-take:181,195,119,45",
+  "runepick-0-chip:91,38,44,42",
+  "runepick-1-chip:91,89,44,42",
+  "runepick-chip:91,140,44,44",
+  "runepick-w0:FRAY:196,152,25,43"
+ ],
+ "480x270@1|word": [
+  "runepick:0,0,480,270,block",
+  "runepick-0:90,37,300,44",
+  "runepick-1:90,88,300,102,block",
+  "runepick-take:181,144,119,45",
+  "runepick-2:90,197,300,44",
+  "runepick-0-chip:91,38,44,42",
+  "runepick-chip:91,89,44,44",
+  "runepick-2-chip:91,198,44,42"
+ ],
+ "480x270@1|late": [
+  "runepick:0,0,480,270,block",
+  "runepick-0:90,67,300,44",
+  "runepick-1:90,118,300,44",
+  "runepick-0-chip:91,68,44,42",
+  "runepick-1-chip:91,119,44,42"
+ ],
+ "480x270@1|tall": [
+  "runepick:0,0,480,270,block",
+  "runepick-0:90,37,300,44",
+  "runepick-1:90,88,300,95,block",
+  "runepick-take:181,137,119,45",
+  "runepick-2:90,190,300,44",
+  "runepick-0-chip:91,38,44,42",
+  "runepick-chip:91,89,44,44",
+  "runepick-w0:WARD:180,101,25,36",
+  "runepick-2-chip:91,191,44,42"
+ ],
+ "480x270@1|endless": [
+  "runepick:0,0,480,270,block",
+  "runepick-0:90,40,300,44",
+  "runepick-1:90,91,300,44",
+  "runepick-2:90,142,300,53",
+  "runepick-0-chip:91,41,44,42",
+  "runepick-1-chip:91,92,44,42",
+  "runepick-2-chip:91,143,44,44"
+ ],
+ "480x270@1|endless-open": [
+  "runepick:0,0,480,270,block",
+  "runepick-0:90,37,300,44",
+  "runepick-1:90,88,300,95,block",
+  "runepick-take:181,137,119,45",
+  "runepick-2:90,190,300,53",
+  "runepick-0-chip:91,38,44,42",
+  "runepick-chip:91,89,44,44",
+  "runepick-w0:HEAL:214,101,25,36",
+  "runepick-2-chip:91,191,44,44"
+ ],
+ "480x270@1|plain-tall": [
+  "runepick:0,0,480,270,block",
+  "runepick-0:90,37,300,44",
+  "runepick-1:90,88,300,95,block",
+  "runepick-take:181,137,119,45",
+  "runepick-2:90,190,300,44",
+  "runepick-0-chip:91,38,44,42",
+  "runepick-chip:91,89,44,44",
+  "runepick-w0:WARD:180,101,25,36",
+  "runepick-2-chip:91,191,44,42"
+ ],
+ "1366x768|empty": [
+  "runepick:0,0,455,256,block",
+  "runepick-0:78,58,300,44",
+  "runepick-1:78,109,300,44",
+  "runepick-2:78,160,300,44",
+  "runepick-0-chip:83,64,22,22",
+  "runepick-1-chip:83,115,22,22",
+  "runepick-2-chip:83,166,22,22"
+ ],
+ "1366x768|closed": [
+  "runepick:0,0,683,384,block",
+  "runepick-0:192,73,300,44",
+  "runepick-1:192,124,300,44",
+  "runepick-2:192,175,300,44",
+  "runepick-0-chip:197,79,26,22",
+  "runepick-1-chip:197,130,22,22",
+  "runepick-2-chip:197,181,22,22"
+ ],
+ "1366x768|open0": [
+  "runepick:0,0,683,384,block",
+  "runepick-0:192,73,300,65,block",
+  "runepick-take:283,122,119,15",
+  "runepick-1:192,145,300,44",
+  "runepick-2:192,196,300,44",
+  "runepick-chip:197,79,26,22",
+  "runepick-w0:SHIELD:294,103,37,9",
+  "runepick-1-chip:197,151,22,22",
+  "runepick-2-chip:197,202,22,22"
+ ],
+ "1366x768|open1": [
+  "runepick:0,0,683,384,block",
+  "runepick-0:192,73,300,44",
+  "runepick-1:192,124,300,72,block",
+  "runepick-take:283,180,119,15",
+  "runepick-2:192,203,300,44",
+  "runepick-0-chip:197,79,26,22",
+  "runepick-chip:197,130,22,22",
+  "runepick-w0:HEAT:224,154,25,9",
+  "runepick-2-chip:197,209,22,22"
+ ],
+ "1366x768|open2": [
+  "runepick:0,0,683,384,block",
+  "runepick-0:192,73,300,44",
+  "runepick-1:192,124,300,44",
+  "runepick-2:192,175,300,72,block",
+  "runepick-take:283,231,119,15",
+  "runepick-0-chip:197,79,26,22",
+  "runepick-1-chip:197,130,22,22",
+  "runepick-chip:197,181,22,22",
+  "runepick-w0:FRAY:224,205,25,9",
+  "runepick-w1:FRAY:298,205,25,9"
+ ],
+ "1366x768|word": [
+  "runepick:0,0,683,384,block",
+  "runepick-0:192,73,300,44",
+  "runepick-1:192,124,300,72,block",
+  "runepick-take:283,180,119,15",
+  "runepick-2:192,203,300,44",
+  "runepick-0-chip:197,79,26,22",
+  "runepick-chip:197,130,22,22",
+  "runepick-w0:HEAT:224,154,25,9",
+  "runepick-def:194,163,296,10,block",
+  "runepick-2-chip:197,209,22,22"
+ ],
+ "1366x768|late": [
+  "runepick:0,0,683,384,block",
+  "runepick-0:192,73,300,44",
+  "runepick-1:192,124,300,44",
+  "runepick-0-chip:197,79,22,22",
+  "runepick-1-chip:197,130,22,22"
+ ],
+ "1366x768|tall": [
+  "runepick:0,0,683,384,block",
+  "runepick-0:192,64,300,44",
+  "runepick-1:192,115,300,65,block",
+  "runepick-take:283,164,119,15",
+  "runepick-2:192,187,300,44",
+  "runepick-0-chip:197,70,22,22",
+  "runepick-chip:197,121,22,22",
+  "runepick-w0:WARD:282,145,25,9",
+  "runepick-2-chip:197,193,22,22"
+ ],
+ "1366x768|endless": [
+  "runepick:0,0,683,384,block",
+  "runepick-0:192,43,300,44",
+  "runepick-1:192,94,300,44",
+  "runepick-2:192,145,300,53",
+  "runepick-0-chip:197,49,22,22",
+  "runepick-1-chip:197,100,22,22",
+  "runepick-2-chip:197,151,22,22"
+ ],
+ "1366x768|endless-open": [
+  "runepick:0,0,683,384,block",
+  "runepick-0:192,37,300,44",
+  "runepick-1:192,88,300,65,block",
+  "runepick-take:283,137,119,15",
+  "runepick-2:192,160,300,53",
+  "runepick-0-chip:197,43,22,22",
+  "runepick-chip:197,94,22,22",
+  "runepick-w0:HEAL:316,118,25,9",
+  "runepick-2-chip:197,166,22,22"
+ ],
+ "1366x768|plain-tall": [
+  "runepick:0,0,683,384,block",
+  "runepick-0:192,64,300,44",
+  "runepick-1:192,115,300,65,block",
+  "runepick-take:283,164,119,15",
+  "runepick-2:192,187,300,44",
+  "runepick-0-chip:197,70,22,22",
+  "runepick-chip:197,121,22,22",
+  "runepick-w0:WARD:282,145,25,9",
+  "runepick-2-chip:197,193,22,22"
+ ],
+ "1920x1080|empty": [
+  "runepick:0,0,480,270,block",
+  "runepick-0:90,63,300,44",
+  "runepick-1:90,114,300,44",
+  "runepick-2:90,165,300,44",
+  "runepick-0-chip:95,69,22,22",
+  "runepick-1-chip:95,120,22,22",
+  "runepick-2-chip:95,171,22,22"
+ ],
+ "1920x1080|closed": [
+  "runepick:0,0,640,360,block",
+  "runepick-0:170,73,300,44",
+  "runepick-1:170,124,300,44",
+  "runepick-2:170,175,300,44",
+  "runepick-0-chip:175,79,26,22",
+  "runepick-1-chip:175,130,22,22",
+  "runepick-2-chip:175,181,22,22"
+ ],
+ "1920x1080|open0": [
+  "runepick:0,0,640,360,block",
+  "runepick-0:170,73,300,65,block",
+  "runepick-take:261,122,119,15",
+  "runepick-1:170,145,300,44",
+  "runepick-2:170,196,300,44",
+  "runepick-chip:175,79,26,22",
+  "runepick-w0:SHIELD:272,103,37,9",
+  "runepick-1-chip:175,151,22,22",
+  "runepick-2-chip:175,202,22,22"
+ ],
+ "1920x1080|open1": [
+  "runepick:0,0,640,360,block",
+  "runepick-0:170,71,300,44",
+  "runepick-1:170,122,300,72,block",
+  "runepick-take:261,178,119,15",
+  "runepick-2:170,201,300,44",
+  "runepick-0-chip:175,77,26,22",
+  "runepick-chip:175,128,22,22",
+  "runepick-w0:HEAT:202,152,25,9",
+  "runepick-2-chip:175,207,22,22"
+ ],
+ "1920x1080|open2": [
+  "runepick:0,0,640,360,block",
+  "runepick-0:170,71,300,44",
+  "runepick-1:170,122,300,44",
+  "runepick-2:170,173,300,72,block",
+  "runepick-take:261,229,119,15",
+  "runepick-0-chip:175,77,26,22",
+  "runepick-1-chip:175,128,22,22",
+  "runepick-chip:175,179,22,22",
+  "runepick-w0:FRAY:202,203,25,9",
+  "runepick-w1:FRAY:276,203,25,9"
+ ],
+ "1920x1080|word": [
+  "runepick:0,0,640,360,block",
+  "runepick-0:170,71,300,44",
+  "runepick-1:170,122,300,72,block",
+  "runepick-take:261,178,119,15",
+  "runepick-2:170,201,300,44",
+  "runepick-0-chip:175,77,26,22",
+  "runepick-chip:175,128,22,22",
+  "runepick-w0:HEAT:202,152,25,9",
+  "runepick-def:172,161,296,10,block",
+  "runepick-2-chip:175,207,22,22"
+ ],
+ "1920x1080|late": [
+  "runepick:0,0,640,360,block",
+  "runepick-0:170,73,300,44",
+  "runepick-1:170,124,300,44",
+  "runepick-0-chip:175,79,22,22",
+  "runepick-1-chip:175,130,22,22"
+ ],
+ "1920x1080|tall": [
+  "runepick:0,0,640,360,block",
+  "runepick-0:170,56,300,44",
+  "runepick-1:170,107,300,65,block",
+  "runepick-take:261,156,119,15",
+  "runepick-2:170,179,300,44",
+  "runepick-0-chip:175,62,22,22",
+  "runepick-chip:175,113,22,22",
+  "runepick-w0:WARD:260,137,25,9",
+  "runepick-2-chip:175,185,22,22"
+ ],
+ "1920x1080|endless": [
+  "runepick:0,0,640,360,block",
+  "runepick-0:170,37,300,44",
+  "runepick-1:170,88,300,44",
+  "runepick-2:170,139,300,53",
+  "runepick-0-chip:175,43,22,22",
+  "runepick-1-chip:175,94,22,22",
+  "runepick-2-chip:175,145,22,22"
+ ],
+ "1920x1080|endless-open": [
+  "runepick:0,0,640,360,block",
+  "runepick-0:170,63,300,44",
+  "runepick-1:170,114,300,65,block",
+  "runepick-take:261,163,119,15",
+  "runepick-2:170,186,300,53",
+  "runepick-0-chip:175,69,22,22",
+  "runepick-chip:175,120,22,22",
+  "runepick-w0:HEAL:294,144,25,9",
+  "runepick-2-chip:175,192,22,22"
+ ],
+ "1920x1080|plain-tall": [
+  "runepick:0,0,640,360,block",
+  "runepick-0:170,56,300,44",
+  "runepick-1:170,107,300,65,block",
+  "runepick-take:261,156,119,15",
+  "runepick-2:170,179,300,44",
+  "runepick-0-chip:175,62,22,22",
+  "runepick-chip:175,113,22,22",
+  "runepick-w0:WARD:260,137,25,9",
+  "runepick-2-chip:175,185,22,22"
+ ]
+}

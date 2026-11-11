@@ -167,7 +167,10 @@ async function preFlipPool(): Promise<GhostSnapshot[]> {
     // test's values are identical with this wrapper and without it (output-hullon/logs/r4-lc1-without, r4-lc1-with)
     const { generateSamplePool } = await import("../tools/samplePool");
     const { withPick } = await import("../src/net/pick");
-    return withPick(() => generateSamplePool(), false);
+    // BUMP-1H (P6): and the world before the curve: the fresh graph's curve.ts starts with CURVE on (it ships on), which would append the streak and depth ghosts to this 10-day pool, and curveGhosts throws
+    // "CURVE: stale: the streak pick f5:f1c7d67e for foundry day 7 is one of the hero's variant 0 or 1 decks" in that mixed world (the committed picks are the 16-day world's). The pool before the flip is the 120 ghosts: the switch goes off for the build, synchronously (withCurve(fn, false)). Was: return withPick(() => generateSamplePool(), false)
+    const { withCurve } = await import("../src/net/curve");
+    return withCurve(() => withPick(() => generateSamplePool(), false), false);
   } finally {
     vi.doUnmock("../src/net/records");
     vi.resetModules();

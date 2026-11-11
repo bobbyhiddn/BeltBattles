@@ -13,9 +13,12 @@
 //    deck (it plates its hull) DMG reads "lo-hi", the floor's total then the big number's; on FURNACE's (no plating source)
 //    the floor alone.
 //  - smuggler-d1, smuggler-d1-taken, smuggler-d2: the AMMO SMUGGLER offering contraband (B1 M4, eventDefs.ts smugglerStock).
-//    Run seed 1 (tests/fixtures/beltside-062c/roadDraws-080.json "smuggler|none|1") has no SHOCK ware unlocked on days 1-2
-//    but drew STATIC BRUSH and LODESTONE, so its SHOCK card offers STATIC BRUSH on day 1 and LODESTONE on day 2, ahead of
-//    their day (checked against the run's wares); on day 1 a real click or tap buys it into cargo.
+//    Run seed 52 (BUMP-1H T3: the first run seed in 1-500 whose day-1 and day-2 SHOCK cards each offer a ware ahead of its day
+//    and differ, found with newRun + eventDefs.ts smugglerParts under bb-0.15.0's draws) has no SHOCK ware unlocked on days 1-2
+//    but drew LODESTONE (unlocks day 3) and GALVANIC COIL (day 6), so its SHOCK card offers LODESTONE on day 1 and GALVANIC COIL
+//    on day 2, ahead of their day (checked against the run's wares); on day 1 a real click or tap buys it into cargo.
+//    Was run seed 1 (tests/fixtures/beltside-062c/roadDraws-080.json "smuggler|none|1": STATIC BRUSH, LODESTONE): since BUMP-1G's
+//    effect floor (bb-0.14.0) seed 1 draws a SHOCK ware unlocked on day 1, so its card is no contraband.
 //  - warlord-grimhold: a road warlord fight against the regrown GRIMHOLD (BASTION, Medium; B1 M3, rivalBuilds.ts: ANVIL
 //    BREECH from day 2, SPALL CATCHER from day 3), picked at a fork that offers him (bb.openWarlord: pickRoad +
 //    warlordFight), stepped on the game's own clock to a frame with his plating on the hull.
@@ -47,6 +50,7 @@ const OUT = resolve(argv.filter((_, i) => di < 0 || (i !== di && i !== di + 1))[
 const VIEWS = { desk: SHOT_VIEWS.desk, phone: SHOT_VIEWS.phone };
 const PICKS = ["v", "e", "m", "h"]; // the fork's cards: 0 the event, then easy, medium, hard
 const RUN_DAYS = 3;
+const SMUGGLER_SEED = 52; // BUMP-1H T3: the run seed of the SMUGGLER shots (was 1; see the header)
 
 /** The build-screen decks: the hero's own starting deck (newRun: heroStartBuild) with `add` placed and `routes` drawn
  *  ([x, y] cells), as the tests build them on heroStartBuild(hero, 1). */
@@ -263,21 +267,21 @@ async function breakerShots(page, touch, vname) {
 }
 
 async function smugglerShots(page, touch, vname) {
-  // run seed 1: no SHOCK ware unlocked on days 1-2, STATIC BRUSH and LODESTONE drawn (roadDraws-080.json "smuggler|none|1")
-  for (const [day, hero, want] of [[1, "foundry", "staticbrush"], [2, "bastion", "lodestone"]]) {
+  // run seed 52 (BUMP-1H T3; was seed 1: STATIC BRUSH and LODESTONE, roadDraws-080.json "smuggler|none|1"): no SHOCK ware unlocked on days 1-2, LODESTONE (day 3) and COIL (day 6) drawn
+  for (const [day, hero, want] of [[1, "foundry", "lodestone"], [2, "bastion", "coil"]]) {
     await item(`smuggler-d${day}`, vname, async () => {
-      await page.evaluate(({ day, hero }) => { window.bb.clearPool(); window.bb.openEvent("smuggler", { hero, seed: 1, day, gold: 9, lives: 5 }); }, { day, hero });
+      await page.evaluate(({ day, hero, seed }) => { window.bb.clearPool(); window.bb.openEvent("smuggler", { hero, seed, day, gold: 9, lives: 5 }); }, { day, hero, seed: SMUGGLER_SEED });
       await settle(page, "event");
       await sleep(900);
       await park(page, touch);
       const ev = await eventCards(page);
       if (ev.id !== "smuggler") throw new Error(`the event is ${ev.id}`);
       const c = contrabandOf(ev, "SHOCK");
-      if (c.def !== want) throw new Error(`run seed 1's day-${day} SHOCK card offers ${c.def}, not ${want}`);
+      if (c.def !== want) throw new Error(`run seed ${SMUGGLER_SEED}'s day-${day} SHOCK card offers ${c.def}, not ${want}`);
       const burn = ev.choices.find((x) => x.label === "BURN");
-      log(`smuggler run seed 1, day ${day} (${hero}): ${ev.choices.map((x) => `${x.label} ${x.items.join("+") || "-"}${x.cost ? ` for ${x.cost}` : ""}${x.blocked ? ` [${x.blocked}]` : ""}`).join(" | ")}; the run's wares: ${JSON.stringify(ev.wares)}`);
+      log(`smuggler run seed ${SMUGGLER_SEED}, day ${day} (${hero}):${ev.choices.map((x) => `${x.label} ${x.items.join("+") || "-"}${x.cost ? ` for ${x.cost}` : ""}${x.blocked ? ` [${x.blocked}]` : ""}`).join(" | ")}; the run's wares: ${JSON.stringify(ev.wares)}`);
       record.checks[`smuggler-d${day}-${vname}`] = { ...ev, contraband: c };
-      await shot(page, `smuggler-d${day}`, vname, `the AMMO SMUGGLER on day ${day} of run seed 1 (${hero.toUpperCase()}): BURN offers ${burn.items.join("+") || "nothing"} (unlocked), SHOCK offers ${c.def.toUpperCase()} for ${c.cost}, the run's own ware ahead of its day ${c.unlocks} (contraband: no SHOCK ware unlocked yet)`);
+      await shot(page, `smuggler-d${day}`, vname, `the AMMO SMUGGLER on day ${day} of run seed ${SMUGGLER_SEED} (${hero.toUpperCase()}):BURN offers ${burn.items.join("+") || "nothing"} (unlocked), SHOCK offers ${c.def.toUpperCase()} for ${c.cost}, the run's own ware ahead of its day ${c.unlocks} (contraband: no SHOCK ware unlocked yet)`);
       if (day !== 1) return;
       // a real click (tap) on the SHOCK card buys the contraband into cargo
       const i = ev.choices.findIndex((x) => x.label === "SHOCK");
@@ -287,7 +291,7 @@ async function smugglerShots(page, touch, vname) {
       await sleep(300);
       const after = await page.evaluate(() => ({ gold: window.bb.game.run.gold, cargo: window.bb.game.run.inventory.map((p) => p.def), item: window.bb.game.screen.deckItem || "" }));
       if (!after.cargo.includes(want) || after.item !== want || after.gold !== ev.gold - 3) throw new Error(`the SHOCK pick gave ${JSON.stringify(after)}`);
-      log(`smuggler run seed 1, day 1: SHOCK picked by a real ${touch ? "tap" : "click"}: gold ${ev.gold} -> ${after.gold}, cargo ${after.cargo.join(", ")}`);
+      log(`smuggler run seed ${SMUGGLER_SEED}, day 1: SHOCK picked by a real ${touch ? "tap" : "click"}: gold ${ev.gold} -> ${after.gold}, cargo ${after.cargo.join(", ")}`);
       await shot(page, "smuggler-d1-taken", vname, `the SHOCK card taken by a real ${touch ? "tap" : "click"}: ${want.toUpperCase()} IS IN CARGO (gold ${ev.gold} -> ${after.gold}), REFIT / FIGHT NOW`);
     });
   }

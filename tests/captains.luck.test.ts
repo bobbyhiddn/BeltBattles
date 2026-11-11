@@ -105,11 +105,15 @@ const WARLORD_OVERS: readonly Pinned[] = [
   ["sootjaw", 4, "rare", 2, 3],
   ["nettle", 6, "epic", 0, 1],
   ["grubnose", 4, "rare", 2, 3], ["grubnose", 10, "rare", 6, 7],
-  ["mothqueen", 6, "rare", 5, 6], ["mothqueen", 7, "rare", 6, 7], ["mothqueen", 9, "rare", 8, 10], ["mothqueen", 10, "rare", 9, 12],
+  // BUMP-1H H3 (REQ-BFG-124 line 7): the good-luck heatjacket of her road deck is dropped (src/sim/rivalBuilds.ts): REMOVED (3), back under their caps: mothqueen d6 rare (6 > 5), d7 rare (7 > 6), d9 rare (10 > 9);
+  // RE-KEYED (1): d10 rare, measured 11 (was 12) over the same cap 9. Was: ["mothqueen", 6, "rare", 5, 6], ["mothqueen", 7, "rare", 6, 7], ["mothqueen", 9, "rare", 8, 10], ["mothqueen", 10, "rare", 9, 12],
+  ["mothqueen", 10, "rare", 9, 11],
   ["sparkfang", 4, "rare", 2, 3],
   ["ratchet", 4, "rare", 2, 3], ["ratchet", 10, "rare", 6, 7],
   ["bulwark", 8, "star2", 4, 5], ["bulwark", 9, "rare", 9, 10],
-  ["silkshade", 4, "star2", 2, 3], ["silkshade", 6, "rare", 5, 6], ["silkshade", 7, "rare", 6, 7], ["silkshade", 10, "rare", 9, 10],
+  // BUMP-1H H3 (REQ-BFG-124 line 7): the good-luck counterweight of her road deck is dropped (src/sim/rivalBuilds.ts): REMOVED (3), back under their caps: silkshade d6 rare (6 > 5), d7 rare (7 > 6), d10 rare (10 > 9);
+  // UNCHANGED: d4 star2 3 > 2. Was: ["silkshade", 4, "star2", 2, 3], ["silkshade", 6, "rare", 5, 6], ["silkshade", 7, "rare", 6, 7], ["silkshade", 10, "rare", 9, 10],
+  ["silkshade", 4, "star2", 2, 3],
   ["highspire", 6, "rare", 5, 7], ["highspire", 7, "rare", 6, 8], ["highspire", 8, "rare", 7, 9], ["highspire", 9, "rare", 8, 10], ["highspire", 10, "rare", 9, 12],
   ["voss", 4, "star2", 2, 3], ["voss", 10, "rare", 9, 11],
   ["lockjaw", 4, "rare", 2, 3], ["lockjaw", 10, "rare", 6, 7],
