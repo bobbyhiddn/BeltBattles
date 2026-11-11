@@ -5,6 +5,13 @@
 //   belts that drop rows) none shows a row and no note. The scout's 43 own / 57 foe silent belts (O13 p6-s2-silent.md) were polish5-accepted's; P6-1's one-line readout (COPIES 1.3) took them to 5 / 19, and those are the belts the brief's last sentence names:
 //   NO hit row is shown, because the belt's own kept lines (the sync sentence, `8 TILES, 9 HITS:` and the readout's grid rows: 42 or 49 px) are taller than the band's body room (42 px; the foe's 30 px under its CLOSE row), so the face is a phone cut and has
 //   no row to give. They are left as they are and named here. The belt faces are the game's: a belt has no THIS FIGHT line (battleScout.ts fightLine is null for any part but a turret).
+// POLISH-8 STEP 0 (tests only; battle rules bb-0.15.0, 0.9.16's rides): THE COUNTS BELOW ARE bb-0.15.0's. The numbers above (223 own / 225 foe belts that drop rows, 218 / 206 noted) are bb-0.14.0's, as POLISH-7 measured them. BUMP-1H's H3
+//   (src/sim/rivalBuilds.ts, 69dadf893143's merge) drops MOTH QUEEN's good-luck day-5 HEATJACKET and SILKSHADE's good-luck day-4 COUNTERWEIGHT from their road decks, so on days 5, 8, 12 and 16 the RIVAL build (not the stand-in) of MOTH QUEEN's
+//   belt route1 and of SILKSHADE's belt route2 has one hit row fewer: 8 belts a side, every one of corpus A's rivalBuild. Before -> after, band-280x653 (own = foe unless said): MOTH QUEEN rivalBuild route1 d5 3 -> 2 hit rows, all 3 dropped -> none
+//   dropped (the belt LEAVES the dropping set: 223 -> 222 own, 225 -> 224 foe); d8 4 -> 3 (dropped 4 -> 2), d12 7 -> 6 (7 -> 5), d16 7 -> 6 (7 -> 5); SILKSHADE rivalBuild route2 d5 2 -> 1 (none dropped either way), d8 4 -> 3, d12 4 -> 3, d16 4 -> 3
+//   (all dropped either way). Hit rows dropped 933 -> 921 own, 970 -> 958 foe (-12: 3 + 2 + 2 + 2 + 1 + 1 + 1); belts that draw the note 218 -> 217 own, 206 -> 205 foe. pixel5-851x393@2.75: own 85 belts stay (rows dropped 312 -> 310); foe 104 -> 103
+//   (MOTH QUEEN rivalBuild route1 d8 4 -> 3 hit rows, its one dropped row now fits: the belt leaves the set; rows 373 -> 372). The RULES hold unchanged on bb-0.15.0: every belt that drops rows draws its note or is on the named list, and rows shown + N = the
+//   belt's hit rows; the named list is the same 5 own / 19 foe belts (32 / 95 rows, none shows a row); the other 11 views' counts are as they were. Measured by O/kit/p8-snip-bandnote.test.ts in exports of 4bba174c9f3d and 2fa3c2f2aa97.
 import { afterEach, describe, expect, it } from "vitest";
 import { installRaster } from "./raster.helpers";
 import { facePlan, faceRun, faceText, hitRowsGone } from "../src/screens/battleScout";
@@ -63,10 +70,11 @@ const NAMED: Partial<Record<View13, { own: string[]; foe: string[] }>> = {
     ],
   },
 };
-/** Belts of corpus A that drop hit rows, per view, own / foe (what the base measures; the game's way: no THIS FIGHT line on a belt). */
+/** Belts of corpus A that drop hit rows, per view, own / foe (what the base measures; the game's way: no THIS FIGHT line on a belt).
+ *  POLISH-8 STEP 0 (bb-0.15.0; the trail in the header names every belt): "pixel5-851x393@2.75" [85, 104] -> [85, 103] (the foe's MOTH QUEEN rivalBuild d8 route1 drops no row now); "band-280x653" [223, 225] -> [222, 224] (MOTH QUEEN rivalBuild d5 route1 drops none now). */
 const DROPPING: Record<View13, [number, number]> = {
   "desk-1920x1080": [61, 69], "laptop-1366x768": [33, 33], "desk-1280x800": [0, 0], "land-844x390": [33, 33], "op-402x690": [89, 89], "phone-360x640": [0, 0], "col96-3040x1710": [74, 74],
-  "land-812x375@3": [51, 57], "pixel5-851x393@2.75": [85, 104], "land-915x412@2.625": [67, 67], "promax-926x428@3": [64, 82], "band-280x653": [223, 225], "band-300x640": [0, 0],
+  "land-812x375@3": [51, 57], "pixel5-851x393@2.75": [85, 103], "land-915x412@2.625": [67, 67], "promax-926x428@3": [64, 82], "band-280x653": [222, 224], "band-300x640": [0, 0],
 };
 
 describe("POLISH-7 P7-5: a belt face that drops hit rows draws its note, or is on the named list", () => {
@@ -114,7 +122,7 @@ describe("POLISH-7 P7-5: the named belts have no hit row to give", () => {
     });
   }
 
-  it("band-280x653 corpus A, the totals: own 223 belts drop 933 hit rows, 218 draw the note, 5 are named; foe 225 drop 970, 206 draw it, 19 are named (the scout's 43 / 57 were polish5-accepted's, before P6-1's one-line readout)", () => {
+  it("band-280x653 corpus A, the totals: own 222 belts drop 921 hit rows, 217 draw the note, 5 are named; foe 224 drop 958, 205 draw it, 19 are named (the scout's 43 / 57 were polish5-accepted's, before P6-1's one-line readout; POLISH-8 STEP 0: bb-0.15.0's totals, were 223 / 933 / 218 and 225 / 970 / 206)", () => {
     const tot = (side: 0 | 1): { drop: number; rows: number; noted: number } => {
       let drop = 0, rows = 0, noted = 0;
       for (const b of belts(side === 1)) {
@@ -125,7 +133,8 @@ describe("POLISH-7 P7-5: the named belts have no hit row to give", () => {
       }
       return { drop, rows, noted };
     };
-    expect(tot(0)).toEqual({ drop: 223, rows: 933, noted: 218 });
-    expect(tot(1)).toEqual({ drop: 225, rows: 970, noted: 206 });
+    // POLISH-8 STEP 0 (bb-0.15.0; the header's trail): own { drop: 223, rows: 933, noted: 218 } -> { 222, 921, 217 }; foe { drop: 225, rows: 970, noted: 206 } -> { 224, 958, 205 } (BUMP-1H H3's trimmed MOTH QUEEN and SILKSHADE road decks)
+    expect(tot(0)).toEqual({ drop: 222, rows: 921, noted: 217 });
+    expect(tot(1)).toEqual({ drop: 224, rows: 958, noted: 205 });
   });
 });
