@@ -152,7 +152,7 @@ setTipsForTests("done");
 
 describe("POLISH-8 P8-3: the wagon at band-280x653 and band-300x640, each hero's mounts: 1 px clear in 19 of 20 cases, the 20th named", () => {
   for (const hero of HEROES6) {
-    it(`${hero}: both narrow viewports x no rune and one rune x 3-7 offers (20 cases): the wagon has a place, its cards and finger targets are a finger and 1 px clear of L.hull, the deck's targets and every region, and so is the ink it draws plain and with each card selected - in 19; the 20th (band-280x653, no rune, 7 offers) is the 46 x 30 row over mount${NAMED[hero].mount}: -1 px plain, -2 selected`, () => {
+    it(`${hero}: both narrow viewports x no rune and one rune x 3-7 offers (20 cases): the wagon has a place, its cards and finger targets are a finger and 1 px clear of L.hull, the deck's targets and every region, and so is the ink it draws plain and with each card selected - in 19; the 20th (band-280x653, no rune, 7 offers) is the 46 x 30 row over ${NAMED[hero].map((e) => `mount${e.mount}`).join(" and ")}: -1 px plain, -2 selected`, () => {
       let clear = 0, named = 0;
       for (const name of NARROW) for (const runes of [0, 1]) for (const offers of [3, 4, 5, 6, 7]) on(() => {
         const c = build(hero, name, runes, offers), wg = c.L.wagon, tag = `${hero} ${name} ${runes}/${offers}`;
