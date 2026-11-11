@@ -4,6 +4,7 @@
 //   (0.12 s) where nothing leaves over them (the right column's gap, a row). The roll-in is exactly what it was. NOTE: in the game only BuildScreen.doReroll starts a roll-out, and it first turns the wagon's sliding off (wagonSlide(this, false):
 //   "a REROLL leaves the ENCHANTER's wagon where it is"), so the wagon is not rolled out in play; the roll-out is driven by hand here (Caravan.state "out" and t), as O14's pictures drove it.
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 import { G, fresh, installRaster, type RasterCanvas } from "./raster.helpers";
 import { VIEWS13 } from "./polish4.helpers";
 import { setTipsForTests } from "../src/ui/tips";
@@ -85,7 +86,7 @@ function rig(name: Name, runes: number, offers: number): BuildScreen {
   return s;
 }
 /** the caravan's state and clock, by hand (the way O14's pictures drove it) */
-function caravanAt(s: BuildScreen, state: "in" | "out", t: number): void {
+function caravanAt(s: BuildScreen, state: "in" | "out" | "parked", t: number): void {
   s.caravan.count = s.offers().length + 2;
   s.caravan.state = state;
   s.caravan.t = t;
@@ -162,6 +163,36 @@ describe("POLISH-7 P7-4: the roll-in is as it was", () => {
       price: o.price, sold: o.sold, affordable: run.gold >= o.price, selected: false, hover: !!hov && !hov.pick && hov.i === i, t: s.t, maxLift: lay.lift ?? 2,
     }));
   }
+  /**
+   * POLISH-8 R2 (REVIEW-POLISH7 V8; tests only): THE ROLL-IN PINNED ON RECORDED FRAMES. `drawOld` above redraws the old wagon through the NEW drawWordCard, so a change inside drawWordCard (a pixel of the card, its frame, its price) would leave
+   * "the roll-in draws as the base does" green. These are sha16 hashes of the wagon-only raster (drawWagon on a clean raster, the review's hash: RV6/kit/rv7-snip-p74.test.ts) at 8 moments of the roll-in (t 0 to 0.8 s) and at rest, at five views (an
+   * ENCHANTER dawn, 5 offers, no rune, the wagon sliding), recorded at C0 = 64715ee71345 with O/kit/p8-snip-rollin.test.ts: the three landscape views' hashes are C0's, unchanged since; the two portrait phones' are P8-2's (2142dd0d84d9), and each of their
+   * frames is the C0 frame shifted down exactly 1 row (P8-2 moved the margin stack 1 px lower under the corner MENU; proved pixel for pixel on the parked frames, 72 inked rows each, and the hash of every moment follows): C0's were op-402x690
+   * 379a029636ab1541 (rest), b73564c13ce39e49 (t 0-0.30), 5f04f2e922e86842, 5a7b84288e4bc94e, 07a03f604995fb6e (t 0.45, 0.60, 0.80); phone-360x640 65a1dabe9d8ea9f3, 340c25e1d9c44e0b, d1096600108107d2, 6aeac09428737527, 9bc0fe8035827271.
+   * Moments 0 to 0.30 s are one frame (the cards wait off to the right until their time comes), so each view has 6 distinct frames and a rest frame.
+   */
+  const MOMENTS = [0, 0.05, 0.10, 0.20, 0.30, 0.45, 0.60, 0.80];
+  const ROLLIN: Record<string, string[]> = { // [rest, then the 8 moments]
+    "laptop-1366x768": ["d93952a19346c290", "3f7e4c82d04a6b83", "3f7e4c82d04a6b83", "3f7e4c82d04a6b83", "3f7e4c82d04a6b83", "3f7e4c82d04a6b83", "3f7e4c82d04a6b83", "96107fe8668c0366", "78d038bd129b9dc2"],
+    "land-844x390": ["3ef8380154f57c1c", "c29871ff6094c46d", "c29871ff6094c46d", "c29871ff6094c46d", "c29871ff6094c46d", "c29871ff6094c46d", "c29871ff6094c46d", "c66249097a12f188", "2ac9ef96fb631618"],
+    "desk-1280x800": ["e84017b49b452c91", "ee2b0ebe5b6eecb4", "ee2b0ebe5b6eecb4", "ee2b0ebe5b6eecb4", "ee2b0ebe5b6eecb4", "ee2b0ebe5b6eecb4", "340185580565b29c", "972d8de9a718e450", "e7f164eeb1ff7c86"],
+    "op-402x690": ["01384617f4a8ac80", "d0761dafbc28fc23", "d0761dafbc28fc23", "d0761dafbc28fc23", "d0761dafbc28fc23", "d0761dafbc28fc23", "5b3b840f33f0fb23", "700f23c4ac8cb6f6", "41b6feca6f92b6d0"],
+    "phone-360x640": ["1427fda961039885", "7d19782b95f7a1f7", "7d19782b95f7a1f7", "7d19782b95f7a1f7", "7d19782b95f7a1f7", "7d19782b95f7a1f7", "018e20da55be747d", "166ef9fad06748a6", "c4b9e2f13619ad14"],
+  };
+  const sha = (c: RasterCanvas): string => createHash("sha256").update(c.px.map((p) => p ?? "-").join(",")).digest("hex").slice(0, 16);
+  it("the roll-in's frames are the recorded ones: 5 views x 8 moments and the wagon at rest (45 frames), by hash -- a change inside drawWordCard, drawEnchanterTag or wagonView's rects turns this red, which drawOld's redraw through the same code cannot", () => {
+    on(() => {
+      let n = 0;
+      for (const name of Object.keys(ROLLIN) as Name[]) {
+        const s = rig(name, 0, 5), L = s.L;
+        const frame = (state: "in" | "parked", t: number): string => { caravanAt(s, state, t); const img = fresh(L.W, L.H); drawWagon(G(img), s); return sha(img); };
+        expect(frame("parked", 3), `${name}: the wagon at rest`).toBe(ROLLIN[name][0]);
+        MOMENTS.forEach((t, i) => { expect(frame("in", t), `${name}: the roll-in at t ${t.toFixed(2)} s`).toBe(ROLLIN[name][i + 1]); n++; });
+        n++;
+      }
+      expect(n, "frames pinned").toBe(45);
+    });
+  });
   for (const [name, runes, offers] of SCENES) {
     it(`${name} (${runes} rune${runes === 1 ? "" : "s"}, ${offers} offers): through the roll-in (t 0 to 1.1 s, every 1/60 s) every pixel the wagon draws is the pixel polish6-accepted drew; and a REROLL (the wagon does not slide) leaves it drawn in full`, () => {
       on(() => {
