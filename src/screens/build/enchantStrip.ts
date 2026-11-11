@@ -47,7 +47,7 @@ const tagWidth = (): number => 5 + textWidth("ENCHANTER", "3");
  *  its top for the wagon (0: the cards sit in the margin, or in the right column's gap, and nothing else moves). `lift`: the most a card may
  *  lift (LIFT, 2, when selected; 1 when hovered; both cut to it) -- inGap's cards may have 1 px of clear above them, so the lift is cut to what is clear above less the frame's own row
  *  (0 with 1 px: the selection frame alone shows the pick) and neither the card, its lift nor its frame is drawn over NEXT BATTLE; absent: LIFT, as every card has had.
- *  POLISH-7 (P7-3): a portrait row's lift is 1 (its 3 clear rows above, less the frame's row and 1 px of clear). */
+ *  POLISH-7 (P7-3): a portrait row's lift is 1 (its 3 clear rows above, less the frame's row and 1 px of clear). POLISH-8 (P8-2): a portrait margin's lift is 0 or 1 by the same count (inMargin). */
 export interface WagonPlace {
   rects: Rect[];
   hits: Rect[];
@@ -80,13 +80,27 @@ function fingerHits(rects: Rect[], tap: number, within: Rect): Rect[] {
   return hits;
 }
 
+/** POLISH-8 (P8-2): the clear rows buildLayout keeps between the bar (or the rune bar under it) and the shop block's first row. */
+const SHOP_CLEAR = 3;
+
 /** The margin left of the shop block (the screen's edge to the first card): side by side where it holds the cards at MIN_SIDE px or
- *  more, else stacked at MIN_W by MIN_H or more; on a phone (`tap` > 0) only where each card is a finger wide and tall. */
+ *  more, else stacked at MIN_W by MIN_H or more; on a phone (`tap` > 0) only where each card is a finger wide and tall.
+ *  POLISH-8 (P8-2, display list P7-V4): a portrait margin card, drawn selected, reached 2 rows into the corner MENU's square with no rune, touched the rune bar with one (and the bar a lifted phone has), and card 1 touched card 0: the lift
+ *  (LIFT 2) and the frame (1 px round the card) go up 3 rows. The margin's top is now placed, and the lift cut, so that a selected card keeps 1 px clear of what lies above it, as P7-3 did for the row (inRow): the lift is the clear rows above
+ *  the first card less the frame's row and 1 px of clear (0 to GAP - 2 = 1: the stacked cards' own GAP bounds it too); where the corner MENU's finger square leaves too few (its foot + 1 clear row: 1, where 2 + the lift are needed) the stack starts
+ *  1 px lower (at 402x690 and 360x640 with 4 or 5 offers and no rune the stack had a spare row at its foot: the cards stay 36 tall, y 28 -> 29). With a rune, or a lifted bar, the lift cut alone does it and nothing moves. Landscape (the desk's margin) is as it was. */
 function inMargin(L: PlaceLayout, n: number, tap: number): WagonPlace | null {
   const all = [...L.cards, L.reroll];
   // a phone whose bar is shorter than a finger keeps its corner MENU's finger square (tap px tall from the corner: layout.ts cornerTarget):
   // the cards start under it, so the MENU's target stays a finger's
-  const x0 = Math.min(...all.map((r) => r.x)), top = Math.max(Math.min(...all.map((r) => r.y)), cornerTap(L, tap) > 0 ? tap + 1 : 0);
+  const x0 = Math.min(...all.map((r) => r.x)), top0 = Math.min(...all.map((r) => r.y));
+  const corner = cornerTap(L, tap) > 0 ? tap : 0;
+  let top = Math.max(top0, corner > 0 ? tap + 1 : 0), lift: number | undefined;
+  if (L.portrait) {
+    const barrier = Math.max(top0 - SHOP_CLEAR, corner); // the first row under what lies above the cards: the bar, the rune bar, or the corner MENU's square
+    lift = Math.max(0, Math.min(LIFT, GAP - 2, top0 - barrier - 2));
+    top = Math.max(top0, barrier + 2 + lift);
+  }
   const bottom = Math.max(...[...all, ...L.packs].map((r) => r.y + r.h));
   const hRow = L.cards[0].h, room = { x: PAD, y: top, w: x0 - PAD - CLEAR, h: bottom - top };
   let rects: Rect[] | null = null;
@@ -100,7 +114,7 @@ function inMargin(L: PlaceLayout, n: number, tap: number): WagonPlace | null {
   }
   if (!rects || (tap > 0 && rects.some((r) => r.w < tap || r.h < tap))) return null;
   const hits = fingerHits(rects, tap, { x: 0, y: top, w: Math.max(1, x0 - 1), h: Math.max(room.h, 1) });
-  return { rects, hits, tag: L.tags ? { x: rects[0].x, y: rects[0].y - 8 } : null, shift: 0 };
+  return { rects, hits, tag: L.tags ? { x: rects[0].x, y: rects[0].y - 8 } : null, shift: 0, ...(lift === undefined ? {} : { lift }) };
 }
 
 /**
