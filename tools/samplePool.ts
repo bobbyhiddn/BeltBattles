@@ -947,15 +947,14 @@ export const DEPTH_SLOTS: readonly (readonly [number, number, number])[] = [
   [3, 1, 1], [4, 1, 2], [6, 1, 3], [8, 2, 4], [9, 4, 4], [11, 1, 6], [13, 4, 1], [13, 4, 1], [14, 5, 7], [15, 8, 6], [15, 8, 6], [16, 8, 6], [16, 8, 6], [11, 4, 1],
 ];
 
-/** BUMP-1H (step R2, run 3): the streak picks, per hero, one per day STREAK_FIRST_DAY..STREAK_LAST_DAY (index day - STREAK_FIRST_DAY). THEY ARE THE PICKS THE TAKE WAS READ WITH (RULING-BUMP1H-R3 R3.3: k1b at K 96,
- *  c5 27.1%, par 87.8%): days 7-12 of the streak rule's rows of P3's dry flow (kit-1h/h1dry.sh curve, label s450, run 1: par-field dusk decks nearest STREAK_TARGET 450 on the par grade), so the committed pool is the pool
- *  that the confirm read. The grade's battle seeds read the slot index (streakSlot) and those rows were made with the screens' days 2-16 numbering (15 slots a hero), not this tier's (6): the rule re-run at the committed
- *  constants (kit-1h/h1dry.sh curve r2, output-bump1h/pool/curve-rows-r2.json) picks 15 of these 24 decks differently (the same kind of deck, nearest the target by another draw of battle seeds). REPORT section 9 names the choice. */
+/** BUMP-1I (step R2): the streak picks, per hero, one per day STREAK_FIRST_DAY..STREAK_LAST_DAY = 5..16 (index day - STREAK_FIRST_DAY), the TIER of the VETERAN's road (src/net/veteran.ts). THEY ARE THE ROWS THE TAKE'S POOL WAS BUILT FROM
+ *  (P3's read E525, K 48 and K 96: tier on days 5-16 at STREAK_TARGET 525; kit-1i/dryc.sh, output-bump1i/pool/curve-rows-dryE2.json): par-field dusk decks nearest STREAK_TARGET on the par grade, with the grade's battles seeded by HERO AND DAY
+ *  (streakSlot; RULING-BUMP1H-R4 R4.3's fix), so these picks stay put if the tier's span moves. Was BUMP-1H's 6 picks a hero for days 7-12 at 450. The rule re-run at these constants (CURVE_REBUILD, BB_CURVE_UNITS "<hero>:5-16") makes them again. */
 export const STREAK_PICKS: Readonly<Record<string, readonly string[]>> = {
-  furnace: ["f5:7d3bd1b6", "f5:d7f4e32e", "f8:b4ea2b84", "f11:e0e0e945", "f11:6c7c4086", "f4:e4a47cd7"],
-  weaver: ["f9:2544ed5d", "f3:6aee97eb", "f3:5e218eba", "f3:88c46b41", "f5:b6ec00de", "f12:38a6d516"],
-  foundry: ["f5:f1c7d67e", "f6:5b2e1be9", "f11:a14e4fbd", "f1:7b1f1204", "f7:1d8e74cb", "f5:e04203ae"],
-  bastion: ["f11:5c2da9fe", "f11:b2fbc27c", "f8:a938424e", "f8:a0958ff0", "f7:970fd9ab", "f11:741303ab"],
+  furnace: ["f10:0e32482d", "f10:ad4c1ad6", "f11:ac236bed", "f12:d337e8a6", "f10:6e0ee44b", "f11:e0e0e945", "f10:046bb677", "f4:e4a47cd7", "f11:88d4246f", "f9:b180d3ca", "f9:eb9bf4c9", "f11:2a572497"],
+  weaver: ["f8:cfb3bd5b", "f2:732ae2b6", "f6:10bf435f", "f3:6aee97eb", "f3:5e218eba", "f3:88c46b41", "f12:9d55603b", "f12:38a6d516", "f8:8a25dcad", "f9:72ec26a9", "f7:085c6f36", "f7:61cad921"],
+  foundry: ["f8:441b3a08", "f2:ff909492", "f5:f1c7d67e", "f5:6f94f01b", "f7:4bc753c5", "f1:7b1f1204", "f1:d782cd56", "f12:6144c7bb", "f1:786ea224", "f1:a23f8db3", "f1:ad08c061", "f5:3fe40424"],
+  bastion: ["f8:5f8b74e3", "f11:71dd518b", "f11:5c2da9fe", "f4:f2b94e63", "f5:5ac25c4d", "f5:3c48739a", "f5:c4ecd3c5", "f2:41d7915c", "f7:073d0021", "f11:62e760be", "f8:2750dfe5", "f5:7b91ef44"],
 };
 /** BUMP-1H (step R2, run 3): the depth picks, parallel to DEPTH_SLOTS ("<hero>:<pick>"): the depth rule's rows of P3's dry flow (the casual-graded candidates nearest CASUAL_TARGET 500 that the pool does not hold that
  *  day), as the take was read with them (the note at STREAK_PICKS). */
