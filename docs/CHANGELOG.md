@@ -3,6 +3,19 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.18: new art for FURNACE
+
+New art for FURNACE: its face, its KILN and ten rigs are redrawn, and the shop cards of those ten rigs show a full-size picture.
+- **FURNACE's face** on the hero select screen is redrawn and bigger (32 by 32 pixels, where it was 24 by 24), and its name and
+  playstyle line sit a little further to the right. The other three heroes keep their faces.
+- **The KILN,** FURNACE's starting machine, has a new picture and a new small icon.
+- **Ten rigs have new pictures:** EMBER TROUGH, NAIL STRIP, GREASE WORKS, BALLAST, RASP, BELLOWS, SPARK GAP, STATIC BRUSH,
+  BARBED SPOOL and VENOM DRIP. Each has a full-size picture on its shop card, a new picture on your belt and a new small icon.
+  Every other part keeps the picture it had.
+
+The battle rules are still bb-0.16.0, so players of 0.9.18 meet the same ghosts as players of 0.9.17, and a run saved on 0.9.17
+loads and goes on.
+
 ## 0.9.17: ghosts get tougher when you keep winning
 
 New battle rules: bb-0.16.0. This release is matched only with bb-0.16.0 ghosts (it turns away any other), and its server takes
