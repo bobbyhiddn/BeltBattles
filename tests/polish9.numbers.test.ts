@@ -276,6 +276,8 @@ interface Meas {
   readable: Record<"HULL" | "BELT" | "FEEDS", boolean>;
   /** the clear px from the new panel to each part, card and target, the nearest first */
   gaps: { to: string; gap: number }[];
+  /** the compact NEXT line (a band under FOE_H holds no NEXT BATTLE card): its second row (the foe's class, BELT n/m, the record) as drawn, or null; null itself where the band draws no such line */
+  line: { second: Rec | null } | null;
 }
 
 /** One real BuildScreen: the run, the layout (enter, update(3): the caravan parked), ONE draw on a raster with every drawText and statsPanel call recorded. `pre` runs on the screen before the draw (a selection, a hover, a carried card). */
@@ -338,7 +340,9 @@ function measure(name: string, runes: number, offers: number, wagon: boolean, o:
       fight: q(L.fight), cargo: q(L.cargo), wagon: wgj, regs: f.ui.regions.map((r) => [r.id, r.r.x, r.r.y, r.r.w, r.r.h]),
     }));
     const newTexts = rec.filter((t) => inNew(t)).map((t) => ({ s: t.s, c: t.c }));
-    return { tag, s, f, seq, fp, band, foe, heroDrawn, news, newTexts, readable: { HULL: hasKey("HULL"), BELT: hasKey("BELT"), FEEDS: hasKey("FEEDS") }, gaps };
+    const first = !foe && rec.some((t) => t.s === "NEXT" && t.font === "3" && t.x === band.x + 5 && t.y === band.y + 5);
+    const line = first ? { second: rec.find((t) => t.font === "3" && /BELT \d+\/\d+ · W-L /.test(t.s)) ?? null } : null;
+    return { tag, s, f, seq, fp, band, foe, heroDrawn, news, newTexts, readable: { HULL: hasKey("HULL"), BELT: hasKey("BELT"), FEEDS: hasKey("FEEDS") }, gaps, line };
   });
 }
 
@@ -359,9 +363,9 @@ type Pass = "plain" | "wide" | "reveal";
 const record = process.env.P9_RECORD === "1";
 
 /** One family, one pass: every state's checks; the failures as strings. `inTarget`: the revealed states whose row lies partly inside the NEXT BATTLE card's grown finger target (RULING 5), with the rows of the overlap. */
-function runFamily(fam: string, pass: Pass): { fails: string[]; n: number; rows: number; stacks: number; lacking: string[]; ms: number; inTarget: number[] } {
+function runFamily(fam: string, pass: Pass): { fails: string[]; n: number; rows: number; stacks: number; lacking: string[]; ms: number; inTarget: number[]; lineStates: { tag: string; h: number; foot: number; second: Rec | null }[] } {
   const t0 = Date.now();
-  const fails: string[] = [], lacking: string[] = [], lines: string[] = [], inTarget: number[] = [];
+  const fails: string[] = [], lacking: string[] = [], lines: string[] = [], inTarget: number[] = [], lineStates: { tag: string; h: number; foot: number; second: Rec | null }[] = [];
   let n = 0, rows = 0, stacks = 0;
   const wide = pass === "wide", reveal = pass === "reveal";
   const open = wide ? OPEN_WIDE : OPEN;
@@ -369,6 +373,7 @@ function runFamily(fam: string, pass: Pass): { fails: string[]; n: number; rows:
     const m = measure(name, runes, offers, wagon, { reveal, wide });
     n++;
     if (record) { lines.push(`P9FP ${pass} ${m.tag} ${m.fp}`); continue; }
+    if (m.line) lineStates.push({ tag: m.tag, h: m.band.h, foot: m.band.y + m.band.h, second: m.line.second });
     // (1) the numbers a player can read
     const miss = (["HULL", "BELT", "FEEDS"] as const).filter((k) => !m.readable[k]);
     if (miss.length) lacking.push(m.tag);
@@ -411,8 +416,19 @@ function runFamily(fam: string, pass: Pass): { fails: string[]; n: number; rows:
     }
   }
   if (record) console.log(lines.join("\n"));
-  return { fails, n, rows, stacks, lacking, ms: Date.now() - t0, inTarget };
+  return { fails, n, rows, stacks, lacking, ms: Date.now() - t0, inTarget, lineStates };
 }
+
+/** POLISH-9 P9-3 (display list P8-V2; RULING-SCOUT-POLISH9 6): the census's 24 compact NEXT line states (a band of 14-23 px holds no NEXT BATTLE card). The second row (the foe's class, BELT n/m, the record; +14, 5 px tall) is drawn only from a 19 px band:
+ *  the 12 with 19-23 px keep it whole and it does not spill; the 12 with 14-18 px show the first row alone. Before, the second row of those 12 spilled 1-5 px under the band's foot, over the barrel tips (1 px in 3 states, 2 in 1, 3 in 3, 4 in 2, 5 in 3). */
+const LINE_WHOLE = [
+  "v402x690@3 0/7 WAGON", "v402x690@3 1/3 WAGON", "v402x690@3 1/6 WAGON", "v402x690@3 1/7 WAGON", "v360x640@3 1/3 WAGON", "v280x653@3 0/6 WAGON", "v280x653@3 0/7 plain",
+  "v375x635@3 0/3 WAGON", "v375x635@3 0/6 WAGON", "v375x635@3 0/7 WAGON", "v375x635@3 1/3 WAGON", "v810x1080@2 0/3 plain",
+];
+const LINE_FIRST_ONLY = [
+  "v1024x1366@2 0/3 plain", "v320x568@2 0/6 WAGON", "v320x568@2 0/7 WAGON", "v320x568@2 1/4 WAGON", "v320x568@2 1/5 WAGON", "v430x739@3 1/7 WAGON", "v768x1024@1 0/5 WAGON", "v768x1024@1 0/6 WAGON", "v768x1024@1 0/7 WAGON",
+  "v810x1080@2 0/4 plain", "v810x1080@2 0/5 plain", "v810x1080@2 0/6 plain",
+];
 
 /** RULING-SCOUT-POLISH9 5, counted here (the scout: 36 of the 81 revealed row states, the row's lowest 1-7 rows inside the card's grown target: 1 row in 22 states, 4 in 11, 2 in 2, 7 in 1): per family, the revealed row states whose row overlaps
  *  the NEXT BATTLE card's finger target, which stays as it is. Measured here: small phones 4 (1, 1, 4, 4 rows), phones in a browser 32 (all of its rows: 20 x 1 row, 2 x 2, 9 x 4, 1 x 7 rows); the 36 are the scout's. */
@@ -428,6 +444,21 @@ describe("polish9 numbers: HULL, BELT n/m and FEEDS where the hero card is not (
         console.log(`P9N ${pass} ${fam}: ${r.n} states, ${r.rows} rows, ${r.stacks} stacks, ${r.lacking.length} lacking${r.lacking.length ? ` (${r.lacking.join("; ")})` : ""}${pass === "reveal" ? `, row inside the card's target in ${r.inTarget.length} (rows ${r.inTarget.join(",")})` : ""}, ${r.ms} ms`);
         if (record) return;
         expect(r.fails, r.fails.slice(0, 12).join("\n")).toEqual([]);
+        if (pass === "plain") {
+          // P9-3: the compact NEXT line states of this family are the pinned ones; the second row stays, whole, from 19 px and is gone under it: 0 spill
+          const inFam = (t: string): boolean => familyNames(fam).includes(t.split(" ")[0]);
+          expect(r.lineStates.map((l) => l.tag).sort(), `${fam}: the compact NEXT line states`).toEqual([...LINE_WHOLE, ...LINE_FIRST_ONLY].filter(inFam).sort());
+          for (const l of r.lineStates) {
+            if (LINE_WHOLE.includes(l.tag)) {
+              expect(l.h, `${l.tag}: a band of 19 px or more`).toBeGreaterThanOrEqual(19);
+              expect(l.second, `${l.tag}: the second row stays`).toBeTruthy();
+              expect(l.second!.y + l.second!.h - l.foot, `${l.tag}: and does not spill under the band's foot`).toBeLessThanOrEqual(0);
+            } else {
+              expect(l.h, `${l.tag}: a band of 14-18 px`).toBeLessThan(19);
+              expect(l.second, `${l.tag}: the first row alone: no second row (it spilled under the foot)`).toBeNull();
+            }
+          }
+        }
         if (pass === "reveal") {
           expect(r.inTarget.length, `${fam}: revealed row states whose row lies inside the NEXT BATTLE card's grown target (RULING 5)`).toBe(ROW_IN_TARGET[fam]);
           expect(Math.max(0, ...r.inTarget), "the overlap is at most 7 rows").toBeLessThanOrEqual(7);

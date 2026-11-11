@@ -2580,7 +2580,9 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, not
     // 0.7.0a: online, until tonight's ghost is stored, the line says so instead of naming a foe
     const searching = note === FINDING_GHOST;
     const nw = drawText(g, searching ? note : foe.name, area.x + 24, area.y + 4, searching ? C.slate4 : C.red, { outline: C.ink });
-    drawText(g, `${searching ? "" : `${foeClass(foe)} · `}BELT ${used}/${cap} · W-L ${record(run)}`, area.x + 5, area.y + 14, C.bone, { font: "3" });
+    // POLISH-9 (P9-3, display list P8-V2; RULING-SCOUT-POLISH9 6): the second row starts at +14 and is 5 px tall, so it is drawn only from a 19 px band. In a 14-18 px band (12 of the census's 24 line states) it spilled 1-5 px under the band's foot, over
+    // the bow turrets' barrel tips; there the line shows its first row alone (NEXT, the name, the hearts at stake). From 19 px the row is as it was, content and all. BELT n/m is in the stack beside the BELT and HULL buttons (heroNumbers.ts).
+    if (area.h >= 19) drawText(g, `${searching ? "" : `${foeClass(foe)} · `}BELT ${used}/${cap} · W-L ${record(run)}`, area.x + 5, area.y + 14, C.bone, { font: "3" });
     // RETUNE-1 run 2 (REQ-BFG-096): the strip's NEXT row carries the hearts at stake on a hearts run, where they fit
     const st = duskStakes(run);
     if (st) foeStakes(g, st, area, area.y + 5, area.x + 24 + nw);
