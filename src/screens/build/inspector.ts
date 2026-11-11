@@ -2633,12 +2633,25 @@ function drawIdle(g: G, run: Run, area: Rect, column: boolean, foe: DuskFoe, not
   }
 }
 
-/** Portrait hero card (strip): name and faction, playstyle, then HULL · BELT · FEEDS and RUN rows. */
-function drawHeroStrip(g: G, run: Run, r: Rect, pid: PanelId = "slate"): void {
-  const h = HEROES[run.hero];
+/**
+ * POLISH-9 (P9-1; REQ-BFG-087, REQ-BFG-089; RULING-SCOUT-POLISH9 1, 4, 10): the player's own HULL, BELT n/m and FEEDS n/m as [label, value, colour], the ONE function every place that writes them on the portrait
+ * build screen reads: the hero card (drawHeroStrip), the slim row above the NEXT BATTLE card (drawHeroNumbers) and the three-row stack beside the BELT and HULL buttons (drawHeroStack), so the words, the numbers and the colours cannot
+ * drift: the label slate4 (drawn by the callers), HULL white, BELT white and amber at the belt cap, FEEDS lime and red when no belt is fed. Read from `run` every time it is drawn: nothing is cached.
+ */
+export function heroStats(run: Run): [string, string, string][] {
   const b = run.build;
   const used = beltUsed(b), cap = b.beltCap;
   const feeds = connectedRouteCount(b), intakes = intakeCount(b);
+  return [
+    ["HULL", heroHullText(run), C.white],
+    ["BELT", `${used}/${cap}`, used >= cap ? C.amber : C.white],
+    ["FEEDS", `${feeds}/${intakes}`, feeds ? C.lime : C.red],
+  ];
+}
+
+/** Portrait hero card (strip): name and faction, playstyle, then HULL · BELT · FEEDS and RUN rows. */
+function drawHeroStrip(g: G, run: Run, r: Rect, pid: PanelId = "slate"): void {
+  const h = HEROES[run.hero];
   statsPanel(g, r, pid); // CUSTOM-1 hook (REQ-BFG-072)
   let y = r.y + 5;
   drawText(g, h.name, r.x + 5, y, C.white, { outline: C.ink });
@@ -2649,13 +2662,8 @@ function drawHeroStrip(g: G, run: Run, r: Rect, pid: PanelId = "slate"): void {
     drawText(g, `PLAYSTYLE: ${heroPlaystyle(h.id)}`, r.x + 5, y, C.yellow, { font: "3" });
     y += 9;
   }
-  const stats: [string, string, string][] = [
-    ["HULL", heroHullText(run), C.white],
-    ["BELT", `${used}/${cap}`, used >= cap ? C.amber : C.white],
-    ["FEEDS", `${feeds}/${intakes}`, feeds ? C.lime : C.red],
-  ];
   let x = r.x + 5;
-  for (const [k, v, c] of stats) {
+  for (const [k, v, c] of heroStats(run)) { // POLISH-9 (P9-1): the one function the row and the stack read too
     x += drawText(g, k, x, y, C.slate4, { font: "3" }) + 3;
     x += drawText(g, v, x, y, c, { font: "3" }) + 8;
   }
@@ -2663,6 +2671,45 @@ function drawHeroStrip(g: G, run: Run, r: Rect, pid: PanelId = "slate"): void {
   if (y + 5 <= r.y + r.h - 3) {
     const x2 = r.x + 5 + drawText(g, "RUN", r.x + 5, y, C.slate4, { font: "3" }) + 3;
     drawText(g, `W-L ${record(run)} · ${livesOf(run)}`, x2, y, C.white, { font: "3" }); // RETUNE-1 run 2: HEARTS on a hearts run
+  }
+}
+
+/** POLISH-9 (P9-1, A1): the width the three numbers take in drawHeroNumbers' slim row: 5 px in, each label, 3 px, its value, 8 px between, 3 px left at the end. A row whose panel is narrower is not drawn (heroNumbers.ts). */
+export function heroRowWidth(run: Run): number {
+  return 5 + heroStats(run).reduce((w, [k, v], i) => w + (i ? 8 : 0) + textWidth(k, "3") + 3 + textWidth(v, "3"), 0) + 3;
+}
+
+/**
+ * POLISH-9 (P9-1, way A1; RULING-SCOUT-POLISH9 1): where the hero card is not drawn but the band has 8 rows or more above the NEXT BATTLE card (chrome.ts, heroNumbers.ts rowRect), the player's own HULL, BELT n/m and FEEDS stand in
+ * ONE slim row there: a 9 px panel (statsPanel, the 3x5 face, the text 2 px from its top), the words, numbers, colours and spacing drawHeroStrip's own (label slate4, 3 px, value, 8 px between). No new word, no region.
+ */
+export function drawHeroNumbers(g: G, ctx: Ctx, r: Rect): void {
+  statsPanel(g, r, skinOf(ctx.skin).panel);
+  let x = r.x + 5;
+  const y = r.y + Math.floor((r.h - 5) / 2);
+  for (const [k, v, c] of heroStats(ctx.run)) {
+    x += drawText(g, k, x, y, C.slate4, { font: "3" }) + 3;
+    x += drawText(g, v, x, y, c, { font: "3" }) + 8;
+  }
+}
+
+/** POLISH-9 (P9-1, way C+): the three-row stack's size: HULL / BELT n/m / FEEDS n/m, the 3x5 face at a 7 px pitch, 2 px round it (37 x 23 at the census's numbers, 45 x 23 with a 5-digit HULL). Read from `run` now. */
+export function heroStackSize(run: Run): { w: number; h: number } {
+  const rows = heroStats(run);
+  return { w: Math.max(...rows.map(([k, v]) => textWidth(k, "3") + 3 + textWidth(v, "3"))) + 4, h: rows.length * 7 - 2 + 4 };
+}
+
+/**
+ * POLISH-9 (P9-1, way C+; RULING-SCOUT-POLISH9 1, 4): where the hero card is not drawn and the band has no 8 rows above the card, the same three numbers stand as a stack in a small panel in the free place nearest the BELT and HULL buttons
+ * (heroNumbers.ts stackPlace). The label comes first, then its number (HULL 3780), as the hero card writes them; the packs' own faces write the amount first (`450 HULL`). `r` is the place heroStackSize's size was given. No new word, no region.
+ */
+export function drawHeroStack(g: G, ctx: Ctx, r: Rect): void {
+  statsPanel(g, r, skinOf(ctx.skin).panel);
+  let y = r.y + 2;
+  for (const [k, v, c] of heroStats(ctx.run)) {
+    const x = r.x + 2 + drawText(g, k, r.x + 2, y, C.slate4, { font: "3" }) + 3;
+    drawText(g, v, x, y, c, { font: "3" });
+    y += 7;
   }
 }
 

@@ -41,7 +41,7 @@ const GAP = 3, PAD = 2, CLEAR = 4, MIN_SIDE = 34, MIN_W = 30, MIN_H = 30;
  *  (the 1280x800 margin's 41 px: below it the ENCHANTER tag is dropped rather than the cards narrowed again), and a selected card's lift (a hovered one's is 1). */
 const GAP_CLEAR = 1, TAG_CLEAR = 4, MIN_TAG_W = 41, LIFT = 2;
 /** The ENCHANTER tag's drawn width (drawEnchanterTag): the ring's 3 px, 2 clear, then the word in the 3x5 face. Measured where it is used, never set by hand. */
-const tagWidth = (): number => 5 + textWidth("ENCHANTER", "3");
+export const tagWidth = (): number => 5 + textWidth("ENCHANTER", "3"); // POLISH-9 (P9-1): exported, heroNumbers.ts keeps the stack off the ENCHANTER's tag by its drawn width
 
 /** The wagon's cards, their tap targets and the tag's place; `shift`, the px the details band (portrait) or column (landscape) gives up at
  *  its top for the wagon (0: the cards sit in the margin, or in the right column's gap, and nothing else moves). `lift`: the most a card may
