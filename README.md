@@ -6,8 +6,8 @@
 
 | | |
 |---|---|
-| Current release | **0.9.16**: a fairer climb to the tenth win ([changelog](docs/CHANGELOG.md)) |
-| Battle rules | `bb-0.15.0` |
+| Current release | **0.9.17**: ghosts get tougher when you keep winning ([changelog](docs/CHANGELOG.md)) |
+| Battle rules | `bb-0.16.0` |
 | Runs on | any modern browser, desktop or phone |
 
 ---
@@ -17,7 +17,7 @@
 1. **Pick a hero.** Four heroes are open from the start: FURNACE, WEAVER, FOUNDRY and BASTION. Each hero brings a hull, starting turrets and a signature factory.
 2. **Dawn: the caravan.** Buy rigs, factories and turrets. Drop them on your deck and drag belts between them. Merging copies of a part raises its stars. Every run's shop holds at least one SHOCK part and one BURN part. From day 2 the caravan can also sell gates: a gate sits on a belt and fuses, splits or burns the slugs that pass. On day 3 and every odd day after, the ENCHANTER sells enchantments, and each one adds an effect to a part.
 3. **The road.** Each day you choose one stop: a road event, or a fight with a warlord at Easy, Medium or Hard.
-4. **Dusk: the ghost.** You fight another player's build from the same day of their own run. When none fits, a rival captain stands in, so the game also plays fully offline.
+4. **Dusk: the ghost.** You fight another player's build from the same day of their own run. When none fits, a rival captain stands in, so the game also plays fully offline. Win two runs in a row and the ghosts you meet get tougher; lose a run, or abandon one, and they go back.
 5. **Win or lose.** A run is won at **10 wins**. There is no day limit: the days go on while you still have hearts. Lose your last heart and the run is over.
 6. **ENDLESS.** After a won run you can keep going. Your build carries on with 3 fresh hearts, and your score is your endless wins.
 
@@ -79,7 +79,6 @@ Each release is staged and checked as described in `deploy/RUNBOOK.md`: the full
 
 ## What's next
 
-- **The next battle rules (`bb-0.16.0`):** a player who wins two runs in a row meets tougher ghosts; losing or abandoning a run sets that back.
 - **New pixel art:** larger, redrawn pictures for heroes, factories and rigs, starting with FURNACE.
 - **One player ID across devices:** link a phone, a PC or the web to the same player with a one-time code.
 - **Store builds:** iPhone and Android through Capacitor, Steam on desktop, and a free web version, most likely on itch.io.
