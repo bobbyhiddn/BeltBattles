@@ -6,8 +6,8 @@
 
 | | |
 |---|---|
-| Current release | **0.9.15.1**: clearer faces, panels and drop rows ([changelog](docs/CHANGELOG.md)) |
-| Battle rules | `bb-0.14.0` |
+| Current release | **0.9.16**: a fairer climb to the tenth win ([changelog](docs/CHANGELOG.md)) |
+| Battle rules | `bb-0.15.0` |
 | Runs on | any modern browser, desktop or phone |
 
 ---
@@ -34,7 +34,7 @@ Battles play themselves. Your skill is in the build: what you buy, where it sits
 
 - **Client:** TypeScript and plain Canvas 2D and WebAudio, built with Vite into a single-file page of about 1 MB. All art is pixel art drawn in code, and all sound is synthesized in code.
 - **Ghost server:** a zero-dependency Node 22 process (`node:http`, WebCrypto) that serves the page and the API. It runs on [Fly.io](https://fly.io) (app `beltbattles`) and stores ghosts and profiles in a Tigris bucket.
-- **Tests:** Vitest. The full suite is about 590 files and 7,000 tests, covering the sim, the rules text, the server and the screens.
+- **Tests:** Vitest. The full suite is about 600 files and 7,100 tests, covering the sim, the rules text, the server and the screens.
 
 ## Getting started
 
@@ -79,8 +79,8 @@ Each release is staged and checked as described in `deploy/RUNBOOK.md`: the full
 
 ## What's next
 
-- **Solid panels behind the pickers:** in LAST CHANCE and the dawn rune pick, the cards stand on one solid panel, so nothing of the screen behind shows between them.
-- **The next battle rules (`bb-0.15.0`)** are in the works.
+- **The next battle rules (`bb-0.16.0`):** a player who wins two runs in a row meets tougher ghosts; losing or abandoning a run sets that back.
+- **New pixel art:** larger, redrawn pictures for heroes, factories and rigs, starting with FURNACE.
 - **One player ID across devices:** link a phone, a PC or the web to the same player with a one-time code.
 - **Store builds:** iPhone and Android through Capacitor, Steam on desktop, and a free web version, most likely on itch.io.
 
