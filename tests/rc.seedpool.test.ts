@@ -54,6 +54,7 @@ import { runAdmin } from "../server/ghostAdmin";
 import {
   FLOOR_VARIANT, RACE_SEED_HEROES, RACE_VARIANTS, raceDeck, samplePoolJson,
   SAMPLE_VARIANTS, softPicked, type RaceDeck, // SOFT-1 (REQ-BFG-092): the race part's variant 0 and 1 decks
+  DEPTH_PICKS, DEPTH_SLOTS, DEPTH_VARIANT, STREAK_FIRST_DAY, STREAK_LAST_DAY, STREAK_VARIANT, curveGhosts, // BUMP-1H (P6): the CURVE's streak and depth ghosts that follow the 192
 } from "../tools/samplePool";
 import { floorGhosts, generateSamplePool, raceGhosts, sampleGhosts, softDeckOf } from "./helpers/poolCache"; // CACHE-1: the cached twins, and the generator's own deckOf (the copy below was this function)
 import type { FakeS3 } from "../tools/fakeS3";
@@ -66,7 +67,8 @@ import { testIdentity } from "./netIdentity";
 const POOL = generateSamplePool();
 const DAYS = 16; // BUMP-1D: the pool's days (was 10)
 const STANDIN_PART = POOL.slice(0, 96); // BUMP-1D: was slice(0, 60)
-const RACE_PART = POOL.slice(96); // BUMP-1D: was slice(60)
+const RACE_PART = POOL.slice(96, 192); // BUMP-1D: was slice(60). BUMP-1H: was slice(96): the CURVE's 24 streak and 14 depth ghosts follow the 192 (CURVE_PART below), so the race part ends at 192
+const CURVE_PART = POOL.slice(192); // BUMP-1H (P6): the 24 streak ghosts (variant 3, a hero a day on days STREAK_FIRST_DAY..STREAK_LAST_DAY) and the 14 depth ghosts (variant 4, DEPTH_SLOTS' order): 38 in all
 /** HULL-ON (the flip, PICK): a seed ghost without the seed step's grade (generateSamplePool writes it last, PICK on). */
 const ungraded = (s: GhostSnapshot): GhostSnapshot => {
   const { grade: _grade, ...u } = s;
@@ -108,7 +110,9 @@ const variantOf = (s: GhostSnapshot) => Number(s.playerId.slice(-1));
 // file (SEED_POOL.slice(0, 96)) and off the generator in this worker (generateSamplePool(), the pool cache): both give df2595db...; was 34e2493a0a04b44d... (BUMP-1E's)
 // BUMP-1G: was df2595db... (BUMP-1F's) (the pools regenerated under bb-0.14.0: the stand-in pool R1 a5fb26be, SOFT1_PICKS and FLOOR_PICKS R2 d48e7efe, the seed pool R3 336dddec by gen:ghosts; 27 of these 96 ghosts' decks differ from
 // bump1g-base's file, 42 ghosts in all with their grades, seeds and road logs): this part is the first 96 lines of the committed server/seedPoolData.ts, hashed as above; read off the file and off the generator in this worker, the same bytes [STANDIN_PART_SHA256]
-const STANDIN_PART_SHA256 = "606d7e51e2fcab6c77d4c7cdd916520d9fd1eb3fb35e37855bc32f477056b250"; // BUMP-1F: the regenerated pool (bb-0.13.0, was 34e2493a...). BUMP-1E: the regenerated pool (R3). FLIP-X2: the regenerated pool (was 2bd3adfd..., under POOL_RULES bb-0.8.6, /10)
+// BUMP-1H (P6): was 606d7e51... (BUMP-1G's) (the pools regenerated under bb-0.15.0: the stand-in pool R1 0859e473 (all 192 decks equal bb-0.14.0's; the rules literal moved), SOFT1_PICKS R2 4cd2ca08 (slot 1 casual-graded: 37 of 128 picks differ from BUMP-1G's, all slot 1), the seed pool R3 bcfc5595 by gen:ghosts:
+// server/seedPoolData.ts 230 ghosts, 499,336 B, sha16 2f22968dd422ee44; the scratch json 411,604 B, sha16 c51223f3f6cbb004 = samplePoolJson(generateSamplePool())): this part is the first 96 lines of that pool, hashed as above; read off the generator in this worker (the pool cache)
+const STANDIN_PART_SHA256 = "be1554059c66394b40ca84a49bf58f83d0fb4c4806797c8874a5f026b1e61205"; // BUMP-1H: the regenerated pool (bb-0.15.0, was 606d7e51...). BUMP-1F: the regenerated pool (bb-0.13.0, was 34e2493a...). BUMP-1E: the regenerated pool (R3). FLIP-X2: the regenerated pool (was 2bd3adfd..., under POOL_RULES bb-0.8.6, /10)
 /** The race part (FOUNDRY and BASTION, 60) as a pool file: a change to the par player or this generator moves it.
  *  BELTS run 5: the par player buys the gold upgrades (was 9daab76d...). PACKS (bb-0.8.6): it buys BELT and ARMOR PACKs. */
 // REDO-X (cap's ruling on FIX-ABE, REVIEW-FIXABE: rc.seedpool :98 re-pinned after the regeneration): the race ghosts are
@@ -136,7 +140,12 @@ const STANDIN_PART_SHA256 = "606d7e51e2fcab6c77d4c7cdd916520d9fd1eb3fb35e37855bc
 // committed file (SEED_POOL.slice(96)) and off the generator in this worker, both giving 13d5c352...: was d353afdfecd634a1... (BUMP-1E's)
 // BUMP-1G: was 13d5c352... (BUMP-1F's) (the pools regenerated under bb-0.14.0, as above: the par field's runs moved with EFFECT_FLOOR on and B1 (p2.floor's POOL_OFF_SHA256 trail measures it on the NPC_DAY-off race pool), and R2 re-read the picks over them; 28 of these 96 ghosts' decks differ from bump1g-base's file (foundry 11, bastion 17),
 // 43 ghosts in all with their grades, seeds and road logs; the floor ghosts' decks (variant 2) are the same): this part is the file's last 96 lines; read off the file and off the generator in this worker, the same bytes [RACE_PART_SHA256]
-const RACE_PART_SHA256 = "229364f6bfbe91860354164bec38cce73d8b90ce40dc7f0331e5bb97d064de0e";
+// BUMP-1H (P6): was 229364f6... (BUMP-1G's) (the pools regenerated under bb-0.15.0, as above; this part is the 96 lines after the first 96: the par player's FOUNDRY and BASTION dusk decks, the floor ghosts FLOOR_PICKS' casual runs (unchanged: R2's full 64-candidate re-run picked
+// BUMP-1G's runs again); the slot 1 picks are casual-graded now and every ghost states bb-0.15.0): read off the generator in this worker (the pool cache), the same bytes as the file's lines 97-192 [RACE_PART_SHA256]
+const RACE_PART_SHA256 = "b101a35e868a5be13b81636a463f061f084d7a8e143569c66bef9c5ebf1212a4"; // BUMP-1H: was 229364f6...
+// BUMP-1H (P6): the CURVE's 38 ghosts after the 192 (tools/samplePool.ts curveGhosts: 24 streak ghosts, a hero a day on days STREAK_FIRST_DAY..STREAK_LAST_DAY, then the 14 depth ghosts in DEPTH_SLOTS' order; new at bb-0.15.0, so no "was"): the last 38 lines of the committed
+// server/seedPoolData.ts (R3 bcfc5595), hashed as above; read off the generator in this worker (the pool cache)
+const CURVE_PART_SHA256 = "baf7db83ab6cf93a7eea371a83dedd38697a3fed8f308be3f54bac5d05b16af6";
 /** SOFT-1 (REQ-BFG-092; tools/samplePool.ts SOFT1_PICKS): a race seed deck as generateSamplePool's deckOf gives it in the
  *  shipped world: variant 0 and 1 from SOFT1_PICKS (softPicked: a par-field run's dusk deck, its field seed and road log),
  *  the floor variant (2) from raceDeck as before. */
@@ -149,20 +158,26 @@ const RACE_PART_SHA256 = "229364f6bfbe91860354164bec38cce73d8b90ce40dc7f0331e5bb
 // BUMP-1D (the bump): title bb-0.10.0 -> bb-0.11.0 (regenerated again, 5e93e1e: days 1-16, 192 ghosts)
 // BUMP-1E (the bump): title bb-0.11.0 -> bb-0.12.0 (regenerated again, R3 04fab9a under bb-0.12.0: 192 ghosts)
 // BUMP-1G: was "the bb-0.13.0 seed pool (... BUMP-1E and BUMP-1F; ...)" (the bump): title bb-0.13.0 -> bb-0.14.0, and BUMP-1G's regeneration added (regenerated again, R3 336dddec under bb-0.14.0: 192 ghosts; the first test checks every ghost's rules against RULES_VERSION)
-describe("the bb-0.14.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, again at REDO-X, BAL-2, Y7b2, Z-BUMP, BUMP-1D, BUMP-1E, BUMP-1F and BUMP-1G; v3 snapshots holding their runes)", () => {
-  it("holds every playable hero on every day 1-16, three ghosts per hero and day (variants 0, 1 and the floor ghost 2), 192 in all", () => {
+// BUMP-1H (P6): was "the bb-0.14.0 seed pool (... BUMP-1F and BUMP-1G; ...)" (the bump): title bb-0.14.0 -> bb-0.15.0, and BUMP-1H's regeneration added (R3 bcfc5595 under bb-0.15.0: 230 ghosts, the 192 and the CURVE's 24 streak and 14 depth ghosts)
+describe("the bb-0.15.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, again at REDO-X, BAL-2, Y7b2, Z-BUMP, BUMP-1D, BUMP-1E, BUMP-1F, BUMP-1G and BUMP-1H; v3 snapshots holding their runes)", () => {
+  it("holds every playable hero on every day 1-16, three ghosts per hero and day (variants 0, 1 and the floor ghost 2), 192 in all, and after them the CURVE's 24 streak and 14 depth ghosts: 230", () => {
     // BUMP-1D: days 1-16, 192 ghosts (was days 1-10, 120)
+    // BUMP-1H (P6): 230 (was 192): the 192 keep their order, and the CURVE appends a streak ghost (variant 3) to each hero on days STREAK_FIRST_DAY..STREAK_LAST_DAY and a depth ghost (variant 4) wherever DEPTH_PICKS puts one
     expect([...PLAYABLE_HEROES]).toEqual(["furnace", "weaver", "foundry", "bastion"]);
     expect([...STAND_IN_HEROES]).toEqual(["furnace", "weaver"]);
     expect([...RACE_SEED_HEROES]).toEqual(["foundry", "bastion"]);
     expect(RACE_VARIANTS).toBe(3);
-    expect(POOL).toHaveLength(192);
+    expect(POOL).toHaveLength(230);
+    expect(POOL.slice(0, 192).every((s) => variantOf(s) <= 2)).toBe(true);
+    expect(CURVE_PART).toHaveLength(24 + DEPTH_SLOTS.length);
     for (const hero of PLAYABLE_HEROES) for (let day = 1; day <= DAYS; day++) {
       const here = POOL.filter((s) => s.hero === hero && s.day === day);
-      expect(here.map(variantOf), `${hero} d${day}`).toEqual([0, 1, 2]);
+      const streak = day >= STREAK_FIRST_DAY && day <= STREAK_LAST_DAY ? [STREAK_VARIANT] : [];
+      const depth = DEPTH_PICKS.filter((p, i) => p.startsWith(`${hero}:`) && DEPTH_SLOTS[i][0] === day).map(() => DEPTH_VARIANT);
+      expect(here.map(variantOf), `${hero} d${day}`).toEqual([0, 1, 2, ...streak, ...depth]);
     }
     expect(new Set(POOL.map((s) => s.rules))).toEqual(new Set([RULES_VERSION]));
-    expect(new Set(POOL.map(ghostId)).size).toBe(192);
+    expect(new Set(POOL.map(ghostId)).size).toBe(230); // BUMP-1H: was 192
     // FLIP-X2: every ghost is a v3 snapshot whose deck holds exactly its day's runes (one a dawn)
     for (const s of POOL) expect([s.v, s.build.runes?.length], `${s.hero} d${s.day} v${variantOf(s)}`).toEqual([SNAPSHOT_V3, s.day]);
   });
@@ -172,7 +187,8 @@ describe("the bb-0.14.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, 
   // S8c (the pools: the stand-in pool regenerated once under bb-0.10.0, P1 83c039d): title bb-0.9.7 -> bb-0.10.0
   // BUMP-1E (the pools): title bb-0.11.0 -> bb-0.12.0 (the stand-in pool regenerated under bb-0.12.0, R1 19ae423)
   // BUMP-1G: was "... of the bb-0.13.0 stand-in pool, ..." (the pools): title bb-0.13.0 -> bb-0.14.0 (the stand-in pool regenerated under bb-0.14.0, R1 a5fb26be)
-  it("FURNACE and WEAVER's 96 come first: the sample and floor ghosts of the bb-0.14.0 stand-in pool, pinned by their digest", () => {
+  // BUMP-1H (P6): was "... of the bb-0.14.0 stand-in pool, ..." (the pools): title bb-0.14.0 -> bb-0.15.0 (the stand-in pool regenerated under bb-0.15.0, R1 0859e473: all 192 decks equal bb-0.14.0's, the two rules literals moved)
+  it("FURNACE and WEAVER's 96 come first: the sample and floor ghosts of the bb-0.15.0 stand-in pool, pinned by their digest", () => {
     // BUMP-1D: 96 (2 heroes x 3 variants x 16 days; was 60), the stand-in pool of 16 days under bb-0.11.0 (8fc5e24; was the bb-0.10.0 pool)
     // HULL-ON (the flip, PICK): every seed ghost carries the seed step's grade (generateSamplePool, written last), which
     // the sample and floor ghosts' own generators don't write, so the parts compare without it; the digest below still
@@ -213,6 +229,19 @@ describe("the bb-0.14.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, 
       }
     }
   }, 600_000); // CACHE-1: 600 s (was the 30-s default). The 24 par runs softDeckOf and playerBuild read are no longer warm from the import-time build (POOL comes from the pool cache): a host timeout, not the rule
+
+  // BUMP-1H (P6; new at bb-0.15.0): the CURVE's ghosts after the 192, pinned like the two parts above
+  it("the CURVE's 38 ghosts follow the 192: 24 streak ghosts (a hero a day on days STREAK_FIRST_DAY..STREAK_LAST_DAY) and 14 depth ghosts (DEPTH_SLOTS' day and wins), each stating its losses, pinned by their digest", () => {
+    expect(CURVE_PART.every((s) => typeof s.grade === "number")).toBe(true);
+    expect(CURVE_PART.map(ungraded)).toEqual(curveGhosts(192)); // the generator's own ghosts, appended after the 192 (the grade is written last)
+    const streak = CURVE_PART.slice(0, 24), depth = CURVE_PART.slice(24);
+    expect(streak.map(variantOf)).toEqual(streak.map(() => STREAK_VARIANT));
+    expect(streak.map((s) => [s.hero, s.day])).toEqual(PLAYABLE_HEROES.flatMap((hero) => Array.from({ length: STREAK_LAST_DAY - STREAK_FIRST_DAY + 1 }, (_, i) => [hero, STREAK_FIRST_DAY + i])));
+    expect(depth.map(variantOf)).toEqual(depth.map(() => DEPTH_VARIANT));
+    expect(depth.map((s) => [s.day, s.wins])).toEqual(DEPTH_SLOTS.map(([day, wins]) => [day, wins]));
+    for (const s of CURVE_PART) expect(s.losses, `${s.playerId} d${s.day}: states its losses`).toBeDefined();
+    expect(sha(samplePoolJson(CURVE_PART))).toBe(CURVE_PART_SHA256);
+  }, 600_000); // 600 s as the two parts above: the par runs curveGhosts reads are not warm (POOL comes from the pool cache): a host timeout, not the rule
 
   it("every ghost passes the upload check: the strict decoder, validateUpload (player mode), the reachable record and the rules gate; under 0.7.0's rules FOUNDRY and BASTION can't travel", () => {
     const branch = { sustain: 0, standIn: 0, heroGate: 0 };
@@ -272,7 +301,7 @@ describe("the bb-0.14.0 seed pool (tools/samplePool.ts; regenerated at FLIP-X2, 
     expect(branch.standIn, JSON.stringify(branch)).toBeGreaterThan(0);
     expect(branch.heroGate, JSON.stringify(branch)).toBeGreaterThan(0);
     console.log(`rc.seedpool (FLIP-X2): under bb-0.6.2 ${JSON.stringify(branch)}`);
-    expect(checkPool(POOL)).toHaveLength(192); // BUMP-1D: was 120
+    expect(checkPool(POOL)).toHaveLength(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: was 120
   }, 120_000); // BUMP-1G P7: 120 s (was the 30-s default): 13 s alone, 34 s beside twelve workers: a host timeout, not the rule
 
   it("a race deck that fails validateUpload never enters the pool: the generator throws on it", () => {
@@ -299,7 +328,8 @@ interface Store { name: string; store(): ReturnType<typeof tigrisFor> | JsonlSto
 // BUMP-1D (the bump): title bb-0.10.0 -> bb-0.11.0
 // BUMP-1E (the bump): title bb-0.11.0 -> bb-0.12.0
 // BUMP-1G: was "... list --rules bb-0.13.0" (the bump): title bb-0.13.0 -> bb-0.14.0 (the test lists --rules RULES_VERSION)
-describe("the seed pool on both stores: ghosts:admin list --rules bb-0.14.0", () => {
+// BUMP-1H (P6): was "... list --rules bb-0.14.0" (the bump): title bb-0.14.0 -> bb-0.15.0 (the test lists --rules RULES_VERSION)
+describe("the seed pool on both stores: ghosts:admin list --rules bb-0.15.0", () => {
   let fake: FakeS3;
   const dirs: string[] = [];
   beforeAll(async () => {
@@ -335,22 +365,24 @@ describe("the seed pool on both stores: ghosts:admin list --rules bb-0.14.0", ()
   // Y7b2 (the bump): title bb-0.9.1 -> bb-0.9.3
   // Z-BUMP (the bump, the pools): title bb-0.9.3 -> bb-0.9.7
   // BUMP-1G: was "... under bb-0.13.0 (BUMP-1F: was bb-0.12.0; ...)" (the bump): title bb-0.13.0 -> bb-0.14.0 (the test seeds and lists RULES_VERSION)
-  it("the seed writes 192 on each store, and list shows 12 seed ghosts a day (3 per hero) under bb-0.14.0 (BUMP-1G: was bb-0.13.0; BUMP-1F: was bb-0.12.0; BUMP-1E: was bb-0.11.0; BUMP-1D: was 120 and bb-0.10.0; AZ-BUMP: was bb-0.9.7), none under bb-0.6.2", async () => {
+  // BUMP-1H (P6): was "the seed writes 192 on each store, and list shows 12 seed ghosts a day (3 per hero) under bb-0.14.0 ..." (the bump and the CURVE's 24 streak and 14 depth ghosts: 230)
+  it("the seed writes 230 on each store, and list shows 12 seed ghosts a day (3 per hero) and on the CURVE's days the streak and depth ghosts besides, under bb-0.15.0 (BUMP-1H: was 192 and bb-0.14.0; BUMP-1G: was bb-0.13.0; BUMP-1F: was bb-0.12.0; BUMP-1E: was bb-0.11.0; BUMP-1D: was 120 and bb-0.10.0; AZ-BUMP: was bb-0.9.7), none under bb-0.6.2", async () => {
     for (const h of stores()) {
-      expect(await seedStore(h.store()), h.name).toMatchObject({ rules: RULES_VERSION, entries: 192, written: 192, removed: 0 });
-      for (const [rules, perDay, all] of [[RULES_VERSION, 12, 192], ["bb-0.6.2", 0, 0]] as const) {
+      expect(await seedStore(h.store()), h.name).toMatchObject({ rules: RULES_VERSION, entries: 230, written: 230, removed: 0 }); // BUMP-1H: was 192
+      for (const [rules, perDay, all] of [[RULES_VERSION, 12, 230], ["bb-0.6.2", 0, 0]] as const) { // BUMP-1H: 230 (was 192); perDay is the everyday 12, a day of the CURVE's ghosts holds more (POOL's count)
         const out: string[] = [];
         expect(await runAdmin(["list", "--rules", rules, ...h.argv()], h.env(), (l) => out.push(l)), `${h.name} ${rules}`).toBe(0);
         const t = table(out);
         for (let day = 1; day <= DAYS; day++) { // BUMP-1D: days 1-16 (was 1-10)
-          if (perDay) expect(t[String(day)], `${h.name} ${rules} day ${day}`).toEqual([perDay, 0, 0]);
+          if (perDay) expect(t[String(day)], `${h.name} ${rules} day ${day}`).toEqual([POOL.filter((s) => s.day === day).length, 0, 0]); // BUMP-1H: was [perDay, 0, 0] (12 a day: the CURVE's days hold 12 + the streak and depth ghosts)
           else expect(t[String(day)] ?? [0, 0, 0], `${h.name} ${rules} day ${day}`).toEqual([0, 0, 0]);
         }
         expect(t.all, `${h.name} ${rules}`).toEqual([all, 0, 0]);
       }
       for (let day = 1; day <= DAYS; day++) {
         const heroes = (await h.store().bucket(RULES_VERSION, day, "pool")).map((e) => e.snapshot.hero).sort();
-        expect(heroes, `${h.name} day ${day}`).toEqual(["bastion", "bastion", "bastion", "foundry", "foundry", "foundry", "furnace", "furnace", "furnace", "weaver", "weaver", "weaver"]);
+        // BUMP-1H: the 3 ghosts of each hero (was the whole list), plus the CURVE's ghosts of the day (the pool's own heroes: a streak ghost for each hero on days 7-12, the depth ghosts' heroes)
+        expect(heroes, `${h.name} day ${day}`).toEqual([...["bastion", "bastion", "bastion", "foundry", "foundry", "foundry", "furnace", "furnace", "furnace", "weaver", "weaver", "weaver"], ...CURVE_PART.filter((s) => s.day === day).map((s) => s.hero)].sort());
       }
     }
   });

@@ -567,3 +567,20 @@ export const ENDLESS_RULES: string = "bb-0.12.0";
 export function endlessFor(rules: unknown): boolean {
   return endlessRules() && rulesAtLeast(rules, ENDLESS_RULES);
 }
+
+// ---- BUMP-1H (REQ-BFG-124, the difficulty curve): the lead pick's row, on its own lines at the end of the file (a small merge surface, like
+// the rows above). Not a RULES_ROWS row: it refuses no build feature and no snapshot field; it says which pick a match request gets.
+import { curveRules } from "./curve"; // BUMP-1H: the CURVE switch (src/net/curve.ts; it imports nothing, so no cycle)
+
+/** BUMP-1H (REQ-BFG-124): the first rules version with the lead pick (pick.ts matchPick: a record PICK_RULE.lead.at or more wins ahead
+ *  of its losses draws from the strongest PICK_RULE.lead.share of its eligible ghosts by grade) and the seed pool's new slots (the
+ *  casual-graded slot 1, the streak tier, the second ghosts of the busiest matchups). Written as a literal, as LONG_RUN_RULES and
+ *  ENDLESS_RULES were at their bumps, so it stays put at later bumps: a match request under older rules (bb-0.14.0 among them) picks
+ *  as before, whatever the switch, and its bucket keeps the odds it was benched with. */
+export const LEAD_RULES: string = "bb-0.15.0";
+
+/** Does the lead pick hold for a match request under `rules`? The switch on AND `rules` a readable version at or after LEAD_RULES.
+ *  False with the switch off, whatever the rules (every pick is then as at bb-0.14.0). matchPick asks it, never the switch alone. */
+export function leadFor(rules: unknown): boolean {
+  return curveRules() && rulesAtLeast(rules, LEAD_RULES);
+}

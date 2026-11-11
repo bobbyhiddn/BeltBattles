@@ -69,7 +69,8 @@ import { installedTurrets, occupancy, type Build } from "../src/sim/deck";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { PAR_K, parSeeds } from "../src/sim/harness/par";
 import { parRunSeed, playerRoadLog, playerRun, type PlayerDay } from "../src/sim/harness/player";
-import { CASUAL_TUNE, casualRun } from "../src/sim/harness/casual"; // LOSS-1 P2: the floor ghosts' decks (NPC_DAY on)
+import { CASUAL_TUNE, casualField, casualRun } from "../src/sim/harness/casual"; // LOSS-1 P2: the floor ghosts' decks (NPC_DAY on); BUMP-1H: + casualField, the casual grade's field
+import { curveRules } from "../src/net/curve"; // BUMP-1H (REQ-BFG-124): THE CURVE switch (src/net/curve.ts, no imports of its own)
 import { npcDayRules, type RoadEntry } from "../src/sim/npcDay"; // AZ-BUMP (N3): the seed ghosts' road logs
 import { HEARTS_START, heartsDusk, heartsRules } from "../src/sim/hearts"; // RETUNE-1 (REQ-BFG-096): the hearts labels
 import { isShapesPiece } from "../src/sim/shapes"; // SHAPES-1: the retired shopper never draws a shaped rig
@@ -349,6 +350,11 @@ export const SOFT_TARGET = 150; // BUMP-1F (RULING-BUMP1F-R9 R9.1; R10.1 PATH S)
  *  bb-0.13.0, so worldKey() ends with g. */
 export const SOFT1_WORLD = "111111111111g";
 
+/** BUMP-1H (REQ-BFG-124): was SOFT1_PICKS read with the CURVE switch on (slot 1 picked on the casual grade, softDecks)? TRUE since P4's step R2 (BUMP-1H run 3): the table
+ *  was re-read under CURVE (it was bb-0.14.0's, 1G's, slot 1 par-graded, and this was false until then); softStaleCheck refuses to write the bundled pool when this and
+ *  the process's CURVE differ (the stale table never ships). The world key is untouched: CURVE moves a rule, not a world. */
+export const SOFT1_CURVE = true;
+
 /** SOFT-1: the rule's 128 picks (BUMP-1D: days 1-16, SOFT_TARGET 250; 80 picks, days 1-10, before) in SOFT1_WORLD, per hero, day 1-16: [variant 0, variant 1], each "s<i>" (the i-th entry of
  *  standInPool(hero, day)) or "f<seed>" (the par field's run of that field seed), ":" the hash of its deck's code (softHash).
  *  Read off the rule's pool by kit-soft1/s1-picks.ts (B/output-soft1/pool/C2bw/picks.json).
@@ -367,12 +373,17 @@ export const SOFT1_WORLD = "111111111111g";
  *  src/sim/standInPoolData.ts, commit a5fb26be, sha16 f9f0437d8276c420): FURNACE and WEAVER by tests/run1.seedpool.test.ts BB_SOFT1_LONG_RULE=1 on the committed module
  *  (kit-1g/r2all.sh: 12 processes, six day ranges a hero, 5.5 min); FOUNDRY and BASTION are the dryF rows of the frozen content (they read no stand-in pool; foundry day 16
  *  and bastion day 10 re-read on the new module gave the same pair, kit-1g/r2cmpdry.mjs). 49 of the 128 picks differ from BUMP-1F's table (furnace 12 of 16 days,
- *  weaver 2, foundry 7, bastion 10; kit-1g/picksdiff.mjs). */
+ *  weaver 2, foundry 7, bastion 10; kit-1g/picksdiff.mjs).
+ *  BUMP-1H run 3 (step R2; REQ-BFG-124; RULING-BUMP1H-R1 to R3): all 128 picks re-read with the CURVE on (SOFT1_CURVE true: slot 0 par-graded nearest SOFT_TARGET 150, slot 1
+ *  casual-graded nearest CASUAL_TARGET 500, softDecks) in bb-0.15.0's content on the new stand-in pool (R1: src/sim/standInPoolData.ts, commit 0859e473, sha16 63e7d49ea34c9f3f:
+ *  the same 192 decks as BUMP-1G's, only its rules literal moved), all four heroes by tests/run1.seedpool.test.ts BB_SOFT1_LONG_RULE=1 on an export of that commit (kit-1h/h1dry.sh
+ *  soft r2: 12 processes, three day ranges a hero, 3.6 minutes). The rows are identical to P3's dry rows (the take's reads, label k1b) in 64 of 64 hero-days. 37 of the 128 picks
+ *  differ from BUMP-1G's table, every one of them slot 1 (furnace 12 of 16 days, weaver 8, foundry 7, bastion 10; kit-1h/picksdiff.mjs); slot 0 is unchanged in 64 of 64. */
 export const SOFT1_PICKS: Readonly<Record<string, readonly (readonly [string, string])[]>> = {
-  furnace: [["f9:a38c3052", "f12:23d4f749"], ["f7:f6f17288", "f9:6fea3280"], ["f3:3df53092", "f9:71210507"], ["f3:5ea8b7ab", "f9:149c5a31"], ["f1:c9c07b3b", "f9:70b1ba6b"], ["f1:6d59af54", "f2:dd92d091"], ["f1:18ef7839", "f3:3e0b0cbb"], ["f1:6dbd196a", "f2:316dff3a"], ["f1:3f302759", "f2:775f7ff9"], ["f1:49627271", "f9:3d9dc2ac"], ["f1:23d8ec42", "f9:89129b27"], ["f3:3851d59f", "f9:3e467d24"], ["f3:307dc16c", "f2:c8f1a60d"], ["f1:0fc536d4", "f5:8343a34a"], ["f1:4c62da3f", "f3:39cd3523"], ["f5:a1af8420", "f3:26e52ddd"]],
-  weaver: [["f11:2c9fe8e0", "f4:b22bacb6"], ["f5:200b3ee0", "f6:51405db2"], ["f7:999a4f4a", "f5:97438e57"], ["f5:d6fd145a", "f6:8556dfdf"], ["f5:7aa6599e", "f3:15b1896b"], ["f3:e1abe7b4", "f5:def5ca2d"], ["f12:8bbe2dc7", "f7:8564c161"], ["f5:eb7345f5", "f7:b1d176e7"], ["f7:9665d67e", "f5:d46ecd7d"], ["f5:bbe831db", "f7:8fe76323"], ["f7:565e1ce5", "f10:228b238a"], ["f7:5568c020", "f10:7452a0f0"], ["f7:99a48187", "f10:93c9d88d"], ["f10:91884ff6", "f7:a1a12481"], ["f10:2c98b34d", "f5:0d921a73"], ["f10:3f9cd56a", "f5:402a33d7"]],
-  foundry: [["f8:7dae2d4b", "f3:d7e4de68"], ["f11:65d7143d", "f7:cbda1eb1"], ["f9:3667b6a5", "f8:7cb0b4cb"], ["f11:72efc72e", "f3:320ec74f"], ["f3:d262425a", "f1:bcc43e7a"], ["f3:6e3e8cb3", "f7:87347e96"], ["f9:b76d2ddb", "f3:613f1a27"], ["f3:86ef34a6", "f9:9e548323"], ["f3:53f9dfb8", "f9:27446efa"], ["f3:0e23735a", "f9:48e9e49c"], ["f9:977e0f47", "f10:924d4f98"], ["f10:17bcd79e", "f3:351899bf"], ["f9:cd34dcc1", "f3:de413e32"], ["f3:c30dbe0b", "f10:4072ee8a"], ["f9:2afb119b", "f3:d58e848b"], ["f9:792842e0", "f3:498e64b1"]],
-  bastion: [["f1:1b04a970", "f5:04340423"], ["f12:8c9903e4", "f8:88032da7"], ["f10:936e515f", "f3:256a89be"], ["f10:05ee4934", "f8:52c396d6"], ["f10:e0b62c59", "f7:b8a893ff"], ["f12:e05559a0", "f1:07e2d55c"], ["f12:6cc4fecb", "f3:faf706f3"], ["f3:2e9012c7", "f12:bb4ee89f"], ["f3:a982d909", "f9:090331a2"], ["f12:f4be6556", "f9:acd0cf82"], ["f1:c2a9b93b", "f9:600fe26d"], ["f1:3f8007e4", "f3:9f3df306"], ["f1:ad12cead", "f9:7b577f02"], ["f3:4dba9897", "f1:3ba1c9b5"], ["f3:9c38af5d", "f9:de9d39c2"], ["f3:444a387a", "f9:86a87ae0"]],
+  furnace: [["f9:a38c3052", "f3:25c8a972"], ["f7:f6f17288", "f9:6fea3280"], ["f3:3df53092", "f7:63926679"], ["f3:5ea8b7ab", "f7:2d6dcee5"], ["f1:c9c07b3b", "f7:4fc47078"], ["f1:6d59af54", "f7:3ac5f2a3"], ["f1:18ef7839", "f7:af0e9ab7"], ["f1:6dbd196a", "f2:316dff3a"], ["f1:3f302759", "f7:b525a412"], ["f1:49627271", "f7:98eed840"], ["f1:23d8ec42", "f7:b737b68c"], ["f3:3851d59f", "f2:e4d60ac5"], ["f3:307dc16c", "f7:17de7b49"], ["f1:0fc536d4", "f5:8343a34a"], ["f1:4c62da3f", "f3:39cd3523"], ["f5:a1af8420", "f4:1a7e7eb1"]],
+  weaver: [["f11:2c9fe8e0", "f2:a4ff354e"], ["f5:200b3ee0", "f6:51405db2"], ["f7:999a4f4a", "f10:eb55a618"], ["f5:d6fd145a", "f7:356b9bf9"], ["f5:7aa6599e", "f7:1ba59596"], ["f3:e1abe7b4", "f5:def5ca2d"], ["f12:8bbe2dc7", "f10:8772ad22"], ["f5:eb7345f5", "f10:6d007b35"], ["f7:9665d67e", "f10:77197783"], ["f5:bbe831db", "f10:1d5ec9b9"], ["f7:565e1ce5", "f10:228b238a"], ["f7:5568c020", "f10:7452a0f0"], ["f7:99a48187", "f10:93c9d88d"], ["f10:91884ff6", "f7:a1a12481"], ["f10:2c98b34d", "f5:0d921a73"], ["f10:3f9cd56a", "f5:402a33d7"]],
+  foundry: [["f8:7dae2d4b", "f10:76156a2a"], ["f11:65d7143d", "f7:cbda1eb1"], ["f9:3667b6a5", "f3:81ecbede"], ["f11:72efc72e", "f3:320ec74f"], ["f3:d262425a", "f9:07ec8a84"], ["f3:6e3e8cb3", "f9:a91a2d6a"], ["f9:b76d2ddb", "f3:613f1a27"], ["f3:86ef34a6", "f10:a88af2dc"], ["f3:53f9dfb8", "f9:27446efa"], ["f3:0e23735a", "f9:48e9e49c"], ["f9:977e0f47", "f3:d6e0fc81"], ["f10:17bcd79e", "f3:351899bf"], ["f9:cd34dcc1", "f3:de413e32"], ["f3:c30dbe0b", "f9:bc690473"], ["f9:2afb119b", "f3:d58e848b"], ["f9:792842e0", "f3:498e64b1"]],
+  bastion: [["f1:1b04a970", "f3:6fcc613e"], ["f12:8c9903e4", "f3:d04292bf"], ["f10:936e515f", "f8:3de36519"], ["f10:05ee4934", "f1:0a8a4fc3"], ["f10:e0b62c59", "f12:6974f3a1"], ["f12:e05559a0", "f1:07e2d55c"], ["f12:6cc4fecb", "f1:10ced3f2"], ["f3:2e9012c7", "f1:861263d3"], ["f3:a982d909", "f1:0adeb68a"], ["f12:f4be6556", "f1:ab80b6c9"], ["f1:c2a9b93b", "f9:600fe26d"], ["f1:3f8007e4", "f3:9f3df306"], ["f1:ad12cead", "f9:7b577f02"], ["f3:4dba9897", "f9:48e604bb"], ["f3:9c38af5d", "f9:de9d39c2"], ["f3:444a387a", "f9:86a87ae0"]],
 };
 
 /** SOFT-1: a deck code's hash in SOFT1_PICKS (8 hex digits). */
@@ -393,6 +404,10 @@ export const SOFT1_REBUILD = "BB_SOFT1_RULE=1 npx vitest run tests/soft1.picks.t
 export function softStaleCheck(): void {
   if (!softWorld()) {
     throw new Error(`SOFT-1: stale: SOFT1_PICKS was read in world ${SOFT1_WORLD} with the bots' runes on; this process is ${worldKey()} (BOT_RUNES ${BOT_RUNES}), so the softer seed picks would not apply. Re-run the pick tool: ${SOFT1_REBUILD}`);
+  }
+  // BUMP-1H (REQ-BFG-124): the table's slot 1 is casual-graded only if it was read with CURVE on (SOFT1_CURVE); a CURVE-on process must not write a pool from a table read without it
+  if (curveRules() !== SOFT1_CURVE) {
+    throw new Error(`SOFT-1: stale: SOFT1_PICKS was read with CURVE ${SOFT1_CURVE ? "on" : "off"} (SOFT1_CURVE); this process has CURVE ${curveRules() ? "on" : "off"}, so slot 1 would not be what the rule picks. Re-run the pick tool: ${SOFT1_REBUILD}`);
   }
 }
 
@@ -457,7 +472,7 @@ function softPickRow(hero: HeroId, day: number): readonly [string, string] | und
   return scratch ?? SOFT1_PICKS[hero]?.[day - 1];
 }
 
-function softDeckOf(hero: HeroId, day: number, pick: string, botRunes?: boolean): SoftDeck {
+export function softDeckOf(hero: HeroId, day: number, pick: string, botRunes?: boolean): SoftDeck { // BUMP-1H: exported (curve.picks.test.ts and curveGhosts resolve their picks with it)
   const m = /^([sf])(\d+):([0-9a-f]{8})$/.exec(pick);
   if (!m) throw new Error(`SOFT-1: bad pick "${pick}" for ${hero} day ${day}`);
   let deck: SoftDeck | undefined;
@@ -518,18 +533,22 @@ const SOFT_MEMO = new Map<string, [SoftDeck, SoftDeck]>();
  * rule that table comes from (tests/soft1.picks.test.ts, opt-in).
  */
 export function softDecks(hero: HeroId, day: number, botRunes?: boolean): [SoftDeck, SoftDeck] {
-  const key = `${hero}|${day}|${botRunes}|${worldKey()}${longRunRules() ? "|long" : ""}`; // RUN-1 T8: the long run's rule is its own (off: the key as before)
+  const key = `${hero}|${day}|${botRunes}|${worldKey()}${longRunRules() ? "|long" : ""}${curveRules() ? "|curve" : ""}`; // RUN-1 T8: the long run's rule is its own (off: the key as before); BUMP-1H: so is the curve's (slot 1)
   const hit = SOFT_MEMO.get(key);
   if (hit) return hit;
   const cands = softCandidates(hero, day, botRunes);
   if (cands.length < SAMPLE_VARIANTS) throw new Error(`SOFT-1: ${hero} day ${day} has ${cands.length} candidate decks`);
   const pick = (v: number, not?: string): SoftDeck => {
     const gi = seedSlot(hero, v, day);
+    // BUMP-1H (REQ-BFG-124, H1 (b)): with CURVE on, slot 1 is picked nearest CASUAL_TARGET on the CASUAL grade (gradeCasualOne, at the same slot);
+    // slot 0 stays par-graded nearest SOFT_TARGET. CURVE off: casual is false and every expression below is what it was
+    const casual = v === 1 && curveRules(), target = casual ? CASUAL_TARGET : SOFT_TARGET;
     let best: SoftDeck | undefined, bg = 0;
     for (const c of cands) {
       if (not !== undefined && encodeStarred(c.build) === not) continue;
-      const g = gradeOne(c.build, day, gi, GRADE_K, GRADE_SEEDS);
-      const dg = Math.abs(g - SOFT_TARGET), db = Math.abs(bg - SOFT_TARGET);
+      if (curveRules() && !seedable(hero, day, c)) continue; // BUMP-1H: a candidate seedGhost would refuse is never picked (CURVE on only; off: no such check, the rule as it was)
+      const g = casual ? gradeCasualOne(c.build, day, gi, GRADE_K, GRADE_SEEDS) : gradeOne(c.build, day, gi, GRADE_K, GRADE_SEEDS);
+      const dg = Math.abs(g - target), db = Math.abs(bg - target);
       if (best === undefined || dg < db || (dg === db && g < bg)) { best = c; bg = g; }
     }
     return best!;
@@ -633,6 +652,10 @@ export const FLOOR_PICKS: Readonly<Record<string, string>> = {
   // their seed AND hash (weaver, foundry, bastion: the casual runs did not move); FURNACE keeps its seed and its score (1.95%) but its hash moved (the hash covers the casual
   // run's days 1-16, the score only days 1-7: the change is in a deck after day 7, or in one that plays no differently). Variant B (nearest 35%, not taken) would be furnace 9011:2f1cc8d9, weaver 9010:585caa58, foundry 9003:676b7e8c, bastion
   // 9004:5cea8850. Was (BUMP-1F, variant A on bb-0.13.0): furnace 9010:8d7dd6aa, weaver 9013:63dd911b, foundry 9008:08f1e1aa, bastion 9006:868fa6c7
+  // BUMP-1H run 3 (step R2; the full 64-candidate re-run again, variant A again, on bb-0.15.0's content: the CURVE on, SOFT1_CURVE true; kit-1h/floorjoin.mjs floor1 over output-bump1h/floor/rows-floor1-*.json, read in the FINAL world:
+  // an export of the R1 commit 0859e473 with its stand-in module and the SOFT-1 rows of all four heroes read there (kit-1h/h1dry.sh soft r2, kit-1h/r2fl.sh; 16 units of 4 seeds, 21 minutes). The WEAKEST qualifying run: furnace
+  // 9010 1.95% (the first seed, 9001, scored 82.27%), weaver 9013 7.63% (9001: 19.61%), foundry 9008 14.84% (9001: 55.82%), bastion 9006 11.64% (9001: 82.96%); all 16 seeds qualified for every hero. THE FOUR PICKS ARE BUMP-1G'S, seed,
+  // score and hash (the casual runs did not move under BUMP-1H's changes). Variant B (nearest 35%, not taken): furnace 9011:2f1cc8d9, weaver 9010:585caa58, foundry 9003:676b7e8c, bastion 9004:5cea8850.
   furnace: "9010:a957b3b2",
   weaver: "9013:63dd911b",
   foundry: "9008:08f1e1aa",
@@ -857,18 +880,273 @@ export function uncoveredStates(pool: readonly GhostSnapshot[], min = MIN_ELIGIB
   return out;
 }
 
-/** The seed pool: the 40 sample ghosts, the 20 floor ghosts (FURNACE and WEAVER), then the 60 race ghosts (FOUNDRY and
- *  BASTION, 0.8.0 RC). Throws if a reachable state is not covered. RUNES-2a: o.botRunes (absent: runes.ts BOT_RUNES,
- *  off) reaches the race decks' par player (raceDeck); the stand-in heroes' decks come from the bundled stand-in pool.
- *  LOSS-1 P2: with NPC_DAY on, o.botRunes reaches the casual floor runs too (every hero's floor ghost). */
-export function generateSamplePool(o: { botRunes?: boolean } = {}): GhostSnapshot[] {
-  // SOFT-1: in SOFT1_PICKS' world a race hero's variant 0 and 1 decks are its picks (par-field runs); elsewhere raceDeck's
+/** BUMP-1H: generateSamplePool's first three lines, moved here unchanged: the sample ghosts, the floor ghosts, then the race ghosts, none graded
+ *  and no coverage check (the rule tests read the decks the pool already holds from it). SOFT-1: in SOFT1_PICKS' world a race hero's variant 0 and
+ *  1 decks are its picks (par-field runs); elsewhere raceDeck's. */
+export function baseSamplePool(o: { botRunes?: boolean } = {}): GhostSnapshot[] {
   const deckOf = (h: HeroId, d: number, v: number): RaceDeck => {
     const c = v < SAMPLE_VARIANTS ? softPicked(h, d, o.botRunes)?.[v] : undefined;
     return c ? { build: c.build, seed: c.seed!, ...(c.road ? { road: c.road } : {}) } : raceDeck(h, d, v, o.botRunes);
   };
   const races = raceGhosts(undefined, deckOf, o);
-  const pool = [...sampleGhosts(o), ...floorGhosts(undefined, o), ...races];
+  return [...sampleGhosts(o), ...floorGhosts(undefined, o), ...races];
+}
+
+// ---------------------------------------------------------------- BUMP-1H (REQ-BFG-124): THE CURVE's pool slots (CURVE on only)
+/**
+ * BUMP-1H (REQ-BFG-124, H1 (b) and (c); BRIEF-BUMP1H P1): with the CURVE switch on (src/net/curve.ts) the seed pool holds the 192 ghosts of
+ * 4 heroes x 3 slots x 16 days it holds with the switch off (the switch changes WHICH deck slot 1 holds: softDecks above), and two kinds of
+ * new ghost appended after them, so those 192 keep their records, createdAt and order:
+ *  - THE STREAK TIER (STREAK_VARIANT): one ghost a hero a day on days STREAK_FIRST_DAY..min(poolDepth(), STREAK_LAST_DAY): a par-field dusk deck of that hero and day
+ *    whose PAR grade (gradeOne, at the slot it holds) is nearest STREAK_TARGET, at the record streakRecord(day) names (the record par often
+ *    holds there). A run `lead.at` or more wins ahead of its losses meets it through the lead pick (pick.ts matchPick, rulesGate.ts LEAD_RULES);
+ *    D1 keeps every weaker record away from it. 4 x 15 = 60 ghosts.
+ *  - THE DEPTH GHOSTS (DEPTH_VARIANT): a second ghost on each (day, wins, lost) slot of DEPTH_SLOTS: the casual-graded candidate (any hero's,
+ *    softCandidates) nearest CASUAL_TARGET that is not already a deck of the pool that day, so the busiest matchups split their fights over more
+ *    than one ghost (BRIEF-BUMP1H P3: c5's TABLE 1 names the slots). At most 24.
+ * THE TABLES (STREAK_PICKS, DEPTH_PICKS) hold the rules' picks as SOFT1_PICKS holds SOFT-1's: "f<seed>:<8 hex of the deck code's hash>" (a par-field
+ * run's dusk deck) or "s<i>:<hash>" (a stand-in pool entry), a depth pick with its hero in front ("weaver:f5:1a2b3c4d"). The rules grade thousands of
+ * battles, so they run offline (tests/curve.picks.test.ts, BB_CURVE_RULE=1) and the generator reads its table and checks each pick against its
+ * deck's code hash (softDeckOf), so a moved par field throws instead of shipping a stale pick. BB_CURVE_PICKS_FILE names scratch rows (dry pools;
+ * never committed) and wins over the tables. While both tables are empty and no scratch rows are named (this file from P1 to P3's take and P4's
+ * R2), a CURVE-on pool holds no new ghost.
+ * With the switch off none of this is read: every generator writes the files it wrote at bb-0.14.0.
+ */
+/** BUMP-1H H1 (b): slot 1's target on the CASUAL grade (permille). 500 = V0's (RULING-BUMP1H-R1 R1.2, R2.4: 400 (G) and 600 (V0') read worse; the take's K 96 read in section 5.1 of the REPORT). */
+export const CASUAL_TARGET = 500;
+/** BUMP-1H H1 (c): the streak tier's target on the PAR grade (permille). THE TAKE (RULING-BUMP1H-R1 R1.4 (2), R1.5): 450 (C, D, I read the same target from days 2 and 5; run 2's take (k1b, RULING-BUMP1H-R3) runs it on days 7-12 with no lead). */
+export const STREAK_TARGET = 450;
+/** BUMP-1H: the streak tier's first day (a run needs a win in hand to be on a streak). THE TAKE: 7 (RULING-BUMP1H-R3 R3.1; was 6 in run 2's first take k1n, 2 in the brief). Day 5's ghost met c5's 4-0 runs 59 times in 192 and beat them 75-86%
+ *  (H, I; RULING-BUMP1H-R1 R1.3 dropped days 2-4 already); day 6's ghost (5-0) beat c5 in 86% of its 49 fights (of 384 runs) and par in 56% of its 169, the opposite of the tier's job, and left c5's day-6 dusk win at 25.5%
+ *  (98 of 384, seeds 1-96; the bb-0.14.0 pool read 28.6% on the same seeds). From day 7 (k1b, K 96): c5 27.1% (104 of 384), day 6 34.9% (134 of 384), no day under 30% (lowest d8 31.8%). */
+export const STREAK_FIRST_DAY = 7;
+/** BUMP-1H (run 2; RULING-BUMP1H-R2 R2.4): the streak tier's last day. THE TAKE: 12. 16 = the pool's last day (the tier runs to the end, as in run 1's reads A-J); c5's near-winners meet the late streak
+ *  ghosts (days 13-16, 9 wins and the 10th win to play) and par's weak runs meet the same ghosts there: the one place the two cannot be told apart by record, so the tier stops at day 12. */
+export const STREAK_LAST_DAY = 12;
+/** BUMP-1H: seedGhost's variant number of a streak ghost and of a depth ghost (the sample ghosts hold 0 and 1, the floor ghost FLOOR_VARIANT, 2). */
+export const STREAK_VARIANT = 3;
+export const DEPTH_VARIANT = 4;
+
+/** BUMP-1H H1 (c): the streak ghost's record by day, [wins, dusks lost], where P3 sets one from par's records by day (the 1G bench rows): the
+ *  record par often holds on that day, at the lead's `at` or more wins ahead of its losses. A day with no row takes streakRecord's default. */
+export const STREAK_RECORDS: Readonly<Record<number, readonly [number, number]>> = {
+  // BUMP-1H P3 (run 1): par's MODAL record into each dusk, 192 par runs of the bb-0.14.0 pool at K 48 (kit-1h/parrecs.mjs over the base cells; output-bump1h/bench/base-par-records.md): the
+  // undefeated record up to day 10 (1-0 x156 of 192 on day 2, 4-0 x104 on day 5, 6-0 x76 on day 7, 9-0 x70 on day 10), then 9 wins with the losses a long run holds (9-1 x21 on
+  // day 11, 9-2 x14 on day 12, 9-3 x8 on day 13, 9-4 x8 on day 14, 9-5 x5 on day 15, 9-6 x4 on day 16; a run ghost is a dusk before its 10th win). Days 2-4 hold no record `lead.at`
+  // ahead (at 4 first from day 5): their ghosts meet the runs of their own record through the nearest-record pick alone.
+  // BUMP-1H run 2, THE TAKE (RULING-BUMP1H-R1 R1.4 (2), R1.5): the tier deals days STREAK_FIRST_DAY..STREAK_LAST_DAY = 7-12 (6-0 .. 9-0, 9-1, 9-2; RULING-BUMP1H-R3 moved the first day from 6 to 7: day 7 reads the row [6, 0], so no row changed) and PICK_RULE has NO lead (the lead cost c5 1.7 points
+  // for every par point in v0L against V0, the slots alone 1 for 1: k1n against V0), so these ghosts meet the runs of their own record through the nearest-record pick alone. The rows of days 2-6 and 13-16 are par's
+  // modal records kept as data (a variant that moves the tier's days reads them); nothing deals them.
+  2: [1, 0], 3: [2, 0], 4: [3, 0], 5: [4, 0], 6: [5, 0], 7: [6, 0], 8: [7, 0], 9: [8, 0], 10: [9, 0], 11: [9, 1], 12: [9, 2], 13: [9, 3], 14: [9, 4], 15: [9, 5], 16: [9, 6],
+};
+
+/** BUMP-1H H1 (c): the depth slots, [day, wins, dusks lost] each (the record is drawnLabel's, as a sample ghost's): c5's busiest (day, record)
+ *  matchups (P3). At most 24. THE TAKE (RULING-BUMP1H-R1 R1.5): V0's 13 slots (c5's TABLE 2 walls with their exact records: d3 1-1, d4 1-2, d6 1-3, d8 2-4, d9 4-4, d11 1-6, d13 4-1 twice, d14 5-7, d15 8-6
+ *  twice, d16 8-6 twice) plus (11, 4, 1) (V0's d11 weaver-1 wall, 48% of the day, c5 lost 64%): 14. The pool's slot index is this order. */
+export const DEPTH_SLOTS: readonly (readonly [number, number, number])[] = [
+  [3, 1, 1], [4, 1, 2], [6, 1, 3], [8, 2, 4], [9, 4, 4], [11, 1, 6], [13, 4, 1], [13, 4, 1], [14, 5, 7], [15, 8, 6], [15, 8, 6], [16, 8, 6], [16, 8, 6], [11, 4, 1],
+];
+
+/** BUMP-1H (step R2, run 3): the streak picks, per hero, one per day STREAK_FIRST_DAY..STREAK_LAST_DAY (index day - STREAK_FIRST_DAY). THEY ARE THE PICKS THE TAKE WAS READ WITH (RULING-BUMP1H-R3 R3.3: k1b at K 96,
+ *  c5 27.1%, par 87.8%): days 7-12 of the streak rule's rows of P3's dry flow (kit-1h/h1dry.sh curve, label s450, run 1: par-field dusk decks nearest STREAK_TARGET 450 on the par grade), so the committed pool is the pool
+ *  that the confirm read. The grade's battle seeds read the slot index (streakSlot) and those rows were made with the screens' days 2-16 numbering (15 slots a hero), not this tier's (6): the rule re-run at the committed
+ *  constants (kit-1h/h1dry.sh curve r2, output-bump1h/pool/curve-rows-r2.json) picks 15 of these 24 decks differently (the same kind of deck, nearest the target by another draw of battle seeds). REPORT section 9 names the choice. */
+export const STREAK_PICKS: Readonly<Record<string, readonly string[]>> = {
+  furnace: ["f5:7d3bd1b6", "f5:d7f4e32e", "f8:b4ea2b84", "f11:e0e0e945", "f11:6c7c4086", "f4:e4a47cd7"],
+  weaver: ["f9:2544ed5d", "f3:6aee97eb", "f3:5e218eba", "f3:88c46b41", "f5:b6ec00de", "f12:38a6d516"],
+  foundry: ["f5:f1c7d67e", "f6:5b2e1be9", "f11:a14e4fbd", "f1:7b1f1204", "f7:1d8e74cb", "f5:e04203ae"],
+  bastion: ["f11:5c2da9fe", "f11:b2fbc27c", "f8:a938424e", "f8:a0958ff0", "f7:970fd9ab", "f11:741303ab"],
+};
+/** BUMP-1H (step R2, run 3): the depth picks, parallel to DEPTH_SLOTS ("<hero>:<pick>"): the depth rule's rows of P3's dry flow (the casual-graded candidates nearest CASUAL_TARGET 500 that the pool does not hold that
+ *  day), as the take was read with them (the note at STREAK_PICKS). */
+export const DEPTH_PICKS: readonly string[] = [
+  "bastion:f12:bbf8ebc0", // slot 0: day 3, 1-1
+  "bastion:f8:52c396d6", // slot 1: day 4, 1-2
+  "weaver:f7:ddb893a9", // slot 2: day 6, 1-3
+  "furnace:f7:b0854194", // slot 3: day 8, 2-4
+  "furnace:f2:775f7ff9", // slot 4: day 9, 4-4
+  "furnace:f2:47024111", // slot 5: day 11, 1-6
+  "furnace:f2:c8f1a60d", // slot 6: day 13, 4-1
+  "furnace:f1:9c45b444", // slot 7: day 13, 4-1
+  "furnace:f3:449ac9f5", // slot 8: day 14, 5-7
+  "furnace:f2:eae4c8c9", // slot 9: day 15, 8-6
+  "furnace:f6:fcb98d73", // slot 10: day 15, 8-6
+  "furnace:f3:26e52ddd", // slot 11: day 16, 8-6
+  "furnace:f6:3aa29645", // slot 12: day 16, 8-6
+  "bastion:f3:9f3e4fc6", // slot 13: day 11, 4-1
+];
+
+/** BUMP-1H: how the streak and depth picks are rebuilt; every stale message names it. */
+export const CURVE_REBUILD = "BB_CURVE_RULE=1 BB_CURVE_OUT=<rows.json> npx vitest run tests/curve.picks.test.ts -t \"the rule\" (CURVE on, in SOFT1_PICKS' world, with the SOFT-1 rows of the same run named by BB_SOFT1_PICKS_FILE), paste the printed rows into STREAK_PICKS and DEPTH_PICKS (tools/samplePool.ts), then npm run gen:ghosts";
+
+/** BUMP-1H: the environment variable that names the scratch rows of the streak and depth picks (see CURVE_REBUILD). */
+export const CURVE_PICKS_FILE_ENV = "BB_CURVE_PICKS_FILE";
+
+/** BUMP-1H: scratch rows of the streak and depth picks: JSON { world: SOFT1_WORLD, streak: { <hero>: { "<day>": pick } }, depth: { "<slot index>": "<hero>:<pick>" } },
+ *  as tests/curve.picks.test.ts (BB_CURVE_RULE=1) writes them. */
+export interface CurveRows { streak: Record<string, Record<string, string>>; depth: Record<string, string> }
+
+const CURVE_ROWS_MEMO = new Map<string, CurveRows>();
+
+/** BUMP-1H: the scratch rows named by BB_CURVE_PICKS_FILE (one path, or several joined by ",": their rows are merged), or null when it is unset. A file of
+ *  another world than SOFT1_WORLD is stale and throws with the rebuild command. */
+export function curvePickRows(): CurveRows | null {
+  const spec = process.env[CURVE_PICKS_FILE_ENV];
+  if (!spec) return null;
+  let rows = CURVE_ROWS_MEMO.get(spec);
+  if (!rows) {
+    rows = { streak: {}, depth: {} };
+    for (const file of spec.split(",").filter(Boolean)) {
+      const j = JSON.parse(readFileSync(file, "utf8")) as Partial<CurveRows> & { world?: string };
+      if (j.world !== SOFT1_WORLD) throw new Error(`CURVE: ${CURVE_PICKS_FILE_ENV} ${file} is not a curve-rows file of world ${SOFT1_WORLD} (world ${String(j.world)}). Re-run the rule: ${CURVE_REBUILD}`);
+      for (const [hero, byDay] of Object.entries(j.streak ?? {})) rows.streak[hero] = { ...(rows.streak[hero] ?? {}), ...byDay };
+      Object.assign(rows.depth, j.depth ?? {});
+    }
+    CURVE_ROWS_MEMO.set(spec, rows);
+  }
+  return rows;
+}
+
+/** BUMP-1H: the environment variable that names a scratch list of depth slots, "day:wins:lost,day:wins:lost,..." (a dry pool's; DEPTH_SLOTS is the committed list). */
+export const CURVE_DEPTH_SLOTS_ENV = "BB_CURVE_DEPTH_SLOTS";
+
+/** BUMP-1H: the depth slots in force: BB_CURVE_DEPTH_SLOTS' list when it is set (a dry pool of P3's screen), else DEPTH_SLOTS. The slot index in the pool is the index here. */
+export function depthSlots(): readonly (readonly [number, number, number])[] {
+  const spec = process.env[CURVE_DEPTH_SLOTS_ENV];
+  if (spec === undefined) return DEPTH_SLOTS;
+  return spec.split(",").filter(Boolean).map((s) => {
+    const p = s.split(":").map(Number);
+    if (p.length !== 3 || p.some((x) => !Number.isInteger(x) || x < 0)) throw new Error(`CURVE: ${CURVE_DEPTH_SLOTS_ENV} entry "${s}" is not day:wins:lost`);
+    return [p[0], p[1], p[2]] as const;
+  });
+}
+
+/** BUMP-1H: do the streak and depth tables (or scratch rows) exist? If not, a CURVE-on pool holds no new ghost (see above). */
+const curveDealt = (): boolean => Object.keys(STREAK_PICKS).length > 0 || DEPTH_PICKS.length > 0 || curvePickRows() !== null;
+
+/** BUMP-1H: is the streak tier dealt? Only when its table (or scratch rows) holds picks: a pool of P3's V0 (slot 1 and the depth ghosts, no streak tier) names no streak pick. Once any
+ *  pick exists every (hero, day) of the tier needs one (curveGhosts throws on a gap). */
+const streakDealt = (rows: CurveRows | null): boolean => Object.keys(STREAK_PICKS).length > 0 || (rows !== null && Object.keys(rows.streak).length > 0);
+
+/** BUMP-1H: the streak ghost's [wins, dusks lost] on `day`: STREAK_RECORDS' row, else the provisional default (P3 replaces it with the records par
+ *  often holds): one loss for every six dusks fought (days 2-6 undefeated, 7-12 one loss, 13-16 two), wins capped at WIN_GOAL - 1 (a run ghost is a
+ *  dusk before its 10th win), the rest lost. Draws are none. */
+export function streakRecord(day: number): readonly [number, number] {
+  const row = STREAK_RECORDS[day];
+  if (row) return row;
+  const wins = Math.min(WIN_GOAL - 1, day - 1 - Math.floor((day - 1) / 6));
+  return [wins, day - 1 - wins];
+}
+
+/** BUMP-1H: the pool's ghost count before the new slots (4 heroes x 3 slots x poolDepth()), and the new slots' indexes in generateSamplePool()'s order
+ *  (the grade's battle seeds read the index): the streak ghosts hero by hero and day by day, then the depth ghosts in DEPTH_SLOTS' order. */
+const curveBase = (): number => (STAND_IN_HEROES.length + RACE_SEED_HEROES.length) * (SAMPLE_VARIANTS + 1) * poolDepth();
+const streakLast = (): number => Math.min(poolDepth(), STREAK_LAST_DAY);
+const streakDays = (): number => Math.max(0, streakLast() - STREAK_FIRST_DAY + 1);
+export const streakSlot = (hero: HeroId, day: number): number => curveBase() + PLAYABLE_HEROES.indexOf(hero) * streakDays() + (day - STREAK_FIRST_DAY);
+export const depthSlot = (i: number): number => curveBase() + PLAYABLE_HEROES.length * streakDays() + i;
+
+/**
+ * BUMP-1H: could this candidate travel as a seed ghost of (hero, day)? The checks seedGhost runs on a deck (the shop's strict rules, the player mode, a record a
+ * run can carry) with the day's floor record, a record every day has. Found at P3 (V0's first dry pool): a casual-graded slot 1 can land on a par-field deck
+ * the par player's run left invalid (furnace day 15's seed-7 deck: "route 0 does not end on a free turret connector (disconnected)"), which no earlier rule
+ * picked by luck of its target; the curve's rules (softDecks with CURVE on, the streak and the depth rules) pick only candidates that pass this.
+ */
+export function seedable(hero: HeroId, day: number, c: SoftDeck): boolean {
+  try {
+    seedGhost(hero, day, 0, c.build, floorRecord(day), 0, c.seed !== undefined ? (parRunSeed(hero, c.seed) >>> 0) || undefined : undefined, roadOf(c.road), floorLosses(day));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** BUMP-1H: (hero, day)'s par-field dusk decks (the par player's decks of seeds 1..PAR_K), distinct, in field order, with their runs' seeds and road logs. */
+export function parFieldCandidates(hero: HeroId, day: number, botRunes?: boolean): SoftDeck[] {
+  const out: SoftDeck[] = [];
+  const seen = new Set<string>();
+  const d = Math.max(1, Math.min(poolDepth(), Math.floor(day)));
+  for (const seed of parSeeds(PAR_K)) {
+    const days = playerRun(hero, d, seed, botRunes !== undefined ? { botRunes } : {});
+    const build = days[d - 1].build, k = encodeStarred(build);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push({ build, seed, ...(npcDayRules() ? { road: playerRoadLog(days, d) } : {}) });
+  }
+  return out;
+}
+
+/** BUMP-1H THE STREAK RULE (offline: tests/curve.picks.test.ts): (hero, day)'s streak deck: the par-field dusk deck that is not one of the hero's variant 0
+ *  and 1 decks of the day whose par grade at its slot (streakSlot) is nearest STREAK_TARGET; ties go to the lower grade, then the earlier deck. */
+export function streakDeckByRule(hero: HeroId, day: number, botRunes?: boolean): { deck: SoftDeck; grade: number } {
+  const taken = floorTaken(hero, botRunes)(day), gi = streakSlot(hero, day);
+  let best: SoftDeck | undefined, bg = 0;
+  for (const c of parFieldCandidates(hero, day, botRunes)) {
+    if (taken.has(encodeStarred(c.build)) || !seedable(hero, day, c)) continue;
+    const g = gradeOne(c.build, day, gi, GRADE_K, GRADE_SEEDS);
+    const dg = Math.abs(g - STREAK_TARGET), db = Math.abs(bg - STREAK_TARGET);
+    if (best === undefined || dg < db || (dg === db && g < bg)) { best = c; bg = g; }
+  }
+  if (!best) throw new Error(`CURVE: ${hero} day ${day} has no par-field deck outside its variant 0 and 1`);
+  return { deck: best, grade: bg };
+}
+
+/** BUMP-1H THE DEPTH RULE (offline): depth slot `i`'s ghost: over every playable hero's candidates of the slot's day (softCandidates) that are not in `taken`
+ *  (the codes of the decks the pool already holds that day), the casual grade at its slot (depthSlot) nearest CASUAL_TARGET; ties go to the lower grade, then
+ *  the earlier hero and deck. */
+export function depthDeckByRule(i: number, taken: ReadonlySet<string>, botRunes?: boolean): { hero: HeroId; deck: SoftDeck; grade: number } {
+  const [day] = depthSlots()[i], gi = depthSlot(i);
+  let best: { hero: HeroId; deck: SoftDeck; grade: number } | undefined;
+  for (const hero of PLAYABLE_HEROES) {
+    for (const c of softCandidates(hero, day, botRunes)) {
+      if (taken.has(encodeStarred(c.build)) || !seedable(hero, day, c)) continue;
+      const g = gradeCasualOne(c.build, day, gi, GRADE_K, GRADE_SEEDS);
+      const dg = Math.abs(g - CASUAL_TARGET), db = best ? Math.abs(best.grade - CASUAL_TARGET) : 0;
+      if (best === undefined || dg < db || (dg === db && g < best.grade)) best = { hero, deck: c, grade: g };
+    }
+  }
+  if (!best) throw new Error(`CURVE: depth slot ${i} (day ${day}) has no candidate outside the pool's decks`);
+  return best;
+}
+
+/** BUMP-1H: the streak ghosts (STREAK_VARIANT), then the depth ghosts (DEPTH_VARIANT), from the tables or the scratch rows; `first` is the index of the
+ *  first of them in the pool (createdAt order). [] while the tables are empty and no rows are named. A missing or stale pick throws with CURVE_REBUILD. */
+export function curveGhosts(first: number, o: { botRunes?: boolean } = {}): GhostSnapshot[] {
+  if (!curveDealt()) return [];
+  const rows = curvePickRows();
+  const out: GhostSnapshot[] = [];
+  const seedOf =(deck: SoftDeck, hero: HeroId): number | undefined => (deck.seed !== undefined ? (parRunSeed(hero, deck.seed) >>> 0) || undefined : undefined);
+  for (const hero of streakDealt(rows) ? PLAYABLE_HEROES : []) {
+    for (let day = STREAK_FIRST_DAY; day <= streakLast(); day++) {
+      const pick = rows?.streak[hero]?.[String(day)] ?? STREAK_PICKS[hero]?.[day - STREAK_FIRST_DAY];
+      if (pick === undefined) throw new Error(`CURVE: no streak pick for ${hero} day ${day}. Re-run the rule: ${CURVE_REBUILD}`);
+      const deck = softDeckOf(hero, day, pick, o.botRunes);
+      if (floorTaken(hero, o.botRunes)(day).has(encodeStarred(deck.build))) throw new Error(`CURVE: stale: the streak pick ${pick} for ${hero} day ${day} is one of the hero's variant 0 or 1 decks (SOFT1_PICKS moved). Re-run the rule: ${CURVE_REBUILD}`);
+      const [wins, lost] = streakRecord(day), rec = drawnLabel(day, wins, lost);
+      out.push(seedGhost(hero, day, STREAK_VARIANT, deck.build, rec, EPOCH + (first + out.length) * 1000, seedOf(deck, hero), roadOf(deck.road), statedLosses(day, rec, lost)));
+    }
+  }
+  depthSlots().forEach(([day, wins, lost], i) => {
+    const pick = rows?.depth[String(i)] ?? DEPTH_PICKS[i];
+    const m = pick === undefined ? null : /^([a-z]+):(.+)$/.exec(pick);
+    if (!m || !PLAYABLE_HEROES.includes(m[1] as HeroId)) throw new Error(`CURVE: no depth pick for slot ${i} (day ${day}). Re-run the rule: ${CURVE_REBUILD}`);
+    const hero = m[1] as HeroId;
+    const deck = softDeckOf(hero, day, m[2], o.botRunes);
+    const rec = drawnLabel(day, wins, lost);
+    out.push(seedGhost(hero, day, DEPTH_VARIANT, deck.build, rec, EPOCH + (first + out.length) * 1000, seedOf(deck, hero), roadOf(deck.road), statedLosses(day, rec, lost)));
+  });
+  return out;
+}
+
+/** The seed pool: the 40 sample ghosts, the 20 floor ghosts (FURNACE and WEAVER), then the 60 race ghosts (FOUNDRY and
+ *  BASTION, 0.8.0 RC). Throws if a reachable state is not covered. RUNES-2a: o.botRunes (absent: runes.ts BOT_RUNES,
+ *  off) reaches the race decks' par player (raceDeck); the stand-in heroes' decks come from the bundled stand-in pool.
+ *  LOSS-1 P2: with NPC_DAY on, o.botRunes reaches the casual floor runs too (every hero's floor ghost). */
+export function generateSamplePool(o: { botRunes?: boolean } = {}): GhostSnapshot[] {
+  // BUMP-1H (REQ-BFG-124): the 192 (days 1-16) ghosts are baseSamplePool's, exactly the three lines this function began with; with CURVE on the streak
+  // tier and the depth ghosts follow them (curveGhosts: none while their tables are empty and no scratch rows are named); CURVE off: pool === base
+  const base = baseSamplePool(o);
+  const pool = curveRules() ? [...base, ...curveGhosts(base.length, o)] : base;
   const gaps = uncoveredStates(pool);
   if (gaps.length) {
     throw new Error(`the seed pool leaves ${gaps.length} reachable states with fewer than ${MIN_ELIGIBLE} eligible ghosts: `
@@ -916,7 +1194,7 @@ export function gradeSamplePool(pool: readonly GhostSnapshot[], k: number = GRAD
 const GRADE_MEMO = new Map<string, number[]>();
 
 function gradeMemoKey(pool: readonly GhostSnapshot[], k: number, seeds: number): string {
-  return `${k}|${seeds}|${worldKey()}${longRunRules() ? "|long" : ""}|${pool.map((s) => ghostId(s)).join(",")}`; // RUN-1 T8: "|long" only under the long run (off: the key as before)
+  return `${k}|${seeds}|${worldKey()}${longRunRules() ? "|long" : ""}${curveRules() ? "|curve" : ""}|${pool.map((s) => ghostId(s)).join(",")}`; // RUN-1 T8: "|long" only under the long run (off: the key as before); BUMP-1H: "|curve" only with CURVE on
 }
 
 /** The grade memo's world (gradeMemoKey's, unchanged): every switch the grades read. SOFT-1 C2: softDecks' memo reads it too. */
@@ -944,6 +1222,26 @@ export function gradeOne(build: Build, day: number, gi: number, k: number = GRAD
   for (const h of GRADE_HEROES) {
     parField(h, day, k).forEach((b, m) => {
       const job: Job = { a: 0, b: 1, seeds: Array.from({ length: seeds }, (_, x) => hashSeed("rt1-grade", day, gi, h, m, x)), day };
+      pts += playJob([build, b], job) / (2 * seeds);
+      n++;
+    });
+  }
+  return Math.round((pts / n) * GRADE_MAX);
+}
+
+/**
+ * BUMP-1H (REQ-BFG-124, H1 (b)): THE CASUAL GRADE. gradeOne's twin against the CASUAL field instead of the par field: the deck's win rate
+ * (a draw half), in permille, against the first `k` members of each of the four heroes' casual fields of `day` (casual.ts casualField: c5's own
+ * dusk decks of seeds 1..PAR_K, built the way parField builds par's, memoised in the player cache under the same world), `seeds` seeds from both
+ * sides, on its own seed stream ("bb1h-cgrade") at the slot `gi` the ghost will hold. The walls sat at the par target yet crushed c5 because
+ * the par grade says nothing about how a deck fares against the decks c5 builds: this grade does. It is a pick-time number only: the snapshot's
+ * `grade` stays the PAR grade (gradeOne), so the schema, the ghost id and the pick's ranking are unchanged and an upload still never carries one.
+ */
+export function gradeCasualOne(build: Build, day: number, gi: number, k: number = GRADE_K, seeds: number = GRADE_SEEDS): number {
+  let pts = 0, n = 0;
+  for (const h of GRADE_HEROES) {
+    casualField(h, day, k).forEach((b, m) => {
+      const job: Job = { a: 0, b: 1, seeds: Array.from({ length: seeds }, (_, x) => hashSeed("bb1h-cgrade", day, gi, h, m, x)), day };
       pts += playJob([build, b], job) / (2 * seeds);
       n++;
     });

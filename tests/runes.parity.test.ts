@@ -84,7 +84,9 @@ function asRow(got: ReturnType<typeof fight>, plan: Pick<Row, "kind" | "a" | "b"
 const RECORD_DAYS = 10;
 function decksNow(standInRun: number): Record<string, Build> {
   const out: Record<string, Build> = {};
-  for (const s of generateSamplePool()) if (s.day <= RECORD_DAYS) out[`${s.hero}-v${s.playerId.slice(-1)}-d${s.day}`] = s.build; // BUMP-1D: was every ghost (120)
+  // BUMP-1H (P6): and the plan's 12 ghosts a day only (variants 0-2): the CURVE's streak ghosts (variant 3, days 7-12) and depth ghosts (variant 4) are in the pool (230 ghosts) but not in the record, whose battle plan (kinds, pairs, seeds) was never
+  // extended to them, as it never was to days 11-16 (above); rc.seedpool pins the CURVE's 38 by digest and the other pool readers hold their replay. Was: every ghost of days 1-10
+  for (const s of generateSamplePool()) if (s.day <= RECORD_DAYS && Number(s.playerId.slice(-1)) <= 2) out[`${s.hero}-v${s.playerId.slice(-1)}-d${s.day}`] = s.build; // BUMP-1D: was every ghost (120)
   for (let day = 1; day <= RECORD_DAYS; day++) {
     const id = standInGhost(standInRun, day);
     out[`standin-${id}-d${day}`] = standInBuild(id, day);
@@ -131,7 +133,11 @@ if (process.env.BB_RUNES_PARITY_WRITE) {
       // BUMP-1G (run 4, P6): re-written under bb-0.14.0, the effect-floor release's pools (R1 the stand-in pool a5fb26be, R2 the SOFT-1 and FLOOR picks d48e7efe, R3 the seed pool 336dddec; EFFECT_FLOOR, B1-B3, RATCHET's
       // BRACED and GRIMHOLD's day-6 anvil in; GATES, ENCHANT and the rest on); the battle plan (kinds, pairs, seeds) as BUMP-1F left it. Why every row had to be re-recorded: the record's decks are the bb-0.13.0 pools'
       // (the pools were regenerated: R1-R3). Was "BUMP-1F (run 6): the parity record re-written under bb-0.13.0, the gates-and-enchantments release's pools (...)"
-      about: "BUMP-1G (run 4): the parity record re-written under bb-0.14.0, the effect-floor release's pools (the seed pool's days 1-10 of its 16 and the dusk stand-ins of days 1-10); the battle plan (kinds, pairs, seeds) as BUMP-1F left it",
+      // BUMP-1H (run 4, P6): re-written under bb-0.15.0, the difficulty-curve release's pools (R1 the stand-in pool 0859e473 (its 192 decks equal bb-0.14.0's), R2 the SOFT-1 picks 4cd2ca08 (slot 1 casual-graded), R3 the seed pool bcfc5595 (230 ghosts: the record holds the 192's
+      // days 1-10); H2's Easy day-5 words and H3's two trimmed warlord decks move the dusk stand-ins); the battle plan (kinds, pairs, seeds) as BUMP-1G left it. Why the record had to be re-written: the SIM moved no row (at bcfc5595 the old record's 360 battles replayed exactly as recorded on its own old decks,
+      // the battles test below passed), the DECKS moved (the pools were regenerated: R1-R3, and H2 and H3 change the dusk stand-ins), so the decks test was red and the rows follow the new decks:
+      // 32 of the 130 decks moved (30 slot-1 ghosts, whose picks are casual-graded now, and 2 dusk stand-ins), 158 of the 360 rows moved (42 winners), and the 202 rows between two decks that did not move replay exactly as before (kit-1h/rp-cmp.mjs). Was "BUMP-1G (run 4): the parity record re-written under bb-0.14.0, the effect-floor release's pools (...)"
+      about: "BUMP-1H (run 4): the parity record re-written under bb-0.15.0, the difficulty-curve release's pools (the seed pool's days 1-10 of its 16, variants 0-2, and the dusk stand-ins of days 1-10); the battle plan (kinds, pairs, seeds) as BUMP-1G left it",
       base: process.env.BB_RUNES_PARITY_WRITE, rules: RULES_VERSION, salt: old.salt, standInRun: old.standInRun,
       decksCount: Object.keys(decks).length, battlesCount: battles.length, decks, battles,
     };
@@ -143,7 +149,7 @@ describe("release X parity: the record and its decks", () => {
   it("was written on flipx2 under this build's rules, the rules its pools were generated under (POOL_RULES; nothing carried)", () => {
     const F = JSON.parse(readFileSync(X_PATH, "utf8")) as Fixture;
     expect(F.rules).toBe(RULES_VERSION);
-    expect(RULES_VERSION).toBe("bb-0.14.0"); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F: the bump (was bb-0.12.0; the fixture is re-written under it). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the 10-wins release (was bb-0.10.0; the fixture re-written under it). AZ-BUMP: the bump (was bb-0.9.7; the fixture is re-written under it at S8's regeneration). Z-BUMP: the bump and the fixture re-written under it (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
+    expect(RULES_VERSION).toBe("bb-0.15.0"); // BUMP-1H (label bb-0.14.0 -> bb-0.15.0, RULES_VERSION): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F: the bump (was bb-0.12.0; the fixture is re-written under it). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the 10-wins release (was bb-0.10.0; the fixture re-written under it). AZ-BUMP: the bump (was bb-0.9.7; the fixture is re-written under it at S8's regeneration). Z-BUMP: the bump and the fixture re-written under it (was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
     expect(POOL_RULES_CARRIED).toEqual({});
     expect(POOL_RULES).toBe(F.rules);
     expect([Object.keys(F.decks).length, F.battles.length]).toEqual([F.decksCount, F.battlesCount]);

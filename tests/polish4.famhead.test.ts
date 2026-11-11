@@ -24,6 +24,8 @@ installRaster();
 afterEach(() => setEnchant(ENCHANT));
 
 /** the faces with a two-row title and families, and how many carry a head: [own A, own B, foe A, foe B] each [with a head, of]; the scout's table (POLISH-4 SCOUT section 2) with P4-2 in (the 3040x1710 rigs) */
+// BUMP-1H (RULING-BUMP1H-R6 R6.4, the merge with 0.9.15.1): 851x393@2.75 corpus A own [54, 64] -> [62, 72] and foe [50, 64] -> [58, 72]: eight more faces with a two-row title and a family, every one of them carries its head. The cause is H2 (src/sim/npcWords.ts:
+// the four Easy captains' day-5 words are BRACED now, were RISING / FIERY; H3 does not move this file). With npcWords.ts alone put back to bump1h-base this file passes at 0.9.15.1's table (kit-1h/revert6m.sh: 22 of 22).
 const HEADS: Record<View13, [number, number][]> = {
   "desk-1920x1080": [[72, 92], [883, 883], [50, 92], [641, 883]],
   "laptop-1366x768": [[0, 0], [8, 8], [0, 0], [8, 8]],
@@ -33,7 +35,7 @@ const HEADS: Record<View13, [number, number][]> = {
   "phone-360x640": [[0, 0], [0, 0], [0, 0], [0, 0]],
   "col96-3040x1710": [[102, 102], [1111, 1111], [102, 102], [1111, 1111]],
   "land-812x375@3": [[0, 0], [58, 58], [0, 0], [50, 58]],
-  "pixel5-851x393@2.75": [[54, 64], [629, 629], [50, 64], [508, 629]],
+  "pixel5-851x393@2.75": [[62, 72], [629, 629], [58, 72], [508, 629]],
   "land-915x412@2.625": [[4, 4], [107, 107], [0, 4], [90, 107]],
   "promax-926x428@3": [[12, 12], [214, 214], [0, 12], [185, 214]],
   "band-280x653": [[0, 0], [0, 0], [0, 0], [0, 0]],
@@ -152,7 +154,7 @@ const SAMPLES = (): Sample[] => (samples ??= [
 describe("POLISH-4 P4-1: the head touches nothing", () => {
   it("every sampled headed face (1920x1080, 3040x1710, 851x393@2.75, 844x390; own and foe): the head's painted pixels keep one clear pixel from the icon box, both title rows, every sub row, the body and the frame", () => {
     const s = SAMPLES();
-    expect(s.length, "faces sampled").toBe(912);
+    expect(s.length, "faces sampled").toBe(928); // BUMP-1H (RULING-BUMP1H-R6 R6.4): was 912; H2's eight more headed corpus-A faces at 851x393@2.75, own and foe (see HEADS)
     const bad: string[] = [];
     for (const { f, name, foe, plan } of s) {
       const hit = meets(pieces(f.t, plan), plan);

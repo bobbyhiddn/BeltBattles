@@ -149,5 +149,5 @@ describe("POLISH-2 Q4 (a): the ⓘ view's page count has a guard (the layout is 
       expect(pages.size, view).toBeGreaterThan(3000);
       expect([...pages].filter(([, n]) => n > 3).map(([k]) => k), view).toEqual([]);
     }
-  });
+  }, 120_000); // RIDE T1 (STAGE-0916, the hull lane's call): 120 s (was the 30-s default): STAGE-09151 read 13.4 s alone and 30.1 s, the default limit, at load 42: a host timeout, not the rule
 });

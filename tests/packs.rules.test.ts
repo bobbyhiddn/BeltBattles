@@ -1,7 +1,7 @@
 // bb-0.8.6 (job PACKS, REQ-BFG-051 P3 and P8): the rules release and the packs' validation on both stores (JSON lines, and
 // Tigris through tools/fakeS3.ts), uploads open in-process, the store seeded as a deploy seeds it (modelled on
 // tests/belts.rules.test.ts):
-//  - the gate: RULES_VERSION is bb-0.8.7 since RUNES-1 (bb-0.8.6 before; the label is 0.9.15.1); /v1/health names it;
+//  - the gate: RULES_VERSION is bb-0.8.7 since RUNES-1 (bb-0.8.6 before; the label is 0.9.16); /v1/health names it;
 //    an honest deck under bb-0.8.3 (the rules 0.8.5 ships) is refused (422) and nothing is stored under it; every near
 //    miss of bb-0.8.6 (and since RUNES-1 bb-0.8.6 itself) is refused (422 at the exact rules check, 400 where the
 //    decoder's pattern refuses it);
@@ -33,7 +33,7 @@ const HEROES4: HeroId[] = ["furnace", "weaver", "foundry", "bastion"];
  *  server's rules now): bb-0.8.6 itself in bb-0.8.7's place. */
 const NEAR = [OLD_RULES, "bb-0.8.5", "bb-0.8.6", "bb-0.8.6x", "BB-0.8.6", " bb-0.8.6", "bb-0.8.6 ", "bb-0.8.06", "bb-0.8.60", "bb-0.8.6.0", "bb-0.8", "bb_0.8.6"];
 const PATTERN_OK = (r: string) => /^[A-Za-z0-9._-]{1,32}$/.test(r); // src/net/snapshot.ts RULES_PATTERN
-const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.14.0`; // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the server's rules message): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the server names bb-0.13.0 (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the server names bb-0.11.0 (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
+const refused = (rules: string) => `rules ${rules} not accepted: this server validates bb-0.15.0`; // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the server's message): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the server's rules message): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the server names bb-0.13.0 (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the server names bb-0.11.0 (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7)
 
 /** A dusk snapshot on a record a run carries into it: every fight won, all its lives (5, or HEARTS_START hearts). */
 function dusk(hero: HeroId, day: number, build: Build, rules = RULES_VERSION, runId = `packs-${hero}-${day}`): GhostSnapshot {
@@ -72,9 +72,9 @@ function packed(hero: HeroId, armors: number, belts = 0): Build {
 }
 
 describe("rules bb-0.8.7: the version", () => {
-  it("RULES_VERSION is bb-0.8.7 (RUNES-1; PACKS's bb-0.8.6 before); the label is 0.9.15.1 since the Prime staged it (the 0.9.15.1 label commit; 0.9.15 before)", () => {
-    expect(RULES_VERSION).toBe("bb-0.14.0") /* BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
-    expect(VERSION).toBe("0.9.15.1");
+  it("RULES_VERSION is bb-0.8.7 (RUNES-1; PACKS's bb-0.8.6 before); the label is 0.9.16 since the Prime staged it (the 0.9.16 label commit; 0.9.15.1 before)", () => {
+    expect(RULES_VERSION).toBe("bb-0.15.0") /* BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(VERSION).toBe("0.9.16");
   });
 });
 
@@ -106,7 +106,7 @@ describe.each(storeBackends())("rules bb-0.8.7 and the packs on the $name store 
   const fresh = (s: GhostSnapshot): GhostSnapshot => ({ ...s, runId: `${s.runId}-${k++}` });
 
   it("/v1/health names bb-0.8.7; an honest deck under bb-0.8.3 (0.8.5's rules) and every near miss of bb-0.8.6 (bb-0.8.6 itself too) is refused, and nothing is stored", async () => {
-    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.14.0") /* BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the served rules): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
+    expect(((await (await fetch(`${base}/v1/health`)).json()) as { rules: string }).rules).toBe("bb-0.15.0") /* BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the served rules): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */;
     const before = backend.storedRecords();
     const seen: Record<string, number> = {};
     for (const rules of NEAR) {

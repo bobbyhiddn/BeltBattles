@@ -51,7 +51,7 @@ const NAMES = ["furnace-signed", "furnace-unsigned", "dishonest-signed", "unreac
 // BUMP-1F (RULING-BUMP1F-R13 R13.3): the check lines are the plan's twenty and the fourth endless check, the GET endless-match (runProbe sends it after the POSTs); the plan and the server's POST log hold NAMES and STATUSES
 const CHECKS = [...NAMES, "endless-match"];
 const STATUSES = ["201", "401", "422", "422", "201", "201", "201", "400", "400", "201", "422", "201", "422", "201", "422", "201", "201", "201", "400", "422"]; // BUMP-1F (RULING-BUMP1F-R13 R13.3: the endless rows' 201, 400 and 422; the match is a GET, no POST): was seventeen. BUMP-1F (the 17th row's 201; was sixteen). BUMP-1E: the bump (the scale row's 201; was fifteen). BUMP-1D: the bump (the long run's 201 and 422; was thirteen). AZ-BUMP: the bump (the NPC day's 201 and 422; was eleven). Z-BUMP: the flip (was nine, without the last 201 and 422)
-const ACCEPTS = "rules bb-0.14.0 accept only FURNACE, WEAVER, FOUNDRY, BASTION"; // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, PROBE_RULES): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1)
+const ACCEPTS = "rules bb-0.15.0 accept only FURNACE, WEAVER, FOUNDRY, BASTION"; // BUMP-1H (label bb-0.14.0 -> bb-0.15.0, PROBE_RULES): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, PROBE_RULES): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1)
 const KINDS = ["jsonl", "tigris"] as const;
 
 interface Held {
@@ -125,7 +125,7 @@ describe.each(KINDS)("the uploads step's probe (ghost-probe.mjs), %s store", (ki
     expect(id).toMatch(/^[A-Za-z0-9_-]{43}\n$/); // a device key's player id, one line
     const player = id.trim();
     // the output: a header, one line per check (name, expected, got), the player id, then the summary with the stored count
-    expect(lines[0]).toBe(`probe: POST ${base}/v1/ghosts as a fresh device (rules bb-0.14.0); only the FURNACE, WEAVER, FOUNDRY and BASTION decks may be stored`); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, PROBE_RULES): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0)
+    expect(lines[0]).toBe(`probe: POST ${base}/v1/ghosts as a fresh device (rules bb-0.15.0); only the FURNACE, WEAVER, FOUNDRY and BASTION decks may be stored`); // BUMP-1H (label bb-0.14.0 -> bb-0.15.0, PROBE_RULES): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, PROBE_RULES): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0)
     const checks = checkLines(lines);
     expect(checks.map((l) => l.split(/\s+/)[1])).toEqual(CHECKS); // BUMP-1F (RULING-BUMP1F-R13 R13.3): was NAMES, the plan's rows (the endless match is the twenty-first check)
     for (const l of checks) expect(l).toMatch(/^PASS {2}\S+ +expected: \d{3} .+ \| got: \d{3} .+$/);
@@ -180,7 +180,7 @@ describe.each(KINDS)("the uploads step's probe (ghost-probe.mjs), %s store", (ki
     expect(printed).toHaveLength(10); // BUMP-1F (RULING-BUMP1F-R13 R13.3): was 9 (the match line says 200, not 201: no deck). BUMP-1F (the 17th row): was 8. BUMP-1E: the bump (was 7). BUMP-1D: the bump (was 6). AZ-BUMP: the bump (was 5). Z-BUMP: the flip (was 4)
     expect(recs.map((r) => r.id).sort()).toEqual([...printed].sort());
     expect(recs.map((r) => `${r.snapshot.hero} d${r.snapshot.day} ${r.snapshot.wins}W ${r.snapshot.lives}L ${r.snapshot.rules}`).sort())
-      .toEqual(["bastion d3 1W 10L bb-0.14.0", "foundry d3 1W 10L bb-0.14.0", "furnace d1 0W 10L bb-0.14.0", "furnace d1 0W 10L bb-0.14.0", "furnace d12 9W 10L bb-0.14.0", "furnace d14 10W 3L bb-0.14.0", "furnace d3 1W 10L bb-0.14.0", "furnace d7 0W 1L bb-0.14.0", "weaver d2 1W 10L bb-0.14.0", "weaver d3 1W 10L bb-0.14.0"]); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0. BUMP-1F (RULING-BUMP1F-R13 R13.3: the endless row's "furnace d14 10W 3L", the 10 wins of the won run and the endless run's 3 hearts): was nine records. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, PROBE_RULES; and the 17th row's "furnace d3 1W 10L", the gates deck): was eight records, all bb-0.12.0. BUMP-1E: the bump (bb-0.12.0, was bb-0.11.0; and the scale row's second "furnace d1 0W 10L"). BUMP-1D: the bump (bb-0.11.0, was bb-0.10.0; and the long run's "furnace d12 9W 10L"). HULL-ON (the flip, HEARTS; ruling 12a42239093fb6ec): the rows' lives by heartsFor(PROBE_RULES): the start's 10 hearts, and the LAST CHANCE row at dusk 7 (was 5L each, and "furnace d6 0W 2L"). AZ-BUMP: the bump (was bb-0.9.7, without the NPC day's "weaver d2 1W 5L"). Z-BUMP: the bump (was bb-0.9.3) // Y7b2: the bump (was bb-0.9.1). Z-BUMP: the flip (was without "furnace d6 0W 2L")
+      .toEqual(["bastion d3 1W 10L bb-0.15.0", "foundry d3 1W 10L bb-0.15.0", "furnace d1 0W 10L bb-0.15.0", "furnace d1 0W 10L bb-0.15.0", "furnace d12 9W 10L bb-0.15.0", "furnace d14 10W 3L bb-0.15.0", "furnace d3 1W 10L bb-0.15.0", "furnace d7 0W 1L bb-0.15.0", "weaver d2 1W 10L bb-0.15.0", "weaver d3 1W 10L bb-0.15.0"]); // BUMP-1H (label bb-0.14.0 -> bb-0.15.0, PROBE_RULES): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0. BUMP-1F (RULING-BUMP1F-R13 R13.3: the endless row's "furnace d14 10W 3L", the 10 wins of the won run and the endless run's 3 hearts): was nine records. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, PROBE_RULES; and the 17th row's "furnace d3 1W 10L", the gates deck): was eight records, all bb-0.12.0. BUMP-1E: the bump (bb-0.12.0, was bb-0.11.0; and the scale row's second "furnace d1 0W 10L"). BUMP-1D: the bump (bb-0.11.0, was bb-0.10.0; and the long run's "furnace d12 9W 10L"). HULL-ON (the flip, HEARTS; ruling 12a42239093fb6ec): the rows' lives by heartsFor(PROBE_RULES): the start's 10 hearts, and the LAST CHANCE row at dusk 7 (was 5L each, and "furnace d6 0W 2L"). AZ-BUMP: the bump (was bb-0.9.7, without the NPC day's "weaver d2 1W 5L"). Z-BUMP: the bump (was bb-0.9.3) // Y7b2: the bump (was bb-0.9.1). Z-BUMP: the flip (was without "furnace d6 0W 2L")
     // BUMP-1D (RUN-1): every stored deck states its losses and the server keeps them: none lost but the LAST CHANCE deck's six (every dusk before 7)
     expect(recs.map((r) => `${r.snapshot.hero} d${r.snapshot.day} lost ${r.snapshot.losses}`).sort())
       .toEqual(["bastion d3 lost 0", "foundry d3 lost 0", "furnace d1 lost 0", "furnace d1 lost 0", "furnace d12 lost 0", "furnace d14 lost 0", "furnace d3 lost 0", "furnace d7 lost 6", "weaver d2 lost 0", "weaver d3 lost 0"]); // BUMP-1F (RULING-BUMP1F-R13 R13.3: the endless row's "furnace d14 lost 0", the won run's none lost; was nine). BUMP-1F (the 17th row's "furnace d3 lost 0"; was eight). BUMP-1E: the bump (the scale row's second "furnace d1 lost 0")
@@ -200,13 +200,13 @@ describe.each(KINDS)("the uploads step's probe (ghost-probe.mjs), %s store", (ki
     // run won on day 10, 3 endless wins and 3 hearts, with its seed and no road log. The two refused endless rows (400, 422) stored nothing, and the match stores nothing
     const endless = recs.filter((r) => r.snapshot.mode !== undefined);
     expect(endless.map((r) => r.id)).toEqual([honestId]);
-    expect(endless[0].snapshot).toMatchObject({ v: 3, rules: "bb-0.14.0", hero: "furnace", day: 14, wins: 10, lives: 3, losses: 0, mode: "endless", endlessWins: 3, endlessLives: 3, victoryDay: 10, seed: PROBE_SEED }); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0.
+    expect(endless[0].snapshot).toMatchObject({ v: 3, rules: "bb-0.15.0", hero: "furnace", day: 14, wins: 10, lives: 3, losses: 0, mode: "endless", endlessWins: 3, endlessLives: 3, victoryDay: 10, seed: PROBE_SEED }); // BUMP-1H (label bb-0.14.0 -> bb-0.15.0, PROBE_RULES): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0.
     expect(endless[0].snapshot.build.runes).toHaveLength(14); // one dawn rune a day, the endless days 11-14 too
     expect(endless[0].snapshot.road).toBeUndefined();
     for (const r of recs) {
       expect(r.snapshot.playerId).toBe(player);
       expect(ghostId(decodeSnapshot(JSON.stringify(r.snapshot)))).toBe(r.id);
-      if (kind === "tigris") expect(r.key).toBe(`ghosts/bb-0.14.0/d${String(r.snapshot.day).padStart(2, "0")}/player/${r.id}.json`); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, the object key's rules): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; the day-12 deck is under d12)
+      if (kind === "tigris") expect(r.key).toBe(`ghosts/bb-0.15.0/d${String(r.snapshot.day).padStart(2, "0")}/player/${r.id}.json`); // BUMP-1H (label bb-0.14.0 -> bb-0.15.0, PROBE_RULES): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, the object key's rules): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; the day-12 deck is under d12)
     }
     // no secret and no key material in the output: nothing longer than a player id that looks like base64url
     expect(lines.join("\n")).not.toMatch(/[A-Za-z0-9_-]{60,}/);
@@ -272,7 +272,7 @@ describe("the uploads step's probe: refusals and its decks", () => {
       const s = p.snapshot;
       // FLIP-X2 (cap's ruling 5d6d83ef57d1494c): every deck holds its `day` dawn runes (the bots' picks on PROBE_SEED), so
       // it travels as v3 with the seed under bb-0.9.0 (was { v: 2, rules: "bb-0.8.7" }, rune-less)
-      expect(s).toMatchObject({ v: 3, rules: "bb-0.14.0", playerId: "probe-plan-player", createdAt: 1_790_000_000_000, seed: PROBE_SEED }); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, PROBE_RULES): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0)
+      expect(s).toMatchObject({ v: 3, rules: "bb-0.15.0", playerId: "probe-plan-player", createdAt: 1_790_000_000_000, seed: PROBE_SEED }); // BUMP-1H (label bb-0.14.0 -> bb-0.15.0, PROBE_RULES): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, PROBE_RULES): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0)
       expect(s.build.runes?.length, p.name).toBe(s.day);
       expect(validateUpload(s.build, s.day, s.rules, { seed: s.seed }).errors.filter((e) => e.startsWith("rune: ")), p.name).toEqual([]);
       expect(validateBuild(s.build, s.day, "player").ok, p.name).toBe(p.name !== "dishonest-signed");
@@ -324,7 +324,7 @@ describe("the uploads step's probe: refusals and its decks", () => {
   // refuses the id as an unknown item, so the 201 proves the live server knows the twelve
   it("the scale row: the first row's honest deck plus one GRUDGE ROD on cell 5,3, signed, last; it states its losses (0), passes the upload check, and its text is the encoder's", () => {
     const plan = probePlan("probe-plan-player", 1_790_000_000_000);
-    const rules = "bb-0.14.0"; // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, PROBE_RULES): was bb-0.12.0
+    const rules = "bb-0.15.0"; // BUMP-1H (label bb-0.14.0 -> bb-0.15.0, PROBE_RULES): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, PROBE_RULES): was bb-0.12.0
     expect(probeHasScale()).toBe(true);
     expect(plan).toHaveLength(20); // BUMP-1F (RULING-BUMP1F-R13 R13.3: the three endless rows): was 17. BUMP-1F (the 17th row, gates-signed): was 16
     expect(plan.filter((p) => p.name === "scale-signed")).toHaveLength(1); // one scale row
@@ -370,7 +370,7 @@ describe("the uploads step's probe: refusals and its decks", () => {
   // the two forged records; and the two long-run rows are an honest day-12 deck and the same without `losses`
   it("the long run: every row states its losses, the record model takes them; day 12 is honest with them and refused without them, by RUN-1's upload check alone", () => {
     const plan = probePlan("probe-plan-player", 1_790_000_000_000);
-    const rules = "bb-0.14.0"; // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, PROBE_RULES): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0): the snapshot's own rules (toMatchObject below), and the long run holds from bb-0.11.0 on
+    const rules = "bb-0.15.0"; // BUMP-1H (label bb-0.14.0 -> bb-0.15.0, PROBE_RULES): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, PROBE_RULES): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0): the snapshot's own rules (toMatchObject below), and the long run holds from bb-0.11.0 on
     expect(probeHasLongRun()).toBe(true);
     // the dusks lost before each row's: none on the start rows (the hero rows' second dusk is a draw), all six on the LAST CHANCE rows
     // BUMP-1E: and none on the scale row (day 1: no dusk fought), which states them as every row but the forged one does
@@ -502,7 +502,7 @@ describe("the uploads step's probe: refusals and its decks", () => {
   it("the endless rows: FURNACE's day-14 deck as the endless dusk of a run won on day 10; the honest one passes every check, each other row is refused by one check alone, and its own pass takes only that answer", () => {
     const now = 1_790_000_000_000;
     const plan = probePlan("probe-plan-player", now);
-    const rules = "bb-0.14.0"; // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0.
+    const rules = "bb-0.15.0"; // BUMP-1H (label bb-0.14.0 -> bb-0.15.0, PROBE_RULES): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0.
     expect(probeHasEndless()).toBe(true);
     const [en, cap, nr] = plan.slice(-3);
     expect([en.name, cap.name, nr.name]).toEqual(["endless-honest", "endless-wins-cap", "endless-norecord"]);
@@ -580,8 +580,8 @@ describe("the uploads step's probe: refusals and its decks", () => {
   it("the endless match: an endless request of day 14 under the probe's rules from another player; its pass takes a 200 that serves an endless ghost and no other answer", () => {
     expect(ENDLESS_MATCH.name).toBe("endless-match");
     expect(ENDLESS_MATCH.expected).toBe("200 an endless ghost (snapshot.mode endless)");
-    expect(ENDLESS_MATCH.path).toBe("/v1/ghosts/match?rules=bb-0.14.0&runs=5&day=14&wins=2&lives=3&player=other-player&mode=endless"); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0.
-    expect(parseMatchQuery(new URLSearchParams(ENDLESS_MATCH.path.split("?")[1]))).toEqual({ rules: "bb-0.14.0", day: 14, wins: 2, lives: 3, playerId: "other-player", seen: [], runs: 5, endless: true }); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0.
+    expect(ENDLESS_MATCH.path).toBe("/v1/ghosts/match?rules=bb-0.15.0&runs=5&day=14&wins=2&lives=3&player=other-player&mode=endless"); // BUMP-1H (label bb-0.14.0 -> bb-0.15.0, PROBE_RULES): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0.
+    expect(parseMatchQuery(new URLSearchParams(ENDLESS_MATCH.path.split("?")[1]))).toEqual({ rules: "bb-0.15.0", day: 14, wins: 2, lives: 3, playerId: "other-player", seen: [], runs: 5, endless: true }); // BUMP-1H (label bb-0.14.0 -> bb-0.15.0, PROBE_RULES): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, PROBE_RULES): was bb-0.13.0.
     const served = (snapshot: unknown): string => JSON.stringify({ id: "g00000000000000", snapshot });
     expect(ENDLESS_MATCH.pass({ status: 200, id: "g00000000000000", text: served({ day: 14, mode: "endless", endlessWins: 3, endlessLives: 3 }) })).toBe(true);
     expect(ENDLESS_MATCH.pass({ status: 200, id: "g00000000000000", text: served({ day: 14, wins: 2, lives: 3 }) })).toBe(false); // a run's ghost

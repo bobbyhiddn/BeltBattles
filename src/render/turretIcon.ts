@@ -8,8 +8,9 @@ import { rect, type G } from "./pixel";
 
 /**
  * PRESENT-3 C, the fix round (REQ-BFG-113 (1); backlog #498 (5); cap's RULINGS-RUN1 item 3, V3 of O/img/c/cannon-candidates.png): the heavy class's icon is a CARRIAGE GUN: a wheel and a carriage, and a barrel
- * turned up to the right on the diagonal, 3 px thick, a white edge along its top and a white muzzle. The class's own icon (every heavy turret: the SCRAP CANNON, the RAMPART CANNON ...), the same 12x12 box, the
- * same palette (ink, steel1, steel3, white, and the rarity colour: the rim keeps its place at the wheel's foot, so a heavy turret's rarity still shows on its icon). History: PRESENT-2's K-02 read the SCRAP CANNON
+ * turned up to the right on the diagonal, 3 px thick, a white edge along its top and (PRESENT-5 M2) an ink muzzle cap. The class's own icon (every heavy turret: the SCRAP CANNON, the RAMPART CANNON ...), the same 12x12 box, the
+ * same palette (ink, steel1, steel3, white, and the rarity colour: the rim keeps its place at the wheel's foot, so a heavy turret's rarity still shows on its icon). PRESENT-5 M2: no detached white muzzle pixel (the barrel
+ * ends in its ink cap; row 0 is `......#ws###`). History: PRESENT-2's K-02 read the SCRAP CANNON
  * 0 of 6 (two 1 px barrels of steel2 between ink lines: a dim grey picture); PRESENT-3's first fix, two fat upright barrels, read as a face or a robot (the bare control of run 2's cold read: no seat called it a gun).
  */
 function carriageGun(g: G, rim: string): void {
@@ -29,8 +30,7 @@ function carriageGun(g: G, rim: string): void {
     rect(g, 2 + k, 6 - k, 2, 1, C.steel3);
     if (k > 1) rect(g, 2 + k, 5 - k, 1, 1, C.white);
   }
-  rect(g, 9, 0, 3, 2, C.ink);
-  rect(g, 10, 0, 1, 1, C.white);
+  rect(g, 9, 0, 3, 2, C.ink); // PRESENT-5 M2 (REQ-BFG-113; backlog #537 (4)): the muzzle is this ink cap alone; the white pixel PRESENT-3 C drew off the barrel's end (at 10, 0) is gone: three of six of PRESENT-4's readers saw it as a glint or spark, and joining it to the barrel (PRESENT-4 M) read as a blade
 }
 
 /** Draws turret def `id`'s icon; false (nothing drawn) when `id` is not a turret. */

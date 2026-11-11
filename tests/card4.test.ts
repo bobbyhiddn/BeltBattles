@@ -561,7 +561,7 @@ describe("CARD-4 (k, d, s): first-sight notes beside the strip; no box over a he
     }
     console.log(`CARD-4 (s): ${strips} strips, each just under its panel: ${[...where].map(([k, v]) => `${k} ${v}`).join(", ")}`);
     expect(strips).toBeGreaterThan(100);
-  });
+  }, 120_000); // RIDE T1 (STAGE-0916, the hull lane's call): 120 s (was the 30-s default): STAGE-09151 read 15.4 s alone and 30.1 s, the default limit, at load 42: a host timeout, not the rule
 
   it("K: a rig's first panels (the strip up, every first-sight note new) open their first keyword's note beside the strip: SURGE VALVE's EVERY, BRAKE SHOE's SPEED; never two boxes", () => {
     const f = framed(402, 690, 3, 1);

@@ -97,7 +97,7 @@ function honest(hero: HeroId, seed: number, days: number, tier: Difficulty): Gho
 describe("AZ-BUMP S6: a stored record is judged by its own rules (validate.ts inRulesWorld)", () => {
   it("the rules gate picks the world: bb-0.10.0 and later as the switches stand, older or unreadable rules with all three off", () => {
     // BUMP-1D: the bump moves RULES_VERSION to bb-0.11.0; NPC_DAY_RULES is a literal since AZ-BUMP and stays (was ["bb-0.10.0", "bb-0.10.0"])
-    expect([RULES_VERSION, NPC_DAY_RULES]).toEqual(["bb-0.14.0", "bb-0.10.0"]); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0).
+    expect([RULES_VERSION, NPC_DAY_RULES]).toEqual(["bb-0.15.0", "bb-0.10.0"]); // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0).
     const seen = (rules: unknown) => inRulesWorld(rules, () => [npcDayRules(), hullScaleRules(), ladderFixRules()]);
     expect(seen(RULES_VERSION)).toEqual([true, true, true]);
     expect(seen("bb-0.10.0")).toEqual([true, true, true]); // BUMP-1D: the rules the switches came on with, no longer this build's

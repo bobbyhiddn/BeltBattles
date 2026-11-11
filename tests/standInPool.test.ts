@@ -34,7 +34,7 @@ describe("the stand-in pool v1.1 (the reference field and the async fallback)", 
     // BUMP-1D: was toBe(RUN_DAYS) (10): the pool is regenerated to days 1-16 (STAND_IN_GEN_DAYS), the long run's generator depth
     expect(STAND_IN_POOL_DAYS).toBe(STAND_IN_GEN_DAYS);
     expect(STAND_IN_POOL_DAYS).toBe(16);
-    expect(STAND_IN_DATA.rules).toBe("bb-0.14.0"); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the stand-in module's rules): was bb-0.13.0. BUMP-1F (the stand-in pool regenerated under bb-0.13.0: src/sim/standInPoolData.ts rules, RULING-BUMP1F-R5 R5.2 (2)): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0).
+    expect(STAND_IN_DATA.rules).toBe("bb-0.15.0"); // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the stand-in module's rules): was bb-0.13.0. BUMP-1F (the stand-in pool regenerated under bb-0.13.0: src/sim/standInPoolData.ts rules, RULING-BUMP1F-R5 R5.2 (2)): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0).
     for (const hero of STAND_IN_POOL_HEROES) expect(STAND_IN_DATA.pools[hero]!, hero).toHaveLength(STAND_IN_POOL_DAYS);
   });
 

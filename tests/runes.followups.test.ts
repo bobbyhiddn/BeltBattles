@@ -55,7 +55,7 @@ describe("RUNES-2a M1 (Q4): the rules gate's runes row", () => {
     // (LONG_RUN_RULES), the six plain rigs (PLAIN_RIGS, no gate) and the six more shaped rigs (SHAPES2_RULES) are their own
     // gates beside RULES_ROWS, as the NPC day's is, and the hearts cost lever adds no id and no field. This build's rules
     // are bb-0.11.0, at or after every row, LAST_CHANCE_RULES and NPC_DAY_RULES (both literals, left where they were)
-    expect(RULES_VERSION).toBe("bb-0.14.0"); // BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3)
+    expect(RULES_VERSION).toBe("bb-0.15.0"); // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3)
     expect(LAST_CHANCE_RULES).toBe("bb-0.9.7"); // Z-BUMP: LAST CHANCE's row, a literal (AZ-BUMP's bump leaves it)
     expect(lastChanceGateProblem(RULES_VERSION)).toBeNull();
     expect(lastChanceGateProblem("bb-0.9.7")).toBeNull(); // AZ-BUMP: release Z's rules keep LAST CHANCE

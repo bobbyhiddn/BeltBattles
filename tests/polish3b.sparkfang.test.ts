@@ -75,7 +75,10 @@ describe("POLISH-3b P2: the rule, over every battle face of both corpora, own an
           if (side === 1) { foe.neither++; if (gs < gp) foe.win++; else if (gs === gp) foe.tie++; else foe.loss++; }
         }
       }
-      expect(total, `${name}: faces checked (own 4,051, foe 2,242)`).toBe(4051 + 2242);
+      // BUMP-1H (RULING-BUMP1H-R6 R6.4, the merge with 0.9.15.1): was 4051 + 2242 (POLISH-3b's pin over 0.9.15's rival decks): H3 (src/sim/rivalBuilds.ts) drops MOTH QUEEN's good-luck HEATJACKET and SILKSHADE's good-luck COUNTERWEIGHT from their
+      // warlord road decks, 8 faces fewer in corpus A (one on each of days 5/8/12/16 in each of the two decks), read as your own faces and as the foe's: own 4,051 -> 4,043 (A 2,234 + B 1,809, B does not move), foe 2,242 -> 2,234, on every view.
+      // With rivalBuilds.ts put back to bump1h-base this file reads 4051 + 2242 again (kit-1h/revert6m.sh).
+      expect(total, `${name}: faces checked (own 4,043, foe 2,234)`).toBe(4043 + 2234);
       // POLISH-3's SIX: the only foe faces neither plan can show whole, at 1920x1080 and at 844x390; the 3x5 plan wins on each (SPEED against five blocks); every other view has none
       expect(foe, name).toEqual(name === "desk-1920x1080" || name === "land-844x390" ? { neither: 6, win: 6, tie: 0, loss: 0 } : { neither: 0, win: 0, tie: 0, loss: 0 });
     });
@@ -110,7 +113,7 @@ describe("POLISH-3b P2: the rule on a sweep of face areas (ties and losses inclu
 });
 
 describe("POLISH-3b P2: the foe's faces that moved are those twelve; nothing else, no default text, gaps as measured", () => {
-  it("over the 2,242 foe faces on six views: the drawn plan differs from polish3-accepted's rule on exactly the SIX at 1920x1080 and at 844x390, and gives away fewer ability blocks there", () => {
+  it("over the 2,234 foe faces on six views: the drawn plan differs from polish3-accepted's rule on exactly the SIX at 1920x1080 and at 844x390, and gives away fewer ability blocks there", () => {
     const moved: string[] = [];
     for (const name of VIEW_NAMES) {
       const { fa, tp } = viewOf(name, 1);
@@ -129,7 +132,9 @@ describe("POLISH-3b P2: the foe's faces that moved are those twelve; nothing els
   });
 
   it("REQ-BFG-087: the foe's faces with a gap under min (gaps.px < gaps.min) are the same count as at polish3-accepted on every view, but 844x390's (POLISH-4 P4-3: the six drawn without their CLOSE row have the room: 109 -> 103); the twelve are under min before (content first: SPACE-1 D3)", () => {
-    const UNDER: Record<ViewName, number> = { "desk-1920x1080": 42, "laptop-1366x768": 88, "desk-1280x800": 47, "land-844x390": 104, "op-402x690": 503, "phone-360x640": 32 }; // POLISH-4 P4-4: 1920x1080 57 -> 42 (belts in the 3x5 plan), 844x390 103 -> 104; POLISH-6 P6-1: 360x640 28 -> 32 (COPIES prints 1.3, the readout's grid rows are one line: six belt faces fit the 5x7 plan at a 1 px gap (min 3), two leave the list; tests/polish3b.ownfaces.test.ts names them)
+    // BUMP-1H (RULING-BUMP1H-R6 R6.4, the merge with 0.9.15.1): 1920x1080 42 -> 43, 1280x800 47 -> 40, 402x690 503 -> 500 (the other three views do not move). H3 (src/sim/rivalBuilds.ts, the 8 faces dropped from the warlord decks): +1 at 1920x1080 (H3 alone: 43),
+    // +1 at 1280x800 (H3 alone: 48), -3 at 402x690 (H3 alone: 500). H2 (src/sim/npcWords.ts, the four Easy captains' day-5 words are BRACED): -8 at 1280x800 (H2 alone: 39), so both: 40. Both files put back to bump1h-base: every view reads 0.9.15.1's (kit-1h/revert6m.sh, kit-1h/soft6x.sh).
+    const UNDER: Record<ViewName, number> = { "desk-1920x1080": 43, "laptop-1366x768": 88, "desk-1280x800": 40, "land-844x390": 104, "op-402x690": 500, "phone-360x640": 32 }; // POLISH-4 P4-4: 1920x1080 57 -> 42 (belts in the 3x5 plan), 844x390 103 -> 104; POLISH-6 P6-1: 360x640 28 -> 32 (COPIES prints 1.3, the readout's grid rows are one line: six belt faces fit the 5x7 plan at a 1 px gap (min 3), two leave the list; tests/polish3b.ownfaces.test.ts names them)
     for (const name of VIEW_NAMES) {
       const { fa, tp } = viewOf(name, 1);
       let under = 0;

@@ -6,17 +6,20 @@ import { encodeSnapshot, ghostId } from "../src/net/snapshot";
 import { validateBuild, validateUpload } from "../src/net/validate"; // S8 T1e: + validateUpload (the player mode)
 import { npcDayRules } from "../src/sim/npcDay"; // S8 T1e: the budget line is left to the player mode only while NPC_DAY is on
 import { withLongRun } from "../src/sim/longRun"; // BUMP-1D: the 10-day world's exact-day pick, kept beside the long run's widening
-import { samplePoolJson } from "../tools/samplePool";
+import { DEPTH_PICKS, DEPTH_SLOTS, STREAK_FIRST_DAY, STREAK_LAST_DAY, samplePoolJson } from "../tools/samplePool"; // BUMP-1H: + the CURVE's streak days and depth slots (the pool's 230 = 192 + 24 + 14)
 import { generateSamplePool } from "./helpers/poolCache"; // CACHE-1: the cached twin
 import { snap, upSnap } from "./netHelpers"; // S8 T1a: upSnap, an entry as an upload travels
 
 describe("sample pool and offline fallback", () => {
-  it("generates 192 valid snapshots across days 1-16 for the four playable heroes, reproducibly", () => { // BUMP-1D: 192 across days 1-16 (was 120 across days 1-10)
+  it("generates 230 valid snapshots across days 1-16 for the four playable heroes, reproducibly", () => { // BUMP-1H: 230 (was 192): the CURVE's 24 streak and 14 depth ghosts follow the 192. BUMP-1D: 192 across days 1-16 (was 120 across days 1-10)
     const pool = generateSamplePool();
-    expect(pool).toHaveLength(192); // 0.7.0a D5: 2 sample variants and 1 floor ghost per hero and day (0.8.0 RC: four heroes, was 60); BUMP-1D: the long run's 16 days (4 x 16 x 3), was 120
+    expect(pool).toHaveLength(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). 0.7.0a D5: 2 sample variants and 1 floor ghost per hero and day (0.8.0 RC: four heroes, was 60); BUMP-1D: the long run's 16 days (4 x 16 x 3), was 120
     for (const hero of ["furnace", "weaver", "foundry", "bastion"]) { // 0.8.0 RC: was FURNACE and WEAVER
       for (let day = 1; day <= 16; day++) { // BUMP-1D: was 10
-        expect(pool.filter((s) => s.hero === hero && s.day === day)).toHaveLength(3);
+        // BUMP-1H: the 3 everyday ghosts (was the whole count), plus the CURVE's streak ghost on days STREAK_FIRST_DAY..STREAK_LAST_DAY (one a hero) and the depth ghosts that DEPTH_PICKS gives this hero on this day
+        const streak = day >= STREAK_FIRST_DAY && day <= STREAK_LAST_DAY ? 1 : 0;
+        const depth = DEPTH_PICKS.filter((p, i) => p.startsWith(`${hero}:`) && DEPTH_SLOTS[i][0] === day).length;
+        expect(pool.filter((s) => s.hero === hero && s.day === day), `${hero} d${day}`).toHaveLength(3 + streak + depth);
       }
     }
     // S8 T1e (RULING-S8-R1 item 3; cause a48010b, AZ-BUMP N3): with NPC_DAY on a seed ghost is road-fed (its run fought a
@@ -46,8 +49,8 @@ describe("sample pool and offline fallback", () => {
   it("loads the bundled pool JSON with every entry validated", () => {
     const load = loadGhostPool(samplePoolJson(generateSamplePool())); // CACHE-1: was samplePoolJson() (its default argument builds the pool for real)
     expect(load.rejected).toEqual([]);
-    expect(load.entries).toHaveLength(192); // 0.8.0 RC: was 60; BUMP-1D: the long run's 16 days, was 120
-    expect(new Set(load.entries.map((e) => e.id)).size).toBe(192);
+    expect(load.entries).toHaveLength(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). 0.8.0 RC: was 60; BUMP-1D: the long run's 16 days, was 120
+    expect(new Set(load.entries.map((e) => e.id)).size).toBe(230); // BUMP-1H: was 192
   });
 
   it("rejects bad pool entries and keeps the good ones", () => {

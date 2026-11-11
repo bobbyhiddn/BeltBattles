@@ -21,14 +21,16 @@ const ARROW_RIG = / · \d\/\d ARROWS ON BELTS$/;
 
 describe("POLISH-4 P4-2: no sub is cut with a dot in the 96 px column", () => {
   for (const foe of [false, true]) {
-    it(`3040x1710 (face column ${viewAt("col96-3040x1710").fa.area.w} px, subMax 69), ${foe ? "the foe's" : "your own"} faces of corpus A (2,242) and B (1,809): no sub row is wider than its room; the 1,464 rig faces of A break`, () => {
+    it(`3040x1710 (face column ${viewAt("col96-3040x1710").fa.area.w} px, subMax 69), ${foe ? "the foe's" : "your own"} faces of corpus A (2,234) and B (1,809): no sub row is wider than its room; the 1,456 rig faces of A break`, () => {
       const list = faces(foe);
       expect(viewAt("col96-3040x1710", foe ? 1 : 0).fa.area.w, "the face column of the 3040x1710 screen").toBe(96);
-      expect(list.filter((f) => f.corpus === "A").length).toBe(2242);
+      // BUMP-1H (RULING-BUMP1H-R6 R6.4, the merge with 0.9.15.1): was 2242 and 1464 rig faces (POLISH-4's pins over 0.9.15's rival decks). BUMP-1H's H3 (src/sim/rivalBuilds.ts) drops MOTH QUEEN's good-luck HEATJACKET and SILKSHADE's good-luck COUNTERWEIGHT from their warlord
+      // road decks: one face fewer on each of days 5/8/12/16 in each of the two decks, 8 in all, and all 8 are rig faces (`RIG · n/m ARROWS ON BELTS`: 1464 -> 1456). With rivalBuilds.ts put back to bump1h-base this file passes at 2242 and 1464 (kit-1h/revert6m.sh: 5 of 5).
+      expect(list.filter((f) => f.corpus === "A").length).toBe(2234);
       expect(list.filter((f) => f.corpus === "B").length).toBe(1809);
       expect(cutSubs(list, "col96-3040x1710", foe), "cut with a dot").toEqual([]);
       const rigs = list.filter((f) => f.corpus === "A" && ARROW_RIG.test(f.t.sub));
-      expect(rigs.length, "A: the rig faces whose second piece is 72 px").toBe(1464);
+      expect(rigs.length, "A: the rig faces whose second piece is 72 px").toBe(1456); // BUMP-1H (RULING-BUMP1H-R6 R6.4): was 1464 (H3's 8 dropped faces, above)
       for (const f of rigs) {
         const p = drawn(f, "col96-3040x1710", foe), rest = foe ? f.t.sub.slice(f.t.subOwner!.length + 1) : f.t.sub;
         // the whole sub breaks at its last space that gives two rows that fit: `RIG · 1/1 ARROWS ON` / `BELTS`; the foe's owner stays on its own row first

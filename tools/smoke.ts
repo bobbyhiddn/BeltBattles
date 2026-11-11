@@ -162,6 +162,24 @@ export function smokeEnv(o: { port: number; staticDir: string; endpoint: string 
   };
 }
 
+/**
+ * BUMP-1H T2 (BUMP-1G question 2; the tools/ line is approved in BRIEF-BUMP1H P2): the upload section 5 sends, as a function of the pool: the pool's first deck with turrets
+ * and a join (0.6.2's v2 shape, so the signature covers both) that POST accepts: a day of the 10-day span (section 6 asks with wins = day - 1) whose record a run reaches
+ * WITHOUT a LAST CHANCE (POST reads the snapshot's `lastChance`, absent = none; a seed ghost holds none, and the first deck with turrets and a join is a day-13 ghost on 1
+ * heart under the long run, which POST refuses as "no record a run carries into dusk 13"). tests/h2.smoke.test.ts asserts noBetterRecord(upload, request) on it, so a
+ * regenerated pool cannot turn section 6's D1 check red without a test noticing (BUMP-1G P7 met it on the 0.9.14 pool: the upload held 10 hearts, the request 5).
+ */
+export function smokeUpload(pool: readonly GhostSnapshot[]): GhostSnapshot | undefined {
+  return pool.find((s) => s.build.turrets !== undefined && s.build.routes.some((r) => r.join !== undefined)
+    && s.day <= MAX_DAY && isReachable(s.day, s.wins, s.lives, { lastChance: null, rules: s.rules, ...(s.losses !== undefined ? { losses: s.losses } : {}) }));
+}
+
+/** BUMP-1H T2: the request section 6 asks the open server with (reqOf): a player of `runs` finished runs, the record wins = day - 1 and HEARTS_START hearts unless given, the
+ *  game's own start (BUMP-1G P7: not START_LIVES, 5, which D1 keeps every 10-heart ghost from). */
+export function smokeRequest(day: number, runs: number, seen: string[], playerId: string, wins = day - 1, lives = HEARTS_START): GhostRequest {
+  return { rules: RULES_VERSION, day, wins, lives, playerId, seen, hero: "furnace", seed: 7, runs };
+}
+
 /** 0.8.0 H2: fly.toml's [env] table as written: its `KEY = "value"` lines up to the next table (comments ignored), as
  *  tests/server-config.test.ts reads it. */
 export function flyTomlEnv(toml: string): Record<string, string> {
@@ -357,8 +375,7 @@ async function main(): Promise<void> {
     // BUMP-1D (run 3, P7): and an upload POST takes: a day of the 10-day span (section 6 below asks with wins = day - 1) whose record a run reaches
     // WITHOUT a LAST CHANCE (POST reads the snapshot's `lastChance`, absent = none: a seed ghost holds none, and the first deck with turrets and a join
     // is a day-13 ghost on 1 heart under the long run, which POST refuses as "no record a run carries into dusk 13")
-    const v2 = generateSamplePool().find((s) => s.build.turrets !== undefined && s.build.routes.some((r) => r.join !== undefined)
-      && s.day <= MAX_DAY && isReachable(s.day, s.wins, s.lives, { lastChance: null, rules: s.rules, ...(s.losses !== undefined ? { losses: s.losses } : {}) }));
+    const v2 = smokeUpload(generateSamplePool()); // BUMP-1H T2: the choice is smokeUpload's (exported; tests/h2.smoke.test.ts asserts D1 on it)
     if (!v2) throw new Error("the sample pool has no deck with turrets and a join");
     const mine = { ...ungraded(v2), runId: "smoke-run", playerId: device.playerId, name: TEST_NAME };
     const bytes = new TextEncoder().encode(encodeSnapshot(mine));
@@ -409,9 +426,7 @@ async function main(): Promise<void> {
     const poolIds = generateSamplePool().filter((s) => s.day === day).map((s) => ghostId(s));
     // BUMP-1G P7: lives = HEARTS_START (was START_LIVES, 5): the regenerated pool's first deck with turrets and a join is furnace day 6 on 5W 10 lives (the seed pool
     // holds records up to 10 lives), which D1 rightly keeps from a requester who holds 5W and 5 lives; bb-0.13.0's first such deck (furnace day 8, 2W 2 lives) was eligible
-    const reqOf = (runs: number, seen: string[], wins = day - 1, lives = HEARTS_START): GhostRequest => ({
-      rules: RULES_VERSION, day, wins, lives, playerId: player2.playerId, seen, hero: "furnace", seed: 7, runs,
-    });
+    const reqOf = (runs: number, seen: string[], wins = day - 1, lives = HEARTS_START): GhostRequest => smokeRequest(day, runs, seen, player2.playerId, wins, lives); // BUMP-1H T2: smokeRequest's
     const fresh = await fetchGhost(base2, reqOf(0, []), 4000);
     say(`  new player (runs 0): ${fresh.source} ${fresh.id} (${fresh.snapshot.hero}, ${fresh.snapshot.wins}W ${fresh.snapshot.lives} lives)`);
     check(fresh.source === "server" && poolIds.includes(fresh.id) && fresh.id !== id, "D2: a new player's fetchGhost (runs 0) gets a seed ghost, never the upload");
