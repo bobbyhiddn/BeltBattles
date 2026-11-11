@@ -12,6 +12,11 @@
 //   (all dropped either way). Hit rows dropped 933 -> 921 own, 970 -> 958 foe (-12: 3 + 2 + 2 + 2 + 1 + 1 + 1); belts that draw the note 218 -> 217 own, 206 -> 205 foe. pixel5-851x393@2.75: own 85 belts stay (rows dropped 312 -> 310); foe 104 -> 103
 //   (MOTH QUEEN rivalBuild route1 d8 4 -> 3 hit rows, its one dropped row now fits: the belt leaves the set; rows 373 -> 372). The RULES hold unchanged on bb-0.15.0: every belt that drops rows draws its note or is on the named list, and rows shown + N = the
 //   belt's hit rows; the named list is the same 5 own / 19 foe belts (32 / 95 rows, none shows a row); the other 11 views' counts are as they were. Measured by O/kit/p8-snip-bandnote.test.ts in exports of 4bba174c9f3d and 2fa3c2f2aa97.
+// POLISH-9 R4 (REVIEW-POLISH8 V5; RULING-SCOUT-POLISH9 9; a comment only, no number of this file moves): THE HEADER MADE EXACT. What bb-0.15.0 moves (the scout's kit/p9s-bandnote.test.ts and p9s-bn-diff.py, at 4bba174c9f3d and 2fa3c2f2aa97): 1,613 -> 1,610 belts that
+//   drop rows, 0 rule failures at both, the named (silent) lists equal in all 26 view / side lines. Eleven view / side lines move. The PINNED dropping counts: band-280x653 own 223 -> 222 and foe 225 -> 224 (MOTH QUEEN rivalBuild route1 d5 leaves the set) and
+//   pixel5-851x393@2.75 foe 104 -> 103 (route1 d8 leaves it). The UNPINNED rows-dropped totals, which fall by 2 in EIGHT view / side lines, not five: col96-3040x1710 both sides 248 -> 246, desk-1920x1080 foe 227 -> 225, land-812x375@3 own 143 -> 141, op-402x690
+//   both sides 322 -> 320, promax-926x428@3 foe 288 -> 286 and pixel5-851x393@2.75 own 312 -> 310 (the ruling of REVIEW-POLISH8 omitted that last line). In each of the eight it is the same two belts, MOTH QUEEN rivalBuild route1 d12 and d16 (7 -> 6 hit rows: one
+//   dropped row fewer each). The other 15 view / side lines are as they were. POLISH-9 STEP 0: this file is GREEN on battle rules bb-0.16.0 (BUMP-1I's re-pinned decks) with no re-pin.
 import { afterEach, describe, expect, it } from "vitest";
 import { installRaster } from "./raster.helpers";
 import { facePlan, faceRun, faceText, hitRowsGone } from "../src/screens/battleScout";

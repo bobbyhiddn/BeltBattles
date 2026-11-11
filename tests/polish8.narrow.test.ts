@@ -7,6 +7,9 @@
 //   face beyond RULING-SCOUT-POLISH6 S1.1. The numbers of the fix, for cap (arithmetic from the measured gaps, not built): the row is 46 x 30 at y 185 and the mount's top is at 214; the plain card clears it by 1 px at 28 px tall (185 + 28 = 213), the
 //   selected card at 27 (its frame or shadow row lies 1 px under the card's foot: 185 + 27 + 1 = 213), and 27 art px is a finger (44 CSS px at this scale, tapPx 27) but under MIN_H (30) and S1.1's shortest face (32).
 //   POLISH-8 P8-2 changed the margin cases (3 offers at both viewports, no rune and one rune: the stack 1 px lower under the corner MENU, the lift 0 or 1); this file checks them too, all heroes.
+// POLISH-9 R3 (REVIEW-POLISH8 V2; RULING-SCOUT-POLISH9 9; tests only): THE 20TH CASE NAMES EVERY MOUNT. The probe kept the nearest target of each rect, so a card over two mounts named one: the list above has ONE mount a hero. The review's own list has more: band-280x653,
+//   no rune, 7 offers (the row at 37,185 and 86,185, each 46 x 30): weaver mount3 (card 1), metronome mount1 (card 1), foundry mount2 and siphon mount2 (both cards), furnace mount0 (both cards) and mount1 (card 1; both when selected), bastion mount0 (both) and mount1
+//   (card 0; card 1 selected): -1 px plain, -2 px selected for each. problems() now lists EVERY target a rect or the ink is within 1 px of, and NAMED names every mount (the table above stands, for its first mount). No rule changes: the 19 clear cases are still clear.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { G, fresh, installRaster, type RasterCanvas } from "./raster.helpers";
 import { VIEWS13 } from "./polish4.helpers";
@@ -60,10 +63,13 @@ const lenient = (c: RasterCanvas): CanvasRenderingContext2D =>
 const NARROW = ["band-280x653", "band-300x640"] as const;
 type Hero = "furnace" | "weaver" | "foundry" | "bastion" | "metronome" | "siphon";
 const HEROES6: Hero[] = ["furnace", "weaver", "foundry", "bastion", "metronome", "siphon"];
-/** THE 20TH CASE, per hero: the bow turret's mount (turretSlots index) the 46 x 30 row at band-280x653, no rune, 7 offers lies over, and which of the two cards (and their finger targets) lie over it (RV6/logs/p73hb-<hero>-table.txt: the
- *  furnace's, bastion's, foundry's and siphon's mount lies under both cards, the weaver's and the metronome's under card 1 alone; card 0 keeps 2 px of L.info there). */
-const NAMED: Record<Hero, { mount: number; cards: number[] }> = {
-  furnace: { mount: 0, cards: [0, 1] }, bastion: { mount: 0, cards: [0, 1] }, metronome: { mount: 1, cards: [1] }, foundry: { mount: 2, cards: [0, 1] }, siphon: { mount: 2, cards: [0, 1] }, weaver: { mount: 3, cards: [1] },
+/** THE 20TH CASE, per hero: EVERY bow turret mount (turretSlots index) the 46 x 30 row at band-280x653, no rune, 7 offers lies over, and which of the two cards (and their finger targets) lie over it plain (RV6/logs/p73hb-<hero>-table.txt: the
+ *  foundry's and siphon's mount2 lie under both cards, the weaver's mount3 and the metronome's mount1 under card 1 alone; card 0 keeps 2 px of L.info there). POLISH-9 R3 (REVIEW-POLISH8 V2): the table named ONE mount a hero, the nearest to each card (the
+ *  probe kept only the least gap). The furnace and the bastion have TWO: the furnace's mount0 lies under both cards and its mount1 under card 1 (card 0 reaches it only when selected: -2); the bastion's mount0 lies under both cards and its mount1 under card 0
+ *  (card 1 reaches it only when selected: -2). Each is -1 px plain (the card, its finger target, the ink) and -2 px selected (the lift, the frame, the shadow), for each of the 14 mount / card pairs listed here (S9 logs/narrow-tip.txt reproduces the review's list). */
+const NAMED: Record<Hero, { mount: number; cards: number[] }[]> = {
+  furnace: [{ mount: 0, cards: [0, 1] }, { mount: 1, cards: [1] }], bastion: [{ mount: 0, cards: [0, 1] }, { mount: 1, cards: [0] }], metronome: [{ mount: 1, cards: [1] }],
+  foundry: [{ mount: 2, cards: [0, 1] }], siphon: [{ mount: 2, cards: [0, 1] }], weaver: [{ mount: 3, cards: [1] }],
 };
 
 /** An ENCHANTER dawn (day 3) of `hero` with `offers` shop offers and `runes` held runes, the wagon up. */
@@ -118,25 +124,25 @@ function targetsOf(c: Case): [string, Rect][] {
   for (const r of c.regions) if (!own(r.r) && r.r.w > 0 && r.r.h > 0) t.push([`region ${r.id}`, r.r]);
   return t;
 }
-/** Every gap under 1 px of one case: the cards and their finger targets (rect / hit), and the drawn ink plain and with each card selected (the screen's own drawWagon: lift, frame, shadow), as `what: gap against name`. */
+/** Every gap under 1 px of one case: the cards and their finger targets (rect / hit), and the drawn ink plain and with each card selected (the screen's own drawWagon: lift, frame, shadow), as `what: gap against name`. POLISH-9 R3: EVERY target a
+ *  rect or the ink lies within 1 px of is listed, not the nearest alone (a card over two mounts named one). */
 function problems(c: Case): string[] {
   const wg = c.L.wagon!, T = targetsOf(c), out: string[] = [];
-  const least = (q: Rect): [number, string] => { let g = 1e9, nm = ""; for (const [n, o] of T) { const d = gapOf(q, o); if (d < g) { g = d; nm = n; } } return [g, nm]; };
+  const under = (q: Rect): [number, string][] => T.map(([n, o]): [number, string] => [gapOf(q, o), n]).filter(([g]) => g < 1);
   for (const q of [...wg.rects, ...wg.hits]) {
     expect(q.x >= 0 && q.y >= 0 && q.x + q.w <= c.L.W && q.y + q.h <= c.L.H, `on the screen ${JSON.stringify(q)}`).toBe(true);
     expect(q.w * c.k, "a finger wide").toBeGreaterThanOrEqual(TAP_CSS - 0.5);
     expect(q.h * c.k, "a finger tall").toBeGreaterThanOrEqual(TAP_CSS - 0.5);
   }
-  wg.rects.forEach((q, i) => { const [g, nm] = least(q); if (g < 1) out.push(`card ${i}: ${g} against ${nm}`); });
-  wg.hits.forEach((q, i) => { const [g, nm] = least(q); if (g < 1) out.push(`hit ${i}: ${g} against ${nm}`); });
+  wg.rects.forEach((q, i) => { for (const [g, nm] of under(q)) out.push(`card ${i}: ${g} against ${nm}`); });
+  wg.hits.forEach((q, i) => { for (const [g, nm] of under(q)) out.push(`hit ${i}: ${g} against ${nm}`); });
   for (const sel of [null, 0, 1]) {
     c.s.sel = sel === null ? { kind: "none" } : { kind: "word", pick: false, i: sel };
     const img = fresh(c.L.W, c.L.H);
     drawWagon(G(img), c.s);
     const ink = inkBox(img);
     expect(ink, "the wagon is drawn").not.toBeNull();
-    const [g, nm] = least(ink!);
-    if (g < 1) out.push(`${sel === null ? "plain" : `card ${sel} selected`}: ${g} against ${nm}`);
+    for (const [g, nm] of under(ink!)) out.push(`${sel === null ? "plain" : `card ${sel} selected`}: ${g} against ${nm}`);
   }
   return out;
 }
@@ -153,12 +159,15 @@ describe("POLISH-8 P8-3: the wagon at band-280x653 and band-300x640, each hero's
         expect(wg, `${tag}: a wagon`).toBeTruthy();
         const bad = problems(c);
         if (name === "band-280x653" && runes === 0 && offers === 7) {
-          // THE 20TH, NAMED: the row at the MIN_H floor (46 x 30 at y 185, shift 33, the band 0) over the hero's mount: card and hit -1, ink -1 plain and -2 selected, nothing else under 1 px
-          const m = `mount${NAMED[hero].mount}`;
+          // THE 20TH, NAMED: the row at the MIN_H floor (46 x 30 at y 185, shift 33, the band 0) over each of the hero's mounts: card and hit -1, ink -1 plain and -2 selected, nothing else under 1 px (POLISH-9 R3: every mount, not the nearest alone)
+          const ms = NAMED[hero].map((e) => `mount${e.mount}`);
           expect(wg!.shift > 0 && wg!.rects.map((q) => [q.x, q.y, q.w, q.h]), `${tag}: the row`).toEqual([[37, 185, 46, 30], [86, 185, 46, 30]]);
           expect([wg!.shift, c.L.info.h], `${tag}: shift 33, the band 0`).toEqual([33, 0]);
-          const want = [...NAMED[hero].cards.flatMap((i) => [`card ${i}: -1 against ${m}`, `hit ${i}: -1 against ${m}`]), `plain: -1 against ${m}`, `card 0 selected: -2 against ${m}`, `card 1 selected: -2 against ${m}`];
-          expect(bad.sort(), `${tag}: only ${m} is under 1 px (cards over it: ${NAMED[hero].cards.join(", ")})`).toEqual(want.sort());
+          const want = NAMED[hero].flatMap((e) => {
+            const m = `mount${e.mount}`;
+            return [...e.cards.flatMap((i) => [`card ${i}: -1 against ${m}`, `hit ${i}: -1 against ${m}`]), `plain: -1 against ${m}`, `card 0 selected: -2 against ${m}`, `card 1 selected: -2 against ${m}`];
+          });
+          expect(bad.sort(), `${tag}: only ${ms.join(" and ")} are under 1 px (cards over them: ${NAMED[hero].map((e) => `mount${e.mount} ${e.cards.join(", ")}`).join("; ")})`).toEqual(want.sort());
           named++;
         } else {
           expect(bad, `${tag}: every card, finger target and drawn ink is 1 px clear`).toEqual([]);
