@@ -17,7 +17,11 @@ afterEach(() => setEnchant(ENCHANT));
 const VIEW = "band-300x640" as const;
 /** The four faces POLISH-6 P6-1 moved under min at band-300x640 (tags as tests/polish3b.helpers makes them; corpus A is every rival build read as your own parts, or as the foe's with `faces(true)`). */
 const FOUR = ["A emberlyn rivalBuild d12 route0", "A emberlyn rivalBuild d16 route0", "A emberlyn standInBuild d12 route0", "A emberlyn standInBuild d16 route0"];
-/** Faces with a gap under min (gaps.px < gaps.min) at band-300x640, per side and corpus: now, and at polish5-accepted (`was`: before P6-1). Corpus B (every shop piece x star x word) has none either way. */
+/** Faces with a gap under min (gaps.px < gaps.min) at band-300x640, per side and corpus: now, and at polish5-accepted (`was`: before P6-1). Corpus B (every shop piece x star x word) has none either way.
+ *  POLISH-8 R1 (REVIEW-POLISH7 V5; tests only): **THE 46 IS THE CORPUS'S MEASURE, NOT A COUNT OF FACES THE GAME DRAWS.** tests/polish3b.helpers.ts faces() gives EVERY part the THIS FIGHT line (its LINE), a belt's and a rig's too; the game draws that
+ *  line on a turret only (src/screens/battleScout.ts fightLine, :115-120: null for any other part), so a belt's or a rig's real face is a line shorter. The game's own count, by this file's formula (!gapsAtLeast), corpus A at band-300x640, own and foe
+ *  alike (O/kit/p8-snip-band300.test.ts, bb-0.15.0): **30** faces under min (26 turrets + 4 belts: BRASSWICK's stand-in route 0 at d8, d12 and d16, VOSS's stand-in route 0 at d8), against the corpus's 46 (26 turrets + 20 belts). The four EMBERLYN
+ *  route-0 belt faces this file names are under min in the corpus's way only: in the game's way 0 of the 4 are. What the pin guards is the planner's behaviour on the corpus (P6-1's one-line readout moved them 42 -> 46 there, RULING-REVIEW-POLISH6 V3); read it so, not as a count of real faces. */
 const UNDER = {
   own: { A: 46, B: 0, was: { A: 42, B: 0 } },
   foe: { A: 46, B: 0, was: { A: 42, B: 0 } },
