@@ -17,8 +17,7 @@ players on a streak and 14 for the busiest matchups).
 - **The toughest ghosts are kept for players on a streak:** from day 5 to day 16 each hero's pool holds one more tough ghost
   (48 in all, each built from one of the AI's decks of that day; 0.9.16's 24 streak ghosts stood on days 7 to 12 and anyone could
   meet them). A player who is not on a streak does not meet them as long as any other ghost fits.
-- **A fresh pool of ghosts:** the seed pool was rebuilt under the new rules, with the extra tough ghosts above; the everyday ghosts
-  are the same decks as in 0.9.16.
+- **A fresh pool of ghosts:** the seed pool was rebuilt under the new rules, with the extra tough ghosts above.
 
 ## 0.9.16: a fairer climb to the tenth win
 
