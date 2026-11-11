@@ -145,23 +145,25 @@ describe("PRESENT-1 S1 (a): the grid is not dropped where it was", () => {
     }
   });
 
-  it("the warlord's pick button: drawGridRight draws at the row's end where it clears the words and the badge, else at `corner`; no corner: dropped as before", () => {
+  it("the warlord's pick button: drawGridRight draws at the row's end where it clears the words and the badge, else the footprint mark in `corner`'s icon box; no corner: dropped as before", () => { // PRESENT-6 G6, old -> new: `corner` is the icon's box { x, y, size } (was the grid's top-left point) and the fallback is drawIconMark's mark, the icon whole
     const id = "gantry", sz = shapeGridSize(id), geom = gridGeom(gridSpecOf(id), gridCell(id));
+    const box = { x: 6, y: 8, size: 14 };
     const roomy = fresh(140, 40);
-    expect(drawGridRight(G(roomy), id, 4, 6, 120, 4 + 18 + 40, Infinity, { x: 6, y: 8 })).toBe(true);
+    expect(drawGridRight(G(roomy), id, 4, 6, 120, 4 + 18 + 40, Infinity, box)).toBe(true);
     const gx = 4 + 120 - 3 - sz.w;
     for (const t of geom.tiles) expect(roomy.at(gx + t.x + 1, 6 + t.y + 1)).toBe(fillOf(id));
-    // the words reach the row's end: the corner
+    // the words reach the row's end: the mark in the box's corner
     const w = fresh(140, 40);
-    expect(drawGridRight(G(w), id, 4, 6, 120, gx + 1, Infinity, { x: 6, y: 8 })).toBe(true);
-    for (const t of gridGeom(gridSpecOf(id), iconCell(id)).tiles) expect(w.at(6 + t.x + 1, 8 + t.y + 1), "over the icon's corner").toBe(fillOf(id));
+    expect(drawGridRight(G(w), id, 4, 6, 120, gx + 1, Infinity, box)).toBe(true);
+    const mz = shapeMarkSize(id), hi = ITEMS[id].kind === "gate" ? C.wood3 : C.steel3;
+    for (const t of gridGeom({ ...gridSpecOf(id), arrows: [] }, markCell(id)).tiles) expect(w.at(box.x + box.size - mz.w + t.x, box.y + box.size - mz.h + t.y + t.h - 1), "the mark in the icon box's corner").toBe(t.h > 1 ? fillOf(id) : hi);
     expect(w.at(gx + 2, 6 + 2)).toBeNull(); // nothing at the row's end
     // a badge's top above the grid's foot: the corner too; no corner: not drawn (as before)
-    expect(drawGridRight(G(fresh(140, 40)), id, 4, 6, 120, 0, 6 + sz.h - 1, { x: 6, y: 8 })).toBe(true);
+    expect(drawGridRight(G(fresh(140, 40)), id, 4, 6, 120, 0, 6 + sz.h - 1, box)).toBe(true);
     expect(drawGridRight(G(fresh(140, 40)), id, 4, 6, 120, gx + 1, Infinity)).toBe(false);
     // a plain 2x2 factory is a piece bigger than one cell now; a rig of one cell is not
     expect(drawGridRight(G(fresh(140, 40)), "kiln", 4, 6, 120, 0, Infinity)).toBe(true);
-    expect(drawGridRight(G(fresh(140, 40)), "whetstone", 4, 6, 120, 0, Infinity, { x: 6, y: 8 })).toBe(false);
+    expect(drawGridRight(G(fresh(140, 40)), "whetstone", 4, 6, 120, 0, Infinity, box)).toBe(false);
   });
 });
 

@@ -305,14 +305,16 @@ export function drawIconMark(g: G, defId: string, boxX: number, boxY: number, bo
 
 /** G4: a shaped piece's grid (no plate) at the right end of a row `x`..`x + w` whose top is `y`, where it clears `left` (the row's
  *  own words end there) and ends above `floor` (a badge's top): the warlord's pick buttons. Returns whether it drew.
- *  PRESENT-1 (S1 (a), REQ-BFG-113 (1)): `corner`, where the grid goes when the words leave it no room at the row's end: over the
- *  piece's icon, top-left at that point, as every other surface draws a grid over an icon (the row's own picture); it was dropped. */
-export function drawGridRight(g: G, defId: string, x: number, y: number, w: number, left: number, floor = Infinity, corner?: { x: number; y: number }): boolean {
+ *  PRESENT-1 (S1 (a), REQ-BFG-113 (1)): `corner`, where the footprint goes when the words leave the grid no room at the row's end: over the
+ *  piece's icon, as every other surface shows one over an icon (the row's own picture); it was dropped.
+ *  PRESENT-6 G6 (REQ-BFG-113; backlog #583 (1)): `corner` is now the icon's BOX ({ x, y, size }: its top-left and its side) and the fallback is drawIconMark's mark in that box's bottom-right
+ *  corner, the icon whole (it drew G1's grid at iconCell over the icon's top-left: the icon showed as a grey grid). The plate case (the grid at the row's end) is unchanged. */
+export function drawGridRight(g: G, defId: string, x: number, y: number, w: number, left: number, floor = Infinity, corner?: { x: number; y: number; size: number }): boolean {
   if (!hasGrid(defId)) return false;
   const sz = shapeGridSize(defId), px = x + w - 3 - sz.w;
   if (px < left || y + sz.h > floor) {
     if (!corner) return false;
-    g.drawImage(shapeGrid(defId, iconCell(defId)), corner.x, corner.y);
+    drawIconMark(g, defId, corner.x, corner.y, corner.size);
     return true;
   }
   g.drawImage(shapeGrid(defId), px, y);

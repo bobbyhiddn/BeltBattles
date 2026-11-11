@@ -41,6 +41,14 @@ import { ITEMS } from "../src/sim/content";
 import { ENCHANT_DEFS } from "../src/sim/enchant";
 import { gridGeom, gridSpecOf, hasGrid, iconCell, markCell, shapeGrid, shapeGridSize, shapeMarkSize } from "../src/ui/shapePic";
 import { drawDropCard, dropCardText } from "../src/screens/fork/drops";
+import { drawWarlordResult } from "../src/screens/warlordHud";
+import { finishWarlord, pickRoad } from "../src/game/road";
+import { gainModule } from "../src/game/fuse";
+import { shopBadge, type Run } from "../src/game/run";
+import type { Game } from "../src/game/game";
+import { setupFork } from "../src/tooling";
+import { withNpcDay } from "../src/sim/npcDay";
+import { UI } from "../src/ui/ui";
 
 installRaster();
 
@@ -173,4 +181,118 @@ describe("PRESENT-6 G6: the victory screen's drop card (drops.ts drawDropCard: t
   });
 });
 
-// (the warlord pick button's half of this file is the second G6 commit)
+describe("PRESENT-6 G6: the warlord's pick buttons (warlordHud.ts drawWarlordResult with NPC_DAY off: two part buttons, each with its icon at bx + 4 and its name at bx + 18; the footprint at the row's end, else, where the name or the badge leaves no room, drawGridRight's `corner`)", () => {
+  const noop = (): void => undefined;
+  /** a Hard warlord win with the part pick open (NPC_DAY off: the stored result offers two parts), the offered parts replaced by `a` and `b`; `own` = parts already in cargo (a second copy gives its button a MERGE badge) */
+  function pickRun(a: string, b: string, own: string[] = []): Run {
+    return withNpcDay(() => {
+      const run = setupFork({ hero: "furnace", day: 4, seed: 9 });
+      expect(pickRoad(run, "hard").ok).toBe(true);
+      finishWarlord(run, 0, 24.6);
+      const r = run.warlord!.result!;
+      expect(r.outcome).toBe("win");
+      r.parts = [a, b];
+      r.took = null;
+      for (const d of own) gainModule(run, d);
+      return run;
+    }, false);
+  }
+  /** The result card drawn on a W x H raster (the game's own function, NPC_DAY off), ON (the mark) and OFF (drawGridRight called without `corner`: the baseline). `rights` = the drawGridRight calls of the ON drawing, one per button. */
+  function frame(run: Run, W: number, H = 150): { on: RasterCanvas; off: RasterCanvas; rights: typeof cap.rights; regions: string[]; offRegions: string[]; box: Box } {
+    const go = (off: boolean) => {
+      cap.off = off; cap.rights.length = 0;
+      const game = { W, H, ui: new UI(), run, portrait: W < H } as unknown as Game, c = fresh(W, H);
+      game.ui.begin();
+      const box = withNpcDay(() => drawWarlordResult(gOf(c), game, run.warlord!, 1.4, { take: [noop, noop], refit: noop, fight: noop, road: noop }), false);
+      game.ui.end();
+      cap.off = false;
+      return { c, rights: cap.rights.slice(), regions: game.ui.regions.map((q) => `${q.id}:${q.r.x},${q.r.y},${q.r.w},${q.r.h}`), box };
+    };
+    const a = go(false), b = go(true);
+    return { on: a.c, off: b.c, rights: a.rights, regions: a.regions, offRegions: b.regions, box: a.box };
+  }
+  /** the button geometry the card draws: warlordHud.ts :142 and :154 (bw = floor((cw - 24) / 2), button i at x + 10 + i * (bw + 4), top at yy + ch - 26) */
+  const cwOf = (W: number): number => Math.min(W - 10, 214);
+  const bwOf = (W: number): number => Math.floor((cwOf(W) - 24) / 2);
+
+  it("where the game reaches the fallback: with NPC_DAY on (as shipped; src/sim/npcDay.ts NPC_DAY = true) a win's card returns before the pick buttons (:145-151), so no view reaches drawGridRight; with it off, per card width, the shaped parts that take the corner (no badge / with a MERGE badge)", () => {
+    const lines: string[] = [];
+    // NPC_DAY on: the card of a Hard win draws no pick button and never calls drawGridRight, on every brief view
+    for (const view of VIEWS) {
+      const { W } = viewOf(view);
+      const run = withNpcDay(() => {
+        const r = setupFork({ hero: "furnace", day: 4, seed: 9 });
+        pickRoad(r, "hard");
+        finishWarlord(r, 0, 24.6);
+        return r;
+      }, true);
+      cap.rights.length = 0;
+      const game = { W: cwOf(W) + 10, H: 160, ui: new UI(), run, portrait: true } as unknown as Game, c = fresh(cwOf(W) + 10, 160);
+      game.ui.begin();
+      withNpcDay(() => drawWarlordResult(gOf(c), game, run.warlord!, 1.4, { take: [noop, noop], refit: noop, fight: noop, road: noop }), true);
+      game.ui.end();
+      expect(cap.rights.length, `${view.name}: NPC_DAY on draws no pick button`).toBe(0);
+      expect(game.ui.regions.some((q) => q.id.startsWith("take")), `${view.name}: no take region`).toBe(false);
+    }
+    // NPC_DAY off: per distinct card width
+    const widths = [...new Set(VIEWS.map((v) => cwOf(viewOf(v).W)))].sort((a, b) => a - b);
+    for (const cw of widths) {
+      const views = VIEWS.filter((v) => cwOf(viewOf(v).W) === cw).map((v) => v.name).join(" ");
+      const n = { plain: 0, badge: 0 }, kinds = new Set<string>();
+      for (const id of SHAPED) for (const own of [false, true]) {
+        const run = pickRun(id, "whetstone", own ? [id] : []);
+        const f = frame(run, cw + 10);
+        const r0 = f.rights[0];
+        expect(r0.def).toBe(id);
+        if (own) kinds.add(`${id}:${shopBadge(run, id)?.kind ?? "none"}`);
+        if (r0.fallback) n[own ? "badge" : "plain"]++;
+      }
+      lines.push(`G6-WARLORD (NPC_DAY off) card ${cw} px, button ${bwOf(cw + 10)} px (views: ${views}): corner of ${SHAPED.length} shaped parts: no badge ${n.plain}, with a copy in cargo ${n.badge}`);
+    }
+    console.log(lines.join("\n"));
+  });
+
+  it("every shaped part, no badge and with a copy in cargo (MERGE / MAX badge), at the game's two card widths and a narrow one: the corner case draws ONE mark in the icon's 14 x 14 floor at (bx + 3, by + 3), the icon whole, one tile per footprint cell, nothing changed outside the floor, the mark clear of the name (bx + 18) and the badge; the plate case is the OFF drawing to the pixel", () => {
+    let corners = 0, plates = 0, was = 0, now = 0, total = 0, gap = Infinity;
+    const lines: string[] = [];
+    for (const W of [cwOf(viewOf(VIEWS[0]).W) + 10, cwOf(viewOf(VIEWS[5]).W) + 10, 150]) for (const own of [false, true]) for (const id of SHAPED) {
+      const run = pickRun(id, "whetstone", own ? [id] : []);
+      const f = frame(run, W), r0 = f.rights[0], bx = r0.x, by = r0.y - 2, bw = r0.w;
+      expect([r0.def, bx, by], `${id}: the first button`).toEqual([id, f.box.x + 10, f.box.y + f.box.h - 26]);
+      expect(bw, `${id}: the button's width`).toBe(bwOf(W));
+      expect(f.rights[1].fallback, "the plain second part asks for no grid").toBe(false);
+      if (!r0.fallback) { plates++; identical(f.on, f.off, `${id} W ${W} (plate)`); expect(r0.corner).toEqual({ x: bx + 3, y: by + 3, size: 14 }); continue; }
+      corners++;
+      expect(r0.corner, `${id}: the icon's 14 x 14 floor, the 12 px icon 1 px in`).toEqual({ x: bx + 3, y: by + 3, size: 14 });
+      const sz = shapeMarkSize(id), rect = { x: bx + 3 + 14 - sz.w, y: by + 3 + 14 - sz.h, w: sz.w, h: sz.h };
+      const k = checkBox(f.on, f.off, { def: id, x: bx + 3, y: by + 3, size: 14, rect }, { x: bx + 2, y: by + 2 }, { x: bx + 10, y: by + 10 }, `${id} W ${W}${own ? " (badge)" : ""}`);
+      expect(k.newHidden, `${id}: the mark hides no more of the icon than the old overlay did`).toBeLessThanOrEqual(k.oldHidden);
+      // clear of the name (drawn at bx + 18) with room to spare, and of the badge (drawn after the grid, at bx + bw - bw2 - 2, by + 12, 7 rows)
+      expect(rect.x + rect.w, `${id}: the mark ends before the name (bx + 18)`).toBeLessThanOrEqual(bx + 18);
+      gap = Math.min(gap, bx + 18 - (rect.x + rect.w));
+      const badge = shopBadge(run, id);
+      if (badge) {
+        const bw2 = Math.max(20, Math.min(34, bw - 6)), bb = { x: bx + bw - bw2 - 2, y: by + 12, w: bw2, h: 7 };
+        expect(rect.x + rect.w <= bb.x || rect.y + rect.h <= bb.y || rect.x >= bb.x + bb.w, `${id}: the mark clears the badge`).toBe(true);
+      }
+      if (W === cwOf(viewOf(VIEWS[0]).W) + 10 && own) { was += k.icon - k.oldHidden; now += k.icon - k.newHidden; total += k.icon; lines.push(`G6-WARLORD ${id.padEnd(12)} icon px ${String(k.icon).padStart(3)}: visible old ${String(k.icon - k.oldHidden).padStart(3)} -> new ${String(k.icon - k.newHidden).padStart(3)}`); }
+      // the card's regions are the same with and without the mark
+      expect(f.regions).toEqual(f.offRegions);
+    }
+    console.log(`${lines.join("\n")}\nG6-WARLORD total over the ${SHAPED.length} shaped parts with a badge at the 214 px card: icon px ${total}: visible old ${was} -> new ${now}; ${corners} corner cases and ${plates} plate cases checked; the mark ends ${gap} px before the name's first column at the least`);
+    expect(corners).toBeGreaterThan(40);
+    expect(plates).toBeGreaterThan(5);
+    expect(now).toBeGreaterThan(was * 1.5);
+  });
+
+  it("a plain part asks for no grid or mark; the card's rect, its buttons and the regions are the same with and without the mark", () => {
+    const run = pickRun("whetstone", "grease");
+    const f = frame(run, 224);
+    expect(f.rights.every((q) => !q.fallback)).toBe(true);
+    identical(f.on, f.off, "plain parts");
+    const run2 = pickRun("pickaxe", "whetstone", ["pickaxe"]);
+    const g = frame(run2, 224);
+    expect(g.regions).toEqual(g.offRegions);
+    expect(g.regions.some((q) => q.startsWith("take0:"))).toBe(true);
+  });
+});
