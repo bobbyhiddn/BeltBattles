@@ -7,7 +7,8 @@
 //  - a bb-0.16.0 request with streak 2 and a record `at` or more wins ahead draws only from the strongest share by grade; one not `at` ahead picks as matchPick;
 //  - D1, the new-player pool (D2) and an endless request are as today for a veteran too; the switch off picks as today at every rules label;
 //  - the server answers 400 to streak=x and streak=100 and reads an absent streak as 0; a request URL with no streak is today's byte for byte.
-// The committed seed pool is stamped bb-0.15.0: the bb-0.16.0 world here is the same 230 snapshots with their `rules` literal moved (ids from ghostId).
+// The committed seed pool is stamped bb-0.16.0 since P4's R3 (254 ghosts: 192 + the 48 tier ghosts + 14 depth ghosts); every world here is the same snapshots with their `rules` literal set (ids from ghostId). BUMP-1I P6: was
+// "stamped bb-0.15.0 ... the same 230 snapshots" (P1's pool).
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -68,11 +69,11 @@ describe("the switch and its constants", () => {
     expect(VETERAN_RULE.lead).toEqual({ share: 0.5, at: 2 });
     expect(VETERAN_SHIELD).toBe(true);
   });
-  it("the tier is the committed pool's 24 `sample-<hero>-3` ghosts, days 7-12 (the shield's mark is the player id)", () => {
+  it("the tier is the committed pool's 48 `sample-<hero>-3` ghosts, days 5-16 (the shield's mark is the player id)", () => { // BUMP-1I (P3's take E525, P4's R3 6aff36f7): was 24 tier ghosts on days 7-12 of 230 ghosts
     const tier = POOL16.filter(isTierGhost);
-    expect(POOL16).toHaveLength(230);
-    expect(tier).toHaveLength(24);
-    expect([...new Set(tier.map((e) => e.snapshot.day))].sort((a, b) => a - b)).toEqual([7, 8, 9, 10, 11, 12]);
+    expect(POOL16).toHaveLength(254); // BUMP-1I: was 230
+    expect(tier).toHaveLength(48); // BUMP-1I: was 24
+    expect([...new Set(tier.map((e) => e.snapshot.day))].sort((a, b) => a - b)).toEqual([5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]); // BUMP-1I: was days 7-12
     for (const e of tier) expect(e.snapshot.playerId).toBe(`sample-${e.snapshot.hero}-3`);
     expect(POOL16.filter((e) => !isTierGhost(e))).toHaveLength(206);
   });
