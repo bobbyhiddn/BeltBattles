@@ -64,6 +64,13 @@
 // The fourth is no POST and no deck: runProbe sends it after the POSTs and before the profile rows, and the stored count is taken before it. It serves the first
 // row's own deck (the only endless ghost of day 14 unless real players' are about). Under rules before ENDLESS_RULES (or with the switch off) the plan would be
 // exactly the seventeen rows above and there is no fourth check.
+// BUMP-1I (REQ-BFG-125, VETERAN; the bump to bb-0.16.0): two more GETs, no deck, under PROBE_RULES with VETERAN (probeHasVeteran: the switch on AND PROBE_RULES at or after
+// VETERAN_RULES), sent after the endless match and before the profile rows (the stored count is taken before them):
+//   veteran-match       GET /v1/ghosts/match?rules=<PROBE_RULES>&runs=5&day=1&wins=0&lives=<the start hearts>&player=other-player&streak=2
+//                                                                                    -> 200, a ghost (a veteran's request on the start record, which the seed pool always covers)
+//   veteran-bad         the same request with streak=x                                -> 400, the error "streak: expected an integer in 0..99"
+// A server of a build that does not read `streak` answers the second row as it answers any request (never 400), so the pair tells a build that reads it from one that does not.
+// Under rules before VETERAN_RULES (or with the switch off) there are no veteran rows: the plan is exactly the checks above them.
 // PROFILE-UP (REQ-BFG-074 clause 4, backlog #371): `--profile` (opt-in; anywhere among the arguments) adds two PUT /v1/profile rows
 // after the POSTs, from the same fresh identity, and nothing else changes without the flag:
 //   profile-signed      a minimal profile (1 run, 1 dusk win, best day 2, FURNACE won; no unlocks), signed in the profile
@@ -108,6 +115,9 @@ import { scaleWorld } from "../src/net/rulesGate";
 import { enchantWorld, gatesWorld } from "../src/net/rulesGate";
 // BUMP-1F (RULING-BUMP1F-R13 R13.3; REQ-BFG-059): the ENDLESS rows: an honest endless dusk of a run won on day 10, under rules that have endless
 import { endlessFor } from "../src/net/rulesGate";
+// BUMP-1I (REQ-BFG-125): the VETERAN rows: a veteran's match request and a malformed streak, under rules that have VETERAN
+import { rulesAtLeast } from "../src/net/rulesGate";
+import { VETERAN_RULES, VETERAN_STREAK_MAX, veteranRules } from "../src/net/veteran";
 import { splitProblem } from "../src/sim/split";
 import { bestSpot, placeRigAt } from "../src/sim/beltside";
 import { kx, ky } from "../src/sim/deck";
@@ -257,6 +267,10 @@ export const endlessRecordError = (r: { endlessWins: number; endlessLives: numbe
 /** Does the probe's rules version have endless (the rules gate: PROBE_RULES at or after ENDLESS_RULES, with the switch on, as the build ships)? Under older rules, or with
  *  the switch off, the decoder refuses the endless fields (400 on the server) and the match route refuses `mode=endless`: no endless rows. */
 export const probeHasEndless = (): boolean => endlessFor(PROBE_RULES);
+
+/** BUMP-1I (REQ-BFG-125): does the probe's rules version have VETERAN (the switch on AND PROBE_RULES at or after VETERAN_RULES, as the build ships)? Under older rules, or with
+ *  the switch off, the plan has no veteran rows. */
+export const probeHasVeteran = (): boolean => veteranRules() && rulesAtLeast(PROBE_RULES, VETERAN_RULES);
 /** The decks the probe stores when every check passes: PROBE_STORED, the honest LAST CHANCE deck under rules with it, the
  *  honest NPC-day deck under rules with the NPC day (AZ-BUMP), the honest day-12 deck under rules with the long run
  *  (BUMP-1D), the GRUDGE ROD deck under rules with the scaling pieces (BUMP-1E), the FUSER-and-word deck under rules with the gates and the
@@ -564,6 +578,32 @@ export function probePlan(playerId: string, now: number): PlannedPost[] {
   return plan;
 }
 
+/** BUMP-1I (REQ-BFG-125): the VETERAN rows, two GETs and no deck, in the form of ENDLESS_MATCH. A veteran's match request (`streak=2`, so the lead pick under VETERAN_RULES)
+ *  from another player who has finished runs (`runs=5`), on the start record (day 1, 0 wins, the start hearts), which the seed pool always covers (the check asks only for a
+ *  ghost); and the same request with a streak the server refuses (`streak=x`: 400, parseMatchQuery's error). */
+const VETERAN_PATH = (streak: string): string => `/v1/ghosts/match?rules=${PROBE_RULES}&runs=5&day=1&wins=0&lives=${HEARTS_START}&player=other-player&streak=${streak}`;
+export const VETERAN_MATCH = {
+  name: "veteran-match",
+  path: VETERAN_PATH("2"),
+  expected: "200 a ghost (a veteran's request on the start record)",
+  pass: (a: ProbeAnswer): boolean => {
+    if (a.status !== 200) return false;
+    try {
+      const served: unknown = JSON.parse(a.text);
+      const snap = typeof served === "object" && served !== null ? (served as { snapshot?: unknown }).snapshot : undefined;
+      return typeof snap === "object" && snap !== null && (snap as { day?: unknown }).day === 1;
+    } catch {
+      return false; // not JSON
+    }
+  },
+};
+export const VETERAN_BAD = {
+  name: "veteran-bad",
+  path: VETERAN_PATH("x"),
+  expected: `400 streak: expected an integer in 0..${VETERAN_STREAK_MAX}`,
+  pass: (a: ProbeAnswer): boolean => a.status === 400 && a.error === `streak: expected an integer in 0..${VETERAN_STREAK_MAX}`,
+};
+
 /** BUMP-1F (RULING-BUMP1F-R13 R13.3): the fourth ENDLESS row, a GET and no deck: the match request of an endless dusk of day 14 (2 endless wins, 3 hearts) from another
  *  player (`other-player`) who has finished runs (`runs=5`: not a new player, so the request reads the uploads and not the seed pool alone), under PROBE_RULES. An endless
  *  request reads only endless ghosts, so the server serves row 1's own stored deck (the only endless ghost it holds for day 14, unless real players' are about: the check
@@ -709,6 +749,21 @@ export async function runProbe(
       got = `no answer (${errText(e)})`;
     }
     checks.push({ name: ENDLESS_MATCH.name, expected: ENDLESS_MATCH.expected, got, ok, status });
+  }
+  // BUMP-1I (REQ-BFG-125): the VETERAN rows, two GETs and no deck, after the endless match and before the profile rows (counted after `stored`, so a 200 is no deck)
+  if (probeHasVeteran()) {
+    for (const row of [VETERAN_MATCH, VETERAN_BAD]) {
+      let got: string, ok = false, status: number | undefined;
+      try {
+        const a = await get(base, row.path, timeoutMs);
+        status = a.status;
+        got = shown(a);
+        ok = row.pass(a);
+      } catch (e) {
+        got = `no answer (${errText(e)})`;
+      }
+      checks.push({ name: row.name, expected: row.expected, got, ok, status });
+    }
   }
   if (opts.profile) {
     // PROFILE-UP: PUT /v1/profile from the same identity, in the profile domain (the second row's signature is then broken)
