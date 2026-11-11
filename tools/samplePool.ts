@@ -915,14 +915,14 @@ export function baseSamplePool(o: { botRunes?: boolean } = {}): GhostSnapshot[] 
 /** BUMP-1H H1 (b): slot 1's target on the CASUAL grade (permille). 500 = V0's (RULING-BUMP1H-R1 R1.2, R2.4: 400 (G) and 600 (V0') read worse; the take's K 96 read in section 5.1 of the REPORT). */
 export const CASUAL_TARGET = 500;
 /** BUMP-1H H1 (c): the streak tier's target on the PAR grade (permille). THE TAKE (RULING-BUMP1H-R1 R1.4 (2), R1.5): 450 (C, D, I read the same target from days 2 and 5; run 2's take (k1b, RULING-BUMP1H-R3) runs it on days 7-12 with no lead). */
-export const STREAK_TARGET = 450;
+export const STREAK_TARGET = 525; // BUMP-1I (REQ-BFG-125, P3's take E525; BRIEF-BUMP1I): was 450. The tier is the VETERAN's road now (src/net/veteran.ts): a harder tier behind the shield, met only by a request whose streak is VETERAN_AT or more. K 48, par on the road at 450: 78.1% (150 of 192; est. 81.2), at 525: 72.9% (140 of 192; est. 76.0), at 600: 59.9% (115 of 192; est. 63.0, under the 65.0 bar)
 /** BUMP-1H: the streak tier's first day (a run needs a win in hand to be on a streak). THE TAKE: 7 (RULING-BUMP1H-R3 R3.1; was 6 in run 2's first take k1n, 2 in the brief). Day 5's ghost met c5's 4-0 runs 59 times in 192 and beat them 75-86%
  *  (H, I; RULING-BUMP1H-R1 R1.3 dropped days 2-4 already); day 6's ghost (5-0) beat c5 in 86% of its 49 fights (of 384 runs) and par in 56% of its 169, the opposite of the tier's job, and left c5's day-6 dusk win at 25.5%
  *  (98 of 384, seeds 1-96; the bb-0.14.0 pool read 28.6% on the same seeds). From day 7 (k1b, K 96): c5 27.1% (104 of 384), day 6 34.9% (134 of 384), no day under 30% (lowest d8 31.8%). */
-export const STREAK_FIRST_DAY = 7;
+export const STREAK_FIRST_DAY = 5; // BUMP-1I (REQ-BFG-125, P3's take): was 7. Behind the shield (veteran.ts VETERAN_SHIELD) c5 no longer meets the tier, so the days BUMP-1H cut for c5's sake (5 and 6, and 13-16) are the veteran's road again
 /** BUMP-1H (run 2; RULING-BUMP1H-R2 R2.4): the streak tier's last day. THE TAKE: 12. 16 = the pool's last day (the tier runs to the end, as in run 1's reads A-J); c5's near-winners meet the late streak
  *  ghosts (days 13-16, 9 wins and the 10th win to play) and par's weak runs meet the same ghosts there: the one place the two cannot be told apart by record, so the tier stops at day 12. */
-export const STREAK_LAST_DAY = 12;
+export const STREAK_LAST_DAY = 16; // BUMP-1I (REQ-BFG-125, P3's take): was 12 (the pool's last day). Days 13-16, where the record cannot tell par's weak runs from c5's near-winners, are safe behind the shield: only a request on a streak draws a tier ghost
 /** BUMP-1H: seedGhost's variant number of a streak ghost and of a depth ghost (the sample ghosts hold 0 and 1, the floor ghost FLOOR_VARIANT, 2). */
 export const STREAK_VARIANT = 3;
 export const DEPTH_VARIANT = 4;
@@ -947,15 +947,14 @@ export const DEPTH_SLOTS: readonly (readonly [number, number, number])[] = [
   [3, 1, 1], [4, 1, 2], [6, 1, 3], [8, 2, 4], [9, 4, 4], [11, 1, 6], [13, 4, 1], [13, 4, 1], [14, 5, 7], [15, 8, 6], [15, 8, 6], [16, 8, 6], [16, 8, 6], [11, 4, 1],
 ];
 
-/** BUMP-1H (step R2, run 3): the streak picks, per hero, one per day STREAK_FIRST_DAY..STREAK_LAST_DAY (index day - STREAK_FIRST_DAY). THEY ARE THE PICKS THE TAKE WAS READ WITH (RULING-BUMP1H-R3 R3.3: k1b at K 96,
- *  c5 27.1%, par 87.8%): days 7-12 of the streak rule's rows of P3's dry flow (kit-1h/h1dry.sh curve, label s450, run 1: par-field dusk decks nearest STREAK_TARGET 450 on the par grade), so the committed pool is the pool
- *  that the confirm read. The grade's battle seeds read the slot index (streakSlot) and those rows were made with the screens' days 2-16 numbering (15 slots a hero), not this tier's (6): the rule re-run at the committed
- *  constants (kit-1h/h1dry.sh curve r2, output-bump1h/pool/curve-rows-r2.json) picks 15 of these 24 decks differently (the same kind of deck, nearest the target by another draw of battle seeds). REPORT section 9 names the choice. */
+/** BUMP-1I (step R2): the streak picks, per hero, one per day STREAK_FIRST_DAY..STREAK_LAST_DAY = 5..16 (index day - STREAK_FIRST_DAY), the TIER of the VETERAN's road (src/net/veteran.ts). THEY ARE THE ROWS THE TAKE'S POOL WAS BUILT FROM
+ *  (P3's read E525, K 48 and K 96: tier on days 5-16 at STREAK_TARGET 525; kit-1i/dryc.sh, output-bump1i/pool/curve-rows-dryE2.json): par-field dusk decks nearest STREAK_TARGET on the par grade, with the grade's battles seeded by HERO AND DAY
+ *  (streakSlot; RULING-BUMP1H-R4 R4.3's fix), so these picks stay put if the tier's span moves. Was BUMP-1H's 6 picks a hero for days 7-12 at 450. The rule re-run at these constants (CURVE_REBUILD, BB_CURVE_UNITS "<hero>:5-16") makes them again. */
 export const STREAK_PICKS: Readonly<Record<string, readonly string[]>> = {
-  furnace: ["f5:7d3bd1b6", "f5:d7f4e32e", "f8:b4ea2b84", "f11:e0e0e945", "f11:6c7c4086", "f4:e4a47cd7"],
-  weaver: ["f9:2544ed5d", "f3:6aee97eb", "f3:5e218eba", "f3:88c46b41", "f5:b6ec00de", "f12:38a6d516"],
-  foundry: ["f5:f1c7d67e", "f6:5b2e1be9", "f11:a14e4fbd", "f1:7b1f1204", "f7:1d8e74cb", "f5:e04203ae"],
-  bastion: ["f11:5c2da9fe", "f11:b2fbc27c", "f8:a938424e", "f8:a0958ff0", "f7:970fd9ab", "f11:741303ab"],
+  furnace: ["f10:0e32482d", "f10:ad4c1ad6", "f11:ac236bed", "f12:d337e8a6", "f10:6e0ee44b", "f11:e0e0e945", "f10:046bb677", "f4:e4a47cd7", "f11:88d4246f", "f9:b180d3ca", "f9:eb9bf4c9", "f11:2a572497"],
+  weaver: ["f8:cfb3bd5b", "f2:732ae2b6", "f6:10bf435f", "f3:6aee97eb", "f3:5e218eba", "f3:88c46b41", "f12:9d55603b", "f12:38a6d516", "f8:8a25dcad", "f9:72ec26a9", "f7:085c6f36", "f7:61cad921"],
+  foundry: ["f8:441b3a08", "f2:ff909492", "f5:f1c7d67e", "f5:6f94f01b", "f7:4bc753c5", "f1:7b1f1204", "f1:d782cd56", "f12:6144c7bb", "f1:786ea224", "f1:a23f8db3", "f1:ad08c061", "f5:3fe40424"],
+  bastion: ["f8:5f8b74e3", "f11:71dd518b", "f11:5c2da9fe", "f4:f2b94e63", "f5:5ac25c4d", "f5:3c48739a", "f5:c4ecd3c5", "f2:41d7915c", "f7:073d0021", "f11:62e760be", "f8:2750dfe5", "f5:7b91ef44"],
 };
 /** BUMP-1H (step R2, run 3): the depth picks, parallel to DEPTH_SLOTS ("<hero>:<pick>"): the depth rule's rows of P3's dry flow (the casual-graded candidates nearest CASUAL_TARGET 500 that the pool does not hold that
  *  day), as the take was read with them (the note at STREAK_PICKS). */
@@ -1043,8 +1042,12 @@ export function streakRecord(day: number): readonly [number, number] {
 const curveBase = (): number => (STAND_IN_HEROES.length + RACE_SEED_HEROES.length) * (SAMPLE_VARIANTS + 1) * poolDepth();
 const streakLast = (): number => Math.min(poolDepth(), STREAK_LAST_DAY);
 const streakDays = (): number => Math.max(0, streakLast() - STREAK_FIRST_DAY + 1);
-export const streakSlot = (hero: HeroId, day: number): number => curveBase() + PLAYABLE_HEROES.indexOf(hero) * streakDays() + (day - STREAK_FIRST_DAY);
-export const depthSlot = (i: number): number => curveBase() + PLAYABLE_HEROES.length * streakDays() + i;
+/** BUMP-1I (RULING-BUMP1H-R4 R4.3): the streak grade's battles are seeded by HERO AND DAY, not by the tier's slot index: the slot is a function of (hero, day) alone, past the depth ghosts' slots, so the picks (and the final grades) stay put when the tier's span moves. */
+export const STREAK_SLOT_BASE = 100;
+export const streakSlot = (hero: HeroId, day: number): number => curveBase() + STREAK_SLOT_BASE + PLAYABLE_HEROES.indexOf(hero) * poolDepth() + (day - 1);
+/** BUMP-1I: the depth ghosts keep the grade slots they had at bb-0.15.0 (curveBase + 24 + i; 24 = that tier's 4 x 6 ghosts), whatever the tier's span. */
+export const DEPTH_SLOT_BASE = 24;
+export const depthSlot = (i: number): number => curveBase() + DEPTH_SLOT_BASE + i;
 
 /**
  * BUMP-1H: could this candidate travel as a seed ghost of (hero, day)? The checks seedGhost runs on a deck (the shop's strict rules, the player mode, a record a
@@ -1213,7 +1216,9 @@ export function gradeMemo(clear = false): number {
 
 /** The grading itself (gradeSamplePool's body before the memo, unchanged; SOFT-1 C2: one ghost's grade is gradeOne). */
 function gradePool(pool: readonly GhostSnapshot[], k: number, seeds: number): number[] {
-  return pool.map((s, gi) => gradeOne(s.build, s.day, gi, k, seeds));
+  // BUMP-1I (R4.3): a streak ghost is graded at its (hero, day) slot and a depth ghost at its own depth slot, so the tier's span moves neither; every other ghost at its pool index, as before
+  let depth = 0;
+  return pool.map((s, gi) => gradeOne(s.build, s.day, s.playerId === `sample-${s.hero}-${STREAK_VARIANT}` ? streakSlot(s.hero, s.day) : s.playerId === `sample-${s.hero}-${DEPTH_VARIANT}` ? depthSlot(depth++) : gi, k, seeds));
 }
 
 /** SOFT-1 C2: the grade of `build` on `day` in slot `gi` (gradePool's per-ghost body, moved here unchanged). */

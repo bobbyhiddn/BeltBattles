@@ -56,7 +56,7 @@ const JOIN_DECKS = BUNDLE.filter((e) => e.snapshot.build.routes.some((r) => r.jo
 
 describe("the bundled pool the seed writes", () => {
   it("is 192 v3 ghosts of the current rules, with turret decks and join decks among them, each one passing the seed's checks", () => {
-    expect(N).toBe(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: 4 heroes x (2 sample variants + 1 floor ghost) x 16 days (was 120, x 10 days; 0.7.0a D5 and 0.8.0 RC: was 60)
+    expect(N).toBe(254); // BUMP-1I (REQ-BFG-125; P3's take E525, R3 6aff36f7: 254 ghosts = the 192 + the tier's 48 (days 5-16) + the 14 depth ghosts): was 230. BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: 4 heroes x (2 sample variants + 1 floor ghost) x 16 days (was 120, x 10 days; 0.7.0a D5 and 0.8.0 RC: was 60)
     expect(new Set(POOL.map((s) => s.day))).toEqual(new Set(Array.from({ length: DAYS }, (_, i) => i + 1)));
     for (const s of POOL) expect(s.losses, `${s.playerId} d${s.day}: a long-run ghost states its losses`).toBeDefined(); // BUMP-1D
     // FLIP-X2: v2 -> v3 (SNAPSHOT_V3): every pool deck holds its day's runes, and runes travel only in a v3 snapshot

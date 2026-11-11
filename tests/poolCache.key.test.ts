@@ -34,6 +34,7 @@ import { withShapes } from "../src/sim/shapes";
 import { withShapes2 } from "../src/sim/shapes2";
 import { withPick } from "../src/net/pick";
 import { withCurve } from "../src/net/curve"; // BUMP-1H
+import { withVeteran } from "../src/net/veteran"; // BUMP-1I
 import {
   ENTRY, ROOT, SWITCHES, cachedCall, defaultCtx, fsReader, pureDeckOf, poolCacheStats, poolKey, raceGhosts, realClosure, scanClosure,
   type KeyCtx,
@@ -51,6 +52,7 @@ const FLIP: Record<string, <T>(fn: () => T, on?: boolean) => T> = {
   npcDay: withNpcDay, hullScale: withHullScale, shapes: withShapes, openRunes: withOpenRunes, ladderFix: withLadderFix, pick: withPick,
   gates: withGates, enchant: withEnchant, // BUMP-1F: the two switches the merged closure adds
   curve: withCurve, // BUMP-1H (REQ-BFG-124): THE CURVE's switch (src/net/curve.ts)
+  veteran: withVeteran, // BUMP-1I (REQ-BFG-125): VETERAN's switch (src/net/veteran.ts; in this closure through type-only imports: poolCache.ts SWITCHES)
 };
 
 /** A reader that serves the closure from memory and edits one file. */

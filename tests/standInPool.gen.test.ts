@@ -182,7 +182,7 @@ describe("stand-in pool", () => {
     expect(STAND_IN_POOL_DAYS).toBe(16);
     expect(DAYS).toHaveLength(16);
     for (const hero of STAND_IN_POOL_HEROES) expect(STAND_IN_DATA.pools[hero]!, hero).toHaveLength(16);
-    expect(STAND_IN_DATA.rules).toBe("bb-0.15.0"); // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the stand-in module's rules): was bb-0.13.0. BUMP-1F (the regenerated pool under bb-0.13.0, src/sim/standInPoolData.ts: header 'RULES_VERSION bb-0.13.0'; RULING-BUMP1F-R5 R5.2 (2)): was "bb-0.12.0". BUMP-1E (the regenerated pool, R1 19ae423: header 'RULES_VERSION bb-0.12.0'): was "bb-0.11.0"
+    expect(STAND_IN_DATA.rules).toBe("bb-0.16.0"); // BUMP-1I (rules bb-0.15.0 -> bb-0.16.0, the stamped literal): was bb-0.15.0. BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the stand-in module's rules): was bb-0.13.0. BUMP-1F (the regenerated pool under bb-0.13.0, src/sim/standInPoolData.ts: header 'RULES_VERSION bb-0.13.0'; RULING-BUMP1F-R5 R5.2 (2)): was "bb-0.12.0". BUMP-1E (the regenerated pool, R1 19ae423: header 'RULES_VERSION bb-0.12.0'): was "bb-0.11.0"
     expect(STAND_IN_POOL_RULES).toBe(POOL_RULES);
     expect(STAND_IN_DATA.band).toEqual([40, 60]);
     expect(STAND_IN_DATA.parFloor).toBe(0.5);

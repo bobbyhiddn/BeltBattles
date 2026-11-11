@@ -20,6 +20,10 @@
 //   --mode bench --set S --policy par|casual:<tune> --heroes h,.. --seeds a-b --pool pool.json --out cell.json
 //       [--models 10,059] [--hearts-start n] [--refund] [--rule a,b,c[,leadShare,leadAt]]   (BUMP-1G G1: the optional last two are the lead mirror;
 //       with them every row also carries `mirror` { ahead, changed }: the fights the mirror applied to, and those where it changed the ghost met)
+//       [--streak n] [--vrule share,at] [--shield 0|1]   (BUMP-1I, REQ-BFG-125 VETERAN: the bench's veteran. --streak n puts the device's streak, runs won in a row, on every request of
+//       every run (default 0: none); from VETERAN_AT (2) under rules bb-0.16.0 or later, with VETERAN on, the request takes the veteran's lead pick (src/net/veteran.ts veteranPick):
+//       --vrule its lead (default VETERAN_RULE's); --shield 1 keeps the streak tier from a request that is not a veteran's (default VETERAN_SHIELD). A run on the road carries
+//       `mirror` too. With none of the three the cells are what they were; with any, `veteran` { streak, lead, shield } records them.)
 //       whole runs, one row per hero, seed and run model: the policy's deck each dusk (player.ts playerRun; casual.ts
 //       casualOpts) against the dusk foe a new player meets (the set's seed pool, D1 and D2; the record pick with PICK; no
 //       ghost left: the day's stand-in captain, ghosts.ts standInFoe), the set's life rule (HEARTS: hearts.ts heartsDusk; off:
@@ -67,7 +71,8 @@ import { LONG_RUN_MAX_DAY, withLongRun } from "../src/sim/longRun"; // RUN-1 T6 
 import { REFUND_DAY, REFUND_LIVES } from "../src/game/day";
 import { standInFoe } from "../src/game/ghosts";
 import { checkSnapshot, ghostId, GRADE_MAX, type PoolEntry } from "../src/net/snapshot";
-import { pickGhost, type MatchRequest } from "../src/net/matchmaking";
+import { pickGhost } from "../src/net/matchmaking";
+import { VETERAN_AT, VETERAN_RULE, VETERAN_SHIELD, VETERAN_STREAK_MAX, veteranFor, veteranPick, type VeteranRequest } from "../src/net/veteran"; // BUMP-1I (REQ-BFG-125): the bench's veteran (--streak, --vrule, --shield); VeteranRequest is MatchRequest and a streak
 import { generateSamplePool } from "./samplePool";
 import { SEED_POOL, SEED_POOL_RULES } from "../server/seedPoolData"; // RUN-1 T6: --mode pool --committed
 import { serveJobs, workerRunner } from "./workers";
@@ -177,6 +182,10 @@ function policyOpts(p: string): PlayerOpts {
 
 interface BenchCtx {
   pool: PoolEntry[]; grades: Grades; rule: PickRule; opts: PlayerOpts; hearts: HeartsRule; refund: boolean;
+  /** BUMP-1I (REQ-BFG-125, V2): the bench's veteran. `streak` rides every request of every run (0: none, the bench as it was); `rule` is the veteran's pick rule
+   *  (the base rule's numbers and the --vrule lead; default VETERAN_RULE's lead); `shield` keeps the tier from requests that are not a veteran's (default VETERAN_SHIELD);
+   *  `road`: --streak puts the runs on the road (streak >= VETERAN_AT), so every row carries the mirror counters. */
+  vet: { streak: number; rule: PickRule; shield: boolean; road: boolean };
 }
 
 /** RUN-1 T6 (REQ-BFG-059, REQ-BFG-116), the "long" model: the REAL game with LONG_RUN on (runLedger runs it inside withLongRun):
@@ -208,14 +217,20 @@ function runLedger(hero: HeroId, seed: number, model: "10" | "059" | "long", ctx
     }
     const deck = decks[cd - 1];
     recs.push(`${wins}W${left}`);
-    const req: MatchRequest = { rules: RULES_VERSION, day: cd, wins, lives: Math.max(1, left), playerId: "rt1-bench", seen, runs: 0 };
+    // BUMP-1I (REQ-BFG-125, V2): --streak puts the device's streak on every request of the run (absent: none, the request as it was)
+    const req: VeteranRequest = { rules: RULES_VERSION, day: cd, wins, lives: Math.max(1, left), playerId: "rt1-bench", seen, runs: 0, ...(ctx.vet.streak > 0 ? { streak: ctx.vet.streak } : {}) };
     const rng = new Rng(hashSeed("rt1-match", runSeed, day));
     // RETUNE-1 T5: PICK is the game's own pick now (pick.ts matchPick on the snapshots' grades; --rule its numbers)
-    const hit = SET.pick ? matchPick(ctx.pool, req, rng, ctx.rule) : pickGhost(ctx.pool, req, rng);
+    // BUMP-1I (REQ-BFG-125): the pick is veteran.ts veteranPick (matchPick, with the veteran's lead for a request on the road, the shield as asked); with no veteran option, or
+    // VETERAN off, or rules before VETERAN_RULES, it is matchPick(pool, req, rng, ctx.rule) exactly as it was
+    const hit = SET.pick ? veteranPick(ctx.pool, req, rng, { base: ctx.rule, rule: ctx.vet.rule, shield: ctx.vet.shield }) : pickGhost(ctx.pool, req, rng);
     // BUMP-1G G1: with a lead mirror, count the fights it applied to and those where it changed the ghost met (the same pick without it, from a fresh identical rng)
-    if (SET.pick && ctx.rule.lead && lossesOf(req) - wins <= -ctx.rule.lead.at) {
+    // BUMP-1I: for a request on the road (veteranFor) the mirror is the veteran's lead, else the base rule's (--rule) as before
+    const onRoad = SET.pick && veteranFor(req);
+    const lead = onRoad ? ctx.vet.rule.lead : ctx.rule.lead;
+    if (SET.pick && lead && lossesOf(req) - wins <= -lead.at) {
       mirror.ahead++;
-      const { lead: _lead, ...noLead } = ctx.rule;
+      const { lead: _lead, ...noLead } = onRoad ? ctx.vet.rule : ctx.rule;
       void _lead;
       const alt = matchPick(ctx.pool, req, new Rng(hashSeed("rt1-match", runSeed, day)), noLead);
       if ((alt?.id ?? null) !== (hit?.id ?? null)) mirror.changed++;
@@ -263,7 +278,7 @@ function runLedger(hero: HeroId, seed: number, model: "10" | "059" | "long", ctx
     if ((model === "059" || long) && wins >= WIN_GOAL) { end = "won"; endDay = day; break; }
     if (day >= lastDay) { end = model === "10" ? "complete" : "backstop"; endDay = day; break; }
   }
-  return { hero, seed, model, res, foes, recs, wins, end, endDay, lcDay, boon, left, captains, ...(ctx.rule.lead ? { mirror } : {}) };
+  return { hero, seed, model, res, foes, recs, wins, end, endDay, lcDay, boon, left, captains, ...(ctx.rule.lead || ctx.vet.road ? { mirror } : {}) }; // BUMP-1I: and every run on the road (--streak VETERAN_AT or more)
 }
 
 function loadPoolFile(file: string): { pool: PoolEntry[]; grades: Grades } {
@@ -295,7 +310,20 @@ function modeBench(): unknown {
   // BUMP-1G G1: --rule losing,deep,deepAt[,leadShare,leadAt]: the last two are the lead mirror (pick.ts PickRule.lead: a record `leadAt` or more wins ahead draws from the strongest `leadShare`)
   const rule: PickRule = rv ? { losing: rv[0], deep: rv[1], deepAt: rv[2], ...(rv.length >= 5 ? { lead: { share: rv[3], at: rv[4] } } : {}) } : { ...PICK_RULE };
   const hearts: HeartsRule = { ...HEARTS_RULE, ...(flag("hearts-start") ? { start: Number(flag("hearts-start")) } : {}) };
-  const ctx: BenchCtx = { pool, grades, rule, opts: policyOpts(pol), hearts, refund: has("refund") };
+  // BUMP-1I (REQ-BFG-125, V2): the bench's veteran. --streak <n> (every request of every run carries it; default 0), --vrule <share>,<at> (the veteran's lead; default
+  // VETERAN_RULE's) and --shield 0|1 (default VETERAN_SHIELD). The veteran's rule is the base rule's numbers plus the lead. With none of the three given the cells are what they were:
+  // no `veteran` record, and the pick is veteranPick with the base rule (matchPick exactly while VETERAN is off or the shield is). The cells record the options in `veteran`
+  const vr = flag("vrule")?.split(",").map(Number);
+  if (vr && (vr.length !== 2 || vr.some((x) => !Number.isFinite(x)) || vr[0] <= 0 || vr[0] > 1 || vr[1] < 0 || !Number.isInteger(vr[1]))) throw new Error("--vrule <share>,<at>: a share in (0, 1] and a whole number of wins");
+  const streak = flag("streak") === undefined ? 0 : Number(flag("streak"));
+  if (!Number.isInteger(streak) || streak < 0 || streak > VETERAN_STREAK_MAX) throw new Error(`--streak <n>: an integer in 0..${VETERAN_STREAK_MAX}`);
+  const sh = flag("shield");
+  if (sh !== undefined && sh !== "0" && sh !== "1") throw new Error("--shield 0|1");
+  const vet: BenchCtx["vet"] = {
+    streak, shield: sh === undefined ? VETERAN_SHIELD : sh === "1", road: streak >= VETERAN_AT,
+    rule: { losing: rule.losing, deep: rule.deep, deepAt: rule.deepAt, lead: vr ? { share: vr[0], at: vr[1] } : { ...VETERAN_RULE.lead! } },
+  };
+  const ctx: BenchCtx = { pool, grades, rule, opts: policyOpts(pol), hearts, refund: has("refund"), vet };
   const rows: Row[] = [];
   const t0 = Date.now();
   for (const hero of heroes) {
@@ -304,7 +332,7 @@ function modeBench(): unknown {
     for (const seed of seeds) for (const m of models) rows.push(m === "long" ? withLongRun(() => runLedger(hero, seed, m, ctx)) : runLedger(hero, seed, m, ctx));
     console.log(`bench ${pol} ${flag("set")}${flag("also") ? `+${flag("also")}` : ""}: ${hero} done at ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   }
-  return { policy: pol, heroes, seeds: [seeds[0], seeds[seeds.length - 1]], models, rule, hearts, refund: ctx.refund, rows };
+  return { policy: pol, heroes, seeds: [seeds[0], seeds[seeds.length - 1]], models, rule, hearts, refund: ctx.refund, ...(has("streak") || has("vrule") || has("shield") ? { veteran: { streak: vet.streak, lead: vet.rule.lead, shield: vet.shield } } : {}), rows }; // BUMP-1I: the options, only when given
 }
 
 // ---------------------------------------------------------------- mode corr (T5's upload grade)

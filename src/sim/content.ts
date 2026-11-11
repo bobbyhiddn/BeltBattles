@@ -63,7 +63,7 @@ import type { FootId } from "./foot"; // SHAPES-1 (REQ-BFG-086): ItemDef.foot (a
 // against a casual player, the busiest matchups hold a second ghost, the Easy captains' late words are gentler and two Hard captains hold no more
 // than the luck caps give; every pool is regenerated once with them. A match request under bb-0.14.0 picks as it did (LEAD_RULES). The rules string
 // is cap's call; the release lane picks the label at staging.
-export const RULES_VERSION = "bb-0.15.0"; // BUMP-1H: was bb-0.14.0
+export const RULES_VERSION = "bb-0.16.0"; // BUMP-1I (REQ-BFG-125, VETERAN: two won runs in a row bring tougher ghosts, src/net/veteran.ts): was bb-0.15.0; BUMP-1H: was bb-0.14.0
 /**
  * RUNES-1 (REQ-BFG-058, decision 10): the rules whose bot pools a rules release carries forward instead of regenerating
  * them: the stand-in pool (standInPoolData.ts's `rules` tag) and the seed ghosts drawn from it and from the par player

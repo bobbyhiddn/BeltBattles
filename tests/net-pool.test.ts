@@ -11,9 +11,9 @@ import { generateSamplePool } from "./helpers/poolCache"; // CACHE-1: the cached
 import { snap, upSnap } from "./netHelpers"; // S8 T1a: upSnap, an entry as an upload travels
 
 describe("sample pool and offline fallback", () => {
-  it("generates 230 valid snapshots across days 1-16 for the four playable heroes, reproducibly", () => { // BUMP-1H: 230 (was 192): the CURVE's 24 streak and 14 depth ghosts follow the 192. BUMP-1D: 192 across days 1-16 (was 120 across days 1-10)
+  it("generates 254 valid snapshots across days 1-16 for the four playable heroes, reproducibly", () => { // BUMP-1I (REQ-BFG-125; P3's take E525, R3 6aff36f7: 254 ghosts = the 192 + the tier's 48 (days 5-16) + the 14 depth ghosts): was 230. BUMP-1H: 230 (was 192): the CURVE's 24 streak and 14 depth ghosts follow the 192. BUMP-1D: 192 across days 1-16 (was 120 across days 1-10)
     const pool = generateSamplePool();
-    expect(pool).toHaveLength(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). 0.7.0a D5: 2 sample variants and 1 floor ghost per hero and day (0.8.0 RC: four heroes, was 60); BUMP-1D: the long run's 16 days (4 x 16 x 3), was 120
+    expect(pool).toHaveLength(254); // BUMP-1I: was 230. BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). 0.7.0a D5: 2 sample variants and 1 floor ghost per hero and day (0.8.0 RC: four heroes, was 60); BUMP-1D: the long run's 16 days (4 x 16 x 3), was 120
     for (const hero of ["furnace", "weaver", "foundry", "bastion"]) { // 0.8.0 RC: was FURNACE and WEAVER
       for (let day = 1; day <= 16; day++) { // BUMP-1D: was 10
         // BUMP-1H: the 3 everyday ghosts (was the whole count), plus the CURVE's streak ghost on days STREAK_FIRST_DAY..STREAK_LAST_DAY (one a hero) and the depth ghosts that DEPTH_PICKS gives this hero on this day
@@ -49,8 +49,8 @@ describe("sample pool and offline fallback", () => {
   it("loads the bundled pool JSON with every entry validated", () => {
     const load = loadGhostPool(samplePoolJson(generateSamplePool())); // CACHE-1: was samplePoolJson() (its default argument builds the pool for real)
     expect(load.rejected).toEqual([]);
-    expect(load.entries).toHaveLength(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). 0.8.0 RC: was 60; BUMP-1D: the long run's 16 days, was 120
-    expect(new Set(load.entries.map((e) => e.id)).size).toBe(230); // BUMP-1H: was 192
+    expect(load.entries).toHaveLength(254); // BUMP-1I: was 230. BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). 0.8.0 RC: was 60; BUMP-1D: the long run's 16 days, was 120
+    expect(new Set(load.entries.map((e) => e.id)).size).toBe(254); // BUMP-1I: was 230. BUMP-1H: was 192
   });
 
   it("rejects bad pool entries and keeps the good ones", () => {

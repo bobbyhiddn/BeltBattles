@@ -125,7 +125,7 @@ describe("NPC-1 with the switch off: 0.9.7's day", () => {
       // BUMP-1G: the bump again, the rules string alone (bb-0.14.0 is as long as bb-0.13.0, 6295 still; was "4eb7083f:6295"): the three digests above hold exactly with it put back, with EFFECT_FLOOR on as shipped
       // (read at the tip with a probe outside the repo: the script with "bb-0.13.0" put back in its three snapshots reads 4eb7083f:6295 again, and every digest of this test reads the same with the floor on and off, so the floor, the regenerated pools and B1-B3 do not reach this world)
       // BUMP-1H: the bump again, the rules string alone (bb-0.15.0 is as long as bb-0.14.0, 6295 still; was "c72cc100:6295"): the three digests above hold exactly with it put back (they passed unchanged at bb-0.15.0)
-      expect(scriptDigest(9701)).toBe("dea470bd:6295"); // BUMP-1H: was "c72cc100:6295" (RULES_VERSION bb-0.14.0 -> bb-0.15.0: the stamped rules string alone). BUMP-1G: was "4eb7083f:6295" (RULES_VERSION bb-0.13.0 -> bb-0.14.0: the stamped rules string alone)
+      expect(scriptDigest(9701)).toBe("3f87cc16:6295"); // BUMP-1I (RULES_VERSION bb-0.15.0 -> bb-0.16.0: the stamped rules string alone, the same length): was "dea470bd:6295". BUMP-1H: was "c72cc100:6295" (RULES_VERSION bb-0.14.0 -> bb-0.15.0: the stamped rules string alone). BUMP-1G: was "4eb7083f:6295" (RULES_VERSION bb-0.13.0 -> bb-0.14.0: the stamped rules string alone)
     }, false), false);
     expect(digest097(9701)).toBe("d5cc6dfb:6287"); // HULL-ON (the flip, HEARTS): 5865119d:6292 -> d5cc6dfb:6287
     expect(digest097(4242)).toBe("6d0b1d65:6236"); // HULL-ON (the flip, HEARTS and OPEN_RUNES): 6ab6cc53:6243 -> 6d0b1d65:6236
@@ -137,7 +137,7 @@ describe("NPC-1 with the switch off: 0.9.7's day", () => {
     // in the world with GATES, ENCHANT, the scaling rules and ENDLESS off (the nest above)
     // BUMP-1G: the rules string alone again (bb-0.14.0, the same length, 6290; was "38eb8767:6290"): the three digests above hold exactly with it put back (with "bb-0.13.0" put back the script reads 38eb8767:6290, floor on or off)
     // BUMP-1H: the rules string alone again (bb-0.15.0, the same length, 6290; was "25564fd4:6290"): the three digests above hold exactly with it put back
-    expect(scriptDigest(9701)).toBe("6178fb89:6290"); // BUMP-1H: was "25564fd4:6290" (RULES_VERSION bb-0.14.0 -> bb-0.15.0: the stamped rules string alone). BUMP-1G: was "38eb8767:6290" (RULES_VERSION bb-0.13.0 -> bb-0.14.0: the stamped rules string alone)
+    expect(scriptDigest(9701)).toBe("51ad3066:6290"); // BUMP-1I (RULES_VERSION bb-0.15.0 -> bb-0.16.0: the stamped rules string alone, the same length): was "6178fb89:6290". BUMP-1H: was "25564fd4:6290" (RULES_VERSION bb-0.14.0 -> bb-0.15.0: the stamped rules string alone). BUMP-1G: was "38eb8767:6290" (RULES_VERSION bb-0.13.0 -> bb-0.14.0: the stamped rules string alone)
   }, false), false), false), false), false), false), false), false), false));
 
   // BUMP-1E: the scaling rules and ENDLESS ship on (they were off at bb-0.11.0); the test above reads 0.9.7's day with them off and puts them back

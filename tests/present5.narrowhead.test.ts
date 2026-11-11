@@ -10,7 +10,8 @@ import { G, R, fresh, installRaster, type RasterCanvas } from "./raster.helpers"
 const mode = vi.hoisted(() => ({ old: false }));
 vi.mock("../src/ui/shapePic", async (importOriginal) => {
   const m = await importOriginal<typeof import("../src/ui/shapePic")>();
-  const drawShapePlate: typeof m.drawShapePlate = (g, id, x, y, cell, alpha, headLen) => m.drawShapePlate(g, id, x, y, cell, alpha, mode.old ? undefined : headLen);
+  // PRESENT-6 A2 (the wrapper's cause): the narrow card's plate is shaped now (`trim`: shapePic.ts drawShapePlate's 8th argument); the wrapper forwards it, and the OLD drawing is the base's whole-box plate (no head, no trim)
+  const drawShapePlate: typeof m.drawShapePlate = (g, id, x, y, cell, alpha, headLen, trim) => m.drawShapePlate(g, id, x, y, cell, alpha, mode.old ? undefined : headLen, mode.old ? false : trim);
   return { ...m, drawShapePlate };
 });
 
@@ -19,7 +20,7 @@ import type { ShopBadge } from "../src/game/run";
 import { C } from "../src/render/palette";
 import { CARD_TEXT_MIN_W, CARD_W, CARD_H, WIDE_CARD_H } from "../src/screens/build/layout";
 import { OWNED_MARK_H, OWNED_MARK_W, cardPriceBox, cardZones, drawCard, ownedMarkAt, type CardState } from "../src/screens/build/shop";
-import { CARGO_FACE, HEAD_BIG, HEAD_LEN, gridCell, gridGeom, gridSpecOf, hasGrid, shapeGridSize } from "../src/ui/shapePic";
+import { CARGO_FACE, HEAD_BIG, HEAD_LEN, gridCell, gridGeom, gridSpecOf, hasGrid, shapeGridSize, shapePlateInk } from "../src/ui/shapePic";
 
 installRaster();
 
@@ -90,7 +91,9 @@ describe("PRESENT-5 A: the narrow phone shop card's arrowheads are HEAD_BIG", ()
         if (inBox(box, x, y)) inside++; else { outside++; expect.fail(`${id} ${w}x${h} ${sn}: pixel (${x - OX}, ${y - OY}) is ${a.at(x, y)}, the old card drew ${b.at(x, y)}, outside the plate ${JSON.stringify(p)}`); }
       }
       expect(outside).toBe(0);
-      if (!RIGS.includes(id)) expect(inside, `${id}: no arrowhead, the card is the old one whole`).toBe(0);
+      // PRESENT-6 A2 (REQ-BFG-115; #583 (2)), old -> new: the narrow card's plate is shaped now (ink only behind the grid's px and 1 px round them), so a part with no arrowhead differs from the OLD whole-box drawing inside its plate's rect too, at the
+      // box's bare corners and gaps only (at most the bare px: tests/present6.pickplate.test.ts proves every px of the plate rect); it was identical whole
+      if (!RIGS.includes(id)) { const mk = R(shapePlateInk(id, gridCell(id, CARGO_FACE), HEAD_BIG)); let ink = 0; for (let j = 0; j < mk.height; j++) for (let i = 0; i < mk.width; i++) if (mk.at(i, j) !== null) ink++; expect(inside, `${id}: no arrowhead, the card is the old one but for the plate's bare px`).toBeLessThanOrEqual(p.w * p.h - ink); }
       else plateChanged += inside > 0 ? 1 : 0;
       compared++;
     }
