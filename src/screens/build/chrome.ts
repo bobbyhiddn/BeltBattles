@@ -2,6 +2,7 @@
 // next-battle card, the details panel, drag feedback and the pause/options menu.
 
 import { foldRunEnd } from "../../game/styleFolds"; // CUSTOM-2a (REQ-BFG-072)
+import { abandonRun } from "../../game/streakHook"; // BUMP-1I (REQ-BFG-125): ABANDON before the 10th win sets the device's streak to 0
 import { packPrice, saveRun, shopBadge, shopShut, type Run } from "../../game/run";
 import { record } from "../../game/day";
 import { ITEMS, PACK_IDS, PACK_ITEM, REROLL_COST } from "../../sim/content";
@@ -357,7 +358,7 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     optionsCard(s.game, g, "PAUSED", [
       { id: "resume", label: "RESUME", primary: true, onTap: () => { s.menu = false; } },
       { id: "quit", label: "SAVE & QUIT", onTap: () => { saveRun(s.run); s.game.go(new TitleScreen(s.game)); } },
-      { id: "abandon", label: "ABANDON RUN", danger: true, onTap: () => { foldRunEnd(s.run); saveRun(null); s.game.run = null; s.game.go(new TitleScreen(s.game)); } }, // CUSTOM-2a: ABANDON counts as a run
+      { id: "abandon", label: "ABANDON RUN", danger: true, onTap: () => { foldRunEnd(s.run); abandonRun(s.run); saveRun(null); s.game.run = null; s.game.go(new TitleScreen(s.game)); } }, // CUSTOM-2a: ABANDON counts as a run; BUMP-1I: and takes the streak to 0
     ], () => { s.menu = false; }, k);
   }
 }

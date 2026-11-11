@@ -18,7 +18,9 @@
 //  3. at dusk (the build committed, before the fight): submitDusk uploads ghostOf(run, now, playerId) once per dusk,
 //     only if validateUpload (the player mode) accepts it, without awaiting it; a refusal is a console.debug line;
 //     403 (closed), 401, 422 and network errors are silent.
-//  4. a finished run (won or lost) counts toward D2 (countRun).
+//  4. a finished run (won or lost) counts toward D2 (countRun). BUMP-1I (REQ-BFG-125, VETERAN): the same moment takes the device's
+//     STREAK (STREAK_KEY: runs won in a row; a run won at its 10 wins adds 1, a lost or day-cap run sets 0, and so does ABANDON before
+//     the 10th win), once per run id and only while the session is active; every match request carries it when it is above 0.
 //  5. PROFILE-UP (REQ-BFG-074 clause 4): the profile goes up, signed in its own domain (net/profileClient.ts putProfile ->
 //     PUT /v1/profile), with the identity of step 1 and only once it has loaded. Two triggers, one try each, never at boot:
 //     a run's end after it was folded (styleFolds.ts calls profileChanged("end", runId): once per run id, though the battle
@@ -32,6 +34,7 @@ import { fetchGhost, submitGhost, type FetchedGhost, type GhostRequest, type Sub
 import { indexedDbKeyStore, loadIdentity, type Identity } from "../net/identity";
 import { putProfile, type PutProfileResult } from "../net/profileClient";
 import { validateUpload } from "../net/validate";
+import { VETERAN_STREAK_MAX } from "../net/veteran"; // BUMP-1I (REQ-BFG-125): the streak's cap
 import { ghostOf, storedFoe, storeOnlineFoe } from "./day";
 import { ghostAllowed } from "./ghostGuard"; // RETUNE-1 run 2 (REQ-BFG-096): the upload guard
 import { loadProfile, PROFILE_V } from "./profile";
@@ -42,6 +45,10 @@ import { online, setSession, type Session } from "./session";
 export const SERVER_KEY = "beltbattles.server.v1";
 /** D2: this device's finished runs, { runs, last } (last: the runId counted last). Written only online. */
 export const RUNS_KEY = "beltbattles.runs.v1";
+/** BUMP-1I (REQ-BFG-125, VETERAN): this device's runs won in a row, { streak, last } (streak: 0..VETERAN_STREAK_MAX; last: the id of the run whose
+ *  end it last took). Device-only like RUNS_KEY and written only online, at a run's end or at ABANDON, so it can't change inside a run's climb.
+ *  Not in the profile (which has a wire format and server checks), not on Run, not in any upload. */
+export const STREAK_KEY = "beltbattles.streak.v1";
 /** D4: the ghost fetch's deadline; then 0.6.2's own stand-in. */
 export const FETCH_TIMEOUT_MS = 4000;
 /** The upload's deadline (fire and forget: nothing waits for it). */
@@ -186,9 +193,45 @@ export class Online implements Session {
     }
   }
 
-  /** D2: a finished run (won or lost) counts once. */
+  /** BUMP-1I (REQ-BFG-125): this device's runs won in a row (0..VETERAN_STREAK_MAX); anything unreadable is 0 (runs()'s reading). */
+  streak(): number {
+    try {
+      const v = JSON.parse(this.deps.store?.getItem(STREAK_KEY) ?? "null") as { streak?: unknown } | null;
+      return v && typeof v.streak === "number" && Number.isInteger(v.streak) && v.streak >= 0 && v.streak <= VETERAN_STREAK_MAX ? v.streak : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  /** BUMP-1I (REQ-BFG-125): take one run's end into the streak, once per run id (the guard: STREAK_KEY's `last`): a win adds 1 (capped),
+   *  any other end sets 0. Callers have checked the session is active. A second end of the same run (the end of ENDLESS sets run.over "won"
+   *  again) changes nothing. */
+  private takeStreak(run: Run, won: boolean): void {
+    let last: unknown;
+    try {
+      last = (JSON.parse(this.deps.store?.getItem(STREAK_KEY) ?? "null") as { last?: unknown } | null)?.last;
+    } catch {
+      last = undefined; // an unreadable entry reads as none: this end replaces it (it reads 0 until then)
+    }
+    if (last === run.runId) return;
+    try {
+      this.deps.store?.setItem(STREAK_KEY, JSON.stringify({ streak: won ? Math.min(VETERAN_STREAK_MAX, this.streak() + 1) : 0, last: run.runId }));
+    } catch {
+      /* storage unavailable: the streak just doesn't change */
+    }
+  }
+
+  /** BUMP-1I (REQ-BFG-125): ABANDON RUN before the 10th win sets the streak to 0, under the same once-per-run guard. A run already over (its end was
+   *  taken) or in ENDLESS (the run was won, and counted, at its 10th win) changes nothing; so does an inactive session. */
+  abandonRun(run: Run): void {
+    if (run.over || inEndless(run) || !this.active) return;
+    this.takeStreak(run, false);
+  }
+
+  /** D2: a finished run (won or lost) counts once. BUMP-1I: and takes the streak (a run won at its 10 wins adds 1; "lost" and the day cap's "complete" set 0). */
   countRun(run: Run): void {
     if (!run.over || !this.active) return;
+    this.takeStreak(run, run.over === "won");
     try {
       const v = JSON.parse(this.deps.store?.getItem(RUNS_KEY) ?? "null") as { last?: unknown } | null;
       if (v && v.last === run.runId) return;
@@ -200,10 +243,12 @@ export class Online implements Session {
 
   /** The match request for the run's current dusk (step 3). */
   request(run: Run): GhostRequest {
+    const streak = this.streak(); // BUMP-1I (REQ-BFG-125): the store changes only at a run's end, so every request of one run carries the same streak
     return {
       // ENDLESS-1 (REQ-BFG-059): an endless dusk's request carries the ENDLESS wins and hearts and asks for endless ghosts only
       rules: RULES_VERSION, day: run.day, wins: inEndless(run) ? run.endlessRun!.wins : run.wins, lives: Math.max(1, run.lives), playerId: this.identity!.playerId,
       seen: [...(run.seenGhosts ?? [])], hero: run.hero, seed: battleSeed(run), runs: this.runs(),
+      ...(streak > 0 ? { streak } : {}), // BUMP-1I: only above 0, so a request without a streak is the one it was
       ...(inEndless(run) ? { endless: true as const } : {}),
     };
   }
