@@ -76,6 +76,10 @@
 // 0.9.15.1 is 0.9.15 with two accepted display rides: PRESENT-4 (a run of small stars reads whole, the road's drop row shows a shaped part's icon and its footprint, the first-run rig sentence
 // clears the deck on a phone, the info view's last page reads TAP TO CLOSE) and the POLISH chain POLISH-3 to POLISH-6 (battle faces, panels and words, the ENCHANTER's days). A client release,
 // no battle changes, so the rules stay bb-0.14.0 (src/sim/content.ts:61) and the label moves to 0.9.15.1, four parts again (STAGE-09151, branch r09151).
+// 0.9.16 is 0.9.15.1 with BUMP-1H's rules release (the difficulty curve: one of each hero's two everyday ghosts is the deck a casual player's decks beat about half the time, a streak tier on days 7 to 12,
+// a second ghost in 14 busy matchups, the four Easy captains' day-5 words BRACED, MOTH QUEEN and SILKSHADE one rare part lighter; one regeneration of the pools) and one display ride, PRESENT-5 (the
+// heavy turrets' icon, a rig's arrowheads on a narrow shop card, a shaped part's icon whole with a footprint mark on three more surfaces), which carries BACKDROP-1 and BACKDROP-2 (the LAST CHANCE
+// and dawn rune pickers stand on one solid panel). The rules are bb-0.15.0 (src/sim/content.ts:66) and the label moves to 0.9.16, three parts again (STAGE-0916, branch r0916).
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { VERSION } from "../src/version";
@@ -83,10 +87,10 @@ import { RULES_VERSION } from "../src/sim/content";
 
 const json = (f: string) => JSON.parse(readFileSync(new URL(`../${f}`, import.meta.url), "utf8")) as { version: string; packages?: Record<string, { version?: string }> };
 
-describe("the 0.9.15.1 label", () => {
-  it("is 0.9.15.1 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are BUMP-1G's bb-0.14.0 (BUMP-1F's were bb-0.13.0, BUMP-1E's bb-0.12.0, BUMP-1D's bb-0.11.0, AZ-BUMP's bb-0.10.0, Z-BUMP's bb-0.9.7, Y7b2's bb-0.9.3, BAL-2's bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6)", () => {
+describe("the 0.9.16 label", () => {
+  it("is 0.9.16 on the title screen (VERSION), in package.json and in package-lock.json's two root fields; the rules are BUMP-1H's bb-0.15.0 (BUMP-1G's were bb-0.14.0, BUMP-1F's bb-0.13.0, BUMP-1E's bb-0.12.0, BUMP-1D's bb-0.11.0, AZ-BUMP's bb-0.10.0, Z-BUMP's bb-0.9.7, Y7b2's bb-0.9.3, BAL-2's bb-0.9.1, release X's bb-0.9.0, RUNES-1's bb-0.8.7, PACKS's bb-0.8.6)", () => {
     const pkg = json("package.json"), lock = json("package-lock.json");
-    expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.9.15.1", "0.9.15.1", "0.9.15.1", "0.9.15.1"]);
+    expect([VERSION, pkg.version, lock.version, lock.packages?.[""]?.version]).toEqual(["0.9.16", "0.9.16", "0.9.16", "0.9.16"]);
     expect(RULES_VERSION).toBe("bb-0.15.0") /* BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0; FLIP-X2: was bb-0.8.7) */; // 0.8.6 played PACKS's bb-0.8.6; RUNES changes battles, so it bumps the rules
   });
 });
