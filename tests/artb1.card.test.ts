@@ -29,10 +29,12 @@ const data = JSON.parse(readFileSync("tools/artb/artb-slice.json", "utf8")) as {
 };
 const pal = C as Record<string, string>;
 const RIGS = ["embertrough", "nailstrip", "grease", "ballast", "rasp", "bellows", "sparkgap", "staticbrush", "barbed", "venom"];
-const SLICE = [...RIGS, "kiln"];
-/** the data's card picture of a slice id as w*h hexes (null = clear) */
+// ARTB-CODE-2A (batch 2), old -> new: SLICE was the ten rigs and KILN (11 ids); the start factories LOOM, CRUCIBLE and WARDWORKS answer as card pictures the same way (their bare 24x24 sprite): 14 ids
+const FACTORIES = ["kiln", "loom", "crucible", "wardworks"];
+const SLICE = [...RIGS, ...FACTORIES];
+/** the data's card picture of a slice id as w*h hexes (null = clear): card/<id> for a rig, the bare sprite for a start factory */
 function picture(id: string): (string | null)[] {
-  const s = data.sprites[id === "kiln" ? "kiln" : `card/${id}`];
+  const s = data.sprites[FACTORIES.includes(id) ? id : `card/${id}`];
   const out: (string | null)[] = [];
   for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) { const ch = s.rows[y][x]; out.push(ch === "." ? null : pal[data.legend[ch]]); }
   return out;
@@ -154,7 +156,9 @@ describe("ARTB-CODE-1 C: the shop card's picture", () => {
     const log = `ARTB1 PLATECOVER (a plate hides at most 25% of its picture's opaque px): ${rows.length} rows\n${rows.join("\n")}\nworst share per piece: ${Object.entries(worst).map(([id, v]) => `${id} ${(100 * v).toFixed(1)}%`).join(", ")}`;
     console.log(log);
     if (process.env.ARTB_PLATE_LOG) writeFileSync(process.env.ARTB_PLATE_LOG, log + "\n");
-    expect(Object.keys(worst).sort(), "the plated slice pieces: the two shaped rigs and KILN's plain 2x2").toEqual(["embertrough", "kiln", "nailstrip"]);
+    // ARTB-CODE-2A (batch 2), old -> new: ["embertrough", "kiln", "nailstrip"] -> + the start factories LOOM, CRUCIBLE and WARDWORKS (plain 2x2 grids, hasGrid, as KILN's: they carry the footprint plate too);
+    // the old three's shares did not move (3 of 341, 8 of 337, 8 of 403 opaque px on the 46x42 card: the table above)
+    expect(Object.keys(worst).sort(), "the plated slice pieces: the two shaped rigs and the four factories' plain 2x2").toEqual(["crucible", "embertrough", "kiln", "loom", "nailstrip", "wardworks"]);
     for (const id of Object.keys(worst)) expect(worst[id], `${id}: the plate hides at most 25% of the picture`).toBeLessThanOrEqual(0.25);
   });
 
