@@ -197,28 +197,28 @@
    "h": 24,
    "rows": [
     "........................",
+    "........................",
+    "........................",
+    "....................kk..",
+    "......kkk..........kRRk.",
+    ".....kddck........kRfk..",
+    "....kkccbkkkk....kRfkdk.",
+    "..kkRRRRRRRRRk..kRfkkdk.",
+    ".kfRwRRRRRRRffkkRfkkcdck",
+    "kfkRRRRRRRRRffkRfk.kbcbk",
+    "kfkRRRRRRRRRffRfkkkkkbk.",
+    "kfkRRRRRRRRRfffkk333kk..",
+    "kfkRRRRRRRRRffk3k444k3k.",
+    ".kfRRRRRRRRRffkk44344kk.",
+    "..kRRRRRRRRfff344323443k",
+    "...kfffffffKKk343212343k",
+    "....kkkkkkkkkk344323443k",
+    "..............kk44344kk.",
+    "..............k3k444k3k.",
+    "...............kk333kk..",
     ".................kkk....",
-    "................kdddk...",
-    "...............kdckkck..",
-    "..............kdck..k...",
-    ".............kdck.......",
-    "............kdck....k...",
-    "...........kdck....kbk..",
-    "........kkkdck.....kbk..",
-    ".......kcdddck....kbdbk.",
-    "......kcdeddcbk...kbbak.",
-    "..kkkkcdeedddcbk...kak..",
-    ".kbbbcdeeddddccbkkkkk...",
-    "kbkkkbbbbbbbbbbba333kk..",
-    "kbk.kcdeedddddc3b444k3k.",
-    "kbk.kcdeedddddcc44344kk.",
-    "kbkkbcdeeddddd344323443k",
-    ".kbbkcdedddddc343212343k",
-    "..kkkcdddddddc344323443k",
-    "....kbcccccccccb44344kk.",
-    ".....kaaaaaaaaa3k444k3k.",
-    "......kkkkkkkkkkk333kk..",
-    ".................kkk....",
+    "........................",
+    "........................",
     "........................"
    ]
   },
@@ -226,18 +226,18 @@
    "w": 12,
    "h": 12,
    "rows": [
-    "........kk..",
-    ".......kddk.",
-    "......kdckck",
-    "...kkkdck.k.",
-    "..kcddck.kbk",
-    ".kcdedcbkkak",
-    "kbbbbbbbakk.",
-    ".kcdedccb3k.",
-    ".kcdedcc343k",
-    ".kcddcccb3k.",
-    "..kbbbbakk..",
-    "...kkkkk...."
+    "............",
+    "...kk...kk..",
+    "..kdck.kRRk.",
+    ".kRRRRkRfkdk",
+    "kfRwRRRfkkck",
+    "kfRRRRfkkkk.",
+    ".kRRRRfk33k.",
+    ".kffffK3443k",
+    "..kkkkk4114k",
+    "......k3443k",
+    ".......k33k.",
+    "........kk.."
    ]
   },
   "card/ballast": {
@@ -343,24 +343,24 @@
     "........................",
     "........................",
     "........................",
-    ".k......................",
-    "kVk.....................",
-    "kVVkkk..................",
-    "kZZVVVkk................",
-    ".kkZZZVVkkk.............",
-    "...kuudZVVVkkk........k.",
-    "....ktuuZdZVVVkk.....kwk",
-    "....kkrrrssZdZddkkkkkwk.",
-    "...kuuuuuuurrrdcdddekwwk",
-    "...ktttttttqqqcbcccbkkk.",
-    "....kkrrrssYdYbakkkkkwk.",
-    "....ksssYdYXXXkk.....kwk",
-    "...kssdYXXXkkk........k.",
-    ".kkYYYXXkkk.............",
-    "kYYXXXkk................",
-    "kXXkkk..................",
-    "kXk.....................",
-    ".k......................",
+    ".......kkkkk............",
+    "......kVVVVVkk..........",
+    ".....kVVZZZZVVk.........",
+    "....kVZZZZZZZZVk........",
+    ".kkkkVZZZZZZZZZVk.k.....",
+    "kVVVVZZZZZZZZZZZVkdkkkk.",
+    "kYYYYZZZZZZZZZZZZZedddek",
+    ".kkkkZZZZZZZZZZZZYcbbbck",
+    "....kYZZZZZZZZZdYZbkkkk.",
+    "...kttdZZZZZZYYrZXak....",
+    "....kqtYYdYYdsrZXkk.....",
+    "...kssqtttttsrZXk.......",
+    ".kkkkrsqqqqqrZXk........",
+    "kZZZZZrssssrZXk.........",
+    "kXXXXXZrrrrZXk..........",
+    ".kkkkkXZZZZXk...........",
+    "......kXXXXk............",
+    ".......kkkk.............",
     "........................",
     "........................",
     "........................"
@@ -370,18 +370,18 @@
    "w": 12,
    "h": 12,
    "rows": [
-    ".k..........",
-    "kVkk........",
-    "kZVVkk......",
-    ".kuZVVk.....",
-    ".kuuuZVkkk..",
-    ".kttrrZddek.",
-    ".kssrrYccbk.",
-    ".ksssYXkkk..",
-    ".ksYXXk.....",
-    "kYXXkk......",
-    "kXkk........",
-    ".k.........."
+    "............",
+    "....kkk.....",
+    ".kkkVVVk....",
+    "kVVVZZZZk...",
+    ".kttZZZZZkk.",
+    ".kqqZZZZeddk",
+    ".kttYZZYcbk.",
+    ".kqqsYYrkk..",
+    "kZZZZrrk....",
+    "kXXXXkk.....",
+    ".kkkk.......",
+    "............"
    ]
   },
   "card/sparkgap": {
@@ -489,25 +489,25 @@
     "....kVVVVVVVVVVVVVVk....",
     "....kVVVVVVWWVVVVVZk....",
     "....kZZZZZZZZZZZZZYk....",
-    ".....kXYYYYYYYYYYXk.....",
-    ".....k3W3W3WWWWWWk......",
-    "......k44w4444443k......",
-    "......kW3W3WWWWWW3k.....",
-    ".....k3WWWWWW3W3Wk......",
-    "......k4444444w43k......",
-    "......kWWWWWW3W3W3k.....",
-    ".....k3WW3W3WWWWWkk.....",
-    "......k444w44444344k....",
-    ".....kkWW3W3WWWWWkk4k...",
-    "....kVVVVVVVVVVVVVZk4k..",
-    "....kZZZZZZZZZZZZZYk4k..",
-    ".....kXXXXXXXXXXXWkk4k..",
-    "....k.kkkkkkkkkkkk.k4k..",
-    "..kk3k3kk3k3kk3k3kk4k...",
-    ".k444w4444w4444w444k....",
-    "..kk3k3kk3k3kk3k3kk.....",
-    "....k.k..k.k..k.k.......",
-    "........................"
+    ".....kXWwWwWWWWWWXk.....",
+    "....kw344w55444443k.....",
+    ".....kkWwWwWWWWWWkk.....",
+    ".....k344455444443wk....",
+    ".....kkWWWWWWwWwWkk.....",
+    "....kw34455444w443k.....",
+    ".....kkWWWWWWwWwWkkk....",
+    ".....k23344333333233k...",
+    ".....kkWWWWWWWWWWkkk3k..",
+    "....kVVVVVVVVVVVVVZk3k..",
+    "....kZZZZZZZZZZZZZYk3k..",
+    ".....kXXXXXXXXXXXWkk3k..",
+    "...k..kkkkkkkkkkkk.k3k..",
+    "..kwk.kwkkwk.kwk..k3k...",
+    "..kk4k4kkkk4k4kkkk3k....",
+    ".k333w333333w33333k.....",
+    "..kk4k4kkkk4k4kkkk......",
+    "..kwk.kwkkwk.kwk........",
+    "...k...k..k...k........."
    ]
   },
   "board/barbed": {
@@ -517,15 +517,15 @@
     "...kkkkkk...",
     "..kVVVVVVk..",
     "..kYZZZZYk..",
-    "...k4w44k...",
-    "...kWWWWk...",
-    "...k44w44k..",
-    "...kWWWWk4k.",
-    "..kVVVVVV4k.",
-    "..kYXXXXY4k.",
-    ".k3k33k3k4k.",
-    "k44w44w44k..",
-    ".kkkkkkkk..."
+    "..k445444wk.",
+    "..kkWwWWkk..",
+    ".kw4454443k.",
+    "..kVVVVVV3k.",
+    "..kYXXXXY3k.",
+    ".kwkwkkk3k..",
+    "k33w3333k...",
+    ".kwkwkkk....",
+    "..k.k......."
    ]
   },
   "card/venom": {
@@ -705,18 +705,18 @@
     [
      [
       10,
-      4,
+      3,
       "."
      ],
      [
       10,
-      5,
-      "b"
+      4,
+      "d"
      ],
      [
       10,
-      6,
-      "a"
+      5,
+      "c"
      ]
     ],
     []
@@ -783,7 +783,7 @@
     [
      [
       10,
-      4,
+      3,
       "w"
      ],
      [
@@ -795,7 +795,7 @@
     [
      [
       10,
-      3,
+      2,
       "w"
      ],
      [
@@ -946,29 +946,14 @@
    "work": [
     [
      [
-      3,
-      10,
-      "w"
-     ],
-     [
-      2,
-      9,
-      "w"
-     ],
-     [
-      4,
+      6,
       9,
       "w"
      ]
     ],
     [
      [
-      6,
-      10,
-      "w"
-     ],
-     [
-      5,
+      1,
       9,
       "w"
      ],
