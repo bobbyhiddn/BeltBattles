@@ -37,14 +37,14 @@ describe("S8 T1b: the grades in the bundled pool (REVIEW-R3 ruling 4)", () => {
       console.log(`S8 T1b: the seed command's step stored the bundled file (${SEED_POOL.length} ghosts) in ${ms.toFixed(0)} ms, with no battles`);
       // BUMP-1D: the bundled file is the long world's (LONG_RUN ships on): 192 ghosts over days 1-16 (was 120 over days 1-10)
       // BUMP-1H: 230 (was 192): the 192 and the CURVE's 24 streak and 14 depth ghosts (bcfc5595)
-      expect(r).toEqual({ rules: RULES_VERSION, entries: 230, written: 230, unchanged: 0, removed: 0 });
+      expect(r).toEqual({ rules: RULES_VERSION, entries: 254, written: 254, unchanged: 0, removed: 0 }); // BUMP-1I (REQ-BFG-125, P3's take E525; P4's R3 6aff36f7: the tier grew to 48 ghosts on days 5-16): was 230
       expect(gradeMemo(), "no grading at boot").toBe(memo);
       // the store holds exactly the file's ghosts, each with the file's grade
       const want = new Map(bundledSeedPool().map((raw) => { const s = checkSnapshot(raw); return [ghostId(s), s.grade] as const; }));
       const got = new Map<string, number | undefined>();
       for (let day = 1; day <= 16; day++) for (const e of await store.bucket(RULES_VERSION, day, "pool")) got.set(e.id, e.snapshot.grade); // BUMP-1D: days 1-16 (was 1-10)
       expect(got).toEqual(want);
-      expect(await seedStore(store)).toMatchObject({ written: 0, unchanged: 230, removed: 0 }); // idempotent, as the release command (BUMP-1H: 230, was 192)
+      expect(await seedStore(store)).toMatchObject({ written: 0, unchanged: 254, removed: 0 }); // idempotent, as the release command (BUMP-1I (REQ-BFG-125, P3's take E525; P4's R3 6aff36f7: the tier grew to 48 ghosts on days 5-16): was 230; BUMP-1H: 230, was 192)
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -53,7 +53,7 @@ describe("S8 T1b: the grades in the bundled pool (REVIEW-R3 ruling 4)", () => {
   it("the file's ghosts are this build's rules, v3, each with a grade in 0..GRADE_MAX", () => {
     expect(SEED_POOL_RULES).toBe(RULES_VERSION);
     const pool = bundledSeedPool().map((raw) => checkSnapshot(raw));
-    expect(pool).toHaveLength(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: the long world's pool (4 heroes x 16 days x 3 variants; was 120, days 1-10)
+    expect(pool).toHaveLength(254); // BUMP-1I (REQ-BFG-125, P3's take E525; P4's R3 6aff36f7: the tier grew to 48 ghosts on days 5-16): was 230. BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: the long world's pool (4 heroes x 16 days x 3 variants; was 120, days 1-10)
     for (const s of pool) {
       expect([s.rules, s.v], `${s.hero} d${s.day}`).toEqual([RULES_VERSION, SNAPSHOT_V3]);
       expect(Number.isInteger(s.grade) && s.grade! >= 0 && s.grade! <= GRADE_MAX, `${s.hero} d${s.day} grade ${s.grade}`).toBe(true);

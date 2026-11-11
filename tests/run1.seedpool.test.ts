@@ -38,7 +38,7 @@ import { parRunSeed } from "../src/sim/harness/player"; // BUMP-1D: the floor gh
 import {
   CASUAL_FLOOR_SEED, FLOOR_PICKS, // BUMP-1D: the chosen casual floor runs
   DEPTH_SLOTS, STREAK_FIRST_DAY, STREAK_LAST_DAY, // BUMP-1H run 3: the curve's new ghosts (the scratch pool's size)
-  DEPTH_VARIANT, STREAK_VARIANT, depthSlot, streakSlot, // BUMP-1H run 4 (P6): the committed file's order of those ghosts (the streak ghosts hero by hero and day by day, then the depth ghosts in DEPTH_SLOTS' order)
+  DEPTH_SLOT_BASE, DEPTH_VARIANT, STREAK_SLOT_BASE, STREAK_VARIANT, depthSlot, streakSlot, // BUMP-1I: + DEPTH_SLOT_BASE, STREAK_SLOT_BASE (R4.3's seeding). BUMP-1H run 4 (P6): the committed file's order of those ghosts (the streak ghosts hero by hero and day by day, then the depth ghosts in DEPTH_SLOTS' order)
   FLOOR_VARIANT, MIN_ELIGIBLE, RACE_SEED_HEROES, RACE_VARIANTS, SAMPLE_VARIANTS, SOFT1_PICKS, SOFT1_PICKS_FILE_ENV, SOFT1_WORLD,
   drawRecord, drawnLabel, poolDepth, raceDeck, sampleDeckOf, sampleEntry, seedSlot, softDecks, softPickKey, softPickRows, softPicked,
   softStaleCheck, statedLosses, uncoveredStates, type RaceDeck,
@@ -80,7 +80,7 @@ describe("T8: the generator's depth", () => {
     // BUMP-1H: 230 = the 192 of the order below + the CURVE's 24 streak ghosts (4 heroes x days STREAK_FIRST_DAY..STREAK_LAST_DAY) + its 14 depth ghosts (DEPTH_SLOTS), the last two appended after the 192 (was 192)
     const BASE_N = 192, STREAK_N = PLAYABLE_HEROES.length * (STREAK_LAST_DAY - STREAK_FIRST_DAY + 1);
     expect(COMMITTED).toHaveLength(BASE_N + STREAK_N + DEPTH_SLOTS.length);
-    expect(COMMITTED).toHaveLength(230);
+    expect(COMMITTED).toHaveLength(254); // BUMP-1I (REQ-BFG-125; P3's take E525, R3 6aff36f7: 254 ghosts = the 192 + the tier's 48 (days 5-16) + the 14 depth ghosts): was 230
     COMMITTED.forEach((s, i) => {
       expect(s.createdAt, `${s.playerId} d${s.day}`).toBe(EPOCH + i * 1000);
       const v = Number(s.playerId.slice(s.playerId.lastIndexOf("-") + 1));
@@ -89,12 +89,18 @@ describe("T8: the generator's depth", () => {
           expect(v, `${s.playerId} d${s.day}: a streak ghost`).toBe(STREAK_VARIANT);
           expect(s.day, `${s.playerId}`).toBeGreaterThanOrEqual(STREAK_FIRST_DAY);
           expect(s.day, `${s.playerId}`).toBeLessThanOrEqual(STREAK_LAST_DAY);
-          expect(streakSlot(s.hero, s.day), `${s.playerId} d${s.day}`).toBe(i);
+          // BUMP-1I (RULING-BUMP1H-R4 R4.3; the take 8bc8a4cf): the grade's battle seeds read streakSlot (HERO AND DAY: curveBase + STREAK_SLOT_BASE + hero index x pool depth + day - 1), no longer the pool index, so the tier's span can move without
+          // moving a pick or a grade; the pool ORDER (createdAt, above) is still hero by hero and day by day. Was expect(streakSlot(s.hero, s.day)).toBe(i)
+          const days = STREAK_LAST_DAY - STREAK_FIRST_DAY + 1;
+          expect(i, `${s.playerId} d${s.day}: the pool order`).toBe(BASE_N + PLAYABLE_HEROES.indexOf(s.hero) * days + (s.day - STREAK_FIRST_DAY));
+          expect(streakSlot(s.hero, s.day), `${s.playerId} d${s.day}`).toBe(BASE_N + STREAK_SLOT_BASE + PLAYABLE_HEROES.indexOf(s.hero) * poolDepth() + (s.day - 1));
         } else {
           const j = i - BASE_N - STREAK_N, [day, wins] = DEPTH_SLOTS[j];
           expect(v, `${s.playerId} d${s.day}: a depth ghost`).toBe(DEPTH_VARIANT);
           expect([s.day, s.wins], `${s.playerId}: depth slot ${j}`).toEqual([day, wins]);
-          expect(depthSlot(j), `${s.playerId} d${s.day}`).toBe(i);
+          // BUMP-1I (R4.3): the depth ghosts keep the grade slots they had at bb-0.15.0 (DEPTH_SLOT_BASE 24 = that tier's 4 x 6 ghosts), whatever the tier's span; their pool ORDER follows the tier's ghosts. Was expect(depthSlot(j)).toBe(i)
+          expect(i, `${s.playerId} d${s.day}: the pool order`).toBe(BASE_N + STREAK_N + j);
+          expect(depthSlot(j), `${s.playerId} d${s.day}`).toBe(BASE_N + DEPTH_SLOT_BASE + j);
         }
         return;
       }
@@ -148,7 +154,7 @@ describe("T8: in the shipped world the generator is the committed pool; with the
       const streak = day >= STREAK_FIRST_DAY && day <= STREAK_LAST_DAY ? PLAYABLE_HEROES.length : 0, depth = DEPTH_SLOTS.filter(([d]) => d === day).length;
       expect(COMMITTED.filter((s) => s.day === day), `d${day}`).toHaveLength(12 + streak + depth); // BUMP-1H: was 12
     }
-    expect(new Set(COMMITTED.map(ghostId)).size).toBe(230); // BUMP-1H: was 192
+    expect(new Set(COMMITTED.map(ghostId)).size).toBe(254); // BUMP-1I: was 230. BUMP-1H: was 192
   }, 900_000);
 
   it("the floor ghosts are the chosen casual runs (FLOOR_PICKS, BUMP-1D RULING-BUMP-R2 R2.1): one run seed on all 16 days of a hero, the pick's", () => {
@@ -466,7 +472,7 @@ describe("T8 (opt-in): the scratch seed pool for days 1-16", () => {
   // BUMP-1H run 3 (step R3): was 192 (4 heroes x 3 slots x 16 days, the CURVE off). With the CURVE on the pool holds those 192 and, after them, the streak ghosts (4 heroes x STREAK_FIRST_DAY..STREAK_LAST_DAY: 24)
   // and the depth ghosts (DEPTH_SLOTS: 14): 230 (tools/samplePool.ts curveGhosts).
   const SIZE = (): number => 192 + (curveRules() ? PLAYABLE_HEROES.length * (STREAK_LAST_DAY - STREAK_FIRST_DAY + 1) + DEPTH_SLOTS.length : 0);
-  it.skipIf(!file || !existsSync(file))("holds the 192 ghosts of days 1-16 and, with the CURVE on, the streak and depth ghosts (230), each stating its losses, every reachable state of days 1-16 covered", () => {
+  it.skipIf(!file || !existsSync(file))("holds the 192 ghosts of days 1-16 and, with the CURVE on, the streak and depth ghosts (254; BUMP-1I: was 230), each stating its losses, every reachable state of days 1-16 covered", () => {
     withLongRun(() => {
       const pool = (JSON.parse(readFileSync(file!, "utf8")) as unknown[]).map((raw) => checkSnapshot(raw));
       expect(pool).toHaveLength(SIZE());

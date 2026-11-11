@@ -4,16 +4,19 @@
 // the device key (identity.ts); without an identity (a plain-http page) there is no upload.
 
 import { RULES_VERSION } from "../sim/content";
-import { fallbackGhost, migrateV1, type FallbackRequest } from "./fallback";
+import { migrateV1, type FallbackRequest } from "./fallback"; // BUMP-1I (REQ-BFG-125): fallbackGhost is veteran.ts veteranFallback's two lines now (below)
 import { KEY_HEADER, SIG_HEADER, type Identity } from "./identity";
 import { ghostDayOk, noBetterRecord } from "./matchmaking";
 import { longRunFor } from "./rulesGate"; // RUN-1: the long run's widened day
 import { checkSnapshot, encodeSnapshot, type GhostSnapshot, type PoolEntry } from "./snapshot";
 import { validateUpload } from "./validate";
+import { veteranFallback } from "./veteran"; // BUMP-1I (REQ-BFG-125): the offline pick, with the veteran's lead (outside the generators' closure: nothing on it imports veteran.ts)
 import { endlessRecordProblem, isReachable } from "./records"; // SCALE-2d (REQ-BFG-098, D5): a served ghost's record, with SCALE_RIGS on; BUMP-1E (R3.3 a): an endless ghost's record, as the server judges it
 import { scaleRules } from "../sim/scale"; // SCALE-2d
 
-export type GhostRequest = FallbackRequest;
+/** BUMP-1I (REQ-BFG-125, VETERAN): the request may carry the device's `streak` (runs won in a row; absent counts as 0), typed here and in
+ *  veteran.ts, outside the generators' closure (matchmaking.ts's MatchRequest and fallback.ts's FallbackRequest are on it and are not edited). */
+export type GhostRequest = FallbackRequest & { streak?: number };
 
 export interface FetchedGhost extends PoolEntry {
   source: "server" | "fallback";
@@ -32,6 +35,7 @@ export function matchUrl(baseUrl: string, req: GhostRequest): string {
     player: req.playerId, seen: req.seen.join(","),
   });
   if (req.runs !== undefined) q.set("runs", String(req.runs)); // 0.7.0a D2: finished runs on this device
+  if (req.streak !== undefined && req.streak > 0) q.set("streak", String(req.streak)); // BUMP-1I (REQ-BFG-125): runs won in a row on this device; only above 0, so a request without one has the URL it had
   if (req.endless) q.set("mode", "endless"); // ENDLESS-1 (REQ-BFG-059): an endless dusk's request (wins and lives are the endless ones): endless ghosts only
   return endpoint(baseUrl, `/v1/ghosts/match?${q.toString()}`);
 }
@@ -104,7 +108,7 @@ function problem(body: unknown, req: GhostRequest): string | PoolEntry {
 export async function fetchGhost(
   baseUrl: string, req: GhostRequest, timeoutMs = 4000, opts: { pool?: readonly PoolEntry[] } = {},
 ): Promise<FetchedGhost> {
-  const fallback = (error: string): FetchedGhost => ({ ...fallbackGhost(req, opts.pool), source: "fallback", error });
+  const fallback = (error: string): FetchedGhost => ({ ...veteranFallback(req, opts.pool), source: "fallback", error }); // BUMP-1I (REQ-BFG-125): was fallbackGhost(req, opts.pool): the same two lines with veteranPick in matchPick's place
   try {
     const { status, text } = await fetchText(matchUrl(baseUrl, req), { method: "GET", headers: { accept: "application/json" } }, timeoutMs);
     if (status === 404) return fallback("no ghost on the server for this day");

@@ -30,8 +30,8 @@ import { LONG_RUN_MAX_DAY, WIN_GOAL } from "../longRun";
 import { lastChanceOffer, type Boon } from "../lastChance";
 import { openRunesRules } from "../openRunes";
 import { standInFoe } from "../../game/ghosts";
-import { matchPick } from "../../net/pick";
-import type { MatchRequest } from "../../net/matchmaking";
+import { matchPick, type PickRule } from "../../net/pick";
+import { veteranPick, type VeteranRequest } from "../../net/veteran"; // BUMP-1I (REQ-BFG-125, V2): the bench's veteran (BenchVeteran below)
 import type { PoolEntry } from "../../net/snapshot";
 import { botLastChancePick } from "./lastChance";
 import { casualOpts } from "./casual";
@@ -64,10 +64,16 @@ export interface EndlessPlay {
   dusks: number; // endless dusks fought (wins + losses + draws): "the days endless lasts"
 }
 
+/** BUMP-1I (REQ-BFG-125, V2): the endless bench's veteran, as tools/retune1.ts's --streak, --vrule and --shield: the streak every request of phase A carries, the
+ *  veteran's pick rule (veteran.ts VETERAN_RULE when absent) and the shield (VETERAN_SHIELD when absent). benchRun without it plays the run as it was. */
+export interface BenchVeteran { streak: number; rule?: PickRule; shield?: boolean }
+
 export interface BenchRow {
   bot: EndlessBot;
   hero: HeroId;
   seed: number;
+  /** BUMP-1I: only when benchRun was given a BenchVeteran: its streak (the run was played on the road when it is VETERAN_AT or more). */
+  streak?: number;
   /** "won" (carried into endless), "lost" (0 hearts before the 10th win) or "backstop" (still going past LONG_RUN_MAX_DAY). */
   run: "won" | "lost" | "backstop";
   /** The run's last dusk day: the victory day when won. */
@@ -87,7 +93,7 @@ function fight(a: Build, b: Build, seed: number, day: number): 0 | 1 | -1 {
 
 /** One (bot, hero, seed): phase A, then phase B on every step. `pool`: the seed pool as the game's pick reads it (committed
  *  server/seedPoolData.ts, decoded). The module switches stand as the build ships them (the caller turns ENDLESS on). */
-export function benchRun(bot: EndlessBot, hero: HeroId, seed: number, pool: readonly PoolEntry[], steps: readonly number[] = DEFAULT_STEPS): BenchRow {
+export function benchRun(bot: EndlessBot, hero: HeroId, seed: number, pool: readonly PoolEntry[], steps: readonly number[] = DEFAULT_STEPS, vet?: BenchVeteran): BenchRow {
   const runSeed = parRunSeed(hero, seed);
   const base = botOpts(bot);
   let opts: PlayerOpts = base;
@@ -109,8 +115,9 @@ export function benchRun(bot: EndlessBot, hero: HeroId, seed: number, pool: read
   let run: BenchRow["run"] = "backstop", runDay = LONG_RUN_MAX_DAY;
   for (let day = 1; day <= LONG_RUN_MAX_DAY; day++) {
     const deck = deckAt(day);
-    const req: MatchRequest = { rules: RULES_VERSION, day, wins, lives: Math.max(1, left), playerId: "endless1-bench", seen, runs: 0 };
-    const hit = matchPick(pool, req, new Rng(hashSeed("rt1-match", runSeed, day)));
+    const req: VeteranRequest = { rules: RULES_VERSION, day, wins, lives: Math.max(1, left), playerId: "endless1-bench", seen, runs: 0, ...(vet && vet.streak > 0 ? { streak: vet.streak } : {}) };
+    // BUMP-1I: with a BenchVeteran the pick is veteran.ts veteranPick (the run on the road when the streak is VETERAN_AT or more); without, matchPick exactly as it was
+    const hit = vet ? veteranPick(pool, req, new Rng(hashSeed("rt1-match", runSeed, day)), { rule: vet.rule, shield: vet.shield }) : matchPick(pool, req, new Rng(hashSeed("rt1-match", runSeed, day)));
     let foe: Build;
     if (hit) {
       foe = hit.snapshot.build;
@@ -132,7 +139,7 @@ export function benchRun(bot: EndlessBot, hero: HeroId, seed: number, pool: read
     if (left <= 0) { run = "lost"; runDay = day; break; }
     if (wins >= WIN_GOAL) { run = "won"; runDay = day; break; }
   }
-  const row: BenchRow = { bot, hero, seed, run, runDay, runWins: wins, lcDay, endless: [] };
+  const row: BenchRow = { bot, hero, seed, ...(vet ? { streak: vet.streak } : {}), run, runDay, runWins: wins, lcDay, endless: [] };
   if (run !== "won") return row;
 
   // ---- phase B: endless, on every GOD step

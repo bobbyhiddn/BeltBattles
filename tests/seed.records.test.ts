@@ -170,7 +170,7 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
     expect(POOL.every((s) => typeof s.grade === "number")).toBe(true);
     // BUMP-1H (P6): the pool is these three parts (the 192) and, after them, the CURVE's 24 streak ghosts (variant 3) and 14 depth ghosts (variant 4) (tools/samplePool.ts curveGhosts; pinned by tests/rc.seedpool): was the whole pool
     expect(POOL.slice(0, 192).map(({ grade: _grade, ...s }) => s)).toEqual([...SAMPLE, ...FLOOR, ...RACE]);
-    expect(POOL.slice(192).map((s) => Number(s.playerId.slice(-1)))).toEqual([...Array(24).fill(3), ...Array(14).fill(4)]);
+    expect(POOL.slice(192).map((s) => Number(s.playerId.slice(-1)))).toEqual([...Array(48).fill(3), ...Array(14).fill(4)]); // BUMP-1I (REQ-BFG-125; P3's take E525, R3 6aff36f7: 254 ghosts = the 192 + the tier's 48 (days 5-16) + the 14 depth ghosts): was Array(24).fill(3) (the tier's days 7-12)
     expect([SAMPLE.length, FLOOR.length, RACE.length]).toEqual([64, 32, 96]); // BUMP-1D: was [40, 20] (and 60 race ghosts)
     for (const s of POOL) {
       expect(s.rules).toBe(RULES_VERSION);
@@ -191,7 +191,7 @@ describe("D5: the seed pool (tools/samplePool.ts generateSamplePool)", () => {
       expect(budget.length, `${s.playerId} d${s.day}: at most its one budget line`).toBeLessThanOrEqual(1);
       expect(strict.filter((e) => !budget.includes(e)), `${s.playerId} d${s.day}: every other strict line`).toEqual([]);
     }
-    expect(checkPool(POOL)).toHaveLength(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: was 120 (0.8.0 RC: was 60)
+    expect(checkPool(POOL)).toHaveLength(254); // BUMP-1I (REQ-BFG-125; P3's take E525, R3 6aff36f7: 254 ghosts = the 192 + the tier's 48 (days 5-16) + the 14 depth ghosts): was 230. BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: was 120 (0.8.0 RC: was 60)
   }, 120_000); // BUMP-1G P7: 120 s (was the 30-s default): 13 s alone, 33 s beside twelve workers: a host timeout, not the rule
 
   it("every label is reachable; the three drawn labels the refund rules out keep their wins at the nearest reachable lives", () => {
@@ -309,7 +309,7 @@ describe.each(storeBackends())("D5 end to end on the $name store: a new player g
     await backend.setup();
     app = backend.server({ rateLimit: { windowMs: 60_000, max: 100_000 }, log: () => {}, matchSalt: () => 0 });
     base = `http://127.0.0.1:${await app.listen(0)}`;
-    expect((await seedStore(app.store)).entries).toBe(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: was 120 (0.8.0 RC: was 60)
+    expect((await seedStore(app.store)).entries).toBe(254); // BUMP-1I (REQ-BFG-125; P3's take E525, R3 6aff36f7: 254 ghosts = the 192 + the tier's 48 + the 14 depth ghosts): was 230. BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: was 120 (0.8.0 RC: was 60)
   });
   afterAll(async () => {
     await app.close();

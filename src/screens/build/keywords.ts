@@ -439,12 +439,15 @@ interface KwState {
   note: RichLine[] | null;
   /** PRESENT-4 T (F10): where the rig sentence's box went on its first frame (rigPlace); kept while it shows (no jumps), null when it is not shown. Read by the tests and by rigAhead. */
   rigAt: RigPlace | null;
+  /** PRESENT-6 N (REQ-BFG-081, REQ-BFG-004; the release lane's F8): where a MOUSE's first-sight box (the hover look, `auto`) went on its first frame (sightTipPlace), and the word it is for; kept while that word's box shows (no jumps,
+   *  as rigAt), null when none is shown. Read by the tests. */
+  sightAt: { word: string; box: Rect; place: SightName } | null;
 }
 const STATE = new WeakMap<object, KwState>();
 const stateOf = (owner: object, key: string): KwState => {
   let s = STATE.get(owner);
   if (!s || s.key !== key) {
-    s = { key, word: null, page: null, hover: null, opened: false, auto: null, rig: false, chain: false, held: 0, place: null, face: null, text: null, note: null, rigAt: null };
+    s = { key, word: null, page: null, hover: null, opened: false, auto: null, rig: false, chain: false, held: 0, place: null, face: null, text: null, note: null, rigAt: null, sightAt: null };
     STATE.set(owner, s);
   }
   return s;
@@ -933,7 +936,7 @@ function underline(g: G, t: KwTarget): void {
  * definition or the KEYWORDS view; on the desk, the hover tooltip and the `help` cursor. `owner`: the screen (its state);
  * `ui`: the frame's regions; `buttons`: the drawn buttons' hit rects; `tap`: a finger's target height (0: a mouse).
  */
-export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null; strip?: Rect | null; hang?: NoteHang; column?: ColumnSpec; deck?: Rect | null },
+export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { show: Sel; t: PanelText; plan: PanelPlan; hint?: string | null; strip?: Rect | null; hang?: NoteHang; column?: ColumnSpec; deck?: Rect | null; sightDeck?: Rect | null },
   lines: readonly { line: PLine | "rule"; y: number }[], buttons: readonly Rect[], tap: number, canvas?: HTMLCanvasElement | null,
   free: Rect | null = null, screen?: { W: number; H: number }, sight = false): void {
   // CARD-2 (REQ-BFG-004, K1): `sight`, the screen asks for the first-sight notes (inspector.ts drawDetails: the build
@@ -1069,9 +1072,14 @@ export function drawKeywordLayer(g: G, owner: object, ui: UI, run: Run, d: { sho
   const at = s.auto ? targets.find((t) => t.word === s.auto) : undefined;
   if (s.auto && !at) s.auto = null;
   if (at) {
-    ui.add({ id: SIGHT_REGION, r: drawHoverTip(g, at, r), block: true });
+    // PRESENT-6 N (REQ-BFG-081, REQ-BFG-004; the release lane's F8): the box is the hover look's (drawWordTip: its size, look and text are unchanged), but its PLACE is sightTipPlace's, not always under its word, where that covers a row of
+    // the panel's own text: chosen ONCE from the box's first frame (KwState.sightAt, as rigAt; never moved while it shows) and its region is the box's rect. The player's own hover tip (below) and a rune card's tip keep drawWordTip's place.
+    const pl = s.sightAt && s.sightAt.word === at.word ? s.sightAt
+      : (s.sightAt = { word: at.word, ...sightTipPlace(wordTipBox(at.text, at.glyph, r), { r, bodyY: plan.y, lines, head: panelHead(plan, buttons), strip: d.strip ?? null,
+        own: targets.filter((t) => t.word === at.word), deck: d.sightDeck, column: d.column, screen }) });
+    ui.add({ id: SIGHT_REGION, r: drawWordTip(g, at.text, at.colour, at.glyph, r, undefined, undefined, pl.box), block: true });
     sawWord(at.word);
-  }
+  } else s.sightAt = null;
   // the rig sentence's box: by the panel's icon, in the icon tooltip's look (iconTipRect, drawIconTip), a UI region.
   // CARD-4 run 2 (REQ-BFG-087): where the screen has no room beside the panel (a phone's band panel), under the panel and
   // its strip, off the shop (rigTipRect). PRESENT-4 T (F10): there, its place is rigPlace's (inside the panel's body, else
@@ -1277,6 +1285,59 @@ export function rigPlace(items: readonly string[], r: Rect, screen: { W: number;
 /** PRESENT-4 T: the foot of the panel's lowest text row (5x7 rows are 7 px tall, 3x5 rows 5), at least the body's top. */
 export const rigRowsEnd = (lines: readonly { line: PLine | "rule"; y: number }[], plan: Pick<PanelPlan, "y">): number =>
   Math.max(plan.y, ...lines.filter((v) => v.line !== "rule").map((v) => v.y + ((v.line as { font: FontId }).font === "5" ? 7 : 5)));
+
+/**
+ * PRESENT-6 N (REQ-BFG-081, REQ-BFG-004; the release lane's F8, STAGE-09151's ruling 14): where a MOUSE's first-sight box goes. The box that opens by itself for a mouse is the hover tooltip's look (drawWordTip) under its word, which on a
+ * belt's panel, a rig's or a turret's lay over the rows below the word (402x690's belt 0 in a first run: the COPIES note over rows T4-T6 and the readout's first labels). `today` is that box (wordTipBox: its size, the 150 px wrap in the 3x5
+ * face, and its place under the word); the place is the first of these that sits whole on the screen and covers no TEXT ROW of the panel (any drawn line that is not a divider; a row within 1 px counts, as rulesCovered's), no header row
+ * or button (`head`), no how-to strip and not its own word (`own`):
+ *   (today)   under the word: today's place, unchanged wherever it is already clear;
+ *   (inside)  inside the panel's body, under its last text row (`rowsEnd`: rigRowsEnd) and 2 px clear of it, the box and its 2 px drop shadow whole inside the panel's frame (PRESENT-4 T's rigPlace `inside`; the box's x moves left only as far as it must);
+ *   (off the panel) on the landscape column (`column`, inspector.ts columnSpec): the places columnLadder knows: (under) under the panel and its buttons, at today's x or else the column's left edge, where the column has the room;
+ *             (band) the free room between the shop row's foot and the carrier's drawing; (corner) above the column; never over a `hard` rect of the column; on a band panel (a phone-sized view, `deck` given: inspector.ts deckAny):
+ *             (below) just under the panel and its strip, where it ends above the deck's top (no deck cell; FIGHT, the cargo bar and the top bar are beyond it) and is whole on the screen;
+ *   (fallback) else today's place (the tests list the panels that land here).
+ * Only the box's place moves. Pure (drawKeywordLayer, the tests).
+ */
+export type SightName = "today" | "inside" | "under" | "band" | "corner" | "below" | "fallback";
+export interface SightPlace { box: Rect; place: SightName }
+export function sightTipPlace(today: Rect, o: { r: Rect; bodyY: number; lines: readonly { line: PLine | "rule"; y: number }[]; head: readonly Rect[]; strip: Rect | null; own: readonly { glyph: Rect }[];
+  deck?: Rect | null; column?: ColumnSpec; screen?: { W: number; H: number } }): SightPlace {
+  const { r, lines } = o, W = o.screen?.W ?? Infinity, H = o.screen?.H ?? Infinity;
+  const textHit = (b: Rect): boolean => b.x < r.x + r.w && r.x < b.x + b.w
+    && lines.some((v) => v.line !== "rule" && v.y - 1 < b.y + b.h && b.y < v.y + ((v.line as { font: FontId }).font === "5" ? 7 : 5) + 1);
+  const whole = (b: Rect): boolean => b.x >= 0 && b.y >= 0 && b.x + b.w <= W && b.y + b.h <= H;
+  const clear = (b: Rect): boolean => whole(b) && !textHit(b) && !o.head.some((q) => overlaps(b, q)) && !(o.strip && overlaps(b, o.strip)) && !o.own.some((t) => overlaps(t.glyph, b));
+  // today's box is not kept on the screen (drawWordTip with no `screen`: a word far right puts it past the edge): every candidate keeps today's x, moved left only as far as the screen needs (2 px clear of its edge, as drawWordTip's own clamp)
+  const onX = (b: Rect): Rect => (b.x + b.w + 2 > W ? { ...b, x: Math.max(2, W - 2 - b.w) } : b);
+  const at = onX(today);
+  if (clear(today)) return { box: today, place: "today" };
+  if (at !== today && clear(at)) return { box: at, place: "today" };
+  // (inside): the panel's body under its last text row, the box and its 2 px shadow whole inside the frame
+  const x0 = Math.max(r.x + 2, Math.min(at.x, r.x + r.w - 2 - today.w - 2)), inside: Rect = { ...today, x: x0, y: rigRowsEnd(lines, { y: o.bodyY }) + 2 };
+  if (inside.x >= r.x + 2 && inside.x + inside.w + 2 <= r.x + r.w && inside.y + inside.h + 2 <= r.y + r.h && clear(inside)) return { box: inside, place: "inside" };
+  const col = o.column;
+  if (col) {
+    const apart = (b: Rect): boolean => clear(b) && b.y + b.h <= col.floor + 2 && !col.hard.some((q) => overlaps(b, q));
+    for (const x of [at.x, onX({ ...today, x: r.x + 2 }).x]) {
+      const under: Rect = { ...today, x, y: r.y + r.h + 2 };
+      if (under.y + under.h <= col.areaBottom && apart(under)) return { box: under, place: "under" };
+    }
+    for (const [place, room] of [["band", col.band], ["corner", col.corner]] as const) {
+      if (!room || today.w > room.w || today.h > room.h) continue;
+      const b: Rect = { ...today, x: room.x, y: place === "band" ? room.y : room.y + room.h - today.h };
+      if (apart(b)) return { box: b, place };
+    }
+  } else if (o.deck) {
+    // just under the panel and its strip (2 px clear); where that ends past the deck's top, ending flush at it (whole px, as deckClear), no higher than the panel's (and its strip's) foot
+    const foot = Math.max(r.y + r.h, o.strip && o.strip.y >= r.y + r.h ? o.strip.y + o.strip.h : 0), top = Math.floor(o.deck.y);
+    for (const y of [foot + 2, top - today.h]) {
+      const below: Rect = { ...at, y };
+      if (y >= foot && below.y + below.h <= top && clear(below)) return { box: below, place: "below" };
+    }
+  }
+  return { box: today, place: "fallback" };
+}
 /**
  * PRESENT-4 T: the place the rig sentence's box has in THIS frame, worked out before the panel draws its strip (inspector.ts drawDetails, as definitionAhead is for a note): the place of its first frame while it
  * shows, or, on a new open where the layer will open it now (the screen asks for first sights, the body draws no how-to hint, the rig is one the sentence is true of and it is not seen yet, the layer has
@@ -1323,8 +1384,9 @@ function drawHoverTip(g: G, t: KwTarget, r: Rect): Rect {
 
 /** CARD-2 (REQ-BFG-081, K1, K2): drawHoverTip's box for a definition `text` (markup) of a word drawn at `glyph` on panel or
  *  card `r`, its top edge in the word's `colour`; on `screen` where given, kept on it (a rune card on a narrow screen).
- *  Returns its rect. */
-export function drawWordTip(g: G, text: string, colour: string, glyph: Rect, r: Rect, screen?: { W: number; H: number }, avoid?: Rect | null): Rect {
+ *  Returns its rect. PRESENT-6 N: `place`, where a mouse's first-sight box goes (sightTipPlace's; the box's size, look and text are as ever); absent, the place under the word, as every other caller's (the player's own hover, a rune card's tip).
+ *  With no canvas (`g` null) it draws nothing and returns the box (wordTipBox). */
+export function drawWordTip(g: G | null, text: string, colour: string, glyph: Rect, r: Rect, screen?: { W: number; H: number }, avoid?: Rect | null, place?: { x: number; y: number }): Rect {
   const lines = wrapRich(colourize(icons(text), C.bone), 150, "3");
   const w = Math.max(...lines.map((l) => lineWidth(l, "3"))) + 10, h = 8 + lines.length * 7;
   let x = Math.max(2, Math.min(r.x + r.w + 200 - w, glyph.x - 4));
@@ -1333,6 +1395,8 @@ export function drawWordTip(g: G, text: string, colour: string, glyph: Rect, r: 
   // CARD-3 (REQ-BFG-087, D2; REVIEW-CARD2 open item 3): under the word it would cover `avoid` (a rune card's TAP AGAIN TO
   // TAKE IT bar, its shadow 2 px included): then above the word, where the screen's top allows
   if (avoid && overlaps({ x, y, w: w + 2, h: h + 2 }, avoid) && glyph.y - 4 - h >= 2) y = glyph.y - 4 - h;
+  if (place) { x = place.x; y = place.y; }
+  if (!g) return { x, y, w, h };
   rect(g, x + 2, y + 2, w, h, C.ink);
   rect(g, x, y, w, h, C.ink);
   rect(g, x + 1, y + 1, w - 2, h - 2, C.night);
@@ -1340,6 +1404,8 @@ export function drawWordTip(g: G, text: string, colour: string, glyph: Rect, r: 
   lines.forEach((l, i) => drawRich(g, l, x + 5, y + 4 + i * 7, "3"));
   return { x, y, w, h };
 }
+/** PRESENT-6 N: the box drawWordTip draws for `text` at today's place (under the word), without drawing: its size and place (sightTipPlace's `today`). */
+export const wordTipBox = (text: string, glyph: Rect, r: Rect, screen?: { W: number; H: number }, avoid?: Rect | null): Rect => drawWordTip(null, text, C.bone, glyph, r, screen, avoid);
 
 let cursorHelp = false;
 /** The canvas's cursor: `help` over a word (desk), else the page's own. */

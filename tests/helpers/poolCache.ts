@@ -54,6 +54,7 @@ import { shapesRules } from "../../src/sim/shapes";
 import { shapes2Rules } from "../../src/sim/shapes2";
 import { pickRules } from "../../src/net/pick";
 import { curveRules } from "../../src/net/curve"; // BUMP-1H: THE CURVE's switch (a SWITCHES row below)
+import { veteranRules } from "../../src/net/veteran"; // BUMP-1I: VETERAN's switch (a SWITCHES row below)
 import type { HeroId } from "../../src/sim/content";
 import type { GhostSnapshot } from "../../src/net/snapshot";
 
@@ -186,6 +187,10 @@ export const SWITCHES: ReadonlyArray<readonly [string, () => boolean]> = [
   // BUMP-1H (REQ-BFG-124): THE CURVE (src/net/curve.ts, in the closure through tools/samplePool.ts and src/net/pick.ts): slot 1's casual grade, the streak tier and the
   // depth ghosts are dealt only with it on. Without it the key could not tell a curve-on pool from an off one. A correctness fix, not a re-pin.
   ["curve", curveRules],
+  // BUMP-1I (REQ-BFG-125): VETERAN (src/net/veteran.ts). The scan follows type-only imports (IMPORT_RE counts `import type`), and src/game/day.ts (on the generators' closure)
+  // type-imports src/net/ghostClient.ts, which now imports veteran.ts: so veteran.ts is in this key's closure although no generator runs it (the stand-in bundle, which erases
+  // type imports, is byte-identical: P1's switch-off proof). Listing the switch keeps the key honest and this list equal to the closure's `*Rules` functions.
+  ["veteran", veteranRules],
 ];
 
 interface ProcessInfo { pid: number; arch: string; platform: string; versions: Record<string, string> }
