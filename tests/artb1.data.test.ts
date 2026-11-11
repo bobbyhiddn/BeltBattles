@@ -2,17 +2,17 @@
 // src/render/artBData.ts from it; `node tools/artb/gen.mjs --check` says whether the two agree. New art later = replace the JSON, run the generator, re-measure the pins:
 // every assertion below reads the data, none types a pixel, a digest or a pixel count of a sprite.
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { C } from "../src/render/palette";
 import { ART_B_LEGEND, ART_B_SHA256, ART_B_SPRITES, ART_B_WORK } from "../src/render/artBData";
 
-const JSON_FILE = fileURLToPath(new URL("../tools/artb/artb-slice.json", import.meta.url));
-const GEN = fileURLToPath(new URL("../tools/artb/gen.mjs", import.meta.url));
+// (paths are the repo root's, where vitest runs; the repo's node shims declare no node:url)
+const JSON_FILE = "tools/artb/artb-slice.json";
+const GEN = "tools/artb/gen.mjs";
 const bytes = readFileSync(JSON_FILE);
-const data = JSON.parse(bytes.toString("utf8")) as {
+const data = JSON.parse(readFileSync(JSON_FILE, "utf8")) as {
   legend: Record<string, string>;
   legendHex: Record<string, string>;
   sprites: Record<string, { w: number; h: number; rows: string[] }>;
@@ -32,11 +32,18 @@ const EXPECT: Record<string, [number, number]> = {
 };
 
 describe("ARTB-CODE-1 D: the data in the repo and its generator", () => {
-  it("node tools/artb/gen.mjs --check exits 0: src/render/artBData.ts is what the JSON generates, and its header names the JSON's sha256", () => {
-    const out = execFileSync("node", [GEN, "--check"], { encoding: "utf8" });
-    expect(out).toContain("is what artb-slice.json");
+  it("node tools/artb/gen.mjs --check exits 0: src/render/artBData.ts is what the JSON generates, and its header names the JSON's sha256", async () => {
+    const r = await new Promise<{ code: number | null; out: string }>((resolve, reject) => {
+      const p = spawn("node", [GEN, "--check"]);
+      let out = "";
+      p.stdout?.on("data", (c) => { out += new TextDecoder().decode(c); });
+      p.on("exit", (code) => resolve({ code, out }));
+      p.on("error", reject);
+    });
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("is what artb-slice.json");
     expect(ART_B_SHA256).toBe(createHash("sha256").update(bytes).digest("hex"));
-    expect(readFileSync(fileURLToPath(new URL("../src/render/artBData.ts", import.meta.url)), "utf8").split("\n")[0]).toContain(ART_B_SHA256);
+    expect(readFileSync("src/render/artBData.ts", "utf8").split("\n")[0]).toContain(ART_B_SHA256);
   });
 
   it("the generated constants are the JSON's legend, sprites and work, entry for entry", () => {

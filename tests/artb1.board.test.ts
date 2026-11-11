@@ -7,7 +7,6 @@
 // Every expectation is decoded here from tools/artb/artb-slice.json: no pixel, digest or pixel count of a slice sprite is typed into this file (the digest
 // fixture holds the BASE's drawing of those ids, i.e. the old art, which does not move when the art is replaced).
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { R, installRaster } from "./raster.helpers";
 
@@ -23,12 +22,13 @@ import { FRAMES, allDigests, type Digests } from "./artb1.helpers";
 type Px = string | null;
 type Ex = { w: number; h: number; px: Px[] };
 type Overlay = [number, number, string][];
-const data = JSON.parse(readFileSync(fileURLToPath(new URL("../tools/artb/artb-slice.json", import.meta.url)), "utf8")) as {
+// (paths are the repo root's, where vitest runs; the repo's node shims declare no node:url)
+const data = JSON.parse(readFileSync("tools/artb/artb-slice.json", "utf8")) as {
   legend: Record<string, string>;
   sprites: Record<string, { w: number; h: number; rows: string[] }>;
   work: Record<string, { work?: Overlay[]; idle?: Overlay[]; flash?: Overlay }>;
 };
-const base = JSON.parse(readFileSync(fileURLToPath(new URL("./artb1.base-digests.json", import.meta.url)), "utf8")) as Digests;
+const base = JSON.parse(readFileSync("tests/artb1.base-digests.json", "utf8")) as Digests;
 const pal = C as Record<string, string>;
 const hex = (ch: string): Px => (ch === "." ? null : pal[data.legend[ch]]);
 

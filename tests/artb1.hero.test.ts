@@ -6,7 +6,6 @@
 //  - WEAVER, FOUNDRY and BASTION still draw their own 24x24 faces (portraits.ts's, the same objects), in the base's frame at the base's place, with the switch on or off;
 //  - on every view the head's text keeps whole and clear of the frame, and no row below the head, no region and no tap moves (FURNACE with the art on and off).
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { RasterCanvas, R } from "./raster.helpers";
 
@@ -38,7 +37,7 @@ import { HeroScreen } from "../src/screens/hero";
 import type { Game } from "../src/game/game";
 import type { G } from "../src/render/pixel";
 
-const data = JSON.parse(readFileSync(fileURLToPath(new URL("../tools/artb/artb-slice.json", import.meta.url)), "utf8")) as {
+const data = JSON.parse(readFileSync("tools/artb/artb-slice.json", "utf8")) as { // (the repo root's path, where vitest runs; the repo's node shims declare no node:url)
   legend: Record<string, string>;
   sprites: Record<string, { w: number; h: number; rows: string[] }>;
 };
@@ -119,7 +118,8 @@ function frameOf(id: string, w: number, h: number, dpr: number): Frame {
   screen.draw(g);
   ui.end();
   // the portrait: the drawImage whose source is a 24x24 or 32x32 face (portraitImage's or art B's), preceded by the ink box and the ring
-  const img = ops.find((o): o is Extract<Rec, { op: "drawImage" }> => o.op === "drawImage" && (o.img === artBFace(id) || o.img === portraitImage(id as PortraitHero))) ?? null;
+  const faces: unknown[] = [artBFace(id), portraitImage(id as PortraitHero)]; // art B's 32x32 (or null) and portraits.ts's 24x24: canvases the screen draws as they are
+  const img = ops.find((o): o is Extract<Rec, { op: "drawImage" }> => o.op === "drawImage" && faces.includes(o.img)) ?? null;
   const k = img ? ops.indexOf(img) : -1;
   const ink = k > 0 ? [...ops.slice(0, k)].reverse().find((o): o is Extract<Rec, { op: "fillRect" }> => o.op === "fillRect" && o.fill === C.ink && o.w === img!.w + 2 && o.h === img!.h + 2) ?? null : null;
   return { W: view.W, H: view.H, ops, text: [...placed], regions: ui.regions.map((r) => `${r.id}:${r.r.x},${r.r.y},${r.r.w},${r.r.h}`), ink, img };

@@ -7,7 +7,6 @@
 //   $ARTB_PLATE_LOG when that is set: logs/c-platecover.log); the shares are measured on the data, never typed.
 // No pixel, digest or pixel count of a slice sprite is typed here: the expectations are decoded from the JSON.
 import { readFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { G, R, fresh, installRaster, type RasterCanvas } from "./raster.helpers";
 
@@ -22,7 +21,7 @@ import { HEAD_BIG, CARGO_FACE, gridCell, hasGrid, shapeGridSize } from "../src/u
 import type { ShopBadge } from "../src/game/run";
 
 type Box = { x: number; y: number; w: number; h: number };
-const data = JSON.parse(readFileSync(fileURLToPath(new URL("../tools/artb/artb-slice.json", import.meta.url)), "utf8")) as {
+const data = JSON.parse(readFileSync("tools/artb/artb-slice.json", "utf8")) as { // (the repo root's path, where vitest runs; the repo's node shims declare no node:url)
   legend: Record<string, string>;
   sprites: Record<string, { w: number; h: number; rows: string[] }>;
 };
