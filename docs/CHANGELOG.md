@@ -3,6 +3,23 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## Next release (the label is set when it is staged): ghosts get tougher when you keep winning
+
+New battle rules: bb-0.16.0. This release is matched only with bb-0.16.0 ghosts (it turns away any other), and its server takes
+uploads only under bb-0.16.0, so ghosts and uploads from bb-0.15.0 and older no longer meet its players. The seed pool was
+rebuilt for the new rules and still covers days 1 to 16 (254 ghosts in the seed pool: the 192 of 0.9.16, 48 tougher ghosts for
+players on a streak and 14 for the busiest matchups).
+- **Win two runs in a row and your ghosts get tougher. Lose a run, or abandon one, and they go back.** The game counts, on your
+  device, the runs you won in a row (a run is won at its tenth win). Once you have won two in a row, each dusk's ghost is chosen
+  from the stronger half of the ghosts that fit your record whenever you are two or more wins ahead of your losses. A run you
+  lose, or abandon before its tenth win, puts the count back to zero. The count starts at zero with this release, and the game
+  does not show it anywhere.
+- **The toughest ghosts are kept for players on a streak:** from day 5 to day 16 each hero's pool holds one more tough ghost
+  (48 in all, each built from one of the AI's decks of that day; 0.9.16's 24 streak ghosts stood on days 7 to 12 and anyone could
+  meet them). A player who is not on a streak does not meet them as long as any other ghost fits.
+- **A fresh pool of ghosts:** the seed pool was rebuilt under the new rules, with the extra tough ghosts above; the everyday ghosts
+  are the same decks as in 0.9.16.
+
 ## 0.9.16: a fairer climb to the tenth win
 
 New battle rules: bb-0.15.0. This release is matched only with bb-0.15.0 ghosts (it turns away any other), and its server takes
