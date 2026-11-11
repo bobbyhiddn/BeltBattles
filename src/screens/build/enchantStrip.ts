@@ -28,7 +28,7 @@ import { tapPx } from "../../ui/tap";
 import { cardFrame, cardPriceX, cardZones, priceColour, SOLD_ALPHA } from "./shop";
 import { shapedPiece } from "./shapeEdit";
 import { dragSlop } from "./edit";
-import { CARD_H, CARD_W, cornerTap, idleFoeRect, screenRect, type BuildLayout } from "./layout";
+import { CARD_H, CARD_W, IDLE_MIN, carrierBox, cornerTap, idleFoeRect, screenRect, type BuildLayout } from "./layout";
 import {
   answerMerge, applyState, cancelApply, chooseTarget, mergePrompt, pressOf, setPress, skipPick, tapWord, wagonSlides, wagonUp, wordHover,
 } from "./apply";
@@ -214,7 +214,13 @@ export function wordLayout(L: BuildLayout, run: Run, tap = 0): BuildLayout {
  *  the wrong top. The card goes where buildLayout's own rule puts it for the band as it is now (layout.ts idleFoeRect: null under FOE_H, so the hero card follows heroCardRect and chrome.ts as they are); the landscape column's card is unchanged. */
 function lowerInfo(L: BuildLayout, d: number): BuildLayout {
   if (d <= 0) return L;
-  const info = { ...L.info, y: L.info.y + d, h: Math.max(0, L.info.h - d) };
+  // POLISH-9 (P9-2, REVIEW-POLISH8 V3(b); RULING-SCOUT-POLISH9 3): the row takes the band's top and keeps its foot, so a portrait band of 26 or 34 px could not hold the compact hero card over the NEXT BATTLE card (IDLE_MIN, 50) though a window
+  // below it spares 31-80 clear rows down to the carrier box's top (the bow turrets' barrel tips). Where the clear rows under the foot (one row kept clear) bring the lowered band to IDLE_MIN, the band takes the rows it needs, and no more: its foot
+  // moves down by IDLE_MIN less its height, never nearer the barrels than 1 px. Nowhere else does the band or the card move; a band that already holds IDLE_MIN, and one the clear rows cannot restore, are as they were.
+  const free = L.portrait ? Math.max(0, Math.floor(L.cam.y + L.cam.k * carrierBox(true).y0 - (L.info.y + L.info.h)) - 1) : 0;
+  let h = Math.max(0, L.info.h - d);
+  if (L.portrait && h < IDLE_MIN && h + free >= IDLE_MIN) h = IDLE_MIN;
+  const info = { ...L.info, y: L.info.y + d, h };
   return { ...L, info, foe: L.portrait && L.foe ? idleFoeRect(info) : L.foe };
 }
 
