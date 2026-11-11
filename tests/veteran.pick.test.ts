@@ -64,7 +64,9 @@ describe("the switch and its constants", () => {
     expect(VETERAN_RULE.lead).toBeDefined();
     expect(PICK_RULE.lead).toBeUndefined(); // PICK_RULE itself keeps no lead
     expect(VETERAN_TIER_VARIANT).toBe(STREAK_VARIANT);
-    expect(typeof VETERAN_SHIELD).toBe("boolean");
+    // BUMP-1I P3's take (read E525): the lead { 0.5, 2 } and the shield ON (the tier runs days 5-16 at STREAK_TARGET 525, tools/samplePool.ts)
+    expect(VETERAN_RULE.lead).toEqual({ share: 0.5, at: 2 });
+    expect(VETERAN_SHIELD).toBe(true);
   });
   it("the tier is the committed pool's 24 `sample-<hero>-3` ghosts, days 7-12 (the shield's mark is the player id)", () => {
     const tier = POOL16.filter(isTierGhost);
@@ -321,7 +323,7 @@ describe("the offline fallback", () => {
       expect(veteranFallback(req)).toEqual(fallbackGhost(req));
     }
     for (const req of [fb({ rules: R16 }), fb({ rules: R16, streak: 1, day: 6, wins: 5, lives: 4 })]) {
-      expect(veteranFallback(req, POOL16)).toEqual(fallbackGhost(req, POOL16));
+      expect(veteranFallback(req, POOL16, { shield: false })).toEqual(fallbackGhost(req, POOL16)); // BUMP-1I P3's take: VETERAN_SHIELD is on, so "shield off" is asked for
     }
   });
   it("a veteran's offline request takes the lead pick: a ghost from the strongest share, else the stand-in as before", () => {

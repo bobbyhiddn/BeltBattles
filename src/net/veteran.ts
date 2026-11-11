@@ -19,8 +19,8 @@
 // withVeteran(fn, on = true), which puts the switch back even on a throw. While it is off every request picks exactly as at bb-0.15.0
 // (tests/veteran.pick.test.ts); a request under rules before VETERAN_RULES picks as before even with the switch on.
 //
-// THE NUMBERS are P3's take (BRIEF-BUMP1I): VETERAN_RULE's lead and VETERAN_SHIELD. Until the screen has chosen they stand at the
-// brief's first read (lead { share 0.5, at 2 }, no shield).
+// THE NUMBERS are P3's take (BRIEF-BUMP1I): VETERAN_RULE's lead { share 0.5, at 2 } and VETERAN_SHIELD on, with the tier grown to days 5-16 at
+// STREAK_TARGET 525 (tools/samplePool.ts): read E525, confirmed at K 96. Each constant below names its read.
 
 import { Rng } from "../core/rng";
 import { offlineGhost, type FallbackRequest } from "./fallback";
@@ -69,11 +69,14 @@ export const VETERAN_AT = 2;
 /** The largest streak a device counts and the server reads (an integer in 0..VETERAN_STREAK_MAX; the server answers 400 past it). */
 export const VETERAN_STREAK_MAX = 99;
 
-/** The veteran's pick rule: PICK_RULE plus a lead. P3's take sets the lead (BRIEF-BUMP1I: the screen's read A is { share 0.5, at 2 }). */
+/** The veteran's pick rule: PICK_RULE plus a lead. BUMP-1I P3's TAKE (read E525; K 48 and K 96 on the bench, output-bump1i/bench/p3-table-run1.md and p3-table-take-k96.md): { share 0.5, at 2 }: a veteran whose record is
+ *  2 or more wins ahead of its losses draws from the strongest half of its eligible ghosts by grade. The lead's two readings on the same pool (A { 0.5, 2 } and B { 0.34, 0 }, C and D on the grown tier) came out
+ *  equal on par's chance to reach 10 wins (A, B 153 of 192; C, D 150 of 192); what moves it is the tier's strength (VETERAN_TIER_VARIANT's ghosts, tools/samplePool.ts STREAK_TARGET). */
 export const VETERAN_RULE: Readonly<PickRule> = { ...PICK_RULE, lead: { share: 0.5, at: 2 } };
 
-/** THE shield: a request that is not a veteran's never draws a tier ghost while another eligible ghost exists. False until P3's take. */
-export const VETERAN_SHIELD = false;
+/** THE shield: a request that is not a veteran's never draws a tier ghost while another eligible ghost exists. BUMP-1I P3's TAKE (read E525): ON. With it c5 never meets the tier, off the road its chance to reach
+ *  10 wins reads 24.0% at K 48 (27.9% at K 96) against 19.3% (24.7%) without it on the same seeds, and the tier can run days 5-16. */
+export const VETERAN_SHIELD = true;
 
 /** The streak tier's seed ghosts carry the player id `sample-<hero>-<VETERAN_TIER_VARIANT>` (tools/samplePool.ts seedGhost, STREAK_VARIANT 3;
  *  the server's upload check can't store a player's ghost under such an id: a player id is a 43-character digest, server/app.ts, identity.ts).
@@ -119,7 +122,7 @@ export function veteranPick(pool: readonly PoolEntry[], req: VeteranRequest, rng
 }
 
 /** fallback.ts fallbackGhost's two lines, with veteranPick in matchPick's place: the best offline opponent for a request that may carry a streak. */
-export function veteranFallback(req: FallbackRequest & { streak?: number }, pool: readonly PoolEntry[] = []): PoolEntry {
-  const hit = veteranPick(pool, req, new Rng(req.seed));
+export function veteranFallback(req: FallbackRequest & { streak?: number }, pool: readonly PoolEntry[] = [], opts: VeteranOpts = {}): PoolEntry {
+  const hit = veteranPick(pool, req, new Rng(req.seed), opts);
   return hit ?? offlineGhost(req.hero, req.day, req.seed, { wins: req.wins, lives: req.lives });
 }
