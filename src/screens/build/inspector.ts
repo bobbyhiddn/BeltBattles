@@ -2343,6 +2343,15 @@ function deckOf(ctx: Ctx): Rect | null {
 }
 
 /**
+ * PRESENT-6 N (REQ-BFG-081, REQ-BFG-004; the release lane's F8): the same rect as deckOf, the deck's cells on screen on a portrait layout, for ANY pointer (deckOf is a finger's alone): handed to the keyword layer as `sightDeck`,
+ * which keeps a MOUSE's first-sight box (keywords.ts sightTipPlace) off the deck where it goes just under a phone's panel. Nothing else reads it: no panel's size, plan or layout depends on it.
+ */
+function deckAny(ctx: Ctx): Rect | null {
+  const L = ctx.L;
+  return L?.portrait && L.frame ? screenRect(L, { x: L.frame.dx, y: L.frame.dy, w: DECK, h: DECK }) : null;
+}
+
+/**
  * PRESENT-2 P (cap's ruling 26addce8293da756): for a panel in the landscape COLUMN, what keywords.ts columnPlace needs to keep a shown definition off the rule rows: a box's covering a rule row, the
  * column's top and the y its area ends, the free strip beside the column (2 px right of its edge to 2 px left of the carrier's DRAWING: layout.ts carrierBox, the widest the ship is ever drawn),
  * the screen's foot less 2 px, and what a note never covers. undefined for every other panel (the portrait band, the desk's hover tips): their notes are placed as before.
@@ -2517,7 +2526,7 @@ export function drawDetails(g: G, ctx: Ctx, sel: Sel, hover: { wagon: number; sl
   // EXPLAIN-1 (REQ-BFG-089, E3): the screen's size, so the icon's hover tooltip stays on it
   // CARD-2 (REQ-BFG-004, K1): the build screen asks for the first-sight notes in its caravan only (never in a refit, the
   // build screen between a fight's rounds; a fight's own faces never come here)
-  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, { ...d, strip: strip?.r ?? null, hang, deck, column: columnSpec(ctx, plan, shown) }, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
+  drawKeywordLayer(g, ctx, ctx.game.ui, ctx.run, { ...d, strip: strip?.r ?? null, hang, deck, sightDeck: deckAny(ctx), column: columnSpec(ctx, plan, shown) }, shown, hits, tap, ctx.game?.canvas, infoFree(ctx.L, r, plan.column),
     ctx.game?.W ? { W: ctx.game.W, H: ctx.game.H } : undefined, ctx.run.stage === "caravan");
 }
 

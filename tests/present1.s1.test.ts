@@ -19,7 +19,7 @@ import { drawChoiceCard } from "../src/screens/event/cards";
 import { drawDropCard } from "../src/screens/fork/drops";
 import { lcPartGrid, lcPartPlate, lcPartSub } from "../src/screens/lastChancePicker";
 import { faceIcon } from "../src/screens/battleScout";
-import { HEAD_BIG, HEAD_LEN, drawGridRight, gridCell, gridGeom, gridSpecOf, hasGrid, iconCell, shapeGridSize, shapePic } from "../src/ui/shapePic";
+import { HEAD_BIG, HEAD_LEN, drawGridRight, gridCell, gridGeom, gridSpecOf, hasGrid, iconCell, markCell, shapeGridSize, shapeMarkSize, shapePic } from "../src/ui/shapePic";
 import { itemSlot } from "../src/ui/ui";
 import { ENCHANT_DEFS } from "../src/sim/enchant";
 import { footCount } from "../src/sim/foot";
@@ -68,7 +68,8 @@ describe("PRESENT-1 S1 (c): every piece bigger than one cell has a grid, a plain
       const c = fresh(w + 8, h + 10);
       drawCard(G(c), { x: 4, y: 4, w, h }, ITEMS[d.id], d.price, merchantOf(d.id), { ...BASE }, 0);
       const z = cardZones(w, h, d.price), sz = shapeGridSize(d.id), plate: Box = { x: 4 + z.grid.x, y: 4 + z.grid.y, w: sz.w + 2, h: sz.h + 2 };
-      expect(c.at(plate.x, plate.y), `${d.id} ${wn}: the plate's corner`).toBe(C.ink);
+      // PRESENT-6 A2 (REQ-BFG-115; #583 (2)), old -> new: the phone card's plate is shaped (ink only behind the grid's px and 1 px round them: shapePic.ts shapePlateInk), so its box's corner px is bare and the plate's first ink px is the one beside the grid's corner; a desk card's plate is the whole box
+      expect(c.at(wn === "phone" ? plate.x + 1 : plate.x, plate.y), `${d.id} ${wn}: the plate's corner`).toBe(C.ink);
       for (const t of gridGeom(gridSpecOf(d.id), gridCell(d.id)).tiles) expect(c.at(plate.x + 1 + t.x + 1, plate.y + 1 + t.y + 1), `${d.id} ${wn}: a tile`).toBe(C.steel2);
       expect(limeIn(c, plate), `${d.id} ${wn}: no arrowhead on a plain piece`).toBe(0);
       // the plate hides at most 25% of the icon's opaque px (SHOPCARD-1 G3)
@@ -127,37 +128,43 @@ describe("PRESENT-1 S1 (a): the grid is not dropped where it was", () => {
     expect(corners).toBeGreaterThan(20); // the narrow cards and the long enchanted names that used to lose the grid
   });
 
-  it("the victory drop card: the plate beside the words where they leave room, else the grid over the icon box's corner (plain and shaped pieces, 90-220 px)", () => {
+  it("the victory drop card: the plate beside the words where they leave room, else the footprint mark in the icon box's corner (plain and shaped pieces, 90-220 px)", () => { // PRESENT-6 G6, old -> new: the fallback was G1's grid at iconCell over the box's top-left; now the footprint MARK (drawIconMark), the icon whole
     for (const id of bigger) for (const w of [90, 110, 140, 170, 200, 220]) {
       const c = fresh(w + 10, 30), x = 3, y = 3;
       drawDropCard(G(c), id, false, x, y, w, 1);
       const sz = shapeGridSize(id), pw = sz.w + 2, px = x + w - 4 - pw;
       const name = ITEMS[id].name, sub = "DROP · TO CARGO · ★1", room = x + 23 + Math.max(textWidth(name), textWidth(sub, "3")) + 4 <= px;
-      const tiles = gridGeom(gridSpecOf(id), room ? gridCell(id) : iconCell(id), room ? HEAD_BIG : HEAD_LEN).tiles; // PRESENT-1 S1 (d): the plate at the roomy cell, the corner fallback at the icon cell (PICKAXE 5 / 4); PRESENT-2 K: the plate's 4 px arrow, the corner's 3
-      // wherever the grid is, its tiles are in the kind's colour: on the plate (the image's top-left 1 px in from the plate's) or over the icon box's corner (x + 4, y + 4)
-      const origin = room ? { x: px + 1, y: y + 1 + 1 } : { x: x + 4, y: y + 4 };
-      for (const t of tiles) expect(c.at(origin.x + t.x + 1, origin.y + t.y + 1), `${id} ${w}: a tile ${room ? "on the plate" : "over the icon's corner"}`).toBe(fillOf(id));
+      if (room) {
+        // the plate at the roomy cell (PICKAXE 5), the 4 px arrow (PRESENT-2 K): the tiles are in the kind's colour on the plate (the image's top-left 1 px in from the plate's)
+        for (const t of gridGeom(gridSpecOf(id), gridCell(id), HEAD_BIG).tiles) expect(c.at(px + 1 + t.x + 1, y + 1 + 1 + t.y + 1), `${id} ${w}: a tile on the plate`).toBe(fillOf(id));
+      } else {
+        // the mark (7 x 7 px at most, no arrowheads) flush in the bottom-right corner of the card's 14 x 14 icon box at (x + 4, y + 4): each tile's last row is the kind's fill (a 1 px tile is the highlight)
+        const mz = shapeMarkSize(id), hi = ITEMS[id].kind === "gate" ? C.wood3 : C.steel3;
+        for (const t of gridGeom({ ...gridSpecOf(id), arrows: [] }, markCell(id)).tiles) expect(c.at(x + 4 + 14 - mz.w + t.x, y + 4 + 14 - mz.h + t.y + t.h - 1), `${id} ${w}: a mark tile in the icon box's corner`).toBe(t.h > 1 ? fillOf(id) : hi);
+      }
       expect(c.at(px, y + 1) === C.ink, `${id} ${w}: the plate only where there is room`).toBe(room);
     }
   });
 
-  it("the warlord's pick button: drawGridRight draws at the row's end where it clears the words and the badge, else at `corner`; no corner: dropped as before", () => {
+  it("the warlord's pick button: drawGridRight draws at the row's end where it clears the words and the badge, else the footprint mark in `corner`'s icon box; no corner: dropped as before", () => { // PRESENT-6 G6, old -> new: `corner` is the icon's box { x, y, size } (was the grid's top-left point) and the fallback is drawIconMark's mark, the icon whole
     const id = "gantry", sz = shapeGridSize(id), geom = gridGeom(gridSpecOf(id), gridCell(id));
+    const box = { x: 6, y: 8, size: 14 };
     const roomy = fresh(140, 40);
-    expect(drawGridRight(G(roomy), id, 4, 6, 120, 4 + 18 + 40, Infinity, { x: 6, y: 8 })).toBe(true);
+    expect(drawGridRight(G(roomy), id, 4, 6, 120, 4 + 18 + 40, Infinity, box)).toBe(true);
     const gx = 4 + 120 - 3 - sz.w;
     for (const t of geom.tiles) expect(roomy.at(gx + t.x + 1, 6 + t.y + 1)).toBe(fillOf(id));
-    // the words reach the row's end: the corner
+    // the words reach the row's end: the mark in the box's corner
     const w = fresh(140, 40);
-    expect(drawGridRight(G(w), id, 4, 6, 120, gx + 1, Infinity, { x: 6, y: 8 })).toBe(true);
-    for (const t of gridGeom(gridSpecOf(id), iconCell(id)).tiles) expect(w.at(6 + t.x + 1, 8 + t.y + 1), "over the icon's corner").toBe(fillOf(id));
+    expect(drawGridRight(G(w), id, 4, 6, 120, gx + 1, Infinity, box)).toBe(true);
+    const mz = shapeMarkSize(id), hi = ITEMS[id].kind === "gate" ? C.wood3 : C.steel3;
+    for (const t of gridGeom({ ...gridSpecOf(id), arrows: [] }, markCell(id)).tiles) expect(w.at(box.x + box.size - mz.w + t.x, box.y + box.size - mz.h + t.y + t.h - 1), "the mark in the icon box's corner").toBe(t.h > 1 ? fillOf(id) : hi);
     expect(w.at(gx + 2, 6 + 2)).toBeNull(); // nothing at the row's end
     // a badge's top above the grid's foot: the corner too; no corner: not drawn (as before)
-    expect(drawGridRight(G(fresh(140, 40)), id, 4, 6, 120, 0, 6 + sz.h - 1, { x: 6, y: 8 })).toBe(true);
+    expect(drawGridRight(G(fresh(140, 40)), id, 4, 6, 120, 0, 6 + sz.h - 1, box)).toBe(true);
     expect(drawGridRight(G(fresh(140, 40)), id, 4, 6, 120, gx + 1, Infinity)).toBe(false);
     // a plain 2x2 factory is a piece bigger than one cell now; a rig of one cell is not
     expect(drawGridRight(G(fresh(140, 40)), "kiln", 4, 6, 120, 0, Infinity)).toBe(true);
-    expect(drawGridRight(G(fresh(140, 40)), "whetstone", 4, 6, 120, 0, Infinity, { x: 6, y: 8 })).toBe(false);
+    expect(drawGridRight(G(fresh(140, 40)), "whetstone", 4, 6, 120, 0, Infinity, box)).toBe(false);
   });
 });
 

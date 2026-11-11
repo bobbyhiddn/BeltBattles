@@ -36,7 +36,7 @@ import {
 } from "../src/screens/build/shop";
 import { shapedPiece } from "../src/screens/build/shapeEdit";
 import { OWNED_NOTE, explainPanel, mergeLine, offerMergeNote, offerPanel, textOpts } from "../src/screens/build/inspector";
-import { CARGO_FACE, GRID_CELL, GRID_CELL_MIN, HEAD_BIG, HEAD_LEN, drawGrid, drawShapePlate, gridCell, gridGeom, gridSpecOf, iconCell, shapeGridSize, type GridSpec } from "../src/ui/shapePic";
+import { CARGO_FACE, GRID_CELL, GRID_CELL_MIN, HEAD_BIG, HEAD_LEN, drawGrid, drawShapePlate, gridCell, gridGeom, gridSpecOf, iconCell, shapeGridSize, shapePlateInk, type GridSpec } from "../src/ui/shapePic";
 import { lineText } from "../src/ui/richText";
 
 installRaster();
@@ -232,8 +232,10 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
       expect([geom.w, geom.h], id).toEqual([sz.w, sz.h]);
       expect(spec.cells, `${id}: the footprint at rot 0`).toEqual(footOffsets(d, 0));
       // the plate: ink round the grid's box
-      const gx = OX + z.grid.x + 1, gy = OY + z.grid.y + 1;
-      for (let x = -1; x <= geom.w; x++) for (const y of [-1, geom.h]) expect(c.at(gx + x, gy + y), `${id} ${wn}: plate`).toBe(C.ink);
+      // PRESENT-6 A2 (REQ-BFG-115; #583 (2)), old -> new: the narrow phone card's plate is SHAPED (shapePic.ts shapePlateInk: ink only behind the grid's own px and 1 px round them, up, down, left and right), so the box's border rows are ink where that mask has
+      // ink (and the box's empty corners show the card); a wide card's plate is the whole box as it was (tests/present6.pickplate.test.ts holds the shaped plate's proofs)
+      const gx = OX + z.grid.x + 1, gy = OY + z.grid.y + 1, plateMask = w >= CARD_TEXT_MIN_W ? null : R(shapePlateInk(id, cell, HEAD_BIG));
+      for (let x = -1; x <= geom.w; x++) for (const y of [-1, geom.h]) if (!plateMask || plateMask.at(x + 1, y + 1) !== null) expect(c.at(gx + x, gy + y), `${id} ${wn}: plate`).toBe(C.ink);
       // the tiles: the kind's fill (wood for a rig, steel for a factory) in the middle of each, a seam between two cells
       const fill = rig ? C.wood2 : C.steel2, seam = rig ? C.wood0 : C.steel0;
       for (const t of geom.tiles) expect(c.at(gx + t.x + 1, gy + t.y + 1), `${id} ${wn}: tile`).toBe(fill);
@@ -265,14 +267,18 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
       let opaque = 0, hidden = 0;
       for (let j = 0; j < ic.height; j++) for (let i = 0; i < ic.width; i++) {
         if (ic.at(i, j) === null) continue;
-        for (const [a, b] of nat ? [[0, 0]] : [[0, 0], [1, 0], [0, 1], [1, 1]]) { opaque++; if (inBox(plate, z.icon.x + K * i + a, z.icon.y + K * j + b)) hidden++; }
+        // PRESENT-6 A2: a px is hidden where the plate has ink: the narrow card's shaped plate (plateMask), a wide card's whole box
+        // ARTB-CODE-1B (REQ-BFG-126): a slice piece's picture is read 1:1 (K = 1: one px a source px, a = b = 0), every other piece's icon doubled (K = 2); the share is counted under PRESENT-6's plate
+        for (const [a, b] of nat ? [[0, 0]] : [[0, 0], [1, 0], [0, 1], [1, 1]]) { opaque++; const px = z.icon.x + K * i + a, py = z.icon.y + K * j + b; if (plateMask ? inBox(plate, px, py) && plateMask.at(px - plate.x, py - plate.y) !== null : inBox(plate, px, py)) hidden++; }
       }
       if (id === "pickaxe" && wn === "phone") {
         // SC-0912 (oracle 0ab73cb56a4abcbf): PICKAXE at 4 px, measured exception: its plate hides 98 of the icon's 336 opaque px on the phone card
         // (29.2%; 147 = 43.8% at 5 px); the desk cards (70 and 69) hide 0 and keep the rule, as does every other piece
         // PRESENT-5 A (REQ-BFG-113; #537 (2)), old -> new: 98 of 336 (29.2%) with HEAD_LEN; with the narrow card's HEAD_BIG heads the plate is 21 x 14 (was 19 x 13) and hides 128 of 336 (38.1%): the cost the K-01n read weighs
-        expect([hidden, opaque], `${id} ${wn}: the plate hides 128/336 of the icon (the measured exception; 98/336 with HEAD_LEN)`).toEqual([128, 336]);
-      } else expect(hidden / opaque, `${id} ${wn}: the plate hides at most 25% of the icon`).toBeLessThanOrEqual(0.25);
+        // PRESENT-6 A2 (REQ-BFG-115; #583 (2)), old -> new: the narrow card's plate is shaped (ink only behind the grid's px and 1 px round them): 82 of 336 (24.4%), under the 25% guide: no part is an exception now (the rule below holds for PICKAXE too)
+        expect([hidden, opaque], `${id} ${wn}: the shaped plate hides 82/336 of the icon (was 128/336 with the whole box)`).toEqual([82, 336]);
+      }
+      expect(hidden / opaque, `${id} ${wn}: the plate hides at most 25% of the icon`).toBeLessThanOrEqual(0.25);
       rows.push(`${id} ${wn} ${w}x${h}: grid ${sz.w}x${sz.h} (plate ${plate.w}x${plate.h} at ${plate.x},${plate.y}), icon ${z.icon.x},${z.icon.y} ${CARD_ICON}x${CARD_ICON}, hides ${hidden}/${opaque} = ${((100 * hidden) / opaque).toFixed(1)}%`);
     }
     console.log(`SHOPCARD1 shaped pieces' cards, ${rows.length}:\n${rows.join("\n")}`);
