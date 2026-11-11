@@ -99,7 +99,7 @@ export function artBIcon(id: string): Cv | null {
 
 /** The shop card's native 24x24 picture (shop.ts iconX2): card/<id>, or KILN's `kiln`. null: not mine. */
 export function artBCard(id: string): Cv | null {
-  if (!ON) return null;
+  if (!ON || id.includes("/")) return null; // ARTB-CODE-2A (N1): an id with a "/" is a sprite's NAME in the data ("card/barbed", "portrait/weaver"), never a piece's id: the bare-name branch below must not answer it (artBFactory and artBHas do not)
   const name = SPR.has(`card/${id}`) ? `card/${id}` : SPR.has(id) ? id : "";
   return name ? sprite(name, "plain") : null;
 }
