@@ -27,6 +27,7 @@ import { ITEMS, buyableModules, type MerchantId } from "../src/sim/content";
 import { newRun, type ShopBadge } from "../src/game/run";
 import { C } from "../src/render/palette";
 import { itemIcon } from "../src/render/sprites";
+import { artBCard } from "../src/render/artB"; // ARTB-CODE-1 (REQ-BFG-126): a slice piece's card shows art B's native 24x24 picture (iconX2), not the icon doubled
 import { footOffsets } from "../src/sim/foot";
 import { CARD_H, CARD_TEXT_MIN_W, CARD_W, WIDE_CARD_H, WIDE_CARD_MAX_W } from "../src/screens/build/layout";
 import {
@@ -80,7 +81,9 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
       // F3: the only text a shop card draws is the price's digits (none on a sold card)
       expect(rec.text.map((t) => t.s), what).toEqual(s.sold ? [] : [String(d.price)]);
       // F2: the icon doubled, pixel for pixel, outside the plates the grid and the marks draw on
-      const z = cardZones(w, h, d.price), ic = R(itemIcon(d.id)), dy = -lift(s); // SHOPCARD-1c (G3): the sale plate sits against the price
+      // ARTB-CODE-1 (REQ-BFG-126), old -> new: a slice piece (the ten rigs, KILN) shows art B's own 24x24 picture 1:1 (iconX2, tests/artb1.card.test.ts reads it from the data), every other piece still its icon doubled
+      const nat = artBCard(d.id) !== null, K = nat ? 1 : 2;
+      const z = cardZones(w, h, d.price), ic = R(nat ? iconX2(d.id) : itemIcon(d.id)), dy = -lift(s); // SHOPCARD-1c (G3): the sale plate sits against the price
       const plates: Box[] = [
         ...(hasGrid(d.id) ? [plateOn(d.id, z.grid, w)] : []), z.merge, z.sale, // PRESENT-1 S1: hasGrid (every piece bigger than one cell), was shapedPiece; S1 (d): cellOn; PRESENT-2 K: plateOn (the wide card's 4 px arrow)
       ];
@@ -88,8 +91,8 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
       for (let j = 0; j < ic.height; j++) for (let i = 0; i < ic.width; i++) {
         const col = ic.at(i, j);
         if (col === null) continue;
-        for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
-          const cx = z.icon.x + 2 * i + a, cy = z.icon.y + 2 * j + b;
+        for (const [a, b] of nat ? [[0, 0]] : [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+          const cx = z.icon.x + K * i + a, cy = z.icon.y + K * j + b;
           if (plates.some((p) => inBox(p, cx, cy))) continue;
           expect(c.at(OX + cx, OY + dy + cy), `${what}: icon px ${i},${j}`).toBe(col);
           seen++;
@@ -257,11 +260,12 @@ describe("SHOPCARD-1 (REQ-BFG-113): the shape grid on the card of every shaped p
         expect(hd.dir === 0 || hd.dir === 2 ? hd.h : hd.w, `${id}: the head is ${head} long`).toBe(head);
       }
       // G3: the share of the icon's opaque px the plate hides
-      const ic = R(itemIcon(id)), plate = plateOn(id, z.grid, w);
+      // ARTB-CODE-1 (REQ-BFG-126), old -> new: NAIL STRIP and EMBER TROUGH show art B's native 24x24 picture, measured 1:1 (logs/c-platecover.log has the table); the others the icon doubled
+      const nat = artBCard(id) !== null, ic = R(nat ? iconX2(id) : itemIcon(id)), plate = plateOn(id, z.grid, w), K = nat ? 1 : 2;
       let opaque = 0, hidden = 0;
       for (let j = 0; j < ic.height; j++) for (let i = 0; i < ic.width; i++) {
         if (ic.at(i, j) === null) continue;
-        for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { opaque++; if (inBox(plate, z.icon.x + 2 * i + a, z.icon.y + 2 * j + b)) hidden++; }
+        for (const [a, b] of nat ? [[0, 0]] : [[0, 0], [1, 0], [0, 1], [1, 1]]) { opaque++; if (inBox(plate, z.icon.x + K * i + a, z.icon.y + K * j + b)) hidden++; }
       }
       if (id === "pickaxe" && wn === "phone") {
         // SC-0912 (oracle 0ab73cb56a4abcbf): PICKAXE at 4 px, measured exception: its plate hides 98 of the icon's 336 opaque px on the phone card

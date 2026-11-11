@@ -9,6 +9,7 @@ import { C, RARITY_COLOR } from "../../render/palette";
 import { frame, makeCanvas, rect, type G } from "../../render/pixel";
 import { drawText, icons, textWidth, wrap } from "../../render/font"; // PRESENT-1: ICON left with the pack's heart
 import { coinIcon, itemIcon } from "../../render/sprites";
+import { artBCard } from "../../render/artB"; // ARTB-CODE-1 (REQ-BFG-126): the ten rigs' and KILN's native 24x24 card picture
 import type { Rect } from "../../ui/ui";
 import { colourize, drawRich, lineWidth, wrapRich, type RichLine } from "../../ui/richText"; // 0.6.2t (T4, T5)
 import { drawFamilyMarks, famHeadSpans, familiesOf } from "../../ui/families"; // 0.8.0 I1 M4 (REQ-BFG-023 part 2); PRESENT-2 W (b): the tooltip's head (famHeadSpans)
@@ -197,6 +198,8 @@ export const CARD_ICON = 24;
 const ICON2 = new Map<string, HTMLCanvasElement>();
 /** F2: the piece's icon doubled, pixel for pixel (nearest neighbour), cached per piece. */
 export function iconX2(id: string): HTMLCanvasElement {
+  const ab = artBCard(id); // ARTB-CODE-1 (REQ-BFG-126): the ten rigs' and KILN's own 24x24 picture, drawn at the icon's box as it is; null for any other piece or with the switch off
+  if (ab) return ab;
   let c = ICON2.get(id);
   if (!c) {
     const src = itemIcon(id), [cv, g] = makeCanvas(src.width * 2, src.height * 2);
