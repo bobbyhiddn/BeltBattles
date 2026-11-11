@@ -58,7 +58,7 @@ const lenient = (c: RasterCanvas): CanvasRenderingContext2D =>
   new Proxy(G(c), { get: (t, k, r) => { const v = Reflect.get(t, k, r); return v !== undefined ? (typeof v === "function" ? v.bind(t) : v) : (): undefined => undefined; } }) as unknown as CanvasRenderingContext2D;
 
 /** SWEEP19 as tests/polish8.idlestrip.test.ts has it: the review's 19 phone viewports (REVIEW-POLISH7 :64; CSS px x DPR). */
-const SWEEP19: Record<string, [number, number, number]> = {
+const SWEEP19: Record<string, readonly [number, number, number]> = {
   "op-402x690": VIEWS13["op-402x690"], "phone-360x640": VIEWS13["phone-360x640"], "phone-360x640@2": [360, 640, 2], "band-280x653": VIEWS13["band-280x653"], "band-300x640": VIEWS13["band-300x640"],
   ...Object.fromEntries("375x667x2,390x844x3,393x852x3,412x915x2.625,414x896x3,430x932x3,360x740x3,360x800x3,320x568x2,402x874x3,428x926x3,375x812x3,412x892x2.625,384x854x2.8".split(",")
     .map((s): [string, [number, number, number]] => { const [w, h, d] = s.split("x").map(Number); return [`v${w}x${h}@${d}`, [w, h, d]]; })),
