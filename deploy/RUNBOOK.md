@@ -1,11 +1,11 @@
-# Runbook: BeltBattles on Fly + Tigris (0.9.17: ghosts get tougher when you keep winning, on 0.9.16's fairer climb to the tenth win, 0.9.15.1's clearer faces, panels and drop rows, 0.9.15's SHOCK and BURN part in every run's shops, and clearer panels, 0.9.14.1's clearer cards, panels and words, 0.9.14's gates and enchantments, 0.9.13's rigs that count, POISON and ENDLESS, 0.9.12's shop cards, 0.9.11's 10-wins rules, 0.9.10's REPLAY and 0.9.9's hearts, hulls by the day and battle view, on the rules bb-0.16.0, uploads open)
+# Runbook: BeltBattles on Fly + Tigris (0.9.18: new art for FURNACE, on 0.9.17's ghosts that get tougher when you keep winning, 0.9.16's fairer climb to the tenth win, 0.9.15.1's clearer faces, panels and drop rows, 0.9.15's SHOCK and BURN part in every run's shops, and clearer panels, 0.9.14.1's clearer cards, panels and words, 0.9.14's gates and enchantments, 0.9.13's rigs that count, POISON and ENDLESS, 0.9.12's shop cards, 0.9.11's 10-wins rules, 0.9.10's REPLAY and 0.9.9's hearts, hulls by the day and battle view, on the rules bb-0.16.0, uploads open)
 
 One small Fly machine serves the game page and the ghost API from one HTTPS origin; the ghosts
 live in a Tigris bucket. Everything below is non-interactive, with every flag spelled out, and
 grouped so each numbered call is one shell call (one approval). Run every call with the repo root as
 the working directory:
 
-    /home/cap/.hermit/primes/.workspaces/cap/beltbattles-r0917/BeltBattles-r0917   (branch r0917; write refs/heads/r0917 or a tag)
+    /home/cap/.hermit/primes/.workspaces/cap/beltbattles-r0918/BeltBattles-r0918   (branch r0918; write refs/heads/r0918 or a tag)
 
 0.8.0 and its uploads step ran from the clone beltbattles-u080/BeltBattles-u080 (branch uploads-080), and 0.8.1 from
 beltbattles-v081/BeltBattles-v081 (branch release-081). Sections 9 and 10 are kept as they ran there: their calls name
@@ -66,12 +66,14 @@ registry.fly.io/beltbattles:deployment-01M6XV00ACXZ2KGHG69555EYHH, live since 20
 and 34 have run too (tags live-0914 and live-09141). Section 36 is 0.9.15.1's launch,
 as written in the clone beltbattles-r09151/BeltBattles-r09151 (branch r09151, tip 89bb5abacfbb, tag stage-09151): it ran there (release v30, image
 registry.fly.io/beltbattles:deployment-01M72YAPXXJRGYNC7NTDH9PVWW, live since 2026-11-10 at 14:40:19Z, tag live-09151) and must never run again. Section 37 is
-0.9.16's launch, as written in the clone beltbattles-r0916/BeltBattles-r0916 (branch r0916, tip 3eb2669e9a6a, tag stage-0916): it is staged and accepted but has NOT run (the hosting service still serves
-0.9.15.1, release v30), and it waits for the operator's yes. Section 38 is 0.9.17's launch, from this clone (beltbattles-r0917/BeltBattles-r0917, branch r0917; write refs/heads/r0917 or a tag), on either of two
-launch paths (PATH A: after section 37's launch; PATH B: on top of 0.9.15.1, carrying 0.9.16 with it: section 38), and sections 3 to 8 now name 0.9.17's page and the rules bb-0.16.0.
+0.9.16's launch, as written in the clone beltbattles-r0916/BeltBattles-r0916 (branch r0916, tip 3eb2669e9a6a, tag stage-0916): it ran (release v31, image
+registry.fly.io/beltbattles:deployment-01M75JGDPSN1RE33SZCTZJCGYX, live from 15:11:34Z 2026-11-11 until 0.9.17's launch; LIVE-0917 section 1) and must never run again. Section 38 is 0.9.17's launch, as written in
+the clone beltbattles-r0917/BeltBattles-r0917 (branch r0917, tip 8bb20eb7a6f0, tags stage-0917 and live-0917): it ran there on PATH A (release v32, image
+registry.fly.io/beltbattles:deployment-01M75NVK370139WB3E0JMWAGJV, live since 16:10:08Z 2026-11-11; LIVE-0917) and must never run again. Section 39 is 0.9.18's launch, from this clone
+(beltbattles-r0918/BeltBattles-r0918, branch r0918; write refs/heads/r0918 or a tag), and sections 3 to 8 now name 0.9.18's page; the rules stay bb-0.16.0.
 
 Names used below: app `beltbattles` (URL https://beltbattles.fly.dev), org `personal`, bucket
-`beltbattles-ghosts`, rules `bb-0.16.0`, game 0.9.17. The page is 0.9.17's: 0.8.0 (the release candidate c3c84e5) with the
+`beltbattles-ghosts`, rules `bb-0.16.0`, game 0.9.18. The page is 0.9.18's: 0.8.0 (the release candidate c3c84e5) with the
 phone controls (section 10), the title screen on phones (section 11), a part's whole description on a phone tap
 (section 12), a roomier build screen on phones (section 13), BELTS (section 14: belt slots by level and by stars and
 the hero's two gold upgrades), PACKS (section 15: the belt and armor packs in every shop, and player names), RUNES
@@ -111,10 +113,11 @@ five-point star, folded empty gear rows, notes that leave the deck clear, the ro
 launch lines of fly.toml tracked), 0.9.16 (section 37: the rules release bb-0.15.0: a casual ghost on every day, a tougher ghost for a run that keeps winning, a second ghost for 11 busy matchups and a third for 3 of them,
 the four Easy captains' day-5 words BRACED, MOTH QUEEN without HEATJACKET from day 5 and SILKSHADE without COUNTERWEIGHT from day 4, the difficulty curve on, pools rebuilt (230 seed ghosts); with one solid
 panel behind LAST CHANCE's and the dawn rune pick's cards, the heavy turrets' gun icon, a rig's arrowheads on the narrow phone shop card and whole shaped-part icons on the scout deck, a warlord card and
-LAST CHANCE's part card; staged, not launched) and 0.9.17 (section 38: the rules release bb-0.16.0: VETERAN, where two runs won in a row make a player's ghosts tougher and a lost or abandoned run takes them back,
+LAST CHANCE's part card; launched as hosting release v31) and 0.9.17 (section 38: the rules release bb-0.16.0: VETERAN, where two runs won in a row make a player's ghosts tougher and a lost or abandoned run takes them back,
 a streak tier of 48 ghosts on days 5-16 that only a run on a streak meets, pools rebuilt (254 seed ghosts); with first-run explanations that keep off their panel's text rows under a mouse and a footprint plate
-that follows the grid's shape on the narrow phone shop card), on the
-rules bb-0.16.0 (0.9.17's; 0.9.16, staged first, has bb-0.15.0; 0.9.15 and 0.9.15.1 played bb-0.14.0, 0.9.14 and 0.9.14.1 played bb-0.13.0, 0.9.13 bb-0.12.0, 0.9.11 and 0.9.12 bb-0.11.0, 0.9.9 to 0.9.10 bb-0.10.0, 0.9.7 and 0.9.8 bb-0.9.7, 0.9.3 to
+that follows the grid's shape on the narrow phone shop card; launched as hosting release v32) and 0.9.18 (section 39: a client page release on the same server and rules: new art for FURNACE, its face, its
+KILN and ten rigs redrawn, with a full-size picture on those ten rigs' shop cards; display only, plus a tests-only pin of the match route), on the
+rules bb-0.16.0 (0.9.17's and 0.9.18's; 0.9.16 has bb-0.15.0; 0.9.15 and 0.9.15.1 played bb-0.14.0, 0.9.14 and 0.9.14.1 played bb-0.13.0, 0.9.13 bb-0.12.0, 0.9.11 and 0.9.12 bb-0.11.0, 0.9.9 to 0.9.10 bb-0.10.0, 0.9.7 and 0.9.8 bb-0.9.7, 0.9.3 to
 0.9.6 bb-0.9.3).
 The server is uploads-080's (H2's cef0379, v080-h2, which adds the record check to POST /v1/ghosts, with
 uploads open: section 9), built from this tip, so its strict decoder, record check (the hearts model under
@@ -123,7 +126,7 @@ dawn, exactly), LAST CHANCE check, road-log check, the profile route (PUT /v1/pr
 the enchantment codes and seed pool are bb-0.16.0's. The seed pool is bb-0.16.0's own (254 ghosts, days 1-16, 12, 12, 13, 13, 16, 17, 16, 17, 17, 16, 18, 16, 18, 17, 18 and 18 a day, each holding one rune for each
 dawn, a grade and its stated losses; server/seedPoolData.ts is 566,721 bytes; 0.9.16's bb-0.15.0 pool, 499,336 (in the store only if 0.9.16 launched first), and 0.9.15's and 0.9.15.1's bb-0.14.0 pool, 402,688, stay in the store as they are), with nothing
 carried: src/sim/content.ts POOL_RULES_CARRIED is empty. The Dockerfile and .dockerignore are unchanged, and fly.toml is unchanged but for the launch lines that RIDE L1 tracked at 0.9.15.1 (`release_command_timeout` and
-`[deploy.release_command_vm]`: section 36); 0.9.16 and 0.9.17 change none of them (the tracked launch config is the same 2,849 bytes, sha16 `383a063f00df9673`: sections 37 and 38). From 0.9.14.1 on POST /v1/ghosts
+`[deploy.release_command_vm]`: section 36); 0.9.16, 0.9.17 and 0.9.18 change none of them (the tracked launch config is the same 2,849 bytes, sha16 `383a063f00df9673`: sections 37, 38 and 39). From 0.9.14.1 on POST /v1/ghosts
 also refuses an endless snapshot past day 25 at once, before the deck check (422 `day: N is past the last online endless day 25`, server/app.ts:361-363 at 0.9.17, :355-357 at 0.9.16: S1).
 
 **Branches and commits.** The live 0.8.0 deploy (release v3, 2026-10-03, uploads closed) ran calls 3-5 from branch
@@ -496,16 +499,16 @@ ambiguous here), is release-099's content plus the hull release, and it is 0.9.9
 
 **The page.** The image serves the ONLINE single-file page: `npm run build:online`
 (VITE_GHOST_SERVER=same-origin, into dist-online/), then `node scripts/singlefile.mjs <out.html> --dist dist-online`.
-It plays against the server that serves it, with no `?server=`. deploy/GAME_BUILD.txt records 0.9.17's:
-../output-stage0917/pages/BeltBattles-0.9.17-771ec08d406e-online.html beside this clone (GAME_BUILD.txt names it from
-the repo root), 1,180,630 bytes, sha256 as GAME_BUILD.txt records (it begins `8e4522603efd8cb0`), built at 771ec08. Shore
-serves the offline page of the same commit (1,180,619 bytes, sha256 `a02b23c9cd19042f…`;
-../output-stage0917/pages/BeltBattles-0.9.17-771ec08d406e.html, and the same bytes as ../output-stage0917/shore/index.html);
-it plays offline unless opened with `?server=`. Section 38's launch stages these bytes from wherever the Prime keeps them
-(stage.mjs checks the size and the SHA-256 against GAME_BUILD.txt, not the path). Before 0.9.17, 0.9.16's release record
+It plays against the server that serves it, with no `?server=`. deploy/GAME_BUILD.txt records 0.9.18's:
+../output-stage0918/pages/BeltBattles-0.9.18-0653899635c1-online.html beside this clone (GAME_BUILD.txt names it from
+the repo root), 1,196,393 bytes, sha256 as GAME_BUILD.txt records (it begins `b6461895c2fe5bb8`), built at 0653899. Shore
+serves the offline page of the same commit (1,196,382 bytes, sha256 `1e70f8e534db64b1…`;
+../output-stage0918/pages/BeltBattles-0.9.18-0653899635c1.html, and the same bytes as ../output-stage0918/shore/index.html);
+it plays offline unless opened with `?server=`. Section 39's launch stages these bytes from wherever the Prime keeps them
+(stage.mjs checks the size and the SHA-256 against GAME_BUILD.txt, not the path). Before 0.9.18, 0.9.17's release record (613ac67e1b47, tag r0917-T) recorded
+0.9.17's page, BeltBattles-0.9.17-771ec08d406e-online.html (1,180,630 bytes, sha256 `8e4522603efd8cb0…`, built at 771ec08; hosting release v32, live since 16:10:08Z 2026-11-11). Before 0.9.17, 0.9.16's release record
 (7c8f8312484f, tag r0916-T) recorded 0.9.16's page, BeltBattles-0.9.16-161a9829b173-online.html (1,177,256 bytes, sha256
-`0825a2ddf82919e1…`, built at 161a982); no hosting release serves it yet, because 0.9.16 is staged and not launched (the hosting service serves 0.9.15.1's page, release v30), and on PATH B it never
-does (section 38). Before 0.9.16, 0.9.15.1's release record
+`0825a2ddf82919e1…`, built at 161a982); the hosting service served it as release v31 from 15:11:34Z until 16:10Z on 2026-11-11, when 0.9.17's launch (PATH A, section 38) replaced it with v32. Before 0.9.16, 0.9.15.1's release record
 (6562173238bc) recorded 0.9.15.1's page, BeltBattles-0.9.15.1-8916ac159bca-online.html (1,176,557 bytes, sha256
 `0e6b7aed33fc9297…`, built at 8916ac1), which release v30 serves. Before 0.9.15.1, 0.9.15's release record
 (8eec84d2a551) recorded 0.9.15's page, BeltBattles-0.9.15-8256f7d15581-online.html (1,169,732 bytes, sha256
@@ -681,14 +684,14 @@ fly apps create beltbattles --org personal && set -o pipefail && fly storage cre
 ## 3. Build and stage (local only: no network)
 
 ```sh
-node deploy/stage.mjs ../output-stage0917/pages/BeltBattles-0.9.17-771ec08d406e-online.html
+node deploy/stage.mjs ../output-stage0918/pages/BeltBattles-0.9.18-0653899635c1-online.html
 ```
 
 Runs `npm run build:server` (type-check + vite bundle into server/dist/: ghost-server.mjs, ghost-admin.mjs,
 gen-ghost-pool.mjs, from uploads-080 on also ghost-probe.mjs, and their shared chunks), copies the page to the
 gitignored deploy/public/index.html and refuses unless its SHA-256 and size equal deploy/GAME_BUILD.txt. Expect the
 last line:
-`stage: ../output-stage0917/pages/BeltBattles-0.9.17-771ec08d406e-online.html -> deploy/public/index.html (1180630 bytes, sha256 matches GAME_BUILD.txt); server/dist built`.
+`stage: ../output-stage0918/pages/BeltBattles-0.9.18-0653899635c1-online.html -> deploy/public/index.html (1196393 bytes, sha256 matches GAME_BUILD.txt); server/dist built`.
 A byte-identical copy elsewhere (for example in /home/cap/deliveries/beltbattles/) stages the same way; the line then
 names that path.
 To ship a different build later: `node deploy/stage.mjs <file> --record`, then commit GAME_BUILD.txt.
@@ -700,8 +703,8 @@ fly deploy --ha=false --remote-only && fly status -a beltbattles
 ```
 
 - Builds on Fly's remote builder from this directory with ./Dockerfile and ./fly.toml; the
-  context is only server/dist and deploy/public/index.html (.dockerignore): about 3.1 MB at 0.9.17 (the
-  bundle 1,891,276 bytes in 9 files, the page 1,180,630 bytes; 0.9.16's: about 3.0 MB, the bundle 1,824,043 bytes in 9 files and the page 1,177,256 bytes; 0.9.15.1's: about 2.9 MB, the bundle 1,715,024 bytes in 9 files (0.9.15's again: section 36) and the page 1,176,557 bytes; 0.9.15's: 1,715,024 bytes in 9 files and 1,169,732; 0.9.14.1's: 1,706,706 bytes in 9 files and 1,160,876; 0.9.14's: 1,704,956 and 1,150,336; 0.9.13's: 1,491,495 and 1,063,979; 0.8.0's were about 440 kB and 578 kB). Tens of MB would mean node_modules got in
+  context is only server/dist and deploy/public/index.html (.dockerignore): about 3.1 MB at 0.9.18 (the
+  bundle 1,891,276 bytes in 9 files, the page 1,196,393 bytes; 0.9.17's: the same bundle and the page 1,180,630 bytes; 0.9.16's: about 3.0 MB, the bundle 1,824,043 bytes in 9 files and the page 1,177,256 bytes; 0.9.15.1's: about 2.9 MB, the bundle 1,715,024 bytes in 9 files (0.9.15's again: section 36) and the page 1,176,557 bytes; 0.9.15's: 1,715,024 bytes in 9 files and 1,169,732; 0.9.14.1's: 1,706,706 bytes in 9 files and 1,160,876; 0.9.14's: 1,704,956 and 1,150,336; 0.9.13's: 1,491,495 and 1,063,979; 0.8.0's were about 440 kB and 578 kB). Tens of MB would mean node_modules got in
   and .dockerignore was not applied. Stop and report that.
 - The image is node:22-alpine plus those files; no npm install step appears in the build log.
 - The release command (`node /app/dist/ghost-server.mjs seed`) runs first, on a throwaway machine with the
@@ -715,7 +718,7 @@ fly deploy --ha=false --remote-only && fly status -a beltbattles
   kit0911/seedtime.sh; 0.9.10's 120 ghosts took 2 s and 96,812 kB; 0.9.9's: 97,604 kB). Expect a `seed: rules
   bb-0.16.0, 254 pool ghosts on tigris (...)` line with `254 written, 0 unchanged, 0 removed` at 0.9.17's launch (the
   first bb-0.16.0 seed: the live store holds, on PATH A, bb-0.15.0's 230 and bb-0.14.0's 192 and the older pools, on PATH B bb-0.14.0's 192 and the older pools, and nothing under bb-0.16.0 on either: section 38), and `0
-  written, 254 unchanged, 0 removed` on every later deploy of the same image (the release command runs at each `fly deploy`,
+  written, 254 unchanged, 0 removed` on every later deploy of the same image (0.9.18's launch is one: section 39; the release command runs at each `fly deploy`,
   not at a machine start or `fly apps restart`). (0.9.9's launch wrote `120 written, 0
   unchanged, 0 removed` under bb-0.10.0, 0.9.9.1's `78 written, 42 unchanged, 78 removed`, 0.9.10's `0 written, 120
   unchanged, 0 removed`, 0.9.11's `192 written, 0 unchanged, 0 removed` (the first bb-0.11.0 seed: the live store held
@@ -743,7 +746,7 @@ fly deploy --ha=false --remote-only && fly status -a beltbattles
 ## 5. Live checks (one call)
 
 ```sh
-curl -sS https://beltbattles.fly.dev/v1/health; echo; curl -sS -o /dev/null -w 'http -> %{http_code} %{redirect_url}\n' http://beltbattles.fly.dev/; curl -sS -D - -o /dev/null https://beltbattles.fly.dev/ | grep -i -E '^(HTTP|content-type|content-length|cache-control|x-content-type-options|referrer-policy)'; curl -fsS https://beltbattles.fly.dev/ | cmp - deploy/public/index.html && echo 'live page = the staged 0.9.17 online page (cmp)'; curl -sS -o /dev/null -w '%{url_effective} -> %{http_code}\n' 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.16.0&day=[1-16]&wins=0&lives=10&player=runbook-check&seen=&runs=0'; curl -sS 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.16.0&day=3&wins=1&lives=9&player=runbook-check&seen=&runs=0' | head -c 300; echo; curl -sS -w ' -> %{http_code}\n' -X POST -H 'content-type: application/json' --data '{}' https://beltbattles.fly.dev/v1/ghosts; fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs list --rules bb-0.16.0'
+curl -sS https://beltbattles.fly.dev/v1/health; echo; curl -sS -o /dev/null -w 'http -> %{http_code} %{redirect_url}\n' http://beltbattles.fly.dev/; curl -sS -D - -o /dev/null https://beltbattles.fly.dev/ | grep -i -E '^(HTTP|content-type|content-length|cache-control|x-content-type-options|referrer-policy)'; curl -fsS https://beltbattles.fly.dev/ | cmp - deploy/public/index.html && echo 'live page = the staged 0.9.18 online page (cmp)'; curl -sS -o /dev/null -w '%{url_effective} -> %{http_code}\n' 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.16.0&day=[1-16]&wins=0&lives=10&player=runbook-check&seen=&runs=0'; curl -sS 'https://beltbattles.fly.dev/v1/ghosts/match?rules=bb-0.16.0&day=3&wins=1&lives=9&player=runbook-check&seen=&runs=0' | head -c 300; echo; curl -sS -w ' -> %{http_code}\n' -X POST -H 'content-type: application/json' --data '{}' https://beltbattles.fly.dev/v1/ghosts; fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs list --rules bb-0.16.0'
 ```
 
 Expect, in order:
@@ -751,9 +754,9 @@ Expect, in order:
    `"uploads":"open"` once the uploads step (section 9) is live. `ghosts` counts what the lazy bucket cache has read
    so far; 0 right after a start is normal.
 2. `http -> 301 https://beltbattles.fly.dev/` (force_https).
-3. `HTTP/2 200`, `content-type: text/html; charset=utf-8`, `content-length: 1180630` (0.9.16's page: 1177256; 0.9.15.1's page: 1176557; 0.9.15's page: 1169732; 0.9.14.1's page: 1160876; 0.9.14's page: 1150336; 0.9.13's page: 1063979; 0.9.12's page: 1015682; 0.9.11's page: 1014964; 0.9.10's page: 936607; 0.9.9's page: 934945; 0.9.8's page: 736701; 0.9.7's page: 717904; 0.9.6's page: 706489; 0.9.5's page: 691285; 0.9.4's: 691202; 0.9.3's: 691113; 0.9.2's: 696831; 0.9.1's: 696824; 0.9.0's: 695449; 0.8.9's: 672501; 0.8.8's: 670455; 0.8.7's: 634882; 0.8.6's: 607541; 0.8.5's: 598639; 0.8.4's: 591654; 0.8.3's: 590294; 0.8.2's: 589217; 0.8.1's: 587335; 0.8.0's: 578419),
+3. `HTTP/2 200`, `content-type: text/html; charset=utf-8`, `content-length: 1196393` (0.9.17's page: 1180630; 0.9.16's page: 1177256; 0.9.15.1's page: 1176557; 0.9.15's page: 1169732; 0.9.14.1's page: 1160876; 0.9.14's page: 1150336; 0.9.13's page: 1063979; 0.9.12's page: 1015682; 0.9.11's page: 1014964; 0.9.10's page: 936607; 0.9.9's page: 934945; 0.9.8's page: 736701; 0.9.7's page: 717904; 0.9.6's page: 706489; 0.9.5's page: 691285; 0.9.4's: 691202; 0.9.3's: 691113; 0.9.2's: 696831; 0.9.1's: 696824; 0.9.0's: 695449; 0.8.9's: 672501; 0.8.8's: 670455; 0.8.7's: 634882; 0.8.6's: 607541; 0.8.5's: 598639; 0.8.4's: 591654; 0.8.3's: 590294; 0.8.2's: 589217; 0.8.1's: 587335; 0.8.0's: 578419),
    `cache-control: no-cache`, `x-content-type-options: nosniff`, `referrer-policy: no-referrer`.
-4. `live page = the staged 0.9.17 online page (cmp)` (no line at all means a mismatch).
+4. `live page = the staged 0.9.18 online page (cmp)` (no line at all means a mismatch).
 5. Sixteen lines `…day=N… -> 200`, days 1-16: a new player (`runs=0`, D2: seed ghosts only) with 0 wins and
    10 hearts (a hearts run starts with 10; a 5-lives request reads 404 on days 1-4, since every seed ghost there holds
    more lives) gets a ghost with no better record (D1: fewer wins, or as many and no more lives; here a 0-win ghost).
@@ -877,7 +880,7 @@ Re-seed (every deploy re-seeds; with an unchanged bundle nothing is written):
 fly deploy --ha=false --remote-only && fly logs -a beltbattles --no-tail | grep -E 'seed:|seed failed' | tail -n 3
 ```
 
-Expect `0 written, 254 unchanged, 0 removed` (bb-0.16.0's pool; 0.9.17's own launch is the first bb-0.16.0 seed: `254
+Expect `0 written, 254 unchanged, 0 removed` (bb-0.16.0's pool; 0.9.18's launch reads it again, the same pool: section 39; 0.9.17's own launch was the first bb-0.16.0 seed: `254
 written, 0 unchanged, 0 removed`, section 38; 0.9.16's launch, staged and not run, would be the first bb-0.15.0 seed: `230 written, 0 unchanged, 0 removed`, section 37; 0.9.15's launch was the first bb-0.14.0 seed: `192 written, 0 unchanged, 0 removed`, section 35, and 0.9.15.1's `0 written, 192 unchanged, 0 removed`, the same pool, section 36; 0.9.14's launch was the first bb-0.13.0 seed, section 33, and 0.9.14.1's `0 written, 192 unchanged, 0 removed`, the same pool, section 34; 0.9.13's launch was the first bb-0.12.0 seed, section 32; 0.9.11's launch was the first bb-0.11.0 seed: `192 written, 0 unchanged, 0
 removed`, section 30; 0.9.12's launch was `0 written, 192 unchanged, 0 removed`, section 31). After a rules bump or a
 new seed pool, expect the new pool written and, for the same rules version, stale pool entries removed; player uploads
@@ -890,7 +893,7 @@ fly releases -a beltbattles --image
 fly deploy --ha=false --remote-only --image <IMAGE REF of the release to return to, from the list above> -e BB_GHOST_UPLOADS=closed
 ```
 
-From 0.9.17 the previous image depends on the launch path (section 38): on PATH A it is 0.9.16's hosting release (v31 if nothing else ships first; read it at the launch), the page and the server together, which puts bb-0.15.0 back on both sides; its release command
+From 0.9.18 the previous image is 0.9.17's hosting release v32 (section 39): the same rules and the same server code on both sides, so its release command re-seeds the same pool and writes nothing (`0 written, 254 unchanged, 0 removed`). From 0.9.17 the previous image depended on the launch path (section 38; PATH A was used): on PATH A it was 0.9.16's hosting release (v31 if nothing else ships first; read it at the launch), the page and the server together, which puts bb-0.15.0 back on both sides; its release command
 re-seeds bb-0.15.0's pool (`0 written, 230 unchanged, 0 removed`) and leaves bb-0.16.0's decks where they are. On PATH B (0.9.16 is never launched alone) it is 0.9.15.1's release (v30, image
 registry.fly.io/beltbattles:deployment-01M72YAPXXJRGYNC7NTDH9PVWW; the page and the server together, which puts bb-0.14.0 back on both sides); its release command re-seeds bb-0.14.0's pool (`0 written, 192 unchanged, 0
 removed`) and leaves bb-0.16.0's decks where they are. See section 38's rollback; what a run saved in 0.9.17 does on each older page, and what the streak key does, is section 38's saved-run paragraph.
@@ -5138,10 +5141,19 @@ carried from the earlier STAGEs and the hull lane's runs, with the proof's exit 
 
 ## 38. 0.9.17: ghosts get tougher when you keep winning (rules release bb-0.16.0; server and client in one launch; the operator's yes first)
 
+**Correction, 2026-11-11, written by STAGE-0918 (cap's finding G1 of REVIEW-STAGE0917; every fact is from LIVE-0917, sections 1 to 4).** This section was written at about 13:00Z on 2026-11-11, before 0.9.16 launched, and its first
+lines said that v30 was the live release and that 0.9.16 was staged and not launched. That is no longer true, and the launch went the way PATH A describes. **0.9.16 went live as hosting release v31 at 15:11:34Z 2026-11-11**
+(image deployment-01M75JGDPSN1RE33SZCTZJCGYX), and **0.9.17 launched on top of it by PATH A and is live as hosting release v32** (image deployment-01M75NVK370139WB3E0JMWAGJV; the machine has been on version 32 since
+16:10:08Z). Its LAUNCH text ran 16:07:55Z to 16:10:32Z, and the release command's seed line, read from the app's logs, on the release machine, at 16:09:57Z, was `seed: rules bb-0.16.0, 254 pool ghosts on tigris (...): 254 written,
+0 unchanged, 0 removed`, a new bucket, well inside the 15 minutes. Its FINISH text ran 16:10:51Z to 16:12:34Z: the probe `23 of 23 checks as expected; the server stored 10 deck(s)`, then `APPLIED: deleted 10 of 10 record(s).`, and
+the lists `all 254 0 0` (bb-0.16.0) and `all 230 0 0` (bb-0.15.0). **PATH B was never used**; its text below stays as it was written, marked NOT USED. 0.9.17's rollback target is v31 = 0.9.16 (bb-0.15.0 on both sides; it needs
+the operator's own yes; an open 0.9.17 tab then meets the old server, which has no shield, until it reloads: LIVE-0917 section 1). 0.9.18 launches on top of v32 (section 39). The sentences below that stated, as present
+facts, that v30 is the live release and that 0.9.16 is not launched are corrected in place and marked [corrected 2026-11-11]; nothing else in this section is rewritten.
+
 0.9.15.1's launch is section 36 (clone beltbattles-r09151, branch r09151, tag stage-09151, tip 89bb5abacfbb). It has run: the hosting service serves 0.9.15.1 as release v30
 (image registry.fly.io/beltbattles:deployment-01M72YAPXXJRGYNC7NTDH9PVWW, since 2026-11-10 at 14:40:19Z; tag live-09151 = stage-09151 = 89bb5abacfbb), the page and the server
-together on bb-0.14.0, **and it still does when this section is written: v30 is the live release**. 0.9.16's launch is section 37 (clone beltbattles-r0916, branch r0916, tag stage-0916 =
-3eb2669e9a6a): it is **staged and accepted, and it has NOT run**; it waits for the operator's own yes, so 0.9.16 has no hosting release yet, and this section never names one as a fact:
+together on bb-0.14.0, **and it still did when this section was written (about 13:00Z 2026-11-11): v30 was then the live release** [corrected 2026-11-11: v30 is no longer live; see the dated paragraph above]. 0.9.16's launch is section 37 (clone beltbattles-r0916, branch r0916, tag stage-0916 =
+3eb2669e9a6a): it was **staged and accepted, and had NOT run** when this section was written; it waited for the operator's own yes, so it had no hosting release yet, and this section never named one as a fact [corrected 2026-11-11: 0.9.16 then went live as hosting release v31; see the dated paragraph above]:
 0.9.16's hosting release (v31 if nothing else ships first; read it at the launch). This section is 0.9.17's launch, from this clone (beltbattles-r0917/BeltBattles-r0917, branch r0917; write
 `refs/heads/r0917` or a tag; r0917-base = stage-0916 = 3eb2669e9a6a), staged on 2026-11-11. 0.9.17's tree holds all of 0.9.16 (BUMP-1I's base is stage-0916), so **there are two launch paths, and
 cap chooses at the launch** (below). **Never launch it unless the hosting service serves what the chosen path's guards name**: 0.9.16's page on PATH A, 0.9.15.1's page on PATH B.
@@ -5182,12 +5194,12 @@ veteran's lead { share 0.5, at 2 }, src/net/veteran.ts:75, :5-9). **The shield**
 
 **The two launch paths** (cap chooses at the launch; the STAGE rehearsed both, and this section describes both). One launch carries the page and the server together on either path, and never the page alone. The seed line
 is the same on both, `254 written, 0 unchanged, 0 removed` into a new bucket; what differs is what the live store holds before, the lists after, the launch call's guards and the rollback target.
-- **PATH A: 0.9.16 goes live first** (section 37's launch, as staged, under its own yes from the operator), and 0.9.17 then launches on top of it (this section, under its own yes). *The store before this launch*
+- **PATH A (USED: 0.9.16 went live first as v31, and 0.9.17 launched on top of it as v32): 0.9.16 goes live first** (section 37's launch, as staged, under its own yes from the operator), and 0.9.17 then launches on top of it (this section, under its own yes). *The store before this launch*
   holds bb-0.15.0's 230 pool ghosts (written by 0.9.16's launch) and every upload under it, bb-0.14.0's 192 and every upload under it, and the older pools, and nothing under bb-0.16.0. *The seed line*:
   `254 written, 0 unchanged, 0 removed` (bb-0.16.0). *The lists after*: bb-0.16.0 `all 254 0 0`, bb-0.15.0 `all 230 N P` and bb-0.14.0 `all 192 N P`. *The launch call's guards* read 0.9.16 as live: refuse unless the
   hosting service serves 0.9.16's page byte for byte (`content-length: 1177256`, sha256 `0825a2ddf82919e1…`), /v1/health reads `"rules":"bb-0.15.0"` and `fly releases -a beltbattles --image` lists 0.9.16's release
   first. *The rollback target*: 0.9.16's hosting release (v31 if nothing else ships first; read it at the launch), whose image reference is read there, not written here.
-- **PATH B: 0.9.16 is never launched alone**: 0.9.17 launches on top of 0.9.15.1 (the hosting release v30, live today) and carries all of 0.9.16 with it (the CHANGELOG's 0.9.16 and 0.9.17 sections ship together).
+- **PATH B (NOT USED: 0.9.17 launched by PATH A; this text stays as it was written): 0.9.16 is never launched alone**: 0.9.17 launches on top of 0.9.15.1 (the hosting release v30, live when this was written)  and carries all of 0.9.16 with it (the CHANGELOG's 0.9.16 and 0.9.17 sections ship together).
   bb-0.15.0 never goes live and has no bucket in the store. *The store before this launch* holds bb-0.14.0's 192 pool ghosts (0.9.15's launch wrote them and 0.9.15.1's kept them) and every upload under them, and the
   older pools; nothing under bb-0.15.0 or bb-0.16.0. *The seed line*: `254 written, 0 unchanged, 0 removed` (bb-0.16.0). *The lists after*: bb-0.16.0 `all 254 0 0`, bb-0.14.0 `all 192 N P`, and bb-0.15.0, which has no
   bucket, prints an empty table: the title line `ghosts:admin list --rules bb-0.15.0: jsonl store, <dir> (read only)`, the column heads `day pool uploads players` and the one row `all 0 0 0`. *The launch call's guards* read 0.9.15.1 as live: refuse unless it serves 0.9.15.1's page byte for byte (`content-length: 1176557`, sha256 `0e6b7aed33fc9297…`), /v1/health reads
@@ -5370,6 +5382,127 @@ The display part's packet and rulings are W/ref/rides/present6/STAGING-PACKET-PR
 
 **The checks of this STAGE** (STAGE-0917; O/STAGE-REPORT.md has every command, log and number, and O/LEDGER-0917.md every check's row: what ran at the label commit or at T, and what it carried from the earlier STAGEs and the
 hull lane's runs, with the proof's exit code; this paragraph is brought up to date by the closing docs commit): Run 1 (task 5c8cebf8e5da65a7) ran, at T 613ac67e1b47 unless noted: step 0 (PASS, 0 FAIL: the 11 tags and their objects, the merge's parents and tree, the rules literals and switches (VETERAN_RULES, VETERAN, VETERAN_SHIELD, VETERAN_AT, VETERAN_STREAK_MAX, VETERAN_TIER_VARIANT and STREAK_KEY new; LEAD_RULES a stable bb-0.15.0), the scope of 80 files, the 12 protected files, the generated files' bytes, 604 test files, 0 of the closure's 105 files changed); the stand-in check at r0917-rides (WEAVER day 6 regenerated from scratch with the stored bundle of the bump's freeze: byte-identical after its key, 150,664 bytes, sha16 `5cf21c0f65a91f29`, 776 s); fp and parBench at r0917-rides (857,831 bytes `bb71188c4f0e188f` and all 41 parBench lines `e1ec0b3c`, identical to the pins); labeltest (7 files, 33 tests); the gate at the label commit 771ec08d406e (tsc 0, typecheck:server 0, typecheck:tests PASS at 163, the three builds and the knobs build 0, luckcaps `check: IDENTICAL: regenerated 7401 bytes`) and the smoke at T (45 PASS, 0 FAIL; at the label commit the two checks that read the record failed, because the record is T's); the server rows at the label commit on both launch paths (the seed rehearsal 20 PASS with `254 written, 0 unchanged, 0 removed` into a new bucket on the jsonl stores and on the Tigris path, both rollbacks, seedcheck 16 of 16, probecheck 23 of 23 and `--profile` 25 of 25, seedtime 15 s, the boot at 129,968 kB against the 160,000 kB bar, srvdiff 9 of 9 files differ as a rules release must, the rollback check of each older server) and the canary at T (5 of 5); the whole suite once at the label commit (ALL GREEN: 604 files, 7,161 tests = 7,149 passed and 12 skipped, 0 red), carried to T by the L0..T rule (only docs/CHANGELOG.md and deploy/ changed); the mutants (the 14 old units of the run list all caught, V1, V2 and V4 caught, V3 not caught: a finding for the hull lane; the anchors 44 of 44; 24 current units carried); the pages' off and on runs (4 of 4 each, 0 console errors, `version 0.9.17` on 4 of 4, the page after each run unchanged); runeshots (103), card3check 13, stylecheck 180, explaincheck 35, surge 4, mirror PASS, asynccheck 62, introcheck title 198, stills c1 and p1 0 failed, lcshots, motion taps 123, and rcruns off 32 and on 44 (each as 0.9.16's); touch noprof 2,487 of 2,487 (as 0.9.16's); the samepixels account (69 of 311 shots-det frames differ, each in a class: the label 6, PRESENT-6 63 with the ride's own pixel counts; BUMP-1I alone moves none of the 311); the text sheets (line 1 alone moves, 0 overflows); the rollback probe (10 of 10 loads as the code expects, read above); the streak on the wire (3 of 3 reads: nothing on a fresh device, `streak=2` on every request of a run on a streak, 0 after ABANDON RUN); and the LOOKS (24 pictures of T's built page, 11 viewed in run 1). Run 2 (task ff5ad1f875706940) ran, at T: touch mixed part 1 (1,153 of 1,153) and part 2 (1,227 of 1,227), 0 FAIL, no count moved against 0.9.16's (the lines that moved are the run ids and the taps' timings, no word); the other 13 LOOKS pictures, so that all 24 are viewed (N1's first-sight note with a mouse on the desk and at 402x690 off the panel's rows, and with a finger at the panel's foot as before; A2's backing that follows the grid's shape on the narrow phone shop card, the PICKAXE, the SPIKERAIL and the EMBERTROUGH at 402x690 and 360x640, with the price and the marks whole and no word on a shop card; ABANDON RUN's menu, the title after it and a new run's first dawn and shop; V0.9.17 on the title at 360x640 and on the desk; no clipped or overlapping text; the one overlap seen, a mouse's note over the bow turret slots' tap boxes on a phone-sized view, is PRESENT-6's accepted soft point, limitation (9) above); and tests/ghost-probe.test.ts (which names the RUNBOOK in a message it checks) and tests/plain1f.rename.test.ts (which names the CHANGELOG in a comment), the two test files that name the changed docs, alone at the tip of the closing docs commit that fills this paragraph: 15 of 15 and 2 of 2. Carried from the earlier STAGEs and the hull lane, with each proof's exit code at T (ledger section A): the pools as generated (A1), the save format (A2), the display ride's own checks (A4) and 24 of the 42 current mutant units (A3); skipped as report-only: seedmem, motionperf and capsearch (no captain's deck moved). Nothing of the ledger is left to run.
+
+## 39. 0.9.18: new art for FURNACE (client page release; rules bb-0.16.0 kept; the operator's standing yes)
+
+0.9.17's launch is section 38 (clone beltbattles-r0917, branch r0917, tag stage-0917 = live-0917 = 8bb20eb7a6f0). It has run: the hosting service serves 0.9.17 as release v32
+(image registry.fly.io/beltbattles:deployment-01M75NVK370139WB3E0JMWAGJV, machine on version 32 since 16:10:08Z 2026-11-11; LIVE-0917 sections 1 and 3), the page and the
+server together on bb-0.16.0, and **v32 is the rollback target below**. This section is 0.9.18's launch, from this clone (beltbattles-r0918/BeltBattles-r0918, branch r0918; write
+`refs/heads/r0918` or a tag; r0918-base = stage-0917 = live-0917 = 8bb20eb7a6f0), staged on 2026-11-11. **Never launch it unless the hosting service serves 0.9.17's page, byte
+for byte**: the launch call's guards below refuse otherwise.
+
+0.9.18 is a **client page release** (a new page with no server change, as 0.9.10, 0.9.12, 0.9.14.1 and 0.9.15.1 were): the battle rules stay **bb-0.16.0**, and no file under src/sim, src/net,
+src/core, src/game or server/ differs from 0.9.17 (`git diff --name-only r0918-base <this commit> -- src/sim src/net src/core src/game server` lists nothing; the label moves package.json and
+package-lock.json only in their version fields), so the stored decks, the pool and the saves are untouched, and a 0.9.17 page and a 0.9.18 page meet each other's ghosts (both ask for, and
+upload under, bb-0.16.0). It is two rides, put on stage-0917 by cap (REQ-BFG-126, REQ-BFG-127 and REQ-BFG-125):
+- **ART SLICE 1** (the art lane a7bda34d; REQ-BFG-126 and REQ-BFG-127; tag `artb1-accepted`, tag object 7e25dcc15f86 -> 258c07cdf535, tree 747ae0b6ec00: 12 commits over present6-accepted d5eaf97684af,
+  which 0.9.17 already holds; cap's --no-ff merge 78d6d4afbacf, tree 845efe810dfc = merge-tree's, parents e0084b370f6c and 258c07cdf535, tag `r0918-rides`, tag object 05b0d76ef95a): display only, 15
+  files, +3,898 -12. **FURNACE's world in art direction B:** ten rigs (EMBER TROUGH, NAIL STRIP, GREASE WORKS, BALLAST, RASP, BELLOWS, SPARK GAP, STATIC BRUSH, BARBED SPOOL, VENOM DRIP) get a
+  native 24x24 picture on the shop card (artBCard, src/render/artB.ts:101, drawn from src/screens/build/shop.ts:201) and a new 12x12 board sprite (EMBER TROUGH and NAIL STRIP have 24x12
+  bodies); KILN, FURNACE's factory (src/sim/content.ts HEROES.furnace `factory: "kiln"`), gets a 24x24 picture on the deck and a 12x12 icon; FURNACE's face on the hero select screen is a 32x32
+  picture in hero frame B (the ring 34x34, the text column at ix+38, HEAD_H 35: src/screens/hero.ts). The art is keyed by piece id, not by hero: the ten rigs are sold from the shared shops (each
+  has a merchant and no hero in src/sim/content.ts, plainRigs.ts and shapes.ts), so their new pictures show in any hero's run. **The switch:** the art is ON by default (src/render/artB.ts:27, `VITE_ARTB !== "0"`);
+  setArtB (:28) turns it at run time; a build made with `VITE_ARTB=0` is the base's look on 311 of 311 reference frames (the art lane's verify, V4). **0.9.18's pages are built with the art ON.**
+  Files: src/render/artB.ts and artBData.ts (new), src/render/shapeArt.ts and sprites.ts (hooks), src/screens/build/shop.ts, src/screens/hero.ts, the art's tests (tests/artb1.board.test.ts,
+  artb1.card.test.ts, artb1.data.test.ts, artb1.hero.test.ts, artb1.helpers.ts and artb1.base-digests.json, all new; tests/shopcard1.test.ts, changed) and the generator tools/artb/gen.mjs with
+  tools/artb/artb-slice.json (outside the rules carry checks). The hooks in sprites.ts and shapeArt.ts return before the base's cached(...) call, so no base cache holds art B.
+- **The hull lane's tests-only pin** (lane 6c99be48; tag `pin0917-accepted`, tag object 653e2bf1dc73 -> e0084b370f6c, tree fc0c8753538e, also tagged `r0918-pin`; ONE commit on stage-0917, so the branch
+  fast-forwarded to it): one new file, tests/veteran.route.test.ts (14,035 B, 206 lines, 12 cases), which holds the match route's use of the veteran's pick (STAGE-0917's mutant V3, the route's two
+  veteranPick calls put back to matchPick at server/app.ts:442 and :445, survived every test then). No page, server, tools or docs change; no player sees it.
+The label moves 0.9.17 -> **0.9.18** (src/version.ts:2, package.json:4, package-lock.json:3 and :9; the title prints `V${VERSION}`), so the title reads V0.9.18. docs/CHANGELOG.md's 0.9.18 entry says it in
+players' words (each claim checked in the code: O/STAGE-REPORT.md lists file:line for each).
+
+**What ships.** Branch r0918 at its tip (tag stage-0918, made when the STAGE ends; the launch text names its 12 hex): r0918-base (stage-0917); the two rides above (`r0918-rides` 78d6d4afbacf against
+r0918-base: 16 files, A 11, M 5, D 0: src/render 4, src/screens 2, tools 2 (tools/artb only), tests 8, 609 test files in all (5 new: veteran.route, artb1.board, artb1.card, artb1.data, artb1.hero); nothing
+under src/sim, src/net, src/game, src/core, server/, scripts/, docs/ or deploy/; no package file and no src/version.ts before the label); one scripts-only commit 9250e41550a6 (scripts/rcruns.mjs's version
+check follows the label, the brief's ruling 8; any later tooling fix is named in O/STAGE-REPORT.md); the label commit 0653899635c1 (src/version.ts, package.json, package-lock.json and the label pins in tests/rc.label.test.ts
+and tests/packs.rules.test.ts; the pages are built here) and the CHANGELOG commit b07f2526b8ba (docs/CHANGELOG.md only); and the release record, commit f04054cdb546 (tag r0918-T): deploy/GAME_BUILD.txt and this
+runbook. After r0918-rides only those files change (the label's three files, the label pins in tests/, scripts/ tooling fixes, docs/CHANGELOG.md and deploy/). No pool or stand-in is regenerated (ledger A2 of
+O/LEDGER-0918.md, the STAGE's check ledger: no file of the stand-in generators' closure, 105 files, changed since 0.9.17; the four generated files are 0.9.17's bytes).
+- **The page** is BeltBattles-0.9.18-0653899635c1-online.html, 1,196,393 bytes, sha256 `b6461895c2fe5bb8…` (GAME_BUILD.txt holds the whole hash), built at 0653899 and staged from ../output-stage0918/pages/. It is
+  15,763 bytes larger than 0.9.17's page (1,180,630; sha16 `8e4522603efd8cb0`): the art's data (src/render/artBData.ts is 20,256 bytes of source; the build keeps all 25 of its sprite keys, counted in both
+  pages by kit0918/artcheck0918.sh, O/logs/artcheck-0653899635c1.log). **The art is ON in this page:** no VITE_ARTB was in the environment of the build (kit0918/pages099c.sh refuses to build with it set). Shore gets the
+  offline page of the same commit: BeltBattles-0.9.18-0653899635c1.html, 1,196,382 bytes, sha256 `1e70f8e534db64b1…` (= ../output-stage0918/shore/index.html; 15,763 bytes larger than 0.9.17's offline
+  page, 1,180,619 bytes, sha16 `a02b23c9cd19042f`).
+- **The server does not change** (this is why the release is a page release): server/dist built at this commit is expected byte for byte 0.9.17's (W/ref/0917-dist, T(0.9.17)'s export, the server/dist of
+  0.9.17's launch: 9 files, 1,891,276 bytes; kit0918/srvdiff.sh, O/logs/srvdiff-<commit>.txt, which ends `SRVDIFF: IDENTICAL` when no file differs by bytes), because server/, src/net, src/sim, src/core and
+  src/game are unchanged since 0.9.17 (ledger A3). **One launch still carries the server and the client together, and never the client alone.** The server rehearsals below (the seed, the boot, the probe,
+  revalidate, the Tigris rollback, the canary and the streak on the wire) are 0.9.17's, carried on that premise; the checks paragraph at the end gives the STAGE's read of it. The Dockerfile, .dockerignore and
+  deploy/stage.mjs have no change since r0918-base. Uploads stay open.
+- **The launch config** is the tracked one, used as it is (2,849 bytes, sha16 `383a063f00df9673`, unchanged since 0.9.15.1): `release_command_timeout = "15m"` (line 25), `[deploy.release_command_vm]` (line 27) and
+  `size = "performance-1x"` (line 28). 0.9.17's launch read the platform's live config: `release_command_timeout` 15m0s and a `release_command_vm` size of performance-1x (W/ref/stage0917/config-live-0917.json;
+  LIVE-0917 section 5). **A launch needs no extra config file**: no `--config`, no untracked launch.toml. The release machine's size and the seed's time are read in the release output and in
+  `fly logs -a beltbattles --no-tail` (the `seed:` line), as section 36 says; the seed must come in inside the 15 minutes (0.9.17's whole release step took about 16:08Z to 16:10:08Z).
+- **The rules** are bb-0.16.0 and no literal moved: RULES_VERSION (src/sim/content.ts:66), PROBE_RULES (server/ghostProbe.ts:130), SEED_POOL_RULES (server/seedPoolData.ts:8; server/seed.ts refuses a pool dealt
+  under other rules), VETERAN_RULES (src/net/veteran.ts:64); LEAD_RULES (src/net/rulesGate.ts:580) stays bb-0.15.0; VETERAN_AT 2 (src/net/veteran.ts:67), VETERAN_STREAK_MAX 99 (:70), VETERAN_SHIELD true (:79),
+  VETERAN_TIER_VARIANT 3 (:84); every other literal and switch reads as 0.9.17's step 0 printed it (W/ref/stage0917-logs/step0.log; this STAGE's O/logs/step0.log). A 0.9.17 page and a 0.9.18 page both ask for, and
+  upload under, bb-0.16.0, so **they meet each other's ghosts**; the fingerprint (857,831 bytes, sha16 `bb71188c4f0e188f`) and all 41 parBench lines (`fingerprint all: e1ec0b3c`) are 0.9.17's, carried (ledger A1:
+  `git diff --quiet 8bb20eb7a6f0 <this commit> -- src/sim src/net src/core src/game tools ':!tools/artb'` exits 0, and nothing outside tools/artb reads the art's tooling).
+- **A saved run, from the code.** The save's key, RUN_VERSION and the rest of src/game are unchanged (ledger A4: `git diff --quiet 8bb20eb7a6f0 <this commit> -- src/game` exits 0): **a run saved in 0.9.17
+  continues in 0.9.18, and a run saved in 0.9.18 is a 0.9.17 save** (the rollback does not cost a player the run in progress), and the streak key (`beltbattles.streak.v1`, src/game/online.ts:51) is read the same way.
+
+**The release command** (`node /app/dist/ghost-server.mjs seed`) finds the live store holding bb-0.16.0's 254 pool ghosts (days 1-16; 0.9.17's own launch wrote them: `254 written, 0 unchanged, 0 removed` at
+16:09:57Z 2026-11-11, LIVE-0917 section 3) and this commit's bundle carries the same pool (server/seedPoolData.ts is 566,721 bytes, sha16 `d3dced6c68750e24`, byte for byte r0918-base's): `seed: rules bb-0.16.0, 254
+pool ghosts on tigris (...)` with **`0 written, 254 unchanged, 0 removed`** at the launch, as on every later deploy of the same image. **No new bucket.** The older buckets (bb-0.15.0's 230, bb-0.14.0's 192 and
+before) and every upload under them stay as they are. Carried from 0.9.17's STAGE, not re-run (ledger A3): its rehearsal's step where T's seed runs again over the store its own launch wrote (PATH A's step c)
+read **`0 written, 254 unchanged, 0 removed`** (W/ref/stage0917-logs/seed0917-771ec08d406e.log:25 is the seed line and :26 the PASS row; 11.2 s and a peak RSS of 274,456 kB at nice 19 on a 30 GB host). The seed
+plays no battle, but it checks all 254 ghosts first, whether or not it writes them (section 38 has the costs and the 256 MB VM's 262,144 kB; RIDE L1's `[deploy.release_command_vm]` gives the release machine
+performance-1x).
+
+**The boot** is section 38's, unchanged (carried: ledger A3). The server warms roadCap's memo once the port is open and uploads are open (server/main.ts, server/warm.ts). After the launch and after a restart,
+look for the line `road model warmed for days 1-25 under rules bb-0.16.0 in <ms> ms` (server/warm.ts:26) in `fly logs -a beltbattles --no-tail` (0.9.17's launch: 5662 ms at 16:10:15Z).
+
+**The launch call is the Prime's** (CMD-0918, from CMD-0917's text; run once; **the operator's standing yes** covers a game release that passed staging, review and rehearsal: his chat words of 15:32:32Z and
+16:07:59Z 2026-11-11 (LIVE-0917 section 2 quotes the first: "Deploy when ready."; the conversation head told him the reading covers 0.9.17 and 0.9.18, each when ready); the release lane's ask-first rule
+stands for anything beyond it). **He gets one line right before and one right after the launch; Hermit holds the first launch text for his own click** (an L4 card, as at 0.9.17's launch); the call is two texts, the
+LAUNCH and a guarded FINISH (probe, revalidate, remove-player, restart, lists, releases-after) with its own simulation. **A rollback, a server size change or a pool wipe needs a new yes from him.** The guards:
+refuse unless the hosting service serves 0.9.17's page, byte for byte (`content-length: 1180630`, sha256 `8e4522603efd8cb0…`), /v1/health reads `"rules":"bb-0.16.0"` and `fly releases -a beltbattles --image` lists
+0.9.17's release (v32) first (keep it as releases-before.txt: the rollback needs it); then stage the 0.9.18 page, launch once (`fly deploy --ha=false --remote-only`: the image carries the same server/dist and the
+new page, and the tracked launch config gives the release command its machine and its 15 minutes), and run section 5's live checks with this page: health `"rules":"bb-0.16.0"` and `"uploads":"open"`,
+`content-length: 1196393`, `live page = the staged 0.9.18 online page (cmp)`, days 1-16 for a new player at 0 wins and 10 hearts (sixteen `-> 200`), day 3 at 1 win and 9 hearts (a v3 bb-0.16.0 snapshot),
+days 17, 25 and 26 as 0.9.17's launch read them (`200`, `200` and `400`: `day: expected an integer in 1..25`), an unsigned POST `-> 401`, the pool check (the ids that the sixteen day calls served are each one of the 254
+seed ghosts: O/expect-ids-<commit>.txt, a byte copy of W/ref/stage0917/expect-ids-8bb20eb7a6f0.txt, 254 lines, 4,693 bytes, sha16 `61073c940751b31a`: the pool is unchanged), and the lists below. Section 5's
+one-line call asks only days 1-16 and day 3: add `day=17`, `day=25` and `day=26` queries to see those three lines. The page's own label (V0.9.18 on the title) tells the two pages apart in a browser.
+
+**The probe block** is section 38's, unchanged (carried: ledger A3; the plan is the same twenty POSTs, the endless match and the two streak rows; the probe-id file is ../output-stage0918/probe-id.txt, which must not
+exist yet): `node server/dist/ghost-probe.mjs https://beltbattles.fly.dev ../output-stage0918/probe-id.txt` prints 26 lines (the header, 23 checks, `probe player:` and the summary), ending **`probe: 23 of 23
+checks as expected; the server stored 10 deck(s) for this player (expected 10); the player id is in ../output-stage0918/probe-id.txt`** (with `--profile` after the id file, two PUTs more and **`25 of 25`**);
+revalidate's dry run `plan: delete 0 record(s) of bb-0.16.0; keep 254 seed-pool ghost(s) and 10 upload(s)` (the probe's 10, plus any real player's upload since 0.9.17's launch); `remove-player <id> --rules
+bb-0.16.0 --apply` prints its `delete ghosts/bb-0.16.0/dNN/player/<id>.json` lines and **`APPLIED: deleted 10 of 10 record(s).`**; then `fly apps restart beltbattles`, health again and the lists. 0.9.17's launch read
+exactly these (LIVE-0917 section 4). **The hand clean-up** is section 30's block run from this clone, with at most 10 decks: its `cd` names /home/cap/.hermit/primes/.workspaces/cap/beltbattles-r0918/BeltBattles-r0918,
+both `../output-stage0911/probe-id.txt` become `../output-stage0918/probe-id.txt`, and both `--rules bb-0.11.0` become `--rules bb-0.16.0`.
+
+**The lists after the launch** (read only; `fly ssh console -a beltbattles -C 'node /app/dist/ghost-admin.mjs list --rules <rules>'`, in a fresh process each): `list --rules bb-0.16.0`: sixteen day rows (12, 12, 13,
+13, 16, 17, 16, 17, 17, 16, 18, 16, 18, 17, 18 and 18 pool ghosts), then **`all 254 N P`** (0.9.17's launch left `all 254 0 0` at about 16:12Z 2026-11-11; real players may have uploaded since); `list --rules bb-0.15.0`:
+**`all 230 N P`**; `list --rules bb-0.14.0`: **`all 192 N P`** (those pools and their uploads stay). A row whose day is above 25 with uploads above 0 would be a stored endless snapshot past the bound (S1): expect none.
+**Revalidate** is section 38's, unchanged: `node /app/dist/ghost-admin.mjs revalidate --rules bb-0.16.0` (a dry run; add `--apply` only if it plans deletes you expect).
+
+**Rollback to 0.9.17's hosting release v32** (its own L4 every time, after telling the operator, and under a new yes from him; never part of the launch call). Check that the releases-before file lists 0.9.17's
+release first (v32; its image was recorded at its launch as registry.fly.io/beltbattles:deployment-01M75NVK370139WB3E0JMWAGJV, and the file must agree); if not, stop and ask the Prime. If a probe's decks are on the
+store, run the clean-up first, while 0.9.18 serves. From this clone:
+
+```sh
+fly deploy --ha=false --remote-only --image <IMAGE REF of 0.9.17's release (v32), from releases-before.txt>
+```
+
+0.9.17's release is the page (1,180,630 bytes, sha256 `8e4522603efd8cb0…`, V0.9.17) and the server together, on the **same rules bb-0.16.0 and the same server code** on both sides (srvdiff: byte for byte): the stored decks and
+the pool are untouched by a rollback, and its release command re-seeds the same pool and writes nothing (**`0 written, 254 unchanged, 0 removed`** again). Saves carry both ways (the saved-run bullet above): a run
+in progress in 0.9.18 continues in 0.9.17. **An open 0.9.18 tab keeps the new art until it reloads, and meets the same server, so 0.9.17's rollback caveat about the shield does not arise here** (section 38's caveat is about a rollback to 0.9.16's older
+server). Before 0.9.17: 0.9.16's release v31 (section 38's rollback, which puts bb-0.15.0 back on both sides).
+
+**The art's own way back.** A page built from this commit with `VITE_ARTB=0` is 0.9.17's look under the 0.9.18 label (the STAGE's first pixel compare is that proof: it wants exactly the 6
+title frames to differ from 0.9.17's, by the label, and the other 305 of the 311 reference frames byte for byte; the checks paragraph below gives the read). It is a NEW page: it would need its own `node deploy/stage.mjs <page> --record`, its own record commit and its own launch. Described here, not rehearsed as a launch. The art
+lane's other way is run time only (setArtB, src/render/artB.ts:28; the tests flip it): no player control.
+
+**What is NOT in it** (the art packet's section 8; internal notes): the other 111 pieces, the three other heroes' faces, the guns, cores, hulls and rival faces keep their pictures (**old and new art stand side by
+side in this release, by the operator's choice**); the tap panel's head still shows the footprint grid for the two 2-cell pieces (EMBER TROUGH, NAIL STRIP), not a 24x24 picture; N1: artBCard's missing "/" guard
+(src/render/artB.ts:103) is unreachable; the 25% plate rule's reads (EMBER TROUGH 0.9%, NAIL STRIP 2.4%, KILN 2.0%: tests/artb1.card.test.ts:157-158). The pieces lane's jobs, the store fold-in and the next art
+batches ride later releases. 0.9.17's known limitations (section 38's) stand: nothing in the game shows the streak, and a mouse's note over the bow turret slots' tap boxes on phone-sized views.
+
+tests/tsc-tests-baseline.json is unchanged by the rides (3,382 bytes, sha16 `216977d9b4bd72fe`, 163 type errors); the release lane did not touch it.
+
+**The checks of this STAGE** (STAGE-0918; O/STAGE-REPORT.md has every command, log and number, and O/LEDGER-0918.md every check's row: what ran at the label commit or at T, and what it carried from 0.9.17's STAGE with the
+proof's exit code; this paragraph is brought up to date by the closing docs commit): Run 1 (task 663ac4c5b475faee) ran, at T f04054cdb546 unless noted: step 0 (123 PASS, 0 FAIL: the tags and their objects, the merge's parents and tree, every rules literal and switch STABLE against 0.9.17's own step 0, the 16-file scope = the art's 15 files and the pin's one, 2 protected paths both under tools/artb, 609 test files, 5 of them new); the label commit L0 0653899635c1 with its two pins (labeltest 7 files, 33 tests, at L0 and at T); the whole suite once, at L0: ALL GREEN, 609 files (607 passed, 2 skipped whole), 7,203 tests = 7,191 passed + 12 skipped (0.9.17: 604 files, 7,161 tests), in one pass of 23.0 min, with the 5 new files (tests/veteran.route 12 tests, artb1.board 15, artb1.card 5, artb1.data 7, artb1.hero 3) and no moved count; the gate at T (tsc 0, typecheck:server 0, typecheck:tests PASS at 163, the three builds and the knobs build, the smoke 45 PASS 0 FAIL, luckcaps IDENTICAL 7,401 bytes); server/dist at T against 0.9.17's bundle (W/ref/0917-dist): IDENTICAL, 0 of 9 files differ by bytes, so every server row carries from 0.9.17's STAGE (ledger A3); the pages built with the art ON (no VITE_ARTB) and the art's 25 sprite keys counted in both pages; the ledger's carry proofs A1 to A6, all exit 0 (fp and parBench, the pools, the stand-ins, every server row, the save format and 41 of the 44 mutant units carried; run again at the final tip in O/logs/aproofs-<tip>.txt); the mutant units V3 (CAUGHT: 7 of tests/veteran.route.test.ts's 12 cases fail, A x3, C, D x3; it survived at 0.9.17), V1, r04, AB1 and AB2, all caught; the browser block on T's export: the pages' runs off and on 4 of 4 each, 0 console errors, version 0.9.18 on 4 of 4, the pages after the runs the inline phase's bytes; card3check 13, stylecheck 180, explaincheck 35, surge 4, the mirror PASS, asynccheck 62, introcheck's title mode 198, runeshots 103, the motion taps 123, the stills and lcshots clean; rcruns off 32 of 32 and on 44 of 44; the touch check whole with its wk- views: noprof 2,487 of 2,487, mixed 1,153 of 1,153 and 1,227 of 1,227, 0 FAIL, every count equal to 0.9.17's (touchcmp tip - base 0, 0 keys differ; the six wk- WebKit views run too, which the art lane's own verify had not); the three sets of 311 shots-det frames: with the art OFF only the label's 6 title frames differ from 0.9.17's (305 byte-identical), AS SHIPPED exactly the art lane's 265 frames differ from the art-off set (3,337,215 changed px, box for box the art lane's table, 3 of them FURNACE's hero-select frames); the text sheets (ON 3,141 lines, OFF 3,131, only line 1 moved, 0 overflows); and the LOOKS on the built page (the hero select with FURNACE chosen at 402x690, 360x640 and on the desk, another hero's old face, the shop cards of all ten rigs on both phone sizes, the deck with the KILN, a battle, the tap panel of EMBER TROUGH and NAIL STRIP, the way-back pair and the title: nothing clipped, no word on a shop card). Carried from 0.9.17's STAGE, with each proof's exit code in O/LEDGER-0918.md: the seed rehearsal, seedcheck, probecheck, seedtime, the boot, revalidate, the Tigris rehearsal, the canary, the rollback probe and the streak on the wire. O/STAGE-REPORT.md and O/LEDGER-0918.md hold every command, log and number.
 
 ## Troubleshooting
 

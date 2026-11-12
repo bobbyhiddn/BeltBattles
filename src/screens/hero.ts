@@ -15,6 +15,7 @@ import { frame, rect, type G } from "../render/pixel";
 import { drawText, wrap } from "../render/font";
 import { HULL_A, HULL_L, frameForHull } from "../render/frame";
 import { portraitImage, type PortraitHero } from "../render/portraits";
+import { artBFace } from "../render/artB"; // ARTB-CODE-1 (REQ-BFG-127): FURNACE's 32x32 face
 import { heroTrick } from "../ui/abilityText";
 import { heroFace, heroPlaystyle, ruleSpans } from "../ui/faces"; // U2a (REQ-BFG-046): a TEXT hero's face
 import { colourize, drawRich, wrapRich } from "../ui/richText"; // U2a: the face wraps with the number rule (font.ts wrap has none)
@@ -147,10 +148,24 @@ export class HeroScreen implements Screen {
     const iw = infoW;
     let iy = portrait ? py0 + ph + 14 : py0;
     // 0.8.0 H1: the hero's portrait, framed in ink and its faction's trim, with the faction, name and playstyle beside it
-    rect(g, ix, iy, PORTRAIT + 2, PORTRAIT + 2, C.ink);
-    frame(g, ix - 1, iy - 1, PORTRAIT + 4, PORTRAIT + 4, P.trim1);
-    g.drawImage(portraitImage(id as PortraitHero), ix + 1, iy + 1);
-    const tx = ix + PORTRAIT + 7;
+    // ARTB-CODE-1 (REQ-BFG-127): FURNACE's face is art B's own 32x32 (artBFace; null for the other three heroes and with the switch off: their 24x24
+    // faces, the frame and the text column exactly as before).
+    // ARTB-CODE-1B (REQ-BFG-127; cap's ruling 1 on ARTB-CODE-1, option B): the ring hugs the 32x32 face: 34 x 34 at (ix, iy) in the faction's trim, the face's own ink outline is its border (ink only behind its clear px, no ink
+    // margin), the face at (ix + 1, iy + 1) where the 24x24 face stands; the ring's last row (iy + 33) leaves one clear row before the head ends (iy + 34), so the first rule line (iy + HEAD_H) has air above it.
+    // HEAD_H stays 35: no row, region or tap moves. The text column keeps the 4 clear px beside the ring that the 24x24 heroes have (their ring ends at ix + 26, their text starts at ix + 31): FURNACE's starts at ix + 38.
+    const face32 = artBFace(id);
+    let tx: number;
+    if (face32) {
+      rect(g, ix + 1, iy + 1, face32.width, face32.height, C.ink);
+      g.drawImage(face32, ix + 1, iy + 1);
+      frame(g, ix, iy, face32.width + 2, face32.height + 2, P.trim1);
+      tx = ix + face32.width + 6;
+    } else {
+      rect(g, ix, iy, PORTRAIT + 2, PORTRAIT + 2, C.ink);
+      frame(g, ix - 1, iy - 1, PORTRAIT + 4, PORTRAIT + 4, P.trim1);
+      g.drawImage(portraitImage(id as PortraitHero), ix + 1, iy + 1);
+      tx = ix + PORTRAIT + 7;
+    }
     drawText(g, h.factionName, tx, iy, P.trim2, { font: "3" });
     drawText(g, h.name, tx, iy + 8, C.white, { scale: 2 });
     drawText(g, `PLAYSTYLE: ${heroPlaystyle(id)}`, tx, iy + 26, C.yellow, { font: "3" });
