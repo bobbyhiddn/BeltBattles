@@ -18,7 +18,8 @@ import {
 } from "./sprites";
 import { heatTier, payloadHalo, payloadSprite } from "./ammo";
 import { raceChuteMouth } from "./raceArt"; // 0.8.0 H1
-import { stokeFlare, wave3ChuteMouth, wave3FactoryArt, wave3GateSprite } from "./wave3Art"; // 0.8.0 A1; I1 M4: the moments
+import { stKey, stokeFlare, wave3ChuteMouth, wave3FactoryArt, wave3GateSprite } from "./wave3Art"; // 0.8.0 A1; I1 M4: the moments
+import { artBBoardState } from "./artB"; // ARTB-CODE-3B (REQ-BFG-126, REVIEW-CODE3A F1): art B's own state looks, asked before the base's wave3GateSprite
 import { factoryMoment, rigMoment, stokedNow } from "./wave3Moments"; // 0.8.0 I1 M4: A1's battle moments, from P1's sim
 import { drawLevelMarks } from "./levelMark"; // bb-0.8.3 (REQ-BFG-043 D11): the hero factory's FACTORY level
 import { drawEnchantMachinery } from "./enchantMarks"; // ENCHANT-1 (REQ-BFG-085): the words' board marks
@@ -514,7 +515,7 @@ function drawRigs(g: G, v: CruiserView): void {
     // 0.8.0 I1 M4 (A1's battle moments): a wave-3 rig in the state P1's sim gives it (wave3Moments.ts rigMoment); with
     // none to show it draws exactly as gateSprite, as every other rig does
     const st = rigMoment(d.id, p.uid, gs, v.sim, v.w3, v.model.rigs.get(p.uid)?.w3);
-    const sprite = Object.keys(st).length ? wave3GateSprite(d.id, Math.floor(v.t * 8), active, st) : null;
+    const sprite = Object.keys(st).length ? (artBBoardState(d.id, Math.floor(v.t * 8), active, stKey(st)) ?? wave3GateSprite(d.id, Math.floor(v.t * 8), active, st)) : null; // ARTB-CODE-3B: art B first, the base's state look only when art B has no board sprite for the rig
     g.drawImage(sprite ?? gateSprite(d.id, Math.floor(v.t * 8), active), x, y);
     if (d.id === "keg" && gs?.online && !gs.consumed) {
       const full = gs.def.gate?.keg?.fuse ?? 12;

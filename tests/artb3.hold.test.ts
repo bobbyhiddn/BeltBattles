@@ -16,12 +16,17 @@ installRaster();
 
 import { ITEMS } from "../src/sim/content";
 import { ART_B_LEGEND, ART_B_SPRITES, ART_B_WORK } from "../src/render/artBData";
-import { artBBoard, artBBoardSil, artBBody, artBCard, artBFace, artBFactory, artBFactorySil, artBHas, artBIcon, setArtB } from "../src/render/artB";
+import { artBBoard, artBBoardSil, artBBoardState, artBBody, artBCard, artBFace, artBFactory, artBFactorySil, artBHas, artBIcon, setArtB } from "../src/render/artB";
+import { cruiserModel } from "../src/render/cruiser";
 import { gateSil, gateSprite, itemIcon } from "../src/render/sprites";
 import { iconX2 } from "../src/screens/build/shop";
-import { wave3GateSprite, type Wave3RigState } from "../src/render/wave3Art";
+import type { Build } from "../src/sim/deck";
+import { stKey, wave3GateSprite, type Wave3RigState } from "../src/render/wave3Art";
+import type { CruiserView } from "../src/render/cruiser";
 import { FRAMES, allDigests, sigOf, type Digests } from "./artb1.helpers";
 import { data } from "./artb3.helpers";
+import { battleView, buildView, cellCheck, cellOf, drawDeck, gate, hot, momentOf, play } from "./artb3.scene";
+import { barge, furnaceBench, item, withItem } from "./wave3.helpers";
 
 type Kind = "gun" | "rig";
 /** The 27 held ids with the game's name (ITEMS[id].name) and their kind: 7 gun pieces (card/<id> and icon/<id> were held) and 20 rigs (card/<id> and board/<id> and the board's work entry). */
@@ -51,6 +56,8 @@ const hold = JSON.parse(readFileSync("tools/artb/hold-read6.json", "utf8")) as {
 };
 const base = JSON.parse(readFileSync("tests/artb1.base-digests.json", "utf8")) as Digests;
 const WAVES = [false, true];
+/** every key wave3Art.ts stKey makes of a wave-3 rig's state (the keys the state hook is asked with) */
+const STATE_KEYS = ["m", "c1", "c2", "c3", "s", "hold", "release", "n", "p"];
 
 afterEach(() => setArtB(true));
 
@@ -119,6 +126,7 @@ describe("ARTB-CODE-3B H: with the art ON, every art hook answers null for a hel
       expect(artBIcon(id), `${id}: artBIcon`).toBeNull();
       for (const f of FRAMES) for (const active of WAVES) expect(artBBoard(id, f, active), `${id} (${kind}): artBBoard frame ${f} ${active ? "working" : "idle"}`).toBeNull();
       expect(artBBoardSil(id), `${id}: artBBoardSil`).toBeNull();
+      for (const key of STATE_KEYS) for (const active of WAVES) expect(artBBoardState(id, 2, active, key), `${id}: artBBoardState key "${key}"`).toBeNull(); // ARTB-CODE-3B S: the state hook too
       expect(artBFactory(id, 0, false), `${id}: artBFactory`).toBeNull();
       expect(artBFactory(id, 0, true), `${id}: artBFactory flash`).toBeNull();
       expect(artBFactorySil(id), `${id}: artBFactorySil`).toBeNull();
@@ -179,4 +187,32 @@ describe("ARTB-CODE-3B H: PINCER, TWIN LATCH and SHIELD FUEL in each of their st
       }
     });
   }
+
+  it("on the deck (the game's drawMachinery -> drawRigs): PINCER with a crowd on a build deck, TWIN LATCH releasing and SHIELD FUEL's spent blow in a battle: the rig's cell is the same picture with the art ON as OFF and shows the base's state look", () => {
+    const pincer = withItem(withItem(furnaceBench(), item(30, "pincer", 3, 3, 1)), item(31, "whetstone", 5, 3, 3)); // the WHETSTONE (which rides) shares PINCER's tile: a crowd of one; only PINCER's cell is compared
+    const battle = (def: string) => play(withItem(furnaceBench(), item(30, def, 3, 3, 0)), barge(), (x) => x.b.t > 2 && !hot(x, 30));
+    const latch = battle("twinlatch"), breaker = battle("platebreaker");
+    latch.sfx[0].w3.release.set(30, 0.2); // what the arena's react() sets on a `release` event
+    breaker.sfx[0].w3.spent.set(30, false); // what it sets when SHIELD FUEL's last blow found no plating to take
+    gate(breaker, 30).flash = 0.5; // the blow itself: a hit flash, so the rig draws working (its plain-blow look differs from the plain look only while it works)
+    expect(cruiserModel(pincer).rigs.get(30)!.w3, "the deck gives PINCER its crowd").toEqual({ crowd: 1 });
+    const scenes: [string, Build, CruiserView, Wave3RigState, string, boolean][] = [
+      ["pincer", pincer, buildView(pincer), { crowd: 1 }, "c1", false],
+      ["twinlatch", latch.b.sides[0].build, battleView(latch), { latch: "release" }, "release", false],
+      ["platebreaker", breaker.b.sides[0].build, battleView(breaker), { spent: false }, "n", true],
+    ];
+    for (const [id, b, v, st, key, working] of scenes) {
+      if (v.sim) expect(momentOf(id === "twinlatch" ? latch : breaker, v, 30), `${id}: rigMoment`).toEqual(st);
+      expect(stKey(st), `${id}: the state's key`).toBe(key);
+      expect(artBBoardState(id, 0, false, key), `${id}: art B has no state look for it`).toBeNull();
+      setArtB(true);
+      const on = drawDeck(v);
+      setArtB(false);
+      const off = drawDeck(v);
+      setArtB(true);
+      expect(cellOf(on, b, 30), `${id} ${JSON.stringify(st)}: the cell, art on = art off`).toEqual(cellOf(off, b, 30));
+      const n = cellCheck(on, b, 30, wave3GateSprite(id, 0, working, st)!, gateSprite(id, 0, working));
+      expect([n.total > 0, n.shown > 0, n.stale], `${id} ${JSON.stringify(st)}: the base's state look shows`).toEqual([true, true, 0]);
+    }
+  });
 });
