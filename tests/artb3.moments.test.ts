@@ -67,6 +67,18 @@ describe("ARTB-CODE-3B S: the three rigs that show a state through art B", () =>
     expect(n, "3 rigs x 12 frames x idle and working").toBe(3 * FR.length * 2);
   });
 
+  it("with the switch off the deck's sprite for every (id, key, frame, idle and working) is the base's wave3GateSprite itself: machinery.ts's `artBBoardState(...) ?? wave3GateSprite(...)` falls through on null", () => {
+    setArtB(false);
+    let n = 0;
+    for (const id of STATE_IDS) for (const key of Object.keys(STATE_RIGS[id])) for (const f of FR) for (const active of WAVES) {
+      const base = wave3GateSprite(id, f, active, STATE_OF[id]);
+      expect(base, `${id}: the base has a state look`).not.toBeNull();
+      expect(artBBoardState(id, f, active, key) ?? wave3GateSprite(id, f, active, STATE_OF[id]), `${id} key ${key} frame ${f} ${active ? "working" : "idle"}: the base's state look`).toBe(base);
+      n++;
+    }
+    expect(n, "3 rigs x 12 frames x idle and working").toBe(3 * FR.length * 2);
+  });
+
   it("the patch shows and the base's drawing does not: the state's sprite differs from art B's plain sprite and from wave3Art's own state look at every frame, idle and working; IRON WALL's two phases differ", () => {
     setArtB(true);
     for (const id of STATE_IDS) for (const f of FR) for (const active of WAVES) {
