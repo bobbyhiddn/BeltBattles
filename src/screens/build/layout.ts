@@ -411,8 +411,6 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
   // zoom (D2): a phone's band takes the room the zoom frees, up to what its tallest panel needs (phoneBand)
   const band = Math.min(phone ? phoneBand(W) : PORT_BAND, spare);
   const info: Rect = { x: 3, y: infoY, w: W - 6, h: band };
-  // zoom: idle, the hero card over NEXT BATTLE (PORT_BAND tall together) sits in the middle of a taller band
-  const idle = Math.max(0, Math.floor((band - PORT_BAND) / 2));
   // the box's top 1 px under the band, centred in what is left; its pivot on whole px (rounded down: the box never
   // reaches up into the band)
   const boxTop = info.y + band + 1 + Math.floor((spare - band) / 2);
@@ -430,7 +428,7 @@ export function buildLayout(W: number, H: number, portrait: boolean, offers: num
     // ZOOM-1: FIGHT from the tray's top (was 1 px above it, on the flared stern's last row), 1 px off the screen's foot
     fight: { x: W - fw - 3, y: ry, w: fw, h: CARGO_H + 2 },
     info,
-    foe: band >= FOE_H ? { x: info.x, y: info.y + idle + Math.min(band, PORT_BAND) - FOE_H, w: info.w, h: FOE_H } : null,
+    foe: idleFoeRect(info), // zoom: idle, the hero card over NEXT BATTLE (PORT_BAND tall together) sits in the middle of a taller band; POLISH-8 (P8-1): the rule is idleFoeRect's, one place for buildLayout and lowerInfo
     ...(phone ? { phone: true as const } : {}),
     packs,
     cam,
@@ -510,6 +508,18 @@ function landPacksAway(W: number, H: number, foe: Rect, fight: Rect, s: number):
  */
 export function packRects(L: BuildLayout): Rect[] {
   return L.packs;
+}
+
+/**
+ * POLISH-8 (P8-1, REVIEW-POLISH7 V1): the idle NEXT BATTLE card's rect in a portrait details band `info`, or null: buildLayout's own rule, in one place so that a band which starts lower than buildLayout made it (enchantStrip.ts
+ * lowerInfo: the ENCHANTER's wagon in a row takes the band's top) places the card by the same rule. Idle, the hero card over NEXT BATTLE (PORT_BAND tall together) sit in the middle of a taller band (`idle`, half the rows the band has
+ * over PORT_BAND, whole px, above them); in a band of PORT_BAND or less the card stands on the band's foot. The card is always inside `info`. null under FOE_H: the band holds no card (drawDetails draws the compact NEXT line from 14 px, nothing
+ * under it). Pure.
+ */
+export function idleFoeRect(info: Rect): Rect | null {
+  if (info.h < FOE_H) return null;
+  const idle = Math.max(0, Math.floor((info.h - PORT_BAND) / 2));
+  return { x: info.x, y: info.y + idle + Math.min(info.h, PORT_BAND) - FOE_H, w: info.w, h: FOE_H };
 }
 
 /** zoom: the idle hero card's rect over the NEXT BATTLE card `foe` in band `info` (chrome.ts): the band above the card

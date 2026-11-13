@@ -19,6 +19,8 @@ import { tapPx } from "../../ui/tap"; // zoom (D4)
 import { heroCardRect } from "./layout"; // zoom (D2)
 import { HERO_MIN, inCarrier } from "./layout"; // ZOOM-1 (REQ-BFG-080): the carrier's own zoom; the compact hero card
 import { drawHeroCard } from "./inspector"; // ZOOM-1
+import { drawHeroNumbers, drawHeroStack, heroRowWidth, heroStackSize } from "./inspector"; // POLISH-9 (P9-1): the player's HULL, BELT n/m and FEEDS where the hero card is not drawn
+import { heroNumbersPlan, type HeroNumbersPlan } from "./heroNumbers";
 import { BAR_H, cornerTap, cornerTarget } from "./layout"; // TAP-093 (backlog #340): the phone's bar and its corner MENU
 import { optionsCard } from "../../ui/hud";
 import { TitleScreen } from "../title";
@@ -279,9 +281,26 @@ export function tooltipOffer(s: BuildScreen): { idx: number; o: Run["shop"]["wag
   return idx >= 0 && o && s.L.cards[idx] ? { idx, o } : null;
 }
 
+/**
+ * POLISH-9 (P9-1; REQ-BFG-087, REQ-BFG-089; RULING-SCOUT-POLISH9 1): where the player's own HULL, BELT n/m and FEEDS are drawn this frame when the hero card is not (heroNumbers.ts has the rule and the place): on the portrait build screen
+ * with nothing selected, hovered or carried, when the NEXT BATTLE card is not drawn or fewer than HERO_MIN rows lie above it. A slim row in the rows above the card where there are 8 or more, else a stack in the free place nearest the BELT and
+ * HULL buttons. null: the hero card is drawn (the numbers are in it), a panel or a carried card has the screen, landscape (its column carries them), or no place holds the stack. buildLayout, the band and every region are untouched.
+ */
+export function numbersPlan(s: BuildScreen): HeroNumbersPlan | null {
+  const L = s.L;
+  if (!L.portrait || s.ed.carry) return null;
+  const top = L.foe ? heroCardRect(L.info, L.foe) : null;
+  if (top && top.h >= HERO_MIN) return null;
+  if (hasDetails(s, s.sel, s.hover)) return null;
+  return heroNumbersPlan(s, top, heroRowWidth(s.run), heroStackSize(s.run));
+}
+
 export function drawBuildChrome(g: G, s: BuildScreen): void {
   const L = s.L;
   const ui = s.game.ui;
+  // POLISH-9 (P9-1, RULING-SCOUT-POLISH9 10): the stack is drawn FIRST, under the shop's and the wagon's cards, so that a card rolling in passes over it (it stands in the free place round the packs, which stay put while the caravan rolls)
+  const nums = numbersPlan(s);
+  if (nums?.kind === "stack") drawHeroStack(g, s, nums.r);
   if (s.refit) drawRefitBanner(g, s);
   else drawShop(g, s);
   drawCargo(g, s);
@@ -319,6 +338,8 @@ export function drawBuildChrome(g: G, s: BuildScreen): void {
     // ZOOM-1 (REQ-BFG-080, call 5): a phone's band sized for 90% of the panels can leave the hero card 24-29 px: its compact
     // form (the name over HULL, BELT and FEEDS)
     else if (top.h >= HERO_MIN) drawHeroCard(g, s, top);
+    // POLISH-9 (P9-1, A1): too short for the hero card, 8 rows or more above the card: the three numbers in a slim row right above it (heroNumbers.ts rowRect)
+    else if (nums?.kind === "row") drawHeroNumbers(g, s, nums.r);
   }
   drawMergePrompt(g, s); // ENCHANT-1 (REQ-BFG-085, E4): FIERY OR RISING? after a merge of two different words (nothing otherwise)
   drawTopBar(g, s);

@@ -18,6 +18,7 @@ import { footBox } from "../../sim/foot";
 import type { Run } from "../../game/run";
 import { C } from "../../render/palette";
 import { boxRect, footX, footY, sdir } from "../../render/frame";
+import { turretPivotX, turretPivotY } from "../../render/cruiser";
 import { frame, makeCanvas, rect, type G } from "../../render/pixel";
 import { drawText, textWidth } from "../../render/font";
 import { coinIcon } from "../../render/sprites";
@@ -27,7 +28,7 @@ import { tapPx } from "../../ui/tap";
 import { cardFrame, cardPriceX, cardZones, priceColour, SOLD_ALPHA } from "./shop";
 import { shapedPiece } from "./shapeEdit";
 import { dragSlop } from "./edit";
-import { CARD_H, CARD_W, cornerTap, type BuildLayout } from "./layout";
+import { CARD_H, CARD_W, IDLE_MIN, carrierBox, cornerTap, idleFoeRect, screenRect, type BuildLayout } from "./layout";
 import {
   answerMerge, applyState, cancelApply, chooseTarget, mergePrompt, pressOf, setPress, skipPick, tapWord, wagonSlides, wagonUp, wordHover,
 } from "./apply";
@@ -40,12 +41,13 @@ const GAP = 3, PAD = 2, CLEAR = 4, MIN_SIDE = 34, MIN_W = 30, MIN_H = 30;
  *  (the 1280x800 margin's 41 px: below it the ENCHANTER tag is dropped rather than the cards narrowed again), and a selected card's lift (a hovered one's is 1). */
 const GAP_CLEAR = 1, TAG_CLEAR = 4, MIN_TAG_W = 41, LIFT = 2;
 /** The ENCHANTER tag's drawn width (drawEnchanterTag): the ring's 3 px, 2 clear, then the word in the 3x5 face. Measured where it is used, never set by hand. */
-const tagWidth = (): number => 5 + textWidth("ENCHANTER", "3");
+export const tagWidth = (): number => 5 + textWidth("ENCHANTER", "3"); // POLISH-9 (P9-1): exported, heroNumbers.ts keeps the stack off the ENCHANTER's tag by its drawn width
 
 /** The wagon's cards, their tap targets and the tag's place; `shift`, the px the details band (portrait) or column (landscape) gives up at
  *  its top for the wagon (0: the cards sit in the margin, or in the right column's gap, and nothing else moves). `lift`: the most a card may
  *  lift (LIFT, 2, when selected; 1 when hovered; both cut to it) -- inGap's cards may have 1 px of clear above them, so the lift is cut to what is clear above less the frame's own row
- *  (0 with 1 px: the selection frame alone shows the pick) and neither the card, its lift nor its frame is drawn over NEXT BATTLE; absent: LIFT, as every card has had. */
+ *  (0 with 1 px: the selection frame alone shows the pick) and neither the card, its lift nor its frame is drawn over NEXT BATTLE; absent: LIFT, as every card has had.
+ *  POLISH-7 (P7-3): a portrait row's lift is 1 (its 3 clear rows above, less the frame's row and 1 px of clear). POLISH-8 (P8-2): a portrait margin's lift is 0 or 1 by the same count (inMargin). */
 export interface WagonPlace {
   rects: Rect[];
   hits: Rect[];
@@ -78,13 +80,27 @@ function fingerHits(rects: Rect[], tap: number, within: Rect): Rect[] {
   return hits;
 }
 
+/** POLISH-8 (P8-2): the clear rows buildLayout keeps between the bar (or the rune bar under it) and the shop block's first row. */
+const SHOP_CLEAR = 3;
+
 /** The margin left of the shop block (the screen's edge to the first card): side by side where it holds the cards at MIN_SIDE px or
- *  more, else stacked at MIN_W by MIN_H or more; on a phone (`tap` > 0) only where each card is a finger wide and tall. */
+ *  more, else stacked at MIN_W by MIN_H or more; on a phone (`tap` > 0) only where each card is a finger wide and tall.
+ *  POLISH-8 (P8-2, display list P7-V4): a portrait margin card, drawn selected, reached 2 rows into the corner MENU's square with no rune, touched the rune bar with one (and the bar a lifted phone has), and card 1 touched card 0: the lift
+ *  (LIFT 2) and the frame (1 px round the card) go up 3 rows. The margin's top is now placed, and the lift cut, so that a selected card keeps 1 px clear of what lies above it, as P7-3 did for the row (inRow): the lift is the clear rows above
+ *  the first card less the frame's row and 1 px of clear (0 to GAP - 2 = 1: the stacked cards' own GAP bounds it too); where the corner MENU's finger square leaves too few (its foot + 1 clear row: 1, where 2 + the lift are needed) the stack starts
+ *  1 px lower (at 402x690 and 360x640 with 4 or 5 offers and no rune the stack had a spare row at its foot: the cards stay 36 tall, y 28 -> 29). With a rune, or a lifted bar, the lift cut alone does it and nothing moves. Landscape (the desk's margin) is as it was. */
 function inMargin(L: PlaceLayout, n: number, tap: number): WagonPlace | null {
   const all = [...L.cards, L.reroll];
   // a phone whose bar is shorter than a finger keeps its corner MENU's finger square (tap px tall from the corner: layout.ts cornerTarget):
   // the cards start under it, so the MENU's target stays a finger's
-  const x0 = Math.min(...all.map((r) => r.x)), top = Math.max(Math.min(...all.map((r) => r.y)), cornerTap(L, tap) > 0 ? tap + 1 : 0);
+  const x0 = Math.min(...all.map((r) => r.x)), top0 = Math.min(...all.map((r) => r.y));
+  const corner = cornerTap(L, tap) > 0 ? tap : 0;
+  let top = Math.max(top0, corner > 0 ? tap + 1 : 0), lift: number | undefined;
+  if (L.portrait) {
+    const barrier = Math.max(top0 - SHOP_CLEAR, corner); // the first row under what lies above the cards: the bar, the rune bar, or the corner MENU's square
+    lift = Math.max(0, Math.min(LIFT, GAP - 2, top0 - barrier - 2));
+    top = Math.max(top0, barrier + 2 + lift);
+  }
   const bottom = Math.max(...[...all, ...L.packs].map((r) => r.y + r.h));
   const hRow = L.cards[0].h, room = { x: PAD, y: top, w: x0 - PAD - CLEAR, h: bottom - top };
   let rects: Rect[] | null = null;
@@ -98,7 +114,7 @@ function inMargin(L: PlaceLayout, n: number, tap: number): WagonPlace | null {
   }
   if (!rects || (tap > 0 && rects.some((r) => r.w < tap || r.h < tap))) return null;
   const hits = fingerHits(rects, tap, { x: 0, y: top, w: Math.max(1, x0 - 1), h: Math.max(room.h, 1) });
-  return { rects, hits, tag: L.tags ? { x: rects[0].x, y: rects[0].y - 8 } : null, shift: 0 };
+  return { rects, hits, tag: L.tags ? { x: rects[0].x, y: rects[0].y - 8 } : null, shift: 0, ...(lift === undefined ? {} : { lift }) };
 }
 
 /**
@@ -126,16 +142,39 @@ function inGap(L: PlaceLayout, n: number, tap: number): WagonPlace | null {
   return { rects, hits: fingerHits(rects, tap, { x: foe.x, y: top, w: foe.w, h: room }), tag, shift: 0, lift: Math.max(0, Math.min(LIFT, y - foot - 1)) };
 }
 
+/** POLISH-7 (P7-3): the clear a portrait row keeps under its cards: the selection frame's and the lifted card's shadow's row, then 1 px of clear, before the first target under it. */
+const ROW_CLEAR = 2;
+/** POLISH-7 (P7-3 (c)): the portrait row's card height: the 46 x 32 face of RULING-SCOUT-POLISH6 S1.1 (the x1 icon under 38 px), a finger (`tap`) at least. The row takes the details band's top, so every px a card gives back is a px of the band
+ *  (10 of them: 42 -> 32). */
+const ROW_H = 32;
+
+/** POLISH-7 (P7-3, REVIEW-POLISH6 V10): the top, in screen px, of the first target under a portrait row: the hull and the bow turrets' mounts (build.ts deckTurretRect: 24 x 24, 18 x 18 for a light turret, about the pivot, on screen through the
+ *  carrier's zoom), which reach 7 px above the hull's bow edge. Pure (wordLayout, tests). */
+export function deckFloor(L: Pick<BuildLayout, "hull" | "frame" | "cam">, run: Run): number {
+  let top = L.hull.y;
+  for (const s of turretSlots(run.build)) {
+    const r = !s.td || s.td.kind === "heavy" ? 12 : 9, x = turretPivotX(L.frame, s.col0, s.width), y = turretPivotY(L.frame, s.col0, s.width);
+    top = Math.min(top, screenRect(L, { x: Math.round(x - r), y: Math.round(y - r), w: r * 2, h: r * 2 }).y);
+  }
+  return top;
+}
+
 /** No margin and no gap holds the wagon: a portrait screen gives it a row under the shop block (the band under it gives up that much of its top), a
- *  landscape one the top of the details column (the column starts under it). */
-function inRow(L: PlaceLayout, n: number, tap: number): WagonPlace | null {
+ *  landscape one the top of the details column (the column starts under it).
+ *  POLISH-7 (P7-3, REVIEW-POLISH6 V10): a portrait row clears everything round it by 1 px at least, drawn as it is drawn (a selected card: its frame 1 px round it, its lift, its shadow 1 px under it; the tag's ink). `floor` (deckFloor: the hull and
+ *  the bow turrets' mounts) is the first target under the row: at 360x640@2 with a rune held and 6 or 7 offers the shop's two rows leave 37 px under them, so the cards were 46 x 42 and lay 8 px over the turrets' mounts and 1 px over
+ *  the hull. They are ROW_H (32) tall now, a finger at least, and never taller than the room under them allows (ROW_CLEAR; MIN_H and a finger at least): the 46 x 32 face of RULING-SCOUT-POLISH6 S1.1 (the x1 icon under 38 px), which gives
+ *  the details band 10 px back of the 42 it lost to a 46 x 42 row (P7-3 (c)). The lift is cut to the clear rows above the cards (GAP, less the frame's own row and 1 px of clear: 1), so a selected card's frame keeps off the shop block (and the
+ *  tag) above it. Absent `floor`: ROW_H tall. */
+function inRow(L: PlaceLayout, n: number, tap: number, floor?: number): WagonPlace | null {
   const tag = L.tags ? 8 : 0;
   if (L.portrait) {
     const bottom = Math.max(...[...L.cards, L.reroll, ...L.packs].map((r) => r.y + r.h));
     const total = n * CARD_W + (n - 1) * GAP, x = Math.round(L.W / 2 - total / 2), y = bottom + GAP + tag;
-    const rects = Array.from({ length: n }, (_, i): Rect => ({ x: x + i * (CARD_W + GAP), y, w: CARD_W, h: CARD_H }));
-    const hits = fingerHits(rects, tap, { x: 0, y, w: L.W, h: CARD_H });
-    return { rects, hits, tag: tag ? { x: rects[0].x, y: y - 8 } : null, shift: Math.max(0, y + CARD_H + 2 - L.info.y) };
+    const want = Math.min(CARD_H, Math.max(ROW_H, tap)), h = floor === undefined ? want : Math.min(want, Math.max(Math.max(MIN_H, tap), floor - ROW_CLEAR - y));
+    const rects = Array.from({ length: n }, (_, i): Rect => ({ x: x + i * (CARD_W + GAP), y, w: CARD_W, h }));
+    const hits = fingerHits(rects, tap, { x: 0, y, w: L.W, h });
+    return { rects, hits, tag: tag ? { x: rects[0].x, y: y - 8 } : null, shift: Math.max(0, y + h + 2 - L.info.y), lift: Math.max(0, Math.min(LIFT, GAP - 2)) };
   }
   const w = Math.min(CARD_W, Math.floor((L.info.w - (n - 1) * GAP) / n)), h = Math.min(L.cards[0].h, L.info.h - tag - 40);
   if (w < MIN_W || h < MIN_H) return null;
@@ -152,9 +191,9 @@ function inRow(L: PlaceLayout, n: number, tap: number): WagonPlace | null {
  * lower. `tap` (a phone's finger target in logical px, ui/tap.ts tapPx; 0 on a desk) grows each card's tap target to a finger.
  * null: nowhere holds them. Pure (tests).
  */
-export function wagonPlace(L: PlaceLayout, n: number, tap = 0): WagonPlace | null {
+export function wagonPlace(L: PlaceLayout, n: number, tap = 0, floor?: number): WagonPlace | null {
   if (n <= 0 || !L.cards.length) return null;
-  return inMargin(L, n, tap) ?? inGap(L, n, tap) ?? inRow(L, n, tap);
+  return inMargin(L, n, tap) ?? inGap(L, n, tap) ?? inRow(L, n, tap, floor);
 }
 
 /** The layout with the words' places in it (build.ts layoutAt): the ENCHANTER's wagon (`L.wagon`, and the band or column under it
@@ -164,17 +203,25 @@ export function wordLayout(L: BuildLayout, run: Run, tap = 0): BuildLayout {
   if (!enchantRules()) return L;
   let out = L;
   if (wagonUp(run)) {
-    const p = wagonPlace(L, run.shop.enchanter!.offers.length, tap);
+    const p = wagonPlace(L, run.shop.enchanter!.offers.length, tap, L.portrait ? deckFloor(L, run) : undefined); // POLISH-7 (P7-3): a portrait row stops short of the hull and the bow turrets' mounts
     if (p) out = lowerInfo({ ...L, wagon: p }, p.shift);
   }
   return mergeShift(out, run, tap);
 }
 
-/** The details band (portrait) or column (landscape) of `L` starting `d` px lower (the NEXT BATTLE strip of a portrait band with it). */
+/** The details band (portrait) or column (landscape) of `L` starting `d` px lower (the NEXT BATTLE strip of a portrait band with it).
+ *  POLISH-8 (P8-1, REVIEW-POLISH7 V1): the band's foot does not move, so a portrait card moved down by `d` with the band's top ended `d` px below the foot (over the hull's rim and the bow turrets' mounts) and the hero card above it was cut from
+ *  the wrong top. The card goes where buildLayout's own rule puts it for the band as it is now (layout.ts idleFoeRect: null under FOE_H, so the hero card follows heroCardRect and chrome.ts as they are); the landscape column's card is unchanged. */
 function lowerInfo(L: BuildLayout, d: number): BuildLayout {
   if (d <= 0) return L;
-  const info = { ...L.info, y: L.info.y + d, h: Math.max(0, L.info.h - d) };
-  return { ...L, info, foe: L.portrait && L.foe ? (info.h >= L.foe.h ? { ...L.foe, y: L.foe.y + d } : null) : L.foe };
+  // POLISH-9 (P9-2, REVIEW-POLISH8 V3(b); RULING-SCOUT-POLISH9 3): the row takes the band's top and keeps its foot, so a portrait band of 26 or 34 px could not hold the compact hero card over the NEXT BATTLE card (IDLE_MIN, 50) though a window
+  // below it spares 31-80 clear rows down to the carrier box's top (the bow turrets' barrel tips). Where the clear rows under the foot (one row kept clear) bring the lowered band to IDLE_MIN, the band takes the rows it needs, and no more: its foot
+  // moves down by IDLE_MIN less its height, never nearer the barrels than 1 px. Nowhere else does the band or the card move; a band that already holds IDLE_MIN, and one the clear rows cannot restore, are as they were.
+  const free = L.portrait ? Math.max(0, Math.floor(L.cam.y + L.cam.k * carrierBox(true).y0 - (L.info.y + L.info.h)) - 1) : 0;
+  let h = Math.max(0, L.info.h - d);
+  if (L.portrait && h < IDLE_MIN && h + free >= IDLE_MIN) h = IDLE_MIN;
+  const info = { ...L.info, y: L.info.y + d, h };
+  return { ...L, info, foe: L.portrait && L.foe ? idleFoeRect(info) : L.foe };
 }
 
 /** One word card on the screen: which card it is, its word, its price (null: a pick's card is free), whether it is sold, where it is drawn
@@ -189,18 +236,41 @@ export interface WordCardView {
   hit: Rect;
 }
 
-/** The ENCHANTER's wagon as drawn this frame (its cards slide in with the caravan at the dawn), or null. */
-export function wagonView(s: BuildScreen): { cards: WordCardView[]; tag: { x: number; y: number } | null; lift: number } | null {
+/** POLISH-7 (P7-4, P6-R1; cap's ruling "fade"): the longest the ENCHANTER's cards and tag take to fade out at the caravan's roll-out, in seconds. */
+export const FADE_MAX = 0.12;
+
+/**
+ * POLISH-7 (P7-4, P6-R1): how long the cards and the tag take to fade out at the caravan's roll-out: gone before the caravan's first card reaches the nearest of them, and never longer than FADE_MAX. The shop's cards (and REROLL) leave to
+ * the left, card i from t = i x 0.04 s, by W k^2 px with k = (t - i x 0.04) / 0.25 (Caravan.dx); a word card (or the tag) with one of them to its right in its rows (the desk's margin, a portrait phone's) is reached when that displacement
+ * covers the gap between them. A wagon in the right column's gap or in a row has nothing to its right that moves over it: FADE_MAX. Pure (wagonView, tests).
+ */
+export function fadeSeconds(L: Pick<BuildLayout, "cards" | "reroll" | "W">, rects: readonly Rect[]): number {
+  let t = FADE_MAX;
+  const movers = [...L.cards, L.reroll];
+  rects.forEach((q) => movers.forEach((r, i) => {
+    if (r.y >= q.y + q.h || r.y + r.h <= q.y || r.x < q.x + q.w) return; // not in its rows, or not to its right
+    t = Math.min(t, i * 0.04 + 0.25 * Math.sqrt(Math.max(0, r.x - (q.x + q.w)) / L.W));
+  }));
+  return Math.max(t, 1e-3);
+}
+
+/**
+ * The ENCHANTER's wagon as drawn this frame (its cards slide in with the caravan at the dawn), or null. POLISH-7 (P7-4, P6-R1): at the caravan's roll-out the cards and the tag stay where they rest and fade out (`alpha` 1 -> 0 over fadeSeconds), they
+ * never move; they crossed the deck for 0.1-0.2 s on their way left, the tag trailing them and card 2 over card 1. The roll-in is as it was. (Only a roll-out with the wagon sliding takes this path: BuildScreen.doReroll leaves the wagon where it is.)
+ */
+export function wagonView(s: BuildScreen): { cards: WordCardView[]; tag: { x: number; y: number } | null; lift: number; alpha: number } | null {
   const run = s.run, lay = s.L.wagon;
   if (!wagonUp(run) || !lay) return null;
   const offers = run.shop.enchanter!.offers, L = s.L;
   const base = s.offers().length + 1;
-  const dx = (j: number): number => (wagonSlides(s) ? s.caravan.dx(base + j, L.W) : 0);
+  const out = wagonSlides(s) && s.caravan.state === "out";
+  const dx = (j: number): number => (wagonSlides(s) && !out ? s.caravan.dx(base + j, L.W) : 0);
+  const alpha = out ? Math.max(0, 1 - s.caravan.t / fadeSeconds(L, [...lay.rects, ...(lay.tag ? [{ x: lay.tag.x, y: lay.tag.y, w: tagWidth(), h: 5 }] : [])])) : 1;
   const cards = offers.map((o, i): WordCardView => ({
     pick: false, i, id: o.ench as EnchantId, price: o.price, sold: o.sold,
     rect: { ...lay.rects[i], x: lay.rects[i].x + dx(i) }, hit: { ...lay.hits[i], x: lay.hits[i].x + dx(i) },
   }));
-  return { cards, tag: lay.tag ? { x: lay.tag.x + dx(0), y: lay.tag.y } : null, lift: lay.lift ?? LIFT };
+  return { cards, tag: lay.tag ? { x: lay.tag.x + dx(0), y: lay.tag.y } : null, lift: lay.lift ?? LIFT, alpha };
 }
 
 // ---------------------------------------------------------------------------------------------------------------- the pick strip
@@ -282,9 +352,11 @@ function wordIcon2(id: EnchantId): HTMLCanvasElement {
  * One word card, in a shop card's frame (REQ-BFG-115: the icon and the price, nothing else): the word's icon at x2 (x1 on a card too
  * short for it), the price under it, the word's colour on the bar; a sold card is dim and prices nothing; a pick's card has no price.
  */
-export function drawWordCard(g: G, r: Rect, id: EnchantId, o: { price: number | null; sold: boolean; affordable: boolean; selected: boolean; hover: boolean; t: number; maxLift?: number }): void {
+export function drawWordCard(g: G, r: Rect, id: EnchantId, o: { price: number | null; sold: boolean; affordable: boolean; selected: boolean; hover: boolean; t: number; maxLift?: number; alpha?: number }): void {
   const def = ENCHANT_DEFS[id];
   const lift = Math.min(o.selected ? LIFT : o.hover ? 1 : 0, o.maxLift ?? LIFT), x = r.x, y = r.y - lift; // POLISH-6 (P6-6): `maxLift`, a card in the gap lifts no further than the clear above it (WagonPlace.lift)
+  const A = o.alpha ?? 1; // POLISH-7 (P7-4): the roll-out's fade (wagonView's alpha): the card is drawn at it throughout; 1, the default, is every card's draw as it was (the context's alpha is not touched)
+  if (A < 1) g.globalAlpha = A;
   if (lift) {
     rect(g, r.x + 2, r.y + r.h - 1, r.w - 1, 2, C.ink);
     rect(g, r.x + r.w, r.y + 2, 1, r.h - 1, C.ink);
@@ -293,9 +365,9 @@ export function drawWordCard(g: G, r: Rect, id: EnchantId, o: { price: number | 
   const z = cardZones(r.w, r.h, o.price ?? undefined);
   const big = r.h >= 38, ic = big ? wordIcon2(id) : enchantIcon(id);
   const pic = z.pic, ix = Math.floor((r.w - ic.width) / 2), iy = pic.y + Math.floor((pic.h - ic.height) / 2) + (o.price === null && big ? 2 : 0);
-  if (o.sold) g.globalAlpha = SOLD_ALPHA;
+  if (o.sold) g.globalAlpha = A * SOLD_ALPHA;
   g.drawImage(ic, x + ix, y + iy);
-  g.globalAlpha = 1;
+  g.globalAlpha = A < 1 ? A : 1;
   if (!o.sold && o.price !== null) {
     const px = cardPriceX(x, r.w, o.price, false, false);
     g.drawImage(coinIcon(), px, y + r.h - 11);
@@ -303,6 +375,7 @@ export function drawWordCard(g: G, r: Rect, id: EnchantId, o: { price: number | 
   }
   if (o.selected) frame(g, x - 1, y - 1, r.w + 2, r.h + 2, Math.floor(o.t * 6) % 2 ? C.white : C.yellow);
   else if (o.hover) frame(g, x - 1, y - 1, r.w + 2, r.h + 2, C.bone);
+  if (A < 1) g.globalAlpha = 1;
 }
 
 /** The merchant tag above the wagon's first card: a ring (a shape beside the colour, as every merchant's) and ENCHANTER. */
@@ -320,13 +393,17 @@ const isSel = (s: BuildScreen, pick: boolean, i: number): boolean => s.sel.kind 
 /** The ENCHANTER's wagon: its tag (on the desk) and its two word cards (chrome.ts drawShop calls it after the regular cards). */
 export function drawWagon(g: G, s: BuildScreen): void {
   const v = wagonView(s);
-  if (!v) return;
-  if (v.tag) drawEnchanterTag(g, v.tag.x, v.tag.y);
+  if (!v || v.alpha <= 0) return; // POLISH-7 (P7-4): faded out at the roll-out: nothing is drawn
+  if (v.tag) {
+    g.globalAlpha = v.alpha;
+    drawEnchanterTag(g, v.tag.x, v.tag.y);
+    g.globalAlpha = 1;
+  }
   const hov = wordHover(s);
   for (const c of v.cards) {
     drawWordCard(g, c.rect, c.id, {
       price: c.price, sold: c.sold, affordable: s.run.gold >= (c.price ?? 0), selected: isSel(s, false, c.i) && !s.ed.carry,
-      hover: !!hov && !hov.pick && hov.i === c.i, t: s.t, maxLift: v.lift,
+      hover: !!hov && !hov.pick && hov.i === c.i, t: s.t, maxLift: v.lift, alpha: v.alpha,
     });
   }
 }
