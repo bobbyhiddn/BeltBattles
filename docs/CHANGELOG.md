@@ -3,6 +3,26 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.20: new art for WEAVER, FOUNDRY and BASTION
+
+New art for WEAVER, FOUNDRY and BASTION: their faces and factories are redrawn, and so are MEND PRESS, WARD BELL, MENDING LOOM,
+six gun pieces and fourteen rigs.
+- **The faces of WEAVER, FOUNDRY and BASTION** on the hero select screen are redrawn and bigger (32 by 32 pixels, where they
+  were 24 by 24). Their factories have new pictures too: WEAVER's LOOM, FOUNDRY's CRUCIBLE and BASTION's WARDWORKS.
+- **MEND PRESS, WARD BELL, MENDING LOOM and six gun pieces have new pictures:** DART GUN, RAIL GUN, SIEGE GUN, SPIKE GUN, SWIVEL
+  GUN and TWIN NEEDLE. Each has a full-size picture on its shop card and a new small icon.
+- **Fourteen rigs have new pictures:** AEGIS SPIKE, BRACE FRAME, COUNTERWEIGHT, GRUDGE ROD, IRON WALL, LODESTONE, PLATE ROLLER,
+  POWDER KEG, SURGE VALVE, TEMPER, TOLLBOOTH, TROPHY CHAIN, TWIN GAUGE and WHETSTONE. Each has a full-size picture on its shop
+  card and a new picture on the deck.
+- **BARBED SPOOL and STATIC BRUSH are drawn again.** Both have a new picture on the deck, and BARBED SPOOL has a new one on its
+  shop card too.
+- **TWIN GAUGE, BRACE FRAME and IRON WALL show a look of their own while their ability is at work:** TWIN GAUGE on a matched belt,
+  BRACE FRAME as it shortens an enemy STUN, and IRON WALL while your hull holds enough SHIELD for its bonus damage.
+- **27 other pieces keep their pictures for now.** Their new pictures are held back.
+
+The battle rules are still bb-0.16.0, so players of 0.9.20 meet the same ghosts as players of 0.9.19, and a run saved on 0.9.19
+loads and goes on.
+
 ## 0.9.19: a tidier build screen on small phones
 
 The build screen is tidier on small phones: the ENCHANTER's word cards sit clear of your hull, and your own HULL, BELT and FEEDS
