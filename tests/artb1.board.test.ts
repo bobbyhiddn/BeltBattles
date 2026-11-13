@@ -18,6 +18,7 @@ import { artBBoard, artBBody, artBCard, artBFace, artBFactory, artBHas, artBIcon
 import { factoryFlashSil, factorySprite, gateSil, gateSprite, itemIcon } from "../src/render/sprites";
 import { shapedRigBody, shapedRigSil } from "../src/render/shapeArt";
 import { FRAMES, allDigests, type Digests } from "./artb1.helpers";
+import { ALL_RIGS, FACTORY_PIECES, ICON_ONLY } from "./artb3.helpers"; // ARTB-CODE-3A: the names of the pieces (lists only, no pixel)
 
 type Px = string | null;
 type Ex = { w: number; h: number; px: Px[] };
@@ -32,12 +33,14 @@ const base = JSON.parse(readFileSync("tests/artb1.base-digests.json", "utf8")) a
 const pal = C as Record<string, string>;
 const hex = (ch: string): Px => (ch === "." ? null : pal[data.legend[ch]]);
 
-const RIGS = ["embertrough", "nailstrip", "grease", "ballast", "rasp", "bellows", "sparkgap", "staticbrush", "barbed", "venom"];
+// ARTB-CODE-3A (batches 2R, 3a, 4a, 4b), old -> new: RIGS was batch 1's ten rigs (the ten still are in it: the first ten of the 44); the 34 new rigs have a board/<id> and a card/<id> too
+const RIGS = ALL_RIGS;
 const SHAPED = ["embertrough", "nailstrip"];
 const ONE_CELL = RIGS.filter((id) => !SHAPED.includes(id));
 // ARTB-CODE-2A (batch 2), old -> new: SLICE was the ten rigs and KILN (11 ids); the start factories LOOM, CRUCIBLE and WARDWORKS are art B's now too (14 ids), and so are the faces of WEAVER, FOUNDRY and BASTION
-const FACTORIES = ["kiln", "loom", "crucible", "wardworks"];
-const SLICE = [...RIGS, ...FACTORIES];
+// ARTB-CODE-3A, old -> new: 14 ids -> 64: the 44 rigs, the 13 guns and two mods (card and icon only: ICON_ONLY) and the five factories (MEND PRESS joins KILN, LOOM, CRUCIBLE, WARDWORKS)
+const FACTORIES = FACTORY_PIECES;
+const SLICE = [...RIGS, ...ICON_ONLY, ...FACTORIES];
 
 /** The sprite `name` of the data as w x h palette hexes (null = clear), with `overlay` laid over it. */
 function expected(name: string, overlay: Overlay = []): Ex {

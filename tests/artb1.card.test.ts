@@ -21,6 +21,7 @@ import { CARD_H, CARD_TEXT_MIN_W, CARD_W, WIDE_CARD_H, WIDE_CARD_MAX_W } from ".
 import { CARD_ICON, cardZones, drawCard, iconX2, type CardState } from "../src/screens/build/shop";
 import { HEAD_BIG, CARGO_FACE, gridCell, hasGrid, shapeGridSize, shapePlateInk } from "../src/ui/shapePic";
 import type { ShopBadge } from "../src/game/run";
+import { ALL_RIGS, FACTORY_PIECES, GUNS, ICON_ONLY, SHAPED } from "./artb3.helpers"; // ARTB-CODE-3A: the names of the pieces (lists only, no pixel)
 
 type Box = { x: number; y: number; w: number; h: number };
 const data = JSON.parse(readFileSync("tools/artb/artb-slice.json", "utf8")) as { // (the repo root's path, where vitest runs; the repo's node shims declare no node:url)
@@ -28,10 +29,12 @@ const data = JSON.parse(readFileSync("tools/artb/artb-slice.json", "utf8")) as {
   sprites: Record<string, { w: number; h: number; rows: string[] }>;
 };
 const pal = C as Record<string, string>;
-const RIGS = ["embertrough", "nailstrip", "grease", "ballast", "rasp", "bellows", "sparkgap", "staticbrush", "barbed", "venom"];
+// ARTB-CODE-3A (batches 2R, 3a, 4a, 4b), old -> new: RIGS was batch 1's ten rigs (the first ten of the 44 now); the 34 new rigs have a card/<id> (24x24) too
+const RIGS = ALL_RIGS;
 // ARTB-CODE-2A (batch 2), old -> new: SLICE was the ten rigs and KILN (11 ids); the start factories LOOM, CRUCIBLE and WARDWORKS answer as card pictures the same way (their bare 24x24 sprite): 14 ids
-const FACTORIES = ["kiln", "loom", "crucible", "wardworks"];
-const SLICE = [...RIGS, ...FACTORIES];
+// ARTB-CODE-3A, old -> new: 14 ids -> 64: the 44 rigs, the 13 guns and the two mods (card/<id>: ICON_ONLY) and the five factories (MEND PRESS joins KILN, LOOM, CRUCIBLE, WARDWORKS: its bare 24x24 sprite)
+const FACTORIES = FACTORY_PIECES;
+const SLICE = [...RIGS, ...ICON_ONLY, ...FACTORIES];
 /** the data's card picture of a slice id as w*h hexes (null = clear): card/<id> for a rig, the bare sprite for a start factory */
 function picture(id: string): (string | null)[] {
   const s = data.sprites[FACTORIES.includes(id) ? id : `card/${id}`];
@@ -158,7 +161,10 @@ describe("ARTB-CODE-1 C: the shop card's picture", () => {
     if (process.env.ARTB_PLATE_LOG) writeFileSync(process.env.ARTB_PLATE_LOG, log + "\n");
     // ARTB-CODE-2A (batch 2), old -> new: ["embertrough", "kiln", "nailstrip"] -> + the start factories LOOM, CRUCIBLE and WARDWORKS (plain 2x2 grids, hasGrid, as KILN's: they carry the footprint plate too);
     // the old three's shares did not move (3 of 341, 8 of 337, 8 of 403 opaque px on the 46x42 card: the table above)
-    expect(Object.keys(worst).sort(), "the plated slice pieces: the two shaped rigs and the four factories' plain 2x2").toEqual(["crucible", "embertrough", "kiln", "loom", "nailstrip", "wardworks"]);
+    // ARTB-CODE-3A (batches 2R, 3a, 4a, 4b), old -> new: 6 plated pieces -> 20: + the 13 guns (size-2 turrets: a plain 2x2 grid, hasGrid) and MEND PRESS (a plain 2x2 factory); the 34 new rigs, WARD BELL and
+    // MENDING LOOM are one cell here (no plate); the old six's shares did not move except LOOM's (9.3% -> 7.6%: the redrawn picture) and CRUCIBLE's (7.4% -> 4.6%); the new shares are all under 25% (the table above is the log)
+    expect(Object.keys(worst).sort(), "the plated slice pieces: the two shaped rigs, the 13 guns' and the five factories' plain 2x2").toEqual([...SHAPED, ...GUNS, ...FACTORIES].sort());
+    expect(Object.keys(worst).length).toBe(20);
     for (const id of Object.keys(worst)) expect(worst[id], `${id}: the plate hides at most 25% of the picture`).toBeLessThanOrEqual(0.25);
   });
 

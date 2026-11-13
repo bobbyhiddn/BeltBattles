@@ -10,6 +10,8 @@
   "*": "stone4",
   "+": "green",
   ",": "rune0",
+  "-": "olive3",
+  "/": "olive2",
   "0": "verd4",
   "1": "steel0",
   "2": "steel1",
@@ -25,27 +27,38 @@
   "<": "skin0",
   "=": "rune3",
   ">": "skin3",
+  "?": "olive1",
   "@": "plate1",
+  "A": "olive4",
   "B": "blue",
   "C": "cyan",
   "D": "deepblue",
+  "E": "plum5",
   "F": "fire0",
   "H": "slate4",
   "I": "ice",
+  "J": "soil0",
   "K": "maroon",
+  "L": "lime",
   "M": "slate0",
+  "N": "oil2",
   "O": "cop2",
   "P": "cop3",
+  "Q": "plum4",
   "R": "red",
   "S": "slate1",
+  "T": "slate2",
   "U": "slate3",
   "V": "wood4",
   "W": "wood0",
   "X": "wood1",
   "Y": "wood2",
   "Z": "wood3",
+  "[": "bsteel0",
   "]": "bsteel4",
   "^": "stone2",
+  "_": "stone0",
+  "`": "plum1",
   "a": "brass0",
   "b": "brass1",
   "c": "brass2",
@@ -66,7 +79,9 @@
   "u": "rust4",
   "v": "venom",
   "w": "white",
+  "x": "plum2",
   "y": "yellow",
+  "z": "plum3",
   "{": "bsteel1",
   "|": "bsteel2",
   "}": "bsteel3",
@@ -83,6 +98,8 @@
   "*": "#968775",
   "+": "#59DF67",
   ",": "#1A2150",
+  "-": "#6E8030",
+  "/": "#4A5A1E",
   "0": "#7FD2B0",
   "1": "#3E454C",
   "2": "#5A5F64",
@@ -98,27 +115,38 @@
   "<": "#4A2C1E",
   "=": "#9DB0FF",
   ">": "#E0A77E",
+  "?": "#2F3914",
   "@": "#4A5670",
+  "A": "#9AAE52",
   "B": "#2899E8",
   "C": "#40E0DA",
   "D": "#1B4F86",
+  "E": "#B48ADB",
   "F": "#5E170C",
   "H": "#7A8F9A",
   "I": "#80E5EF",
+  "J": "#17120D",
   "K": "#501E1E",
+  "L": "#28FF64",
   "M": "#172432",
+  "N": "#2F5A36",
   "O": "#B8672F",
   "P": "#E39A55",
+  "Q": "#8A5CB0",
   "R": "#EF5B4E",
   "S": "#263745",
+  "T": "#344958",
   "U": "#536875",
   "V": "#C99A5E",
   "W": "#2F1E12",
   "X": "#4E331D",
   "Y": "#77502C",
   "Z": "#A57641",
+  "[": "#151C26",
   "]": "#7D93A8",
   "^": "#473F37",
+  "_": "#1C1916",
+  "`": "#1E1029",
   "a": "#3D3014",
   "b": "#6B5424",
   "c": "#A58535",
@@ -139,7 +167,9 @@
   "u": "#CF7A45",
   "v": "#C4F032",
   "w": "#E9F1E5",
+  "x": "#34194A",
   "y": "#F6CF48",
+  "z": "#55306F",
   "{": "#222D3B",
   "|": "#344457",
   "}": "#50657C",
@@ -534,48 +564,48 @@
    "w": 24,
    "h": 24,
    "rows": [
-    ".......kkkkkkkkkk.......",
-    ".....kkVVVVVVVVVVkk.....",
-    "....kVVVVVVWWVVVVVZk....",
-    "..k.kVVVVVVVVVVVVZZk.k..",
-    ".kwkkZZZZZZZZZZZZYYkkwk.",
-    "..k5k5WWWWWWWWWWWW5k5k..",
-    "...kw44333333333322wk...",
-    "..k5k52222222222215k5k..",
-    ".kwk.kwXXwXXXwXWWwk.kwk.",
-    "..k..kXXXX5X5XXWWWk..k..",
-    "....k443333w3333322k....",
-    "..k.k22222525222211k....",
-    ".kwk.kwXXwXXXwXwWWkwk...",
-    "..k5k5XXXXXXXXXW5W5kk...",
-    "...kw443333333333w333k..",
-    "..k5k52222222222515kk3k.",
-    ".kwkkVVVVVVVVVVVVZZkw3wk",
-    "..k.kZZZZZZZZZZZZYYkkwk.",
-    ".kwkkYwXXXXwXXXwXWWkw3wk",
-    ".kk5k5kkkkkk5k5kkkkkk3k.",
-    "k333w33333333w3333333k..",
-    ".kk5k5kkkkkk5k5kkkkkk...",
-    ".kwk.kwk..kwk.kwk.......",
-    "..k...k....k...k........"
+    "........................",
+    "...........kkkk.........",
+    "..........kZZZZk........",
+    ".........kZZYYYYkkkk....",
+    "........kZYYYwYXVVVVk...",
+    ".......kZYY4432VVVZZYk..",
+    ".......kZY4312VVZZZZZYk.",
+    ".......kZY312VVZZZZZZZYk",
+    ".......kZw312VZZZZZZZZYk",
+    ".......kZY312VZZZ43ZZYYk",
+    ".......kZY312VZZ4kk2ZYYk",
+    ".......kZw312VZZ3kk2ZYYk",
+    ".......kYYX12VZZZ22ZYYYk",
+    "........kYXXXZZZ3221YYYk",
+    ".........kYXXZZZ3221YYXk",
+    "..........kXXXZZ3221YXk.",
+    ".k...k...k.kkkk32YY21k..",
+    "kwkkkwkkkwkkkwk32XX21k..",
+    "kww44ww44ww44ww32kk21k..",
+    ".kwkkkwkkkwkkkw322221k..",
+    "..k...k...k..k32kkkk21k.",
+    ".............k32k..k21k.",
+    "............k3321kk2221k",
+    ".............kkkk..kkkk."
    ]
   },
   "board/barbed": {
    "w": 12,
    "h": 12,
    "rows": [
-    "...kkkkkk...",
-    "..kVVVVVVk..",
-    ".kkZZZZZYkk.",
-    "kwk5WWWW5kwk",
-    ".kw433332wk.",
-    "kwk5XXXW5kwk",
-    ".kk433332kk.",
-    "kwk5XXXW5kwk",
-    ".kw433332wk.",
-    "kwkVVVVVZkwk",
-    ".kkYXXXXWkk.",
-    "...kkkkkk..."
+    "....kkk.....",
+    "...kZZZkkk..",
+    "..kZYYXVVVk.",
+    "..kZ31VVZZYk",
+    "..kZ31VZZZYk",
+    "..kY31V4k2Yk",
+    "..kY21Z3k1Yk",
+    ".k.kkXZZZYXk",
+    "k5kk5kZZYYXk",
+    "k553553XXXk.",
+    ".k5kk5k2k1k.",
+    "..k..k.k.k.."
    ]
   },
   "card/venom": {
@@ -866,30 +896,30 @@
    "w": 24,
    "h": 24,
    "rows": [
-    ".kk..................kk.",
-    "keekkkkkkkkkkkkkkkkkkedk",
-    "kdcdeeeeeeeeeeeeeeeeddck",
-    "kdccddddddddddddddddcdck",
-    "kdcbccccccccccccccccbdck",
-    "kcb000000000000000000cbk",
-    "k0999999999999999999998k",
-    "k0986CC66CC66CC66CC6987k",
-    "k0986IC66IC66IC66IC6987k",
-    "k0986ICeddddcIC66IC6987k",
-    "k0986IC6ccbb6IC66IC6987k",
-    "k0986IC66IC66IC66IC6987k",
-    "k0986IC66IC66IC66IC6987k",
-    "k0986IICCIICCIICCII6987k",
-    "k0986IICCIICCIICCII6987k",
-    "k0986CCBBCCBBCCBBCC6987k",
-    "k0986CCBBCCBBCCBBCC6987k",
-    "k0986BBDDBBDDBBDDBB6987k",
-    "kedc0000000000000000edck",
-    "kdcb9999999999999998dcbk",
-    "k000000kkkkkkkkkk000000k",
-    "k999998k........k999998k",
-    "k888887k........k888887k",
-    ".kkkkkk..........kkkkkk."
+    "..kkkkkkkkkkkkkkkkk.....",
+    ".k00000000000000009k....",
+    ".k99999999999999998kk...",
+    "kd98IIwwIIIIIIIII98dck..",
+    "kc98CCCCCCCCCCCCC98cbk..",
+    "kb98BBBBBBBBBBBBB98bak..",
+    ".k98kkIkwkCkwkIkk98kk...",
+    ".k98kkIkwkCkwkIkk98k....",
+    ".k98kIkdeedcwkkIk98k....",
+    ".k98kIwwcbbkkwkIk98k....",
+    ".k98IkkwkkCkkwkkI98kk...",
+    ".k98IkkwkkCkkwkkI9ddck..",
+    ".k98BBBBBBBBBBBBBd7ckbk.",
+    "kIIIIIIIIIIIIIIId77ckkbk",
+    "kBwBBBwBBBwBBBwBdccecbbk",
+    "kwwwBwwwBwwwBwwwc77bkkbk",
+    "kwCwwwCwwwCwwwCwkc7bkbk.",
+    "kCCCwCCCwCCCwCCCk8cbbk..",
+    "kCDCCCDCCCDCCCDCk98kkck.",
+    "kDDDCDDDCDDDCDDDk98kkck.",
+    "kIIIIIIIIIIIIIIIk98kddck",
+    "k0998kIkIkIkIkIk0998bbak",
+    "k8877kIkIkIkIkIk88877kk.",
+    ".kkkk.k.k.k.k.k.kkkkk..."
    ]
   },
   "icon/loom": {
@@ -897,46 +927,46 @@
    "h": 12,
    "rows": [
     ".kkkkkkkkkk.",
-    "keeeeeeeeedk",
-    "kdccccccccbk",
-    "k9I6I66I6I8k",
-    "k9I6eddc6I8k",
-    "k9I6IcbI6I8k",
-    "k9I6I66I6I8k",
-    "k9ICICCICI8k",
-    "k9CBCBBCBC8k",
-    "k0999999998k",
-    "k98kkkkkk87k",
-    ".kk......kk."
+    "kc00000000ck",
+    ".k8wkwkwkw8k",
+    ".k8wcdeckw8k",
+    ".k8wkwkwkw8k",
+    "kIIIIIIIddck",
+    "kBwBBBwBdkbk",
+    "kwwwBwwwcbbk",
+    "kwCwwwCwk8k.",
+    "kCCCwCCCk8k.",
+    "k98kIkIk98k.",
+    ".kk.k.k.kk.."
    ]
   },
   "crucible": {
    "w": 24,
    "h": 24,
    "rows": [
-    ".kkkkkkkkkkkkkkkkkkkkkk.",
-    "k]]]]]]]]]]]]]]]]]]]]]]k",
-    "k}}d}}}d}}}}}}}}d}}}d}}k",
-    ".k]}|||kkkk43kkkk|||}|k.",
-    ".k]}||kkkkk43kkkkk||}|k.",
-    ".k]}|kbbbbbbbbbbbbk|}|k.",
-    ".k]}ddyyiiiyyyyyyycc}|k.",
-    ".k]}dyyyyyijjiyyyyyc}|k.",
-    ".k]}ddyyyyyyyiiiyycc}|k.",
-    ".k]}cdiidddyyddddccb}|k.",
-    ".k]}ccccccdyydbcbbbb}|k.",
-    ".k]}kOPPOOcddcpOppok}|k.",
-    "kddd4OPPOOOccOOppoo4ccck",
-    "kccc4OPOOOOOOOpppoo4bbbk",
-    "k]}|kkOOOOOOOppppokk}|{k",
-    "k]}|k.kkpppppoookk.k}|{k",
-    "k]d|k..kkkkkkkkkk..k}d{k",
-    "k]}|k.k4444444443k.k}|{k",
-    "k]}|k.k4kk233kk23k.k}|{k",
-    "k]}||kk3k2233k223kk|}|{k",
-    "k]}|||k3333333332k||}|{k",
-    "k]]]]]]2222222222]]]]]}k",
-    "k|||||||||||||||||||||{k",
+    "...kkkkkkkkkkkkkkkkkkkk.",
+    "..k]]]]]]]]]]]]]]]]]]]}k",
+    "..k}c}}}}}}}}}}}}}}}}c|k",
+    "..k]}|kkkkkkkkkkkk||]}|k",
+    "..k]}|PPkk........k|]}|k",
+    "..k]}|OqPPkk.......k]}|k",
+    "..k]}OpOqqPPkk.....k]}|k",
+    "..k]}OppOFFfPPkk...k]}|k",
+    "..k]}ppppOfgghPPk..k]}|k",
+    "..k]}]]}ppOOhijwwk.k]}|k",
+    "..k]}}}|ppppOOOwwk.k]}|k",
+    "..k]}|koppppffkjjk.k]}|k",
+    "..k]]]kkopppFFkjik.k]}|k",
+    ".k][][}kkooookkiik.k]}|k",
+    "k][[}[[}kkkkkkkihkkkcck.",
+    "k]]}c}}}kk*&&&&hh&^cdcpk",
+    "k][[}[[}kk*hhg&hhF^cccpk",
+    ".k}[}[}k.k&ggf&ijg^kppk.",
+    "..k}}}k..k&&&&&&&^cccck.",
+    ".k]}}||kkk^^^^^^^%pppok.",
+    "k]]]]]]]]]]]]]]]]]]]]]}k",
+    "k}||||||||||||||||||||{k",
+    "k|{{{{{{{{{{{{{{{{{{{{{k",
     ".kkkkkkkkkkkkkkkkkkkkkk."
    ]
   },
@@ -946,15 +976,15 @@
    "rows": [
     ".kkkkkkkkkk.",
     "k]]]]]]]]]}k",
-    "k}kkk43kkk|k",
-    "k}kbbbbbbk|k",
-    "k}dyiiyyyc|k",
-    "k}dyyjjiyc|k",
-    "kdddiyyddcck",
-    "k}kOPccpok|k",
-    "k}kkOppokk|k",
+    "kPPkkkkkk}|k",
+    "kOFPPkk.k}|k",
+    "kpOghwwkk}|k",
+    "kppOOjjkk}|k",
+    "k}ookiikk}|k",
+    "k}k&&hh&c}|k",
+    "k}k^^^^^p}|k",
     "k]]]]]]]]]}k",
-    "k|||||||||{k",
+    "k}||||||||{k",
     ".kkkkkkkkkk."
    ]
   },
@@ -1003,6 +1033,2406 @@
     "k***:==:**&k",
     "k&&&&&&&&&^k",
     "k^^^^^^^^^%k",
+    ".kkkkkkkkkk."
+   ]
+  },
+  "card/scrapcannon": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    "...................k....",
+    "..................k5kk..",
+    ".................k5543k.",
+    ".............k.kke5443k.",
+    "............k3keedd4kk3k",
+    "...........k33edd5d4kk2k",
+    ".......k.kkuu22ddccc322k",
+    "......k3kuuu511ccccb322k",
+    ".....kk335uttt11cb4bb22k",
+    "....k5522tttts11bbbbb11k",
+    "...k544411tssss11bbkkkk.",
+    "..k4444311sssr411kkk....",
+    ".k4343533114rrrX1VVZk...",
+    ".k223333311rrX43ZZZYk...",
+    "..kkk3322211XY31ZZYXk...",
+    ".kkkk2222X1XYY31YYXXkk..",
+    "kVVVVZZZZZZZZZ42ZZZZVVk.",
+    "kVZZZZZZZZZZZZ31ZZZZZYk.",
+    "kZYYXXXXXYYYYY31YYYYYXk.",
+    "kZYYYYYYYYYYYY51YYYYYXk.",
+    "kYYYYYYYYYYYYY21YYYYXXk.",
+    "kXXXXXXXXXXXXX11XXXXXXk.",
+    ".kkkkkkkkkkkkkkkkkkkkk.."
+   ]
+  },
+  "icon/scrapcannon": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".........kk.",
+    "........k54k",
+    ".......kk5kk",
+    ".....kked4kk",
+    "...kku2dc3kk",
+    ".kk2ut1cb22k",
+    "k441ts1bb2k.",
+    "k331sr1kkk..",
+    "k221rZZk....",
+    "kZZZ3ZYk....",
+    "kYXX2XXk....",
+    ".kkkkkk....."
+   ]
+  },
+  "card/rampart": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    "..................kkk...",
+    ".................k443k..",
+    "................kk4333k.",
+    "..............kkee4433k.",
+    "............kk44dd3kk3k.",
+    "..........kk44332cc3kk2k",
+    "........kkee33222cc3kk2k",
+    "...kkkkk44dd22221bb3222k",
+    "..k*****33cc22111bb1221k",
+    "..k*&&&^22cc11111akkkkk.",
+    "..k*&&&^22bb1111^&&**k..",
+    "..k*&&&^11bb11_^&&&&^k..",
+    "..k^^^^%11aa___^&&&&^k..",
+    "..k*&&&^11_____^^^^^%k..",
+    "..k*&&&^_______^&&&&^k..",
+    "..k*&&&^_%%%%%%^&&&&^k..",
+    ".kk*&&&^%^^^^^^^&&&&^kk.",
+    "k*********************&k",
+    "k*&&&&&&&^&&&&&&&&^&&&^k",
+    "k*&&&&&&&^&&&&&&&&^&&&^k",
+    "k*&&&&&&&^&&&&&&&&^&&&^k",
+    "k^^^^^^^^^^^^^^^^^^^^^%k",
+    ".kkkkkkkkkkkkkkkkkkkkkk."
+   ]
+  },
+  "icon/rampart": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "........kkk.",
+    "......kk443k",
+    "....kk4d4k3k",
+    ".kkk443c3k2k",
+    "k**k322b221k",
+    "k*&_211kkkk.",
+    "k*&__**k....",
+    "k*&__&^k....",
+    "k******k....",
+    "k*&&^&^k....",
+    "k^^^^^%k....",
+    ".kkkkkk....."
+   ]
+  },
+  "card/dartgun": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    "....................kkk.",
+    "...............kkk.kwwwk",
+    "..............kRRRk4w5k.",
+    "..............kRR4423k..",
+    ".............kk4422kk...",
+    "...........kk5w22fk.....",
+    ".........kk5533fffk.....",
+    ".......kk55332kkkk......",
+    ".....kk5533kdck.........",
+    "...kked33kkk32k.........",
+    ".kkeddc]}k.k32k.........",
+    "kdccccb]}k.k32k.........",
+    "kbbcbbb}|kkedcbk........",
+    ".kkbb]]}|kkccbbk........",
+    "...kk]d}|kZYZXYXk.......",
+    "....k}|kkZYkZXkYXk......",
+    "....k||kZYkkZXkkYXk.....",
+    ".....kkZYk.kZXk.kYXk....",
+    ".....kZYk..kZXk..kYXk...",
+    "....kZYk...kZXk...kYXk..",
+    "..kkZYk....kcbk....kYXk.",
+    ".kdcbk......kk.....kdcbk",
+    "..kkk...............kkk."
+   ]
+  },
+  "icon/dartgun": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".......k.kk.",
+    "......kRkwwk",
+    ".....kkR45k.",
+    "...kk55ffk..",
+    ".kk5533kk...",
+    "ked33kk.....",
+    "kcbkdck.....",
+    ".kkZYYXk....",
+    ".kZYkZXk....",
+    "kZYkkZXk....",
+    "kcbkkcbk....",
+    ".kk..kk....."
+   ]
+  },
+  "card/spikegun": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    "........................",
+    "........................",
+    ".....................kk.",
+    "...........kk......kk5wk",
+    "..........kdck...kk553k.",
+    ".........kkedbkkk5533k..",
+    ".......kk33ddkkww43kk...",
+    "...kkkk3333dc45443k.....",
+    "..kdc334422cc3433k......",
+    "..ked442222cb23kk.......",
+    "..kdd22dc22cbkk.........",
+    ".k3dc22cb11bbak.........",
+    "k22cc221111bak..........",
+    "k22cb111111aak..........",
+    "k11cb1111XWkk...........",
+    ".k1bb11XXYXk............",
+    "..kbakkVZYXk............",
+    "..kaakkVZYXk............",
+    "...kk.kVZYXk............",
+    "....kkddccbakk..........",
+    "...kVVZZZYYXXXk.........",
+    "..kYYYYYXXXXXWWk........",
+    "...kkkkkkkkkkkk........."
+   ]
+  },
+  "icon/spikegun": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "..........k.",
+    ".....k..kkwk",
+    "....kdkk55k.",
+    "..kk3e5543k.",
+    ".kd33c43kk..",
+    ".ke22ckk....",
+    ".kc11bk.....",
+    ".kb1Yk......",
+    "..kZYk......",
+    ".kkZYkk.....",
+    "kVZZYYXk....",
+    ".kkkkkk....."
+   ]
+  },
+  "card/carronade": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "...................kkkk.",
+    "..................k5554k",
+    ".................k55432k",
+    "................kk44kk2k",
+    "............kkkk554kk21k",
+    "...........ked55443kk21k",
+    "..........kkdd443332211k",
+    "........kk55dc33322211k.",
+    "..kkk..k5544cc3222111k..",
+    ".k444kk54433cb2211kkk...",
+    "k55433k43333bb11Xk......",
+    "k54kk2k43322baXXXk......",
+    "k54kk2333221aaYYXk......",
+    "k43kk2122211XXYYXk......",
+    "k32211k211ZXYYYYXk......",
+    ".k211kk1kkZYYedYXk......",
+    "..kkk.kdckZYYcbYXXk.....",
+    ".kkkkkdccbZYYYYYYXk.....",
+    "kVVVVVVVVVZYYYYYYXk.....",
+    "kZZZZZZZZVVVVVVVVVkkkkk.",
+    "kYYYdYYYYZZZZdZZZZVVVVVk",
+    "kXXXXXXXXXXXXXXXXXXXXXWk",
+    ".kk211kkkkkkkkkk211kkkk.",
+    "...kkk..........kkk....."
+   ]
+  },
+  "icon/carronade": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "........kkk.",
+    "......kk555k",
+    "..kk.kd54k2k",
+    ".k55kkd43k2k",
+    "k5kk45c3221k",
+    "k4kk33b1kkk.",
+    ".k21k1bk....",
+    ".kkkdcZk....",
+    "kVVVVVVk....",
+    "kZYYYYYk....",
+    "kXXXXXXk....",
+    ".kkkkkk....."
+   ]
+  },
+  "card/swivel": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    ".....................kk.",
+    "....................kedk",
+    "...................kkdck",
+    ".................kk44dkk",
+    "...............kk4433ckk",
+    ".............kk443322bbk",
+    "...........kk443dc211aak",
+    ".........kk44332cb1kkkk.",
+    ".......kk4433221HUk.....",
+    "......k44dc2211kHUk.....",
+    "....kk433cb11kkkHUk.....",
+    "...kHU322HUkk.kHUk......",
+    "..kHTT211HUkkkHUk.......",
+    ".kHTkkkkkkHHUUTk........",
+    ".kUTk.....kHUTk.........",
+    "kdcbk.....kHUTk.........",
+    "kVZYk....kedccbk........",
+    "kZYXk...kVVZZZYXk.......",
+    "kZYXk...kVZZYYXWk.......",
+    "kYXWk...kVZYYXXWk.......",
+    ".kkk...kkVZYYXXWkk......",
+    "......k44333222211k.....",
+    ".......kkkkkkkkkkk......"
+   ]
+  },
+  "icon/swivel": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "..........k.",
+    ".........kdk",
+    ".......kk4dk",
+    ".....kk443ck",
+    "...kk44321bk",
+    "..k4432kkkk.",
+    ".kUd2kdk....",
+    "kUkHkkHk....",
+    "kUkHkkUk....",
+    "kZkHUUTk....",
+    "kZYkZYk.....",
+    ".kk.kk......"
+   ]
+  },
+  "card/twinneedle": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    "...................kk...",
+    "...............k.kkwwk..",
+    "..............kdk4455k..",
+    ".............kec422kkkk.",
+    ".........k.kk4dc2kkkkwwk",
+    "........kdk442dbkkk4455k",
+    ".......kec422kcbk4422kk.",
+    ".....kk4dc2kkkcc422kk...",
+    "...kk]]2dbkkk4dc2kk.....",
+    ".kk]]]]kcbk442dak.......",
+    "k]]]]}}kcc422kbk........",
+    "k]]}}}}4dc2kk.k.........",
+    "k]}}}}}2dak.............",
+    "k]}}}||kbkk.............",
+    "k}}||{{3221k............",
+    "k||{{k332221k...........",
+    "k{{kk33222211kk.........",
+    ".kkVVVVVVVVVVVZk........",
+    ".kkZZZZZZZZZZYXkkk......",
+    "kVVVVVVVVVVVVVVVZYk.....",
+    "kZZZZZZZZZZZZZZYYXk.....",
+    "kYYYYYYYYYYYYYXXXWk.....",
+    ".kkkkkkkkkkkkkkkkk......"
+   ]
+  },
+  "icon/twinneedle": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".........kk.",
+    ".......kk4wk",
+    ".....kk44kk.",
+    "..kkkd4kk4wk",
+    ".k]]4ck44kk.",
+    "k]]}kd4kk...",
+    "k]}}4bk.....",
+    "k}}|32k.....",
+    "k|{3221k....",
+    "kVVVVVVk....",
+    "kZZZZYXk....",
+    ".kkkkkk....."
+   ]
+  },
+  "card/hailgun": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    ".........kkkk...........",
+    "........k]]]}k..........",
+    ".......k]]}}}|k...kkk...",
+    ".......k]}dc}|k..k444k..",
+    ".......k}}cb||kkk4k4k3k.",
+    ".......k}}}||{ed4443333k",
+    "........k||{55dd4k3c3k2k",
+    "........kk5511dd3333222k",
+    "..kkkkkk551144cc23k2k2k.",
+    ".kHHHU55114433cc1k221k..",
+    ".kHUUT11443311bbk.kkk...",
+    ".kHUUT44331122kk........",
+    ".kHUTT331122dck.........",
+    ".kUdcT1122dccbk.........",
+    ".kUcbS22kkVZYXk.........",
+    ".kcbSSkk.kZYYXk.........",
+    "kcbkkk...kZYYXk.........",
+    "kVZYk....kZYYXk.........",
+    "kZYXk.kkkZZYYXXkkk......",
+    ".kkk.k443333333322k.....",
+    "....k43333333333222k....",
+    "....k32222222222221k....",
+    ".....kkkkkkkkkkkkkk....."
+   ]
+  },
+  "icon/hailgun": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "...kk..kkk..",
+    "..k]}kk444k.",
+    ".k]}|k4k4k3k",
+    ".k}|{d43c32k",
+    ".kk55c3k2k2k",
+    "kHU22bk221k.",
+    "kUT11k.kkk..",
+    "kTSZYk......",
+    ".kkZYkk.....",
+    "k433332k....",
+    "k322221k....",
+    ".kkkkkk....."
+   ]
+  },
+  "card/deckgun": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    ".....................kk.",
+    "..........kkkkk....kk54k",
+    ".........k$$$$$k.kk443kk",
+    "........k$#@#@#@k44332kk",
+    ".......k$######44332211k",
+    ".......k$@#ed44332211kk.",
+    "......k$###dd332211kk...",
+    ".....k$@###cc2211kk.....",
+    "....k$#####cc11!!k......",
+    "...k$@#####bb!!@@k......",
+    "...k$#kkkk#aa#@@@k......",
+    "..k$##!!!!#@@#@@@@k.....",
+    "..k$@#########@@!@k.....",
+    ".k$###########@@@@k.....",
+    ".k$#@##@##@###@@!@k.....",
+    "k$############@@@@k.....",
+    "k#@@@@@@@@@@@@!!!!k.....",
+    ".kkkkk22211111kkkk......",
+    ".....k43322211k.........",
+    "...kkk43322211kkk.......",
+    "..k44444444444332k......",
+    ".k32dc22dc22dc2111k.....",
+    ".k2111111111111111k.....",
+    "..kkkkkkkkkkkkkkkk......"
+   ]
+  },
+  "icon/deckgun": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".........kk.",
+    "...kk..kk54k",
+    "..k$$kk4421k",
+    ".k$#dd421kk.",
+    ".k$#cc1@k...",
+    "k$##bb@@k...",
+    "k$#kk#@@k...",
+    "k$####@k....",
+    "k@@@@@!k....",
+    ".kk321k.....",
+    "k4d22d1k....",
+    ".kkkkkk....."
+   ]
+  },
+  "card/railgun": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "...................kkkk.",
+    "..................kPPedk",
+    "...............kkkkPOdck",
+    "..............kPP}}OOwwk",
+    "...........kkkkPO||wwCCk",
+    "..........kPP}}OOwwCCcbk",
+    ".........kkPO||wwCCppbak",
+    ".......kk}}OOwwCC||pokk.",
+    ".kkkkkk}}||wwCCpp{{ook..",
+    "k444443||wwCC||pokkkk...",
+    "k433332wwCCpp{{ook......",
+    "k411112CC||podcbk.......",
+    "k41wC12||{{oo432k.......",
+    "k41CC12{{kkkk432k.......",
+    "k411112kk...k432k.......",
+    "kddcccbk....k432k.......",
+    "k322221k....k432k.......",
+    "k211111k....k432k.......",
+    ".k32221k....k432k.......",
+    ".k32221kkkkkk432kkkkk...",
+    "k44444444444444444443k..",
+    "k32222222222222222221k..",
+    "k21111111111111111111k..",
+    ".kkkkkkkkkkkkkkkkkkkk..."
+   ]
+  },
+  "icon/railgun": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "............",
+    ".........k..",
+    "........kPk.",
+    "......kkkOdk",
+    ".kkkkkP}}Cwk",
+    "k4443}OCCpck",
+    "k4wC2CC||ok.",
+    "kdccb|pkkk..",
+    "k3221kok....",
+    ".k32221k....",
+    "k4333332k...",
+    ".kkkkkkk...."
+   ]
+  },
+  "card/bombard": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    "........................",
+    ".................kkk....",
+    "..............kkk554k...",
+    ".............k455kk4k...",
+    "..........kkkk445kkk3k..",
+    "........kk44||445kkk3k..",
+    ".......k44|44||334kkk3k.",
+    ".kkkkkkk44|43||334kkk3k.",
+    "kVZX44||44||33{{223kkk3k",
+    "kVZX44||33||33{{223kkk2k",
+    "kVZXV43||33{{22{{213kk2k",
+    "kVZXZ33|{32{{22{[11332k.",
+    "kVZXZY33{{22{{11kkkkkk..",
+    "kVZXZY22{{22[[11k.k***k.",
+    "kVZXZYY22{[11VZYXk*5*&&k",
+    "kVZXZYY21[YYXZYYXk**&&^k",
+    "kVZXZYYY11YYXZYYXk&&&^^k",
+    "kVZXZYYXXYYYXZYYXkk&^^k.",
+    "kVVVVVVVVVVVVVVVVVVVVVZk",
+    "kZZZdcZZZZZZZZZZZZdcZZYk",
+    "kYYYccYYYYYYYYYYYYccYYXk",
+    "kXXXXXXXXXXXXXXXXXXXXXXk",
+    ".kkkkkkkkkkkkkkkkkkkkkk."
+   ]
+  },
+  "icon/bombard": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "......kkk...",
+    "...kkk554k..",
+    ".kk|45kkk3k.",
+    "k4||45kkk3k.",
+    "kZ3|{34kkk3k",
+    "kZ3|{33kkk3k",
+    "kZY2{[2332k.",
+    "kZY1[[1kkk..",
+    "kZYYYYXk....",
+    "kVVVVVVk....",
+    "kYYYYYXk....",
+    ".kkkkkk....."
+   ]
+  },
+  "card/siegegun": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    ".....................k..",
+    "....................kdk.",
+    "...................kdd2k",
+    ".................kk5dc1k",
+    "...............kk554dckk",
+    ".............kk55443cckk",
+    "...........kk5544333cb1k",
+    ".........kk554433332cb1k",
+    ".......kk55443333221bak.",
+    ".....kkdd4433332211kak..",
+    "...kk44dd33332211ddkk...",
+    "..k4444cc332211]]bbk....",
+    ".k34433cc2211]]}}kk.....",
+    "k333333bb11]]}}kk.......",
+    "k223322aa]]}]]}kk.......",
+    ".k12211YY}]]kVk}}k......",
+    "..k11kkXXZ]VkVkZ}k......",
+    "...kkkkZZ]kkddckk}k.....",
+    "...kkZZYY]VVdcbZZ}k.....",
+    ".kkZZYYXX}kkcbbkk|k.....",
+    "k}}YYXXkkk}ZkYkX|k......",
+    "k||XXkk..k}}kYk||k......",
+    "k||kk.....kk|||kk.......",
+    ".kk.........kkk........."
+   ]
+  },
+  "icon/siegegun": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".........k..",
+    "........kdk.",
+    ".......kkd4k",
+    ".....kk44c3k",
+    "...kk4433c1k",
+    ".kk443311bk.",
+    "k44]]]1kkk..",
+    "k3]kVk}k....",
+    "k1]VdZ}k....",
+    "kZ]kZk}k....",
+    "kYk}}}k.....",
+    ".k.kkk......"
+   ]
+  },
+  "card/thunderer": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "............kk..........",
+    "...........kdek.........",
+    "............kdckkkkkk...",
+    ".............kcbdeeedk..",
+    ".............kcdcbbcddk.",
+    "............kcdcawIacddk",
+    "............kbcccbbccack",
+    "...........kebdcbbbbbbbk",
+    ".......k..kkebdba;::;wwk",
+    "......kwkkeeIbdb;:=I=:wk",
+    "....kkIkeedwwbdb;:=:wkk.",
+    "...kebeeddcIdbdba;:;wwk.",
+    "...kebddccccdbbcddddcbk.",
+    "..keIbccc]}bdaabccbbak..",
+    ".kdwwbcc]ed|ca]]}kkkk...",
+    "kdcIdabb}cb|ba}}|{k.....",
+    "kcccdabb}}||]]}||{k.....",
+    "kbbbdaaa]}|||||||{{k....",
+    ".kabca]]}||||||||{{k....",
+    "..kaba}}||]||||]||{{k...",
+    "..kk]]}||||||||||||{{k..",
+    ".k]]]]]]]]]]]]]]]]]}}|k.",
+    ".k}||||||||||||||||{{{k.",
+    "..kkkkkkkkkkkkkkkkkkkk.."
+   ]
+  },
+  "icon/thunderer": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "......kkkk..",
+    ".....kdeedk.",
+    "....kdcwIcdk",
+    "...kkcbbbbbk",
+    ".kkeecb:=Iwk",
+    "keIddcb;:wk.",
+    "kdwccbcddck.",
+    "kccb]}|kkk..",
+    "kba]}|{k....",
+    ".k]}||{k....",
+    "k]]]}|{k....",
+    ".kkkkkk....."
+   ]
+  },
+  "card/wardbell": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........kkkkkkkk........",
+    ".......kVVV43VVZk.......",
+    ".......kZYY32YYXk.......",
+    ".......kXXX21XXWk.......",
+    "........kk3221kk........",
+    ".......kdeeddcbbk.......",
+    "......kdeeeddcbbak......",
+    "......kdeeddccbbak......",
+    "......kdeddcccbbak......",
+    ".k....kdddcccbbbak....k.",
+    "k:k...kdddcccbbbak...k:k",
+    "k:=k..kcbbbbbbaaak..k=:k",
+    "k:=k.kdddddcccbbbak.k=:k",
+    "k:=k.kdeddccccbbbak.k=:k",
+    "k:=kkdedddccccbbbaakk=:k",
+    "k:=keeeeddddcccbbbbak=:k",
+    "k:=kdddccccccbbbbbaak=:k",
+    ".k:=kabbbbb32bbaaaak=:k.",
+    "..k:~kkkkk4332kkkkk=:k..",
+    "...k:~wkkk3221kkk==:k...",
+    "....k:=~~kkkkkk===:k....",
+    ".....kk:==~====::kk.....",
+    ".......kk::::::kk.......",
+    ".........kkkkkk........."
+   ]
+  },
+  "icon/wardbell": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "...kkkk.....",
+    "..kVY3Xk....",
+    "..kedcbk....",
+    ".kdeddcbk...",
+    ".kdedcbbk...",
+    ".kddccbak...",
+    "keedccbbak..",
+    "k:ab32akk...",
+    "k=kk32k.....",
+    "k=~kkkk.....",
+    ".k~w==:k....",
+    "..kkkkk....."
+   ]
+  },
+  "card/mendingloom": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "...................kkkk.",
+    "..................keedck",
+    ".................ked++ck",
+    ".................kedcb+k",
+    "................kedck+9k",
+    "...............kedckk+9k",
+    "..............kedckk+9k.",
+    "..kkkkkkkkkkkkedckkk+9k.",
+    ".kVVVVVVVVVVVedcXVV+9Zk.",
+    ".kYYYYYYYYYYedcXYYY+9Xk.",
+    "..kZY444444edc244k3+9k..",
+    "..kZY41333edc233k32+9k..",
+    "..kZY43990db900k332+9k..",
+    "..kZY43++99++99kk32+Xk..",
+    "..kZY4399++99+kkk32YXk..",
+    "..kZY43++99++9+++32YXk..",
+    "..kZY4399++9kkkkk32YXk..",
+    "..kZY433+99+kkkk332YXk..",
+    "..kZY41333+kkk33312YXk..",
+    ".kkZY32222222222221YXkk.",
+    "kVVVVVVVVVVVVVVVVVVVVVZk",
+    "kYYYYYYYYYYYYYYYYYYYYYXk",
+    ".kXXXWkkkkkkkkkkkkXXXWk.",
+    "..kkkk............kkkk.."
+   ]
+  },
+  "icon/mendingloom": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".........kk.",
+    "........kedk",
+    ".kkkkkkked+k",
+    "k444444edk+k",
+    "k43333edk+k.",
+    "k430+dck.k..",
+    "k43+9+2k....",
+    "k439+k2k....",
+    "k43+kk2k....",
+    "k433332k....",
+    "kVZZZZYk....",
+    ".kkkkkk....."
+   ]
+  },
+  "mendpress": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    ".........kkkkkk.........",
+    "........kddddcck........",
+    "..kkkkkkk543321kkkkkkk..",
+    ".k]]]]]]]]]]]]]]]]]]]}k.",
+    ".k]dc}}}}}}}}}}}}}}dc|k.",
+    ".k}||||||||||||||||||[k.",
+    "..k]}|[[[[5432[[[[]}|k..",
+    "..k]}|[[[[5432[[[[]}|k..",
+    "..k]}|[5444444443[]}ddk.",
+    "..k]}|[43770+7721[]d55ck",
+    "..k]}|[43770+7721[]d51ck",
+    "..k]}|[4300++++21[]}cck.",
+    "..k]}|[43++++9921[]}|k..",
+    "..k]}|[4377+97721[]}|k..",
+    "..k]}|[3277+97711[]}|k..",
+    "..k]}|[[[[[[[[[[[[]}|k..",
+    "..k]}|[[[[[[[[[[[[]}|k..",
+    "..k]}|[$$$$$$$$$#[]}|k..",
+    "..k]}|[#0++++++9@[]}|k..",
+    ".kk]}|[#########@[]}|kk.",
+    "k5444444444444444444443k",
+    "k3222222222222222222221k",
+    "k2111111111111111111111k",
+    ".kkkkkkkkkkkkkkkkkkkkkk."
+   ]
+  },
+  "icon/mendpress": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".kkkkkkkkkk.",
+    "k]]]]]]]]]}k",
+    "k}|kk54kk}|k",
+    "k]|470+72]|k",
+    "k]|40+++2]|k",
+    "k]|3++992]|k",
+    "k]|37+971]|k",
+    "k]|kkkkkk]|k",
+    "k]|$0++9@]|k",
+    "k5444444443k",
+    "k2111111111k",
+    ".kkkkkkkkkk."
+   ]
+  },
+  "card/temper": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........kkk......kkk....",
+    ".......k]]}k....k]]}k...",
+    ".......k]}{k....k]}{k...",
+    ".......k]}{kkkkkk]}{kkk.",
+    ".......kijjjjjjjjjjjjihk",
+    ".......kiiiiiiiiiiiiihgk",
+    ".......khhhhhhhhhhhhhggk",
+    ".......k]}{kkkkkk]}{kkk.",
+    "....kkkk]}{kkkkkk]}{kk..",
+    "...khiiiihhhhhhhhhhhhgk.",
+    "...kggggggggggggggggffk.",
+    "...kfffffffffffffffffFk.",
+    "....kkkk]}{kkkkkk]}{kk..",
+    ".kkkkkkk]}{kkkkkk]}{kkk.",
+    "kfttttttttfffffffffffffk",
+    "kffffffffffffffffffffFFk",
+    "kFFFFFFFFFFFFFFFFFFFFKKk",
+    ".kkkkkkk]}{kkkkkk]}{kkk.",
+    ".......k]}{khihkg]}{k...",
+    ".....kkk]}{fghhgf]}{kkk.",
+    "....k]]]]]]]]]]]]]]]]]}k",
+    "....k}||||||||||||||||{k",
+    "....k{{[kkkkkkkkkkkk{{[k",
+    ".....kkk............kkk."
+   ]
+  },
+  "board/temper": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "...kk...kk..",
+    "..k]}kkk]}k.",
+    "..kijjjjjihk",
+    "..khhhhhhhgk",
+    "..k}{kkk}{k.",
+    ".kiihhhhhhgk",
+    ".kggggggggfk",
+    ".kk}{kkk}{k.",
+    "kttffffffffk",
+    "kFFFFFFFFFKk",
+    "k}||||||||{k",
+    ".kkkkkkkkkk."
+   ]
+  },
+  "card/tollbooth": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "............kk..........",
+    "...........kddk.........",
+    "...........k-/k.........",
+    "..........k--/?k........",
+    ".........k---//?k.......",
+    "........k----///?k......",
+    ".......k-----////?k.....",
+    "......kdddddddcccbbk....",
+    "......kcccccccbbbbbk....",
+    ".......kXXXXXXXXXkk.....",
+    ".......kZYMMMMMYXkkk....",
+    ".......kZYMhhMMYX443kkk.",
+    ".kkkkkkkZYMMMMMYX432322k",
+    "kRRRRwwwwRRRRwwww111211k",
+    "kRRR5555RRRR5555R1d1211k",
+    "kRR5555RRRR5555RR1c1211k",
+    "kf4444ffff4444fff111211k",
+    ".k43kkkkXXXXXXXXX432111k",
+    ".k43k..kZYYYYYYYX432kkk.",
+    ".k43k..kZYYYYYYYX432k...",
+    ".k43k..kYXXXXXXXX432k...",
+    ".k32k..kZYYYYYYYX432k...",
+    "k4332k.kYXXXXXXX43322k..",
+    ".kkkk...kkkkkkkkkkkkk..."
+   ]
+  },
+  "board/tollbooth": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".....kk.....",
+    "....k-/k....",
+    "...k--/?k...",
+    "..kdddccbk..",
+    ".kkZYMMYX3k.",
+    "kRRwwRRww12k",
+    "kRR55RR5511k",
+    "k3kXXXXXX3k.",
+    "k3kZYYYYX3k.",
+    "k3kZYYYYX3k.",
+    "k3kYXXXXX32k",
+    ".k.kkkkkkkk."
+   ]
+  },
+  "card/grindstone": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    "..................k.....",
+    ".............k...khk....",
+    "............kyk.kyk..k..",
+    "............kikkik..khk.",
+    "........kkkkkkkkk..kyk..",
+    "......kk&&&&&ji%%kk.k...",
+    ".....k&&*******&%%%k....",
+    "....k&**********&%%_k...",
+    "....k&**********&%%_kkk.",
+    "...k&************&%%_VZk",
+    "...k&****eddc****&%%_VYk",
+    "...k&****edd555555555VYk",
+    "...k&****ddc222222222ZYk",
+    "...k&****dccb^^^^^%__ZXk",
+    "...k&**VVVVVZZY**^%__kk.",
+    "....k&VZY****ZYX^%__k...",
+    "....kVZY*****&ZYX%__k...",
+    "...kVZY&*****&^ZYX_k....",
+    "..kVZYkk&&^^^^__ZYXk....",
+    ".kVZYkkkkkkkkkkkkZYXk...",
+    "kVVVVVVVVVVVVVVVVVVVZk..",
+    "kZYYYYYYYYYYYYYYYYYYXk..",
+    ".kkkkkkkkkkkkkkkkkkkk..."
+   ]
+  },
+  "board/grindstone": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "........k...",
+    "...kkkkkyk..",
+    "..k&&&i%khk.",
+    ".k&****&%k..",
+    "k&*****&%%k.",
+    "k&**ed*&%VZk",
+    "k&**dc555VYk",
+    "k&****^^%_k.",
+    ".kVZ&^ZY%k..",
+    "kVZkkkkZYk..",
+    "kZYYYYYYXk..",
+    ".kkkkkkkk..."
+   ]
+  },
+  "card/grudgerod": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "............k...........",
+    "...........k4k..........",
+    "..........k432k.........",
+    ".........k43221kkkk.....",
+    "........k43RRRRRRRfkk...",
+    ".........kRR1211FRRRfk..",
+    ".........kff1211kRRRfk..",
+    "........k4332211kRRRfk..",
+    ".........kRR1211kfRRfk..",
+    ".........kff1211kkRRRfk.",
+    "........k4332211kkRRRfk.",
+    ".........kRR1211kkRRffk.",
+    ".........kff1211kkRfkfk.",
+    "........k4332211k.kfkk..",
+    ".........kRR1211k..k....",
+    ".........kff1211k.......",
+    "........k4332211k.......",
+    ".........kRR1211k.......",
+    ".......kkkff1211kk......",
+    ".....kk**4332211&^kk....",
+    "...kk**&&&&&&&&&&&^%kk..",
+    "..k**&&&&&&&&&&&&&&&^%k.",
+    "..k&^^^^^^^^^^^^^^^^%_k.",
+    "...kkkkkkkkkkkkkkkkkkk.."
+   ]
+  },
+  "board/grudgerod": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".....k......",
+    "...kk4kkkk..",
+    "..kRR21fRRk.",
+    "...k321kRRfk",
+    "..kRR21kRRfk",
+    "...k321kRfk.",
+    "..kRR21kkfk.",
+    "...k321k.k..",
+    "..kRR21kk...",
+    ".k**&&&&^k..",
+    "k*&&&&&&^%k.",
+    ".kkkkkkkkk.."
+   ]
+  },
+  "card/whetstone": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    "...................kkk..",
+    ".................kkUUUk.",
+    "...............kkUU$$$$k",
+    "...kkkkkkkkkkkkUU$$$$wwk",
+    "..k5555555555UU$$$$wwkk.",
+    "..k54444444UU$$$$wwUUk..",
+    "..k544444UU$$$$wwUU43k..",
+    ".kk5444dd$$$$wwUU4443kk.",
+    "kVV54ggdd$$wwUU444443VVk",
+    "kZZggffccwwUU444yy443YYk",
+    "kggffffbbUU444444443TYYk",
+    "kffffFF33333333333UTkYYk",
+    "kffFFUUUUUUUUUUUUUTTkYYk",
+    "kFFTTTTTTTTTTTTTTTTTTYYk",
+    "kdddVVVVVVVVVVVVVVVVdddk",
+    "kdbcZZZZZZZZZZZYYYZZdbck",
+    "kddcZZYYYZZZZZZZZZZZddck",
+    "kccbYYYYYYYYYYYYYYYYccbk",
+    "kXXXXXkkkkkkkkkkkkXXXXXk",
+    ".kkkkk............kkkkk."
+   ]
+  },
+  "board/whetstone": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "........kkk.",
+    ".......kT$$k",
+    ".kkkkkkT$$k.",
+    "k55555T$wU3k",
+    "k4333T$$U33k",
+    "k433T$$Uy33k",
+    "k43ddcU3333k",
+    "kUffFUUUUUTk",
+    "kffFVVVVVVdk",
+    "kcZZZZZZZZck",
+    "kbYYkkkkYYbk",
+    ".kkk....kkk."
+   ]
+  },
+  "card/longhaul": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "..................kkkkk.",
+    ".................kVZZZYk",
+    ".................kZYYYXk",
+    "..................kkkdck",
+    "...................k53k.",
+    "..................k53k..",
+    "........kkkkkk...k53k...",
+    "......kk]]]]}}kkk5332k..",
+    ".....k]]VVZZZZ}}53k32k..",
+    "....k]VVZkZYkZZ42kk32k..",
+    "...k]VZkkkZYkk42Y}k32k..",
+    "...k]VkZYkZYk42kY}k21k..",
+    "..k]VZkYXeedd42kZY}1k...",
+    "..k]VkkkewwRwckkkY|k....",
+    "..k]VZZZdwwRwcZZZY|k....",
+    "..k]ZYYYdwwK5cYYYX|k....",
+    "..k}Zkkkdww55bkkkX{k....",
+    "..k}ZYkZYccbbZYkYX{k....",
+    "...k}YkYXkZYkYXkX{k.....",
+    "...k}YYkkkZYkkkXX{k.....",
+    "....k|YYYkYXkYXX{k......",
+    ".....k||YYYXXX{{k.......",
+    "......kk||{{{{kk........",
+    "........kkkkkk.........."
+   ]
+  },
+  "board/longhaul": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "........kkk.",
+    ".......kZZYk",
+    "...kkkk.k42k",
+    "..k]]]}k42k.",
+    ".k]kVZk42k..",
+    "k]kdwRck}k..",
+    "k]VwwRwZ|k..",
+    "k}Zwww5Y|k..",
+    "k}kc55bk{k..",
+    ".k|kZYk{k...",
+    "..k|{{{k....",
+    "...kkkk....."
+   ]
+  },
+  "card/counterweight": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........kk..............",
+    ".......k55kk............",
+    ".......k4455kk..........",
+    ".......k224ed5kk........",
+    ".......k4k2db455kk......",
+    ".......k4kkU224455kk....",
+    ".......k4kkUTk224455kk..",
+    "......kk4kkUTkkk224455k.",
+    ".....k2k4kkUTk..kk22445k",
+    ".....k222kHUTk...k44224k",
+    "......kkkkHUTk...k22kk2k",
+    ".........kHUTk..kdddckk.",
+    ".........kHUTk..kdkkck..",
+    ".........kHUTk.keeeeedk.",
+    "........kUHUTk.kedcccbk.",
+    ".......kUTHUTkkedccccbbk",
+    "......kUTkHUTkkdeccccbbk",
+    ".....kUTkkHUTkkddccccbbk",
+    "....kUTk.kHUTkkdcccccbak",
+    "...kUTkkkkHUTkkbbbbbaaak",
+    "..kHHHHHHHHHHUkkkkkkkkk.",
+    ".kUUUUUUUUUUUUTk........",
+    "kTTTTTTTTTTTTTTSk.......",
+    ".kkkkkkkkkkkkkkk........"
+   ]
+  },
+  "board/counterweight": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".kkk........",
+    "k555kkk.....",
+    "k3d3555kkkk.",
+    ".kHT3335555k",
+    ".kHTkkkk333k",
+    ".kHTk..k43k.",
+    ".kHTk.keedk.",
+    ".kHTkkedccbk",
+    ".kHTkkdcccbk",
+    ".kHTkkbbaaak",
+    "kHUUTkkkkkk.",
+    ".kkkk......."
+   ]
+  },
+  "card/sorting": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    "............kk..........",
+    "...........kedkkk.......",
+    "..........keddc55kk.....",
+    "..........kddcb4455kk...",
+    ".........kkdcbb334455k..",
+    "........k5443kkkk3344k..",
+    "........k5443k...kk33k..",
+    ".......k5443k...kk4332k.",
+    ".......k5443k..k322II21k",
+    "......k5443k...k322CC21k",
+    "......k5443k...k2211111k",
+    "......keddk....k54kkk43k",
+    ".....keddcbk...k54]]}43k",
+    ".....kddccbk...k54]}|43k",
+    ".....kkcbbk....k54}||43k",
+    "....k]}}}|{k....k33k33k.",
+    "..kk]}}}}||{kkkk.kk.kk..",
+    ".k]]]]]]]]]]]]]]k.......",
+    "k]}}}}}}}}}}}}}|{k......",
+    "k}||II||||||II||{k......",
+    "k}||CC||||||CC||{k......",
+    ".k{{{{{{{{{{{{{{k.......",
+    "..kkkkkkkkkkkkkk........"
+   ]
+  },
+  "board/sorting": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "....kk......",
+    "...kedkkk...",
+    "...kdc554k..",
+    "..k54kk443k.",
+    "..k54kk2II2k",
+    ".k54k.k5kk3k",
+    ".k54k.k5]}3k",
+    ".kedk..k}|k.",
+    ".kdckkkkkk..",
+    "k]]]]]]]}k..",
+    "k}|II|||{k..",
+    ".kkkkkkkk..."
+   ]
+  },
+  "card/plateroller": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "..........kkkkkkkkkk....",
+    ".........ked444444edk...",
+    ".........kcb222222cbk...",
+    ".........kkkk4332kkkk...",
+    "........kHHHHHHHHHHHHk..",
+    ".......kHUUTT5544TTTTMk.",
+    ".......kHUMM544443MMTMk.",
+    ".......kHUM544ed332MTMk.",
+    ".......kHUM44ddcb32MTMk.",
+    ".......kHUM43dccb22MTMk.",
+    ".......kHUM433bb222MTMk.",
+    ".......kHUMM322222MMTMk.",
+    ".kkkkkkkHUMMM2222MMMTMk.",
+    "khhhhhhiiiijjhgg#$$$$$$k",
+    "kgggggghhhhhhggg#######k",
+    ".kkkkkkkHUMMM5544MMMTMk.",
+    ".......kHUMM544443MMTMk.",
+    ".......kHUM544ed332MTMk.",
+    ".......kHUM44ddcb32MTMk.",
+    ".......kHUM43dccb22MTMk.",
+    ".....kkkHUM433bb222MTMk.",
+    "....kHHHHUUM322222MTTTMk",
+    "...kTTTTTTTTT2222TTTTMMk",
+    "....kkkkkkkkkkkkkkkkkkk."
+   ]
+  },
+  "board/plateroller": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "..kkkkkkkk..",
+    ".kHHH44TTSk.",
+    ".kHM4dc2MSk.",
+    ".kHM3cb2MSk.",
+    ".kHMM22MMSk.",
+    "khhiiih#$$$k",
+    "kgghhgf@###k",
+    ".kHMM44MMSk.",
+    ".kHM4dc2MSk.",
+    ".kHM3cb2MSk.",
+    "kHHHT22TSSMk",
+    ".kkkkkkkkkk."
+   ]
+  },
+  "card/scaleguard": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    ".........kkkkkkkkkkkk...",
+    "........kddcccccccccbk..",
+    ".......kdceeaccccceeabk.",
+    "......kcbbeaabbbbbeaabak",
+    "......k$#@$$$#@$$$#@$$#k",
+    "......k$#@$###@$###@$#@k",
+    "......k#@@$##@@$##@@$#@k",
+    "......k@@!!@@@!!@@@!!@@k",
+    "......k#$$$#@$$$#@$$$#@k",
+    "......k#$###@$###@$###@k",
+    "......k@$##@@$##@@$##@@k",
+    "......k@!@@@!!@@@!!@@@!k",
+    "......k$#@$$$#@$$$#@$$#k",
+    "......k$#@$###@$###@$#@k",
+    ".......k@@$##@@$##@@$@k.",
+    "........kkk@@@XX@@@kkk..",
+    "...........kkYXXWkk.....",
+    "............kZYYXk......",
+    "...........kkZYYXkk.....",
+    ".........kkVZZZZYYXkk...",
+    ".......kkVZZZZZZZYYYXkk.",
+    "......kVZZYXkkkkkkZZYYXk",
+    "......kXXXWk......kXXXWk",
+    ".......kkkk........kkkk."
+   ]
+  },
+  "board/scaleguard": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "..kkkkkkkk..",
+    ".keddddddck.",
+    "kcbbbbbbbbak",
+    "k$$$#@$$$#@k",
+    "k$##@@$##@@k",
+    "k!@@@!!@@@!k",
+    "k$@$$$#@$#@k",
+    ".k@$##@@$@k.",
+    "..k@@@@@@k..",
+    "...kkYXkk...",
+    "..kVZZYYXk..",
+    "...kkkkkk..."
+   ]
+  },
+  "card/coil": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "................k.....k.",
+    "...............kIk...kIk",
+    "...............kIwk.kIwk",
+    "................kIwkwwk.",
+    "................k:wwwIk.",
+    ".................kIwwk..",
+    ".................k:Iwwk.",
+    ".kk..kkkkkkkkk....kkww:k",
+    "kdckkOpOOOpOOOk...kIwIk.",
+    "kcbkPpPPPpPPPpPkkkIwwk..",
+    "kVVZpPPPpPPPpPPVVZ:wwk..",
+    "kVZYOOOpOOOpOOOVZYkww:k.",
+    "kVZYOOpOOOpOOOpVZYd554k.",
+    "kVZYOpOOOpOOOpOVZYc443k.",
+    "kVZYpOOOpOOOpOOVZYc332k.",
+    "kVZYpppopppopppVZYb221k.",
+    "kVZYppopppopppoVZYkkkk..",
+    "kVZYpopppopppopVZYk.....",
+    "kVZYqoooqoooqooVZYk.....",
+    "kZYXkkkkkkkkkkkZYXkkkkk.",
+    "kVVVVVVVVVVVVVVVVVVVVVZk",
+    "kZZZZZZZZZZZZZZZZZZZZZYk",
+    "kXXXXXXXXXXXXXXXXXXXXXWk",
+    ".kkkkkkkkkkkkkkkkkkkkkk."
+   ]
+  },
+  "board/coil": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".......k..k.",
+    "......kIkkIk",
+    ".......kwkwk",
+    "..kkkkk.kwk.",
+    ".kPPpPPkkIwk",
+    ".kOpOOpkkwk.",
+    "kVpOOpOVZ54k",
+    "kZppoppZY32k",
+    "kZoqooqYXkk.",
+    "kVVVVVVVVVZk",
+    "kXXXXXXXXXWk",
+    ".kkkkkkkkkk."
+   ]
+  },
+  "card/quench": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "...........kkkk......kk.",
+    "..........kwww5k....kgfk",
+    ".........kwwww54k..kgffk",
+    ".........kwww554k.khgfFk",
+    "........kwww55kk.khgffk.",
+    ".......kwww5kk..khggfk..",
+    ".......kww55kk.khhgfk...",
+    "........kww554kihgfk....",
+    "..kkkkkkkkww54ihhgkkkk..",
+    ".k4444333ww53iihg33322k.",
+    ".k4411111w55jiih111122k.",
+    "k44::::::=IjihgI=:::;21k",
+    "k44:www::I,,,;II=::;;21k",
+    "k44::::::,,,;::III:;;21k",
+    "k44;;;;;,,;;;;;;;;;;;21k",
+    "k5555555555555555554432k",
+    "k4444444444444444443221k",
+    ".k43334233333333423321k.",
+    ".k43334233333333423321k.",
+    ".k32223222222222322211k.",
+    ".k21111111111111111111k.",
+    ".k3221kkkkkkkkkkkk3221k.",
+    ".k3221k..........k3221k.",
+    "..kkkk............kkkk.."
+   ]
+  },
+  "board/quench": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "..kkk....kk.",
+    ".kww5k..khgk",
+    ".kw55k.khgk.",
+    "..kw5kkhgk..",
+    ".kkw55ihkkk.",
+    "k4:wIihI:;2k",
+    "k4:I,,::;;2k",
+    "k5555555542k",
+    "k4333333321k",
+    "k4333333221k",
+    ".k21kkkk21k.",
+    "..kk....kk.."
+   ]
+  },
+  "card/surge": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "..........kkkkk.........",
+    "........kkRRRRRkk.......",
+    ".......kRRRRRRRffk......",
+    "......kRRkkkRkkkffk...k.",
+    "......kRRkkkfkkkfFk.kkgk",
+    "......kRffffdfffFFkkghgk",
+    "......kRfkkkfkkkfFkhihgk",
+    "....kkkffkkkfkkkFFkhiihk",
+    "...kdddkfffFFFFFFkhijhgk",
+    "..kdwwRbkkFFFFFkkgijhkk.",
+    ".kkdwRwbk.k432k.khjhkkk.",
+    "k54cwwwbkk]]}}|kkdckk54k",
+    "k23kcbbkk]]}}}||kcbkk23k",
+    "k5344444]]]}}}}||444453k",
+    "k5355555]]}}}}}||555553k",
+    "k5344444]}}}}}|||444453k",
+    "k2333333}}}}}}||{333323k",
+    "k5333333}}}}}|||{333353k",
+    "k5322222}}}}||||{222253k",
+    "k5322222||||||{{{222253k",
+    "k23kkkkkk|||||{{kkkkk23k",
+    "k42k....kk|{{{{kk...k42k",
+    ".kk....k433333322k...kk.",
+    "........kkkkkkkkk......."
+   ]
+  },
+  "board/surge": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "..kkkkk...k.",
+    ".kRRRRRk.kgk",
+    "kRkkRkkfkhhk",
+    "kRfffffFkihk",
+    "kRkkfkkFkihk",
+    ".kFFFFFkkjik",
+    "k5kk43kkkc5k",
+    "k53}wR}|443k",
+    "k53}cb||333k",
+    "k53|||{{223k",
+    "k4kk{{{kkk2k",
+    ".k..kkk...k."
+   ]
+  },
+  "card/brandingiron": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    ".................k......",
+    "................khk.k...",
+    ".................k.kgk..",
+    "................kkkkk...",
+    "...............kiiihk...",
+    "..............kijjiihk..",
+    ".............kijkkkkhgk.",
+    "............kijkkkkkkhgk",
+    "............kijjjjiihhgk",
+    "............khiiiihhhggk",
+    "............khhkkkkkkgfk",
+    ".............khhkkkkgfk.",
+    "............ksfhhgggfk..",
+    "...........k}srkggffk...",
+    "..........k}|{k.kkkk....",
+    ".........k}|{kkkkkkkkk..",
+    ".......kk}|{kkZZZZZZZZk.",
+    ".....kkdccbakZYYqqqqYYXk",
+    "....kVZZYYXkkZYqYYYYqYXk",
+    "...kVZZYYXk.kZYqqqqqqYXk",
+    "..kVZZYYXk..kZYqYYYYqYXk",
+    ".kVVZYYXk...kYYYqqqqYXXk",
+    ".kVZYYXWk....kXXXXXXXWk.",
+    "..kkkkkk......kkkkkkkk.."
+   ]
+  },
+  "board/brandingiron": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".....k......",
+    "....khkkkk..",
+    ".....kiiihk.",
+    "....kijkkhgk",
+    "....kijiihgk",
+    "....khhkkgfk",
+    "...k}fhggfk.",
+    "..k}|{kkkk..",
+    ".kdc{kkkkkk.",
+    "kVZYkkZZZZYk",
+    "kZYXkkYqqqXk",
+    ".kkk..kkkkk."
+   ]
+  },
+  "card/heatjacket": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    ".............kk.........",
+    "............kiik........",
+    "...........kikk.........",
+    "..........kkkhkk........",
+    ".........k544332k.......",
+    ".........kk4332kk.......",
+    ".......kk55544332kk.....",
+    "....kkk554444333221kkk..",
+    "...k444433333332222211k.",
+    "..kuuruuutrttttrtsssqsrk",
+    "..kutrteeedtttsrsssrqrrk",
+    "...kdddeaacdddddccccbbk.",
+    "...kdccdaacccccccbbbbak.",
+    "..kuuurdccbtrttttqsssrrk",
+    "..kuttrtttttrttssqssrrrk",
+    "..krrrrrrrrrrrrrrqqqqqqk",
+    "..kuuruuutrttttrtsssqsrk",
+    "..kutrteeedtttsrsssrqrrk",
+    "...kdddeaacdddddccccbbk.",
+    "...kdccdaacccccccbbbbak.",
+    "..ktssrdccbsrsssrqrrrrqk",
+    "...k432kkkk4332kkkk321k.",
+    "...k321k..k3221k..k211k.",
+    "....kkk....kkkk....kkk.."
+   ]
+  },
+  "board/heatjacket": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "......k.....",
+    ".....kik....",
+    "...kk43kkk..",
+    "..k5443321k.",
+    ".kuuruttqsrk",
+    ".kdeedccbbak",
+    ".kuuutrtsqrk",
+    ".kutttrssqrk",
+    ".kdeedccbbak",
+    ".ktsrsssqrrk",
+    ".k32k432k21k",
+    "..kk.kkk.kk."
+   ]
+  },
+  "card/stoker": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    ".................kkkkk..",
+    "................kedddck.",
+    "...............keedddcck",
+    "...............kedkkkcbk",
+    "..............kkddk.kcbk",
+    ".............kVZdckkkcbk",
+    ".............kVZdcccbbbk",
+    "............kVZYkbbbbak.",
+    "............kVZYkkkkkk..",
+    "...........kVZYk........",
+    "...........kVZYk........",
+    "..........kVZYk.........",
+    "..........kZYXk.........",
+    "......kkkk542k..........",
+    "...kkk5544432kkkk.......",
+    "..kUT554444433322kk.....",
+    ".kUTT544444433332UTk....",
+    "kUTSS544UUT43UUT2TSk....",
+    "kTSSM54UTSSM3TSSMSMk....",
+    "kSSMUUTTSSMhgSMMMMk.kk..",
+    "kSMUhgSSMUUTSSMUkkkkUTk.",
+    "kMUTSSMMUTSSSigSkUTkTSSk",
+    "kSSSMMMMSSMMMMSMkSMkSMMk",
+    ".kkkkkkkkkkkkkkk.kk.kkk."
+   ]
+  },
+  "board/stoker": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "........kkk.",
+    ".......kddck",
+    ".......kdkck",
+    "......kVccbk",
+    ".....kVZkkk.",
+    "...kkVZk....",
+    "..k5543kk...",
+    ".k55443TSk..",
+    "kUT54hSSMkk.",
+    "kTSgSSMSMkUk",
+    "kSSMMSMMMkSk",
+    ".kkkkkkkk.k."
+   ]
+  },
+  "card/aegisspike": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "......................k.",
+    ".....................k5k",
+    "....................k53k",
+    "..................kkw3k.",
+    ".................kw43k..",
+    "................kw43k...",
+    "...............k543k....",
+    ".............kk5442k....",
+    ".......kkkkkkI5442,k....",
+    ".kkkkkkIIIIII5442,,k....",
+    "kwIIIIIBBBDD54432,,k....",
+    "kIBBBBB433254432,D,k....",
+    "kIBBBB433254432,DD,k....",
+    "kIBBB433254432,DDD,k....",
+    "kIBBB33224321,DDDD,k....",
+    "kIBBB32222211,DDDD,k....",
+    "kIBBBB222111,DDDDD,k....",
+    ".kIBBBB2111,DDDDD,k.....",
+    ".kIBBBBBB,,DDDDDD,k.....",
+    "..kIBBBBBBDDDDDD,k......",
+    "...kIIBBBBDDDD,,k.......",
+    "....kkIIBBDD,,kk........",
+    "......kkII,,kk..........",
+    "........kkkk............"
+   ]
+  },
+  "board/aegisspike": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".........kk.",
+    "........k54k",
+    ".......k54k.",
+    "..kkkkk54k..",
+    ".kIII543,k..",
+    "kIB3543D,k..",
+    "kIB2432D,k..",
+    "kIB211DD,k..",
+    ".kIBBDD,k...",
+    "..kIBD,k....",
+    "...kI,k.....",
+    "....kk......"
+   ]
+  },
+  "card/braceframe": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    "........................",
+    ".......kkkkkkkkkkkkkkkk.",
+    "......kedc4444444444edck",
+    "......kddc3333333333ddck",
+    "......kccb2222222222ccbk",
+    "......k43234kkkkkk43321k",
+    "......k432234k..k432321k",
+    "......k432k234kk432k321k",
+    "......k432kk23ed32kk321k",
+    "......k432k.keddck.k321k",
+    "......k432k.kdback.k321k",
+    "......k432kk43cb34kk321k",
+    "......k432k432kk234k321k",
+    "......k432432k..k234321k",
+    "......k43232kkkkkk23321k",
+    "......kedc3333333333edck",
+    "......kddc2222222222ddck",
+    "......kccb1111111111ccbk",
+    ".......kUTSkkkkkkkkUTSk.",
+    ".......kUTSk......kUTSk.",
+    "......kHUUTSk....kHUUTSk",
+    "......kTTSSMk....kTTSSMk",
+    ".......kkkkk......kkkkk."
+   ]
+  },
+  "board/braceframe": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".kkkkkkkkkk.",
+    "kd44444444dk",
+    "k444kkkk442k",
+    "k4k44kk44k2k",
+    "k4kk4ed4kk2k",
+    "k4k.kdck.k2k",
+    "k4kk3cb3kk2k",
+    "k4k33kk33k2k",
+    "k433kkkk332k",
+    "kc22222222bk",
+    ".kTSkkkkTSk.",
+    "..kk....kk.."
+   ]
+  },
+  "card/cindermail": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "...........kk...........",
+    "..........kZYk..........",
+    "..........kZYk..........",
+    "..........kZYk..........",
+    "..........kYXk..........",
+    ".........kkYXkk.........",
+    "........k$#YX#@k........",
+    "...kkkkk$#!YX!#@kkkkk...",
+    ".kk$$##$$@@!!@@##@@##kk.",
+    "kVZ##$$####@@##!!@@!!ZYk",
+    "kYX$$##$$@@##@@@@h!@@YXk",
+    ".kk##$$####@@##!!@@!!kk.",
+    "..k##@#$$@@##@@@@!!!!k..",
+    "...kkk$####@@##!!@kkk...",
+    ".....k#$$h@##@@@@!k.....",
+    "....k$$####@@ih!!@@k....",
+    "....k##$$@@##@@@@!!k....",
+    "....k$$####h@##!!@@k....",
+    "...k$##hi@@##@@@@!!@k...",
+    "...k#$$####@@##ih@@!k...",
+    "...k##@##k@@@!!k@!!k....",
+    "...k@kk@@ikYX!kk!!k.....",
+    "....k..kkhkXWk..kk......",
+    ".........k.kk..........."
+   ]
+  },
+  "board/cindermail": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".....kk.....",
+    "....kZYk....",
+    ".kkk$YX@kkk.",
+    "k$#$##@#@@!k",
+    "k#h#$@#@@!@k",
+    "k#@$##i#!!!k",
+    ".kk#h@#@@kk.",
+    "..k$#i@#!k..",
+    "..k#$@h@@k..",
+    "..k$h#@#!k..",
+    "..k#@YXk!k..",
+    "...kkkk.k..."
+   ]
+  },
+  "card/crowdpress": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "..........kkk...........",
+    ".........keddk..........",
+    "........keddcbk.........",
+    "........kdccbak.........",
+    ".........kcbak..........",
+    ".........k432k..........",
+    ".........k321k..........",
+    ".kkkkkkkkk432kkkkkkkkkk.",
+    "k5444444444444444444432k",
+    "k4133333333333333333121k",
+    "k3222222222222222222211k",
+    "k432kkkkk34332kkkkk4321k",
+    "k432k5555555555554k4321k",
+    "k432k4333333333332k4321k",
+    "k432k3222222222221k4321k",
+    "k432k2111111111111k4321k",
+    "k432kkkkkkkkkkkkkkk4321k",
+    "k432$$$k$$$k$$$k$$$4321k",
+    "k432w$#k$$#k$$#k$$#4321k",
+    "k432##@k##@k##@k##@4321k",
+    "k432#@@k#@@k#@@k#@@4321k",
+    "k5444444444444444444321k",
+    "k3222222222222222222111k",
+    ".kkkkkkkkkkkkkkkkkkkkkk."
+   ]
+  },
+  "board/crowdpress": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".....kk.....",
+    ".kkkkeckkkk.",
+    "k5444444432k",
+    "k3222222221k",
+    "k4kkk32kkk2k",
+    "k4k555554k2k",
+    "k4k322221k2k",
+    "k4kkkkkkkk2k",
+    "k4$@$@$@#@2k",
+    "k4#!#!#!#!2k",
+    "k4333333321k",
+    ".kkkkkkkkkk."
+   ]
+  },
+  "card/keg": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "....................k.k.",
+    "...................kikgk",
+    "..............kkkkkijik.",
+    "............kk4432hijihk",
+    "...........k44332kkkikk.",
+    "........kkkk43kkk...k...",
+    "......kkZZZZ43ZYkk......",
+    ".....kZZWWWedcbWYYk.....",
+    "....kZXWWWWdcbaJWWYk....",
+    "....kVZZZZZZZZZZYYXk....",
+    "....kXYXJXXJXWJWWJWk....",
+    "...kddeeddddddccccbak...",
+    "...kccccccccccbbbbaak...",
+    "..kXXJXXJXXJWWJWWJWWJk..",
+    "..kYXJYXJXXJXWJWWJWWJk..",
+    "..kYXJYXJXXJXWJWWJWWJk..",
+    "..kYXJYXJXXJXWJWWJWWJk..",
+    "..kYXJXXJXXJXWJWWJWWJk..",
+    "...kddeeddddddccccbak...",
+    "...kccccccccccbbbbaak...",
+    "...kkXYXJXXJXWJWWJWkk...",
+    ".kk1%XYXJXXJXWJWWJW1%kk.",
+    "k1%2%_XXJXXJWWJWWJ1%2%_k",
+    ".kkkkkkkkkkkkkkkkkkkkkk."
+   ]
+  },
+  "board/keg": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".......kkk..",
+    "......khijk.",
+    "...kkk43ihk.",
+    "..kZZZ4ZYk..",
+    ".kXXJXXJWWk.",
+    ".kdeddccbak.",
+    "kYXXJXXJWWWk",
+    "kXXXJXXJWWWk",
+    ".kdddcccbak.",
+    ".kXXJXXJWWk.",
+    "..kXJXXJW^%k",
+    "...kkkkkkkk."
+   ]
+  },
+  "card/leechcoil": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "...........kkkk.........",
+    "..........k++++k........",
+    ".........k+wL++Nk.......",
+    "........kk+LL+NNkkkk....",
+    ".......kPPPPPPOOOpPPk...",
+    ".......kOOOOOppppopPpk..",
+    "........kIwTTTTSSkkPpk..",
+    "........k00000998kkPpk..",
+    "........k0w999987kkPpk..",
+    "........k0w999987kkPpk..",
+    ".......kPPPPPOOOOpkPpk..",
+    ".......kOOOOOppppokPpk..",
+    "........k0w99PPPPPPPpk..",
+    "........k0wPPpppppppk...",
+    ".....kkkkPPpp9987kkk....",
+    "....kPPPPpp999887k......",
+    "....kPppk0w998877k......",
+    "....kPpkPPPPPOOOOpk.....",
+    "....kPpkOOOOOppppok.....",
+    "....kPpQQzzzzzzzzxxkk...",
+    "...kkQQzzzzzzzzzzzxxxkk.",
+    "..kQQzzzzzzzzzzzzzzxxxxk",
+    "..kzxxxkxxxxkxxxxkxx```k",
+    "...kkkk.kkkk.kkkk.kkkkk."
+   ]
+  },
+  "board/leechcoil": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".....kk.....",
+    "....k++k....",
+    "..kk+w+Nkk..",
+    ".kPPPPOOOpk.",
+    "..k0w9987k..",
+    "..k0w9987k..",
+    ".kOOOOpppok.",
+    "..k0w9987k..",
+    "..k099877k..",
+    ".kQQzzzzxxk.",
+    "kzzxkxxkxx`k",
+    ".kkk.kk.kkk."
+   ]
+  },
+  "card/lodestone": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    ".................kkk....",
+    "................k444k...",
+    "............k..k22kk....",
+    "...........k5kk22k......",
+    "..........k55422k.......",
+    ".........k55443kkk......",
+    "........kRR4433k]]kk....",
+    ".......kRRRR33k.kkk]k...",
+    "......k>>RRffk....k]k...",
+    ".....k>>RRffk......k]k..",
+    "....kRRRRffk.......k]k..",
+    "...kRRRRffk.......k55k..",
+    "...kRRRffk.......k5544k.",
+    "..kRRRffk.......kB54433k",
+    "..k>RRfk.......kBBB433k.",
+    "..k>RRfk......kIIBBD311k",
+    "..kRRRfk.....kIIBBDDk11k",
+    "..kRRRffk...kBBBBDDk444k",
+    "...kRRRBBkkkBBBBDDkk22k.",
+    "...kRRBBBBBBBBBDDkk22k..",
+    "....kDDBBBBBBBDDkk44k...",
+    ".....kDDDDDDDDDk.k21k...",
+    "......kk,,,,,kk..k21k...",
+    "........kkkkk.....kk...."
+   ]
+  },
+  "board/lodestone": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".....kk.....",
+    "....k55kkk..",
+    "...kRR4k}}k.",
+    "..kRRfk.k}k.",
+    ".kRRfk..k5k.",
+    "kRRfk..kB54k",
+    "kRRk..kBBD1k",
+    "kRRk.kBBDk3k",
+    "kRRkkBBDkk1k",
+    ".kDBBBDk.k3k",
+    "..kDDDk..k1k",
+    "...kkk....k."
+   ]
+  },
+  "card/overclocker": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "...............k........",
+    "..............kik.......",
+    "..............khik......",
+    "...............khik.....",
+    "..............kghik.....",
+    ".............kghhk......",
+    ".kkkkkkkkkkkkkghk.......",
+    "keeeeeeeeeeeeeeck.......",
+    "kedddbbbbbbdddcbk.......",
+    "keddbbww255cddcbk.......",
+    "kedbbwww5RR5cdcbk...kk..",
+    "kedbww555RR54ccbk..k44k.",
+    "kebww555RR5554cbk.k5443k",
+    "kebw5555RR5554cbkkk4332k",
+    "keb25555KK5552cb443k32k.",
+    "keb55555555544cb322k32k.",
+    "keb55555555444cbkkk5443k",
+    "kedc555554444dcbk.k4332k",
+    "kedcc5555444ddcbk..k22k.",
+    "kedccc54244dddcbk...kk..",
+    "kcbbbbbbbbbbbbbak.......",
+    ".kcbakkkkkkkcbak........",
+    "kcbbak....kcbbak........",
+    ".kkkk......kkkk........."
+   ]
+  },
+  "board/overclocker": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".......kk...",
+    "......khik..",
+    ".kkkkkghk...",
+    "keeeeeeeck..",
+    "kedw5RRcbkk.",
+    "kew55R54bk4k",
+    "kew55K54b32k",
+    "ke555544bk2k",
+    "ke555444bkk.",
+    "kec5444cbk..",
+    "kcbbbbbbak..",
+    ".kkkkkkkk..."
+   ]
+  },
+  "card/overdrive": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "..........kkkk..........",
+    ".........keedck.........",
+    "........keddccbk........",
+    "........kdccbbak........",
+    ".........kk43kk.........",
+    "..........k43k..........",
+    "..........k43k..........",
+    "..kkk.....k43k.....kkk..",
+    ".keddk....k43k....keddk.",
+    "keeddckkkkedcbkkkkeeddck",
+    "keddcb4444dccb4444eddcbk",
+    "kddccb2222ccba2222ddccbk",
+    ".kcbakkkkkcbbakkkkkcbak.",
+    "..kkk...kk4332kk...kkk..",
+    "..kkkkkk54433221kkkkkk..",
+    ".kiihhhhhhhhhhhhhhgggfk.",
+    ".khjjjifhhhhfhhhhfgggfk.",
+    ".khjjiifhhhhfhhggfgggfk.",
+    ".khjiihfhhggfggggfggffk.",
+    ".khfffffffffffffffffFFk.",
+    ".khiihhfhhggfggggfggffk.",
+    ".khhhhhfhgggfggggfgfffk.",
+    "k3322222222222222111111k",
+    ".kkkkkkkkkkkkkkkkkkkkkk."
+   ]
+  },
+  "board/overdrive": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "....kkkk....",
+    ".kkkeddckkk.",
+    "kedkk43kkedk",
+    "kdc444332dck",
+    "kcbkk43kkcbk",
+    ".kk.k43k.kk.",
+    ".kkk4332kkk.",
+    "kjihfhhfhggk",
+    "kihhfhgfggfk",
+    "kffffffffffk",
+    "khhgfggfgffk",
+    ".kkkkkkkkkk."
+   ]
+  },
+  "card/pincer": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    ".......kkk....kkk.......",
+    "......k444k..k4]|k......",
+    "......k4]}k..k]}|k......",
+    "......k4]55kk55|{k......",
+    "......k4}|k..k]|{k......",
+    ".....k4]|k....k]|{k.....",
+    "....k4]}|k....k]||{k....",
+    "...k4]}|k......k]||{k...",
+    "...k4]}|k......k]||{k...",
+    "...k4]}|k......k]||{k...",
+    "...k}}||k......k}||{k...",
+    "....k}}||kkkkkk}||{k....",
+    ".....k}||{eddc}||{k.....",
+    "......k}|{eedc}|{k......",
+    "......k}|{ddcb}|{k......",
+    ".....k]}|{cbba}||{k.....",
+    "....k]}|{kkkkkk}||{k....",
+    "...k]}|kk......kk}|{k...",
+    "..k]}|k..........k}|{k..",
+    ".k]}|kkkkkkkkkkkkkk}|{k.",
+    ".k54444444444444444432k.",
+    "k4333333333333333333221k",
+    "k3222222222222222222111k",
+    ".kkkkkkkkkkkkkkkkkkkkkk."
+   ]
+  },
+  "board/pincer": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "...kk..kk...",
+    "..k44kk]|k..",
+    ".k4]5kk5|{k.",
+    ".k4}k..k|{k.",
+    ".k4}k..k|{k.",
+    "..k}|kk}{k..",
+    "...k|dc{k...",
+    "..k]}cb|{k..",
+    ".k]}kkkk|{k.",
+    "k5444444432k",
+    "k3222222211k",
+    ".kkkkkkkkkk."
+   ]
+  },
+  "card/platebreaker": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "...............kkkkkk...",
+    "..............k&^^^%_k..",
+    "...............k^%%_k...",
+    "...............k^%%_k...",
+    "...............k^%%_k...",
+    ".......kkkkkkkkk^%%_kkk.",
+    "......k&&&&&&&&&&&^^^%_k",
+    "......k^%%%%%%%%%%%%%__k",
+    "..kkkk.k_____________kk.",
+    ".k$$$#kk^%^^^^^^^^^^%_k.",
+    ".k$##@kk^%^FfgFFgfF^%_k.",
+    ".k$##@kk^%^fghffhgf^%_k.",
+    ".k$##@kk^%^ghihhihg^%_k.",
+    ".k$@$$$#^%^hiijjiih^%_k.",
+    "k$#@$##@^%^ghhhhhhg^%_k.",
+    "k$#@$##@^%^fuuuuuuf^%_k.",
+    "k$#@$##@^%^F$$$$$#F^%_k.",
+    "k$#@$##@^%^^$####@^^%_k.",
+    "k$@$##@k^___$####@____k.",
+    "k$@$##@k^%_k$####@k^%_k.",
+    "k$@$##@k^%_k$####@k^%_k.",
+    "k$@$##@k^%_k$####@k^%_k.",
+    "k@!@@@!k^%_k@@@@@!k^%_k.",
+    ".kkkkkk.kkk.kkkkkk.kkk.."
+   ]
+  },
+  "board/platebreaker": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "........kk..",
+    ".......k^%k.",
+    ".kkkkkkk^%k.",
+    "k&&&&&&&^^%k",
+    "k^_fghgf_%_k",
+    "k^_ghihg_%_k",
+    "k^_hjjjh_%_k",
+    "k^_fhhhf_%_k",
+    "k^%%$$#_%%_k",
+    "k___$##@___k",
+    "k%_k@@!kk%_k",
+    ".kk.kkk..kk."
+   ]
+  },
+  "card/riveter": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    "........................",
+    "...................kk...",
+    "..................k54k..",
+    ".................k2443k.",
+    "................k511332k",
+    "...............k5441121k",
+    "..............k5443311k.",
+    ".............k5443321USk",
+    "............k5443321USMk",
+    "...........ked43321USSMk",
+    "..........keddc321kUSSMk",
+    ".........keddccb1kkUSSMk",
+    ".........k5dccbak.kUSSMk",
+    "........k543cbak..kTSSMk",
+    ".......k54321akkkkOpkkk.",
+    ".kkkkkkk432kkPOOOOpkkkk.",
+    "k5444444444444444444442k",
+    "k43RR333ee33ee33ee33ee2k",
+    "k4RRRR33cb33cb33cb33cb2k",
+    "k4RRRR33333333333333332k",
+    "k43RR333333333333333332k",
+    "k2111111111111111111111k",
+    ".kkkkkkkkkkkkkkkkkkkkkk."
+   ]
+  },
+  "board/riveter": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".........kk.",
+    "........k54k",
+    ".......k512k",
+    "......k5441k",
+    ".....k54431k",
+    ".....ked31Tk",
+    "....kedcbTSk",
+    "..k.k5bakSMk",
+    ".kRk43kkkkk.",
+    "kRRR4e4e4e4k",
+    "k2R22222221k",
+    ".kkkkkkkkkk."
+   ]
+  },
+  "card/rotgauge": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    ".............kkkkk......",
+    "...........kkAAAA-kk....",
+    "..........kAA-///NN/k...",
+    ".........kA-/5e?ee/NNk..",
+    "........kA-/5ee?eee/-/k.",
+    "........kA/5eeeeeeeR-/k.",
+    ".......kA/eeeeeeeeeRR-/k",
+    ".......kA/eeeeeeeeeRR-/k",
+    ".......k-/??e11LLLLeR-?k",
+    ".......kN/eee11LLLLLR-?k",
+    ".......kN/eeeee????eR-?k",
+    "........kN/AAeeeeedR-?k.",
+    "........k/-/AAeeedd-/?k.",
+    ".........k/v+eeedd-/?k..",
+    "..........kv+9----v+k...",
+    "..........kv+//???+9k...",
+    "..........kv+k432k+9k...",
+    ".........kv+9k432kkk....",
+    "...kk....k++9k432k.kk...",
+    ".kk43kkkkkkkk44332k43kk.",
+    "k4453444444444444445344k",
+    "k3343333333333333334332k",
+    "k2232222222222222223221k",
+    ".kkkkkkkkkkkkkkkkkkkkkk."
+   ]
+  },
+  "board/rotgauge": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "....kkkk....",
+    "...kAA-Nk...",
+    "..kA5eeeNk..",
+    ".kA5eeeeR/k.",
+    ".kAe1LLLe/k.",
+    ".k-eeeeeR?k.",
+    ".k-Aeeeed?k.",
+    "..kv+eed?k..",
+    "..kv+/??k...",
+    "..kv+k32kk..",
+    "...kkk4332k.",
+    "......kkkk.."
+   ]
+  },
+  "card/shieldwall": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    ".......kkk..kkk..kkkkk..",
+    "......kHHHkkHHHkkHHHSMk.",
+    "......kHUTkkHUTkkHUTSMk.",
+    "......kHUTkkHUTkkHUTSMk.",
+    "......kHUTkkHUTkkHUTSMk.",
+    "......kHUTHHHUTHHHUTSMk.",
+    "......kHUUUUUMUUUUUTSMk.",
+    "......kUThRTTMTThRTTSMk.",
+    "......kUTRfTTMTTRfTTSMk.",
+    "......kUTTTTTMTTTTTTSMk.",
+    "......kUTTTTeedTTTTTSMk.",
+    "......kUHTTewddcTTHTSMk.",
+    "......kMMMMeddcbMMMMMMk.",
+    "......kHUUUddccbMUUTSMk.",
+    "......kUHTTTcbbMMTHTSMk.",
+    "......kUTTTTTMMTTTTTSMk.",
+    "......kUThRTTMTThRTTSMk.",
+    "......kUTRfTTMTTRfTTSMk.",
+    "...kkkkTSSSSSMSSSSSSMMk.",
+    "..k******************&^k",
+    ".k**&&&&&&^&&&&&&^&&&^%k",
+    ".k*&&&&^&&&&&&^&&&&&&^%k",
+    ".k&^^^^^^^^^^^^^^^^^^%_k",
+    "..kkkkkkkkkkkkkkkkkkkkk."
+   ]
+  },
+  "board/shieldwall": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    ".kk..kk..kk.",
+    "kHUkkHUkkHTk",
+    "kHUkkHUkkHTk",
+    "kUTRTTTTRTSk",
+    "kUTTTedTTTSk",
+    "kUTTTcbMTTSk",
+    "kUTRTMMTRTSk",
+    "kTSSSSSSSSMk",
+    "k*********&k",
+    "k*&&&^&&&&^k",
+    "k&^^^^^^^^%k",
+    ".kkkkkkkkkk."
+   ]
+  },
+  "card/splitter": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "................kkkkkk..",
+    "...............kdddddck.",
+    "..............kdDCCCCDbk",
+    "..............keCIIwICbk",
+    "..............keeddccbak",
+    "...............k342211k.",
+    "...............k453221k.",
+    "..kkkkkk......k453221k..",
+    ".kdddddck.....k453221k..",
+    "kdDCCCCDbkkkkk453221k...",
+    "keCIIwICbk$$$#453221k...",
+    "keeddccbak$#@453221k....",
+    ".k1234444kk#@453221k....",
+    "..k11233345@453221k.....",
+    "...kk1122333453221k.....",
+    ".....kk1122eedddcbak....",
+    ".......kk11dccCCcbak....",
+    ".........kkdcCIICbak....",
+    "..........kdcCIwCbak....",
+    "......kkkkkdcCIICbakkk..",
+    ".....k]]]]]]]]]]]]]]}|k.",
+    "....k]}}}}}}}}}}}}}}||{k",
+    "....k|{{{{{{{{{{{{{{{{[k",
+    ".....kkkkkkkkkkkkkkkkkk."
+   ]
+  },
+  "board/splitter": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "......kkkkk.",
+    ".....kdCCCbk",
+    "......k432k.",
+    ".kkkk.k432k.",
+    "kdCCbk432k..",
+    ".k34$#432k..",
+    ".k1233432k..",
+    "..kkddcbk...",
+    "...kdCIbk...",
+    "..kkdCIbkkk.",
+    ".k]}}}}}}}|k",
+    "..kkkkkkkkk."
+   ]
+  },
+  "card/trophychain": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "...........kkkk.........",
+    ".........kkeddckk.......",
+    "........kedk54kdck......",
+    "........kdck32kcbk......",
+    ".........kk.kk.kk.......",
+    "........kedk..kdck......",
+    "........kdckkkkcbk......",
+    ".........kkeddckk.......",
+    "..........kdccbk........",
+    ".........keeeeddk.......",
+    "........keeeedddck......",
+    ".......keedbbbbddck.....",
+    "......keedbbccccddck....",
+    "......kedbcddddccdck....",
+    ".....kedbcdEEQzaccdbk...",
+    ".....kedbcdEwQzaccdbk...",
+    ".....kddbcdQQzxacccbk...",
+    ".....kddccdQzxxacdbak...",
+    "......kddccaaaacdbak....",
+    "......kdcbccccddbbak....",
+    ".......kcbbddddbbak.....",
+    "........kcbbbbbaak......",
+    ".........kbbaaaak.......",
+    "..........kkkkkk........"
+   ]
+  },
+  "board/trophychain": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "....kkkk....",
+    "...ke43ck...",
+    "...kdkkbk...",
+    "....kbak....",
+    "...keedk....",
+    "..kedddck...",
+    ".kedEQdcbk..",
+    ".kddQzdcbk..",
+    ".kddddcbak..",
+    "..kdccbak...",
+    "...kbbak....",
+    "....kkk....."
+   ]
+  },
+  "card/twingauge": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    "...kkkkk........kkkkk...",
+    "..keeddck......keeddck..",
+    ".keeddddck....keeddddck.",
+    "keddwwRccbk..keddwwRccbk",
+    "kedwwRR5cbk..kedwwRR5cbk",
+    "kedwRR55cbk..kedwRR55cbk",
+    "kdcwK555bak..kdcwK555bak",
+    "kdcc5554bak..kdcc5554bak",
+    ".kcbbbbbak....kcbbbbbak.",
+    "..kbbbaak......kbbbaak..",
+    "...kdcbkkkkkkkkkkdcbk...",
+    "..k3444444edcb4444442k..",
+    "..k2222222dcba2222221k..",
+    "...kkkkkkk4332kkkkkkk...",
+    "......kk44333322kk......",
+    ".....k322222222211k.....",
+    "......kkkkkkkkkkkk......"
+   ]
+  },
+  "board/twingauge": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "..kkk..kkk..",
+    ".kedckkedck.",
+    "kdwwRcdwwRck",
+    "kdwR5bdwR5bk",
+    "kc555bc555bk",
+    ".kbbakkbbak.",
+    ".k444dc432k.",
+    ".k222cb221k.",
+    "..kkk43kkk..",
+    "...k4332k...",
+    "..k433221k..",
+    "...kkkkkk..."
+   ]
+  },
+  "card/twinlatch": {
+   "w": 24,
+   "h": 24,
+   "rows": [
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    "........................",
+    ".........kkkkkk.........",
+    ".......kkdeeedckk.......",
+    ".kkk..kdeeddddccck..kkk.",
+    "k544kkdedddccccccbkk444k",
+    "k3d34kdedcaaaacccbk43d2k",
+    "k11134ddcaaaaaaccb43111k",
+    "kUTS134caaa0+aaac431UTSk",
+    "kUTSk1344aa++aa4431kUTSk",
+    "kUTSkd1334a+9a4331bkUTSk",
+    "kUTSkdc134a88a431bbkUTSk",
+    "kUTSkdcb23aaaa32cbbkUTSk",
+    "kUTSkkdccbaaaaccbbkkUTSk",
+    "kUTSkkccccddddcbbbkkUTSk",
+    "kUTSk.kccccccbbbbk.kUTSk",
+    "kUTSkkkkkcbbbbakkkkkUTSk",
+    "kHHHHHHHHHHHHHHHHHHHHHUk",
+    "kUTTTTTTTTTTTTTTTTTTTTSk",
+    "kSSSSSSSSSSSSSSSSSSSSSMk",
+    ".kkkkkkkkkkkkkkkkkkkkkk."
+   ]
+  },
+  "board/twinlatch": {
+   "w": 12,
+   "h": 12,
+   "rows": [
+    "....kkkk....",
+    ".k.kdeeck.k.",
+    "k4kdedccbk4k",
+    "k24dcaacb42k",
+    "kU24aaaa42Uk",
+    "kUk24++42kUk",
+    "kUkd2+92bkUk",
+    "kUkdcaacbkUk",
+    "kUkkccbbkkUk",
+    "kHHHHHHHHHUk",
+    "kTTTTTTTTTSk",
     ".kkkkkkkkkk."
    ]
   }
@@ -1264,66 +3694,66 @@
    "work": [
     [
      [
-      10,
-      3,
-      "4"
-     ],
-     [
-      10,
-      5,
-      "4"
-     ],
-     [
-      10,
-      7,
-      "4"
-     ],
-     [
-      10,
-      9,
-      "4"
-     ],
-     [
-      9,
       4,
-      "5"
+      9,
+      "w"
      ],
      [
+      5,
       9,
+      "w"
+     ],
+     [
+      4,
       8,
+      "w"
+     ],
+     [
+      5,
+      10,
+      "w"
+     ],
+     [
+      1,
+      9,
+      "."
+     ],
+     [
+      1,
+      8,
+      "."
+     ],
+     [
+      1,
+      10,
       "5"
      ]
     ],
     [
      [
-      1,
-      3,
-      "4"
-     ],
-     [
-      1,
-      5,
-      "4"
-     ],
-     [
-      1,
-      7,
-      "4"
-     ],
-     [
-      1,
+      2,
       9,
-      "4"
+      "w"
+     ],
+     [
+      1,
+      8,
+      "w"
      ],
      [
       2,
-      4,
-      "5"
+      10,
+      "w"
      ],
      [
       2,
       8,
-      "5"
+      "w"
+     ],
+     [
+      1,
+      9,
+      "."
      ]
     ]
    ]
@@ -1735,319 +4165,429 @@
     [
      [
       7,
-      9,
-      "6"
+      8,
+      "."
      ],
      [
       8,
-      9,
-      "6"
+      8,
+      "w"
      ],
      [
       9,
-      9,
-      "I"
+      8,
+      "."
      ],
      [
       10,
-      9,
+      8,
       "C"
      ],
      [
       11,
-      9,
-      "6"
+      8,
+      "d"
      ],
      [
       12,
-      9,
-      "6"
+      8,
+      "e"
      ],
      [
       13,
-      9,
+      8,
       "e"
      ],
      [
       14,
-      9,
+      8,
       "d"
      ],
      [
       15,
-      9,
-      "d"
+      8,
+      "c"
      ],
      [
-      16,
+      6,
       9,
-      "d"
+      "."
+     ],
+     [
+      8,
+      9,
+      "."
+     ],
+     [
+      9,
+      9,
+      "w"
+     ],
+     [
+      10,
+      9,
+      "w"
+     ],
+     [
+      11,
+      9,
+      "w"
+     ],
+     [
+      12,
+      9,
+      "c"
+     ],
+     [
+      13,
+      9,
+      "b"
+     ],
+     [
+      14,
+      9,
+      "b"
+     ],
+     [
+      19,
+      12,
+      "."
+     ],
+     [
+      19,
+      13,
+      "."
+     ],
+     [
+      19,
+      15,
+      "."
+     ],
+     [
+      19,
+      16,
+      "."
      ],
      [
       17,
-      9,
-      "d"
+      14,
+      "7"
      ],
      [
       18,
-      9,
-      "c"
-     ],
-     [
-      8,
-      10,
-      "6"
-     ],
-     [
-      9,
-      10,
-      "I"
-     ],
-     [
-      10,
-      10,
-      "C"
-     ],
-     [
-      11,
-      10,
-      "6"
-     ],
-     [
       14,
-      10,
+      "7"
+     ],
+     [
+      20,
+      14,
+      "."
+     ],
+     [
+      21,
+      14,
+      "."
+     ],
+     [
+      18,
+      13,
       "c"
      ],
      [
+      20,
+      13,
+      "c"
+     ],
+     [
+      18,
       15,
-      10,
-      "c"
-     ],
-     [
-      16,
-      10,
       "b"
      ],
      [
-      17,
-      10,
+      20,
+      15,
       "b"
      ],
      [
-      5,
-      11,
+      6,
+      6,
       "w"
      ]
     ],
     [
      [
       7,
-      9,
-      "6"
+      8,
+      "."
      ],
      [
       8,
-      9,
-      "6"
+      8,
+      "w"
      ],
      [
       9,
-      9,
-      "I"
+      8,
+      "d"
      ],
      [
       10,
-      9,
-      "C"
+      8,
+      "e"
      ],
      [
       11,
-      9,
+      8,
       "e"
      ],
      [
       12,
-      9,
+      8,
       "d"
      ],
      [
       13,
-      9,
-      "d"
-     ],
-     [
-      14,
-      9,
-      "d"
-     ],
-     [
-      15,
-      9,
-      "d"
-     ],
-     [
-      16,
-      9,
+      8,
       "c"
      ],
      [
+      6,
+      9,
+      "."
+     ],
+     [
       8,
-      10,
-      "6"
+      9,
+      "w"
      ],
      [
       9,
-      10,
-      "I"
+      9,
+      "w"
      ],
      [
       10,
-      10,
-      "C"
+      9,
+      "c"
      ],
      [
       11,
-      10,
-      "6"
+      9,
+      "b"
      ],
      [
       12,
-      10,
-      "c"
-     ],
-     [
-      13,
-      10,
-      "c"
-     ],
-     [
-      14,
-      10,
-      "b"
-     ],
-     [
-      15,
-      10,
-      "b"
-     ],
-     [
       9,
-      8,
+      "b"
+     ],
+     [
+      10,
+      11,
+      "w"
+     ],
+     [
+      4,
+      10,
       "w"
      ]
     ],
     [
      [
       5,
-      9,
+      8,
+      "d"
+     ],
+     [
+      6,
+      8,
       "e"
      ],
      [
-      6,
-      9,
-      "d"
-     ],
-     [
       7,
-      9,
-      "d"
-     ],
-     [
-      10,
-      9,
-      "c"
-     ],
-     [
-      11,
-      9,
-      "6"
-     ],
-     [
-      12,
-      9,
-      "6"
-     ],
-     [
-      6,
-      10,
-      "c"
-     ],
-     [
-      7,
-      10,
-      "c"
+      8,
+      "e"
      ],
      [
       8,
-      10,
-      "b"
+      8,
+      "d"
      ],
      [
       9,
-      10,
-      "b"
+      8,
+      "c"
      ],
      [
       10,
-      10,
+      8,
       "C"
      ],
      [
       11,
-      10,
-      "6"
+      8,
+      "."
      ],
      [
-      13,
-      11,
+      4,
+      9,
       "w"
      ],
      [
-      17,
+      5,
+      9,
+      "w"
+     ],
+     [
+      6,
+      9,
+      "c"
+     ],
+     [
+      7,
+      9,
+      "b"
+     ],
+     [
       8,
+      9,
+      "b"
+     ],
+     [
+      9,
+      9,
+      "."
+     ],
+     [
+      10,
+      9,
+      "C"
+     ],
+     [
+      19,
+      12,
+      "."
+     ],
+     [
+      19,
+      13,
+      "."
+     ],
+     [
+      19,
+      15,
+      "."
+     ],
+     [
+      19,
+      16,
+      "."
+     ],
+     [
+      17,
+      14,
+      "7"
+     ],
+     [
+      18,
+      14,
+      "7"
+     ],
+     [
+      20,
+      14,
+      "."
+     ],
+     [
+      21,
+      14,
+      "."
+     ],
+     [
+      18,
+      13,
+      "c"
+     ],
+     [
+      20,
+      13,
+      "c"
+     ],
+     [
+      18,
+      15,
+      "b"
+     ],
+     [
+      20,
+      15,
+      "b"
+     ],
+     [
+      14,
+      7,
       "w"
      ]
     ]
    ],
    "flash": [
     [
-     5,
+     6,
+     6,
+     "w"
+    ],
+    [
+     6,
+     7,
+     "w"
+    ],
+    [
+     4,
+     10,
+     "w"
+    ],
+    [
+     4,
      11,
      "w"
     ],
     [
-     5,
-     12,
+     14,
+     6,
      "w"
     ],
     [
-     9,
+     14,
+     7,
+     "w"
+    ],
+    [
+     16,
+     10,
+     "w"
+    ],
+    [
+     16,
      11,
      "w"
     ],
     [
-     9,
-     12,
+     10,
+     6,
      "w"
     ],
     [
-     13,
+     10,
+     7,
+     "w"
+    ],
+    [
+     10,
+     10,
+     "w"
+    ],
+    [
+     10,
      11,
-     "w"
-    ],
-    [
-     13,
-     12,
-     "w"
-    ],
-    [
-     17,
-     11,
-     "w"
-    ],
-    [
-     17,
-     12,
      "w"
     ],
     [
@@ -2057,6 +4597,16 @@
     ],
     [
      6,
+     13,
+     "w"
+    ],
+    [
+     7,
+     13,
+     "w"
+    ],
+    [
+     8,
      13,
      "w"
     ],
@@ -2071,22 +4621,12 @@
      "w"
     ],
     [
-     13,
-     13,
-     "w"
-    ],
-    [
-     14,
+     11,
      13,
      "w"
     ],
     [
-     17,
-     13,
-     "w"
-    ],
-    [
-     18,
+     12,
      13,
      "w"
     ]
@@ -2097,266 +4637,206 @@
     [],
     [
      [
-      8,
-      6,
-      "y"
-     ],
-     [
-      9,
-      6,
-      "y"
-     ],
-     [
-      11,
-      6,
-      "i"
-     ],
-     [
-      12,
-      6,
-      "i"
-     ],
-     [
-      14,
-      8,
-      "y"
-     ],
-     [
       15,
-      8,
-      "y"
-     ],
-     [
       11,
-      8,
-      "i"
+      "w"
      ],
      [
+      16,
       12,
-      8,
-      "i"
-     ],
-     [
-      8,
-      9,
-      "i"
-     ],
-     [
-      9,
-      9,
-      "j"
-     ]
-    ],
-    [
-     [
-      8,
-      6,
-      "y"
-     ],
-     [
-      9,
-      6,
-      "y"
-     ],
-     [
-      10,
-      6,
-      "y"
-     ],
-     [
-      12,
-      6,
-      "i"
-     ],
-     [
-      13,
-      6,
-      "i"
-     ],
-     [
-      14,
-      6,
-      "i"
-     ],
-     [
-      14,
-      8,
-      "y"
-     ],
-     [
-      15,
-      8,
-      "y"
-     ],
-     [
-      11,
-      8,
-      "i"
-     ],
-     [
-      12,
-      8,
-      "i"
-     ],
-     [
-      14,
-      9,
       "j"
      ],
      [
       15,
-      9,
-      "i"
-     ]
-    ],
-    [
-     [
-      8,
-      6,
-      "y"
-     ],
-     [
-      9,
-      6,
-      "y"
-     ],
-     [
-      11,
-      6,
-      "i"
-     ],
-     [
-      12,
-      6,
-      "i"
-     ],
-     [
       13,
-      8,
-      "y"
+      "j"
      ],
      [
+      16,
       14,
-      8,
-      "y"
+      "i"
      ],
      [
       15,
-      8,
-      "y"
-     ],
-     [
-      9,
-      8,
+      15,
       "i"
      ],
      [
-      10,
-      8,
-      "i"
+      15,
+      17,
+      "j"
      ],
      [
-      11,
-      8,
+      16,
+      17,
       "i"
      ],
      [
       17,
-      9,
+      16,
+      "g"
+     ],
+     [
+      12,
+      16,
+      "i"
+     ],
+     [
+      11,
+      17,
+      "h"
+     ]
+    ],
+    [
+     [
+      16,
+      11,
+      "w"
+     ],
+     [
+      15,
+      12,
+      "i"
+     ],
+     [
+      16,
+      13,
       "j"
      ],
      [
-      18,
-      9,
+      15,
+      14,
+      "h"
+     ],
+     [
+      16,
+      15,
       "i"
+     ],
+     [
+      17,
+      17,
+      "i"
+     ],
+     [
+      15,
+      17,
+      "h"
+     ],
+     [
+      11,
+      16,
+      "i"
+     ],
+     [
+      12,
+      16,
+      "i"
+     ],
+     [
+      12,
+      17,
+      "h"
+     ],
+     [
+      13,
+      16,
+      "h"
+     ]
+    ],
+    [
+     [
+      15,
+      12,
+      "i"
+     ],
+     [
+      16,
+      12,
+      "j"
+     ],
+     [
+      15,
+      14,
+      "j"
+     ],
+     [
+      16,
+      14,
+      "i"
+     ],
+     [
+      17,
+      16,
+      "h"
+     ],
+     [
+      16,
+      17,
+      "i"
+     ],
+     [
+      17,
+      17,
+      "h"
+     ],
+     [
+      12,
+      16,
+      "g"
+     ],
+     [
+      11,
+      17,
+      "f"
      ]
     ]
    ],
    "flash": [
     [
+     14,
      11,
+     "j"
+    ],
+    [
+     14,
+     12,
+     "j"
+    ],
+    [
+     14,
      13,
-     "w"
+     "j"
     ],
     [
+     14,
+     14,
+     "j"
+    ],
+    [
+     14,
+     15,
+     "j"
+    ],
+    [
+     17,
+     11,
+     "j"
+    ],
+    [
+     17,
      12,
+     "j"
+    ],
+    [
+     17,
      13,
      "j"
     ],
     [
-     11,
-     14,
-     "w"
-    ],
-    [
-     12,
+     17,
      14,
      "j"
-    ],
-    [
-     11,
-     15,
-     "w"
-    ],
-    [
-     12,
-     15,
-     "j"
-    ],
-    [
-     11,
-     16,
-     "w"
-    ],
-    [
-     12,
-     16,
-     "j"
-    ],
-    [
-     9,
-     18,
-     "y"
-    ],
-    [
-     10,
-     18,
-     "i"
-    ],
-    [
-     9,
-     19,
-     "y"
-    ],
-    [
-     10,
-     19,
-     "y"
-    ],
-    [
-     14,
-     18,
-     "y"
-    ],
-    [
-     15,
-     18,
-     "i"
-    ],
-    [
-     14,
-     19,
-     "y"
-    ],
-    [
-     15,
-     19,
-     "y"
-    ],
-    [
-     6,
-     16,
-     "i"
     ],
     [
      17,
@@ -2364,9 +4844,59 @@
      "j"
     ],
     [
-     14,
+     15,
+     11,
+     "w"
+    ],
+    [
+     16,
+     11,
+     "w"
+    ],
+    [
+     15,
+     12,
+     "w"
+    ],
+    [
+     16,
+     12,
+     "w"
+    ],
+    [
+     15,
+     16,
+     "j"
+    ],
+    [
+     16,
+     16,
+     "j"
+    ],
+    [
+     17,
      16,
      "i"
+    ],
+    [
+     17,
+     17,
+     "i"
+    ],
+    [
+     18,
+     9,
+     "j"
+    ],
+    [
+     19,
+     13,
+     "i"
+    ],
+    [
+     13,
+     14,
+     "j"
     ]
    ]
   },
@@ -2660,6 +5190,2451 @@
      14,
      15,
      "w"
+    ]
+   ]
+  },
+  "mendpress": {
+   "idle": [
+    [],
+    [
+     [
+      11,
+      11,
+      "0"
+     ],
+     [
+      12,
+      11,
+      "0"
+     ],
+     [
+      11,
+      12,
+      "0"
+     ],
+     [
+      12,
+      12,
+      "0"
+     ],
+     [
+      10,
+      10,
+      "8"
+     ],
+     [
+      13,
+      10,
+      "8"
+     ],
+     [
+      10,
+      13,
+      "8"
+     ],
+     [
+      13,
+      13,
+      "8"
+     ]
+    ],
+    [
+     [
+      7,
+      15,
+      "3"
+     ],
+     [
+      8,
+      15,
+      "2"
+     ],
+     [
+      9,
+      15,
+      "7"
+     ],
+     [
+      10,
+      15,
+      "7"
+     ],
+     [
+      11,
+      15,
+      "+"
+     ],
+     [
+      12,
+      15,
+      "9"
+     ],
+     [
+      13,
+      15,
+      "7"
+     ],
+     [
+      14,
+      15,
+      "7"
+     ],
+     [
+      15,
+      15,
+      "1"
+     ],
+     [
+      16,
+      15,
+      "1"
+     ],
+     [
+      11,
+      12,
+      "0"
+     ],
+     [
+      12,
+      12,
+      "0"
+     ]
+    ],
+    [
+     [
+      11,
+      9,
+      "+"
+     ],
+     [
+      11,
+      10,
+      "+"
+     ],
+     [
+      9,
+      11,
+      "+"
+     ],
+     [
+      10,
+      11,
+      "+"
+     ],
+     [
+      12,
+      9,
+      "9"
+     ],
+     [
+      12,
+      10,
+      "9"
+     ],
+     [
+      13,
+      11,
+      "9"
+     ],
+     [
+      14,
+      11,
+      "9"
+     ]
+    ]
+   ],
+   "flash": [
+    [
+     7,
+     15,
+     "3"
+    ],
+    [
+     8,
+     15,
+     "2"
+    ],
+    [
+     9,
+     15,
+     "7"
+    ],
+    [
+     10,
+     15,
+     "7"
+    ],
+    [
+     11,
+     15,
+     "+"
+    ],
+    [
+     12,
+     15,
+     "9"
+    ],
+    [
+     13,
+     15,
+     "7"
+    ],
+    [
+     14,
+     15,
+     "7"
+    ],
+    [
+     15,
+     15,
+     "1"
+    ],
+    [
+     16,
+     15,
+     "1"
+    ],
+    [
+     11,
+     11,
+     "w"
+    ],
+    [
+     12,
+     11,
+     "w"
+    ],
+    [
+     11,
+     12,
+     "w"
+    ],
+    [
+     12,
+     12,
+     "w"
+    ],
+    [
+     9,
+     18,
+     "w"
+    ],
+    [
+     10,
+     18,
+     "w"
+    ],
+    [
+     11,
+     18,
+     "w"
+    ],
+    [
+     12,
+     18,
+     "w"
+    ],
+    [
+     13,
+     18,
+     "w"
+    ],
+    [
+     14,
+     18,
+     "w"
+    ]
+   ]
+  },
+  "board/temper": {
+   "work": [
+    [
+     [
+      6,
+      7,
+      "h"
+     ],
+     [
+      2,
+      8,
+      "g"
+     ],
+     [
+      3,
+      8,
+      "g"
+     ],
+     [
+      4,
+      8,
+      "g"
+     ],
+     [
+      5,
+      8,
+      "g"
+     ],
+     [
+      6,
+      8,
+      "g"
+     ]
+    ],
+    [
+     [
+      6,
+      4,
+      "i"
+     ],
+     [
+      3,
+      5,
+      "i"
+     ],
+     [
+      4,
+      5,
+      "i"
+     ],
+     [
+      5,
+      5,
+      "i"
+     ],
+     [
+      6,
+      5,
+      "i"
+     ],
+     [
+      7,
+      5,
+      "i"
+     ]
+    ]
+   ]
+  },
+  "board/tollbooth": {
+   "work": [
+    [
+     [
+      1,
+      4,
+      "R"
+     ],
+     [
+      2,
+      4,
+      "R"
+     ],
+     [
+      1,
+      6,
+      "."
+     ],
+     [
+      2,
+      6,
+      "."
+     ]
+    ],
+    [
+     [
+      5,
+      4,
+      "h"
+     ],
+     [
+      6,
+      4,
+      "i"
+     ],
+     [
+      1,
+      5,
+      "w"
+     ]
+    ]
+   ]
+  },
+  "board/grindstone": {
+   "work": [
+    [
+     [
+      5,
+      2,
+      "i"
+     ],
+     [
+      6,
+      2,
+      "&"
+     ],
+     [
+      8,
+      1,
+      "."
+     ],
+     [
+      9,
+      2,
+      "."
+     ],
+     [
+      6,
+      1,
+      "y"
+     ],
+     [
+      4,
+      5,
+      "d"
+     ],
+     [
+      5,
+      6,
+      "e"
+     ]
+    ],
+    [
+     [
+      6,
+      2,
+      "&"
+     ],
+     [
+      7,
+      2,
+      "i"
+     ],
+     [
+      8,
+      1,
+      "."
+     ],
+     [
+      9,
+      2,
+      "."
+     ],
+     [
+      9,
+      1,
+      "y"
+     ],
+     [
+      10,
+      3,
+      "h"
+     ],
+     [
+      4,
+      5,
+      "d"
+     ],
+     [
+      5,
+      5,
+      "e"
+     ]
+    ]
+   ]
+  },
+  "board/grudgerod": {
+   "work": [
+    [
+     [
+      3,
+      6,
+      "i"
+     ],
+     [
+      4,
+      6,
+      "h"
+     ],
+     [
+      9,
+      6,
+      "."
+     ],
+     [
+      8,
+      6,
+      "f"
+     ]
+    ],
+    [
+     [
+      3,
+      4,
+      "i"
+     ],
+     [
+      4,
+      4,
+      "h"
+     ],
+     [
+      9,
+      6,
+      "."
+     ],
+     [
+      10,
+      5,
+      "f"
+     ]
+    ]
+   ]
+  },
+  "board/whetstone": {
+   "work": [
+    [
+     [
+      8,
+      3,
+      "$"
+     ],
+     [
+      10,
+      1,
+      "w"
+     ],
+     [
+      9,
+      2,
+      "w"
+     ],
+     [
+      9,
+      1,
+      "w"
+     ]
+    ],
+    [
+     [
+      8,
+      3,
+      "$"
+     ],
+     [
+      7,
+      4,
+      "w"
+     ],
+     [
+      6,
+      5,
+      "w"
+     ],
+     [
+      6,
+      4,
+      "w"
+     ]
+    ]
+   ]
+  },
+  "board/longhaul": {
+   "work": [
+    [
+     [
+      5,
+      5,
+      "w"
+     ],
+     [
+      6,
+      6,
+      "R"
+     ],
+     [
+      3,
+      4,
+      "Z"
+     ],
+     [
+      5,
+      4,
+      "."
+     ],
+     [
+      6,
+      9,
+      "Y"
+     ],
+     [
+      4,
+      9,
+      "."
+     ]
+    ],
+    [
+     [
+      5,
+      5,
+      "w"
+     ],
+     [
+      5,
+      6,
+      "w"
+     ],
+     [
+      5,
+      7,
+      "R"
+     ],
+     [
+      5,
+      8,
+      "R"
+     ],
+     [
+      2,
+      6,
+      "."
+     ],
+     [
+      2,
+      5,
+      "Z"
+     ],
+     [
+      7,
+      7,
+      "."
+     ],
+     [
+      7,
+      8,
+      "Y"
+     ]
+    ]
+   ]
+  },
+  "board/counterweight": {
+   "work": [
+    [
+     [
+      5,
+      8,
+      "d"
+     ],
+     [
+      6,
+      8,
+      "c"
+     ],
+     [
+      9,
+      8,
+      "b"
+     ],
+     [
+      10,
+      8,
+      "k"
+     ],
+     [
+      5,
+      9,
+      "b"
+     ],
+     [
+      7,
+      9,
+      "a"
+     ],
+     [
+      10,
+      9,
+      "k"
+     ]
+    ],
+    [
+     [
+      6,
+      8,
+      "k"
+     ],
+     [
+      7,
+      8,
+      "d"
+     ],
+     [
+      10,
+      8,
+      "c"
+     ],
+     [
+      11,
+      8,
+      "b"
+     ],
+     [
+      6,
+      9,
+      "k"
+     ],
+     [
+      8,
+      9,
+      "b"
+     ],
+     [
+      11,
+      9,
+      "a"
+     ]
+    ]
+   ]
+  },
+  "board/sorting": {
+   "work": [
+    [
+     [
+      8,
+      4,
+      "w"
+     ],
+     [
+      9,
+      4,
+      "w"
+     ],
+     [
+      7,
+      5,
+      "."
+     ],
+     [
+      7,
+      6,
+      "."
+     ],
+     [
+      6,
+      5,
+      "5"
+     ],
+     [
+      6,
+      6,
+      "5"
+     ]
+    ],
+    [
+     [
+      8,
+      4,
+      "C"
+     ],
+     [
+      9,
+      4,
+      "C"
+     ],
+     [
+      3,
+      10,
+      "w"
+     ],
+     [
+      4,
+      10,
+      "w"
+     ]
+    ]
+   ]
+  },
+  "board/plateroller": {
+   "work": [
+    [
+     [
+      3,
+      5,
+      "h"
+     ],
+     [
+      6,
+      5,
+      "i"
+     ],
+     [
+      3,
+      6,
+      "g"
+     ],
+     [
+      5,
+      6,
+      "h"
+     ],
+     [
+      5,
+      1,
+      "3"
+     ],
+     [
+      6,
+      1,
+      "w"
+     ],
+     [
+      5,
+      7,
+      "3"
+     ],
+     [
+      6,
+      7,
+      "3"
+     ],
+     [
+      4,
+      8,
+      "w"
+     ]
+    ],
+    [
+     [
+      3,
+      5,
+      "h"
+     ],
+     [
+      4,
+      5,
+      "h"
+     ],
+     [
+      6,
+      5,
+      "i"
+     ],
+     [
+      7,
+      5,
+      "i"
+     ],
+     [
+      3,
+      6,
+      "g"
+     ],
+     [
+      4,
+      6,
+      "g"
+     ],
+     [
+      5,
+      6,
+      "h"
+     ],
+     [
+      6,
+      6,
+      "h"
+     ],
+     [
+      5,
+      1,
+      "3"
+     ],
+     [
+      6,
+      1,
+      "3"
+     ],
+     [
+      7,
+      2,
+      "w"
+     ],
+     [
+      5,
+      7,
+      "3"
+     ],
+     [
+      6,
+      7,
+      "3"
+     ],
+     [
+      4,
+      9,
+      "w"
+     ]
+    ]
+   ]
+  },
+  "board/scaleguard": {
+   "work": [
+    [
+     [
+      1,
+      3,
+      "w"
+     ],
+     [
+      2,
+      3,
+      "w"
+     ],
+     [
+      1,
+      4,
+      "w"
+     ],
+     [
+      2,
+      4,
+      "$"
+     ],
+     [
+      3,
+      4,
+      "$"
+     ],
+     [
+      4,
+      3,
+      "$"
+     ]
+    ],
+    [
+     [
+      6,
+      3,
+      "w"
+     ],
+     [
+      7,
+      3,
+      "w"
+     ],
+     [
+      6,
+      4,
+      "w"
+     ],
+     [
+      7,
+      4,
+      "$"
+     ],
+     [
+      8,
+      4,
+      "$"
+     ],
+     [
+      9,
+      3,
+      "$"
+     ]
+    ]
+   ]
+  },
+  "board/coil": {
+   "work": [
+    [
+     [
+      7,
+      1,
+      "."
+     ],
+     [
+      8,
+      2,
+      "."
+     ],
+     [
+      10,
+      1,
+      "."
+     ],
+     [
+      10,
+      2,
+      "."
+     ],
+     [
+      9,
+      1,
+      "I"
+     ],
+     [
+      9,
+      2,
+      "w"
+     ],
+     [
+      8,
+      3,
+      "I"
+     ],
+     [
+      2,
+      4,
+      "O"
+     ],
+     [
+      3,
+      4,
+      "O"
+     ],
+     [
+      4,
+      5,
+      "P"
+     ],
+     [
+      5,
+      5,
+      "P"
+     ]
+    ],
+    [
+     [
+      10,
+      1,
+      "."
+     ],
+     [
+      10,
+      2,
+      "."
+     ],
+     [
+      6,
+      1,
+      "I"
+     ],
+     [
+      7,
+      1,
+      "w"
+     ],
+     [
+      10,
+      3,
+      "I"
+     ],
+     [
+      5,
+      4,
+      "O"
+     ],
+     [
+      6,
+      4,
+      "O"
+     ],
+     [
+      2,
+      5,
+      "P"
+     ]
+    ]
+   ]
+  },
+  "board/quench": {
+   "work": [
+    [
+     [
+      4,
+      1,
+      "."
+     ],
+     [
+      4,
+      2,
+      "."
+     ],
+     [
+      1,
+      1,
+      "w"
+     ],
+     [
+      3,
+      1,
+      "5"
+     ],
+     [
+      3,
+      4,
+      "."
+     ],
+     [
+      4,
+      4,
+      "w"
+     ],
+     [
+      4,
+      3,
+      "w"
+     ],
+     [
+      3,
+      5,
+      ":"
+     ],
+     [
+      8,
+      5,
+      "w"
+     ]
+    ],
+    [
+     [
+      2,
+      1,
+      "."
+     ],
+     [
+      2,
+      2,
+      "."
+     ],
+     [
+      3,
+      2,
+      "."
+     ],
+     [
+      4,
+      2,
+      "."
+     ],
+     [
+      2,
+      3,
+      "w"
+     ],
+     [
+      4,
+      3,
+      "w"
+     ],
+     [
+      4,
+      4,
+      "w"
+     ],
+     [
+      3,
+      5,
+      ":"
+     ],
+     [
+      2,
+      6,
+      "w"
+     ]
+    ]
+   ]
+  },
+  "board/surge": {
+   "work": [
+    [
+     [
+      10,
+      1,
+      "."
+     ],
+     [
+      9,
+      2,
+      "."
+     ],
+     [
+      10,
+      2,
+      "g"
+     ],
+     [
+      9,
+      3,
+      "h"
+     ],
+     [
+      4,
+      7,
+      "R"
+     ],
+     [
+      5,
+      7,
+      "w"
+     ]
+    ],
+    [
+     [
+      9,
+      1,
+      "h"
+     ],
+     [
+      10,
+      1,
+      "i"
+     ],
+     [
+      9,
+      2,
+      "i"
+     ],
+     [
+      10,
+      2,
+      "j"
+     ],
+     [
+      8,
+      2,
+      "g"
+     ],
+     [
+      4,
+      7,
+      "w"
+     ],
+     [
+      5,
+      7,
+      "F"
+     ]
+    ]
+   ]
+  },
+  "board/brandingiron": {
+   "work": [
+    [
+     [
+      5,
+      1,
+      "."
+     ],
+     [
+      10,
+      1,
+      "h"
+     ],
+     [
+      7,
+      4,
+      "j"
+     ],
+     [
+      8,
+      4,
+      "j"
+     ],
+     [
+      9,
+      3,
+      "i"
+     ]
+    ],
+    [
+     [
+      5,
+      1,
+      "i"
+     ],
+     [
+      6,
+      2,
+      "j"
+     ],
+     [
+      7,
+      2,
+      "j"
+     ],
+     [
+      9,
+      4,
+      "i"
+     ],
+     [
+      9,
+      5,
+      "h"
+     ]
+    ]
+   ]
+  },
+  "board/heatjacket": {
+   "work": [
+    [
+     [
+      6,
+      1,
+      "."
+     ],
+     [
+      5,
+      1,
+      "i"
+     ],
+     [
+      3,
+      5,
+      "w"
+     ]
+    ],
+    [
+     [
+      6,
+      1,
+      "h"
+     ],
+     [
+      7,
+      1,
+      "i"
+     ],
+     [
+      4,
+      5,
+      "w"
+     ],
+     [
+      3,
+      5,
+      "d"
+     ]
+    ]
+   ]
+  },
+  "board/stoker": {
+   "work": [
+    [
+     [
+      5,
+      8,
+      "g"
+     ],
+     [
+      3,
+      9,
+      "i"
+     ],
+     [
+      10,
+      9,
+      "."
+     ],
+     [
+      9,
+      10,
+      "U"
+     ]
+    ],
+    [
+     [
+      5,
+      8,
+      "i"
+     ],
+     [
+      3,
+      9,
+      "h"
+     ],
+     [
+      2,
+      8,
+      "g"
+     ],
+     [
+      10,
+      9,
+      "T"
+     ]
+    ]
+   ]
+  },
+  "board/aegisspike": {
+   "work": [
+    [
+     [
+      5,
+      4,
+      "w"
+     ],
+     [
+      4,
+      5,
+      "w"
+     ],
+     [
+      1,
+      5,
+      "w"
+     ],
+     [
+      1,
+      6,
+      "w"
+     ]
+    ],
+    [
+     [
+      7,
+      3,
+      "w"
+     ],
+     [
+      8,
+      2,
+      "w"
+     ],
+     [
+      9,
+      1,
+      "w"
+     ],
+     [
+      2,
+      4,
+      "w"
+     ],
+     [
+      3,
+      4,
+      "w"
+     ]
+    ]
+   ]
+  },
+  "board/braceframe": {
+   "work": [
+    [
+     [
+      5,
+      4,
+      "w"
+     ],
+     [
+      10,
+      1,
+      "i"
+     ],
+     [
+      9,
+      1,
+      "e"
+     ]
+    ],
+    [
+     [
+      6,
+      5,
+      "e"
+     ],
+     [
+      1,
+      9,
+      "i"
+     ],
+     [
+      2,
+      9,
+      "e"
+     ]
+    ]
+   ]
+  },
+  "board/cindermail": {
+   "work": [
+    [
+     [
+      2,
+      4,
+      "$"
+     ],
+     [
+      5,
+      7,
+      "#"
+     ],
+     [
+      7,
+      4,
+      "h"
+     ],
+     [
+      4,
+      8,
+      "i"
+     ]
+    ],
+    [
+     [
+      4,
+      6,
+      "$"
+     ],
+     [
+      6,
+      8,
+      "#"
+     ],
+     [
+      8,
+      3,
+      "h"
+     ],
+     [
+      5,
+      9,
+      "i"
+     ]
+    ]
+   ]
+  },
+  "board/crowdpress": {
+   "work": [
+    [
+     [
+      3,
+      7,
+      "2"
+     ],
+     [
+      4,
+      7,
+      "2"
+     ],
+     [
+      5,
+      7,
+      "2"
+     ],
+     [
+      6,
+      7,
+      "2"
+     ],
+     [
+      7,
+      7,
+      "2"
+     ],
+     [
+      8,
+      7,
+      "2"
+     ]
+    ],
+    [
+     [
+      2,
+      8,
+      "w"
+     ],
+     [
+      2,
+      9,
+      "$"
+     ],
+     [
+      3,
+      8,
+      "#"
+     ]
+    ]
+   ]
+  },
+  "board/keg": {
+   "work": [
+    [
+     [
+      7,
+      1,
+      "."
+     ],
+     [
+      8,
+      1,
+      "h"
+     ],
+     [
+      9,
+      1,
+      "h"
+     ],
+     [
+      7,
+      2,
+      "i"
+     ],
+     [
+      8,
+      2,
+      "j"
+     ],
+     [
+      9,
+      2,
+      "."
+     ]
+    ],
+    [
+     [
+      7,
+      1,
+      "."
+     ],
+     [
+      8,
+      1,
+      "j"
+     ],
+     [
+      9,
+      1,
+      "i"
+     ],
+     [
+      9,
+      2,
+      "."
+     ],
+     [
+      10,
+      3,
+      "h"
+     ]
+    ]
+   ]
+  },
+  "board/leechcoil": {
+   "work": [
+    [
+     [
+      5,
+      1,
+      "w"
+     ],
+     [
+      6,
+      1,
+      "L"
+     ],
+     [
+      4,
+      2,
+      "L"
+     ],
+     [
+      6,
+      2,
+      "w"
+     ],
+     [
+      7,
+      2,
+      "+"
+     ],
+     [
+      6,
+      8,
+      "w"
+     ]
+    ],
+    [
+     [
+      6,
+      1,
+      "N"
+     ],
+     [
+      4,
+      2,
+      "N"
+     ],
+     [
+      6,
+      2,
+      "N"
+     ],
+     [
+      6,
+      4,
+      "w"
+     ],
+     [
+      6,
+      5,
+      "0"
+     ]
+    ]
+   ]
+  },
+  "board/lodestone": {
+   "work": [
+    [
+     [
+      10,
+      10,
+      "."
+     ],
+     [
+      9,
+      10,
+      "1"
+     ],
+     [
+      8,
+      2,
+      "I"
+     ],
+     [
+      9,
+      2,
+      "I"
+     ],
+     [
+      9,
+      3,
+      "I"
+     ]
+    ],
+    [
+     [
+      8,
+      2,
+      "."
+     ],
+     [
+      9,
+      2,
+      "."
+     ],
+     [
+      9,
+      3,
+      "."
+     ]
+    ]
+   ]
+  },
+  "board/overclocker": {
+   "work": [
+    [
+     [
+      5,
+      4,
+      "5"
+     ],
+     [
+      6,
+      4,
+      "5"
+     ],
+     [
+      5,
+      5,
+      "5"
+     ],
+     [
+      6,
+      6,
+      "R"
+     ],
+     [
+      7,
+      6,
+      "R"
+     ],
+     [
+      10,
+      5,
+      "."
+     ],
+     [
+      10,
+      7,
+      "."
+     ]
+    ],
+    [
+     [
+      5,
+      4,
+      "5"
+     ],
+     [
+      6,
+      4,
+      "5"
+     ],
+     [
+      5,
+      5,
+      "5"
+     ],
+     [
+      5,
+      7,
+      "R"
+     ],
+     [
+      5,
+      8,
+      "R"
+     ],
+     [
+      4,
+      8,
+      "R"
+     ],
+     [
+      10,
+      5,
+      "2"
+     ],
+     [
+      10,
+      7,
+      "4"
+     ]
+    ]
+   ]
+  },
+  "board/overdrive": {
+   "work": [
+    [
+     [
+      1,
+      1,
+      "e"
+     ],
+     [
+      2,
+      1,
+      "d"
+     ],
+     [
+      1,
+      4,
+      "."
+     ],
+     [
+      2,
+      4,
+      "."
+     ],
+     [
+      9,
+      1,
+      "e"
+     ],
+     [
+      10,
+      1,
+      "d"
+     ],
+     [
+      9,
+      4,
+      "."
+     ],
+     [
+      10,
+      4,
+      "."
+     ]
+    ],
+    [
+     [
+      1,
+      7,
+      "h"
+     ],
+     [
+      2,
+      7,
+      "h"
+     ],
+     [
+      1,
+      8,
+      "h"
+     ],
+     [
+      5,
+      7,
+      "j"
+     ],
+     [
+      6,
+      7,
+      "i"
+     ],
+     [
+      5,
+      8,
+      "i"
+     ]
+    ]
+   ]
+  },
+  "board/pincer": {
+   "work": [
+    [
+     [
+      5,
+      2,
+      "5"
+     ],
+     [
+      4,
+      2,
+      "}"
+     ],
+     [
+      6,
+      2,
+      "5"
+     ],
+     [
+      7,
+      2,
+      "}"
+     ],
+     [
+      5,
+      6,
+      "e"
+     ]
+    ],
+    [
+     [
+      5,
+      6,
+      "w"
+     ],
+     [
+      6,
+      6,
+      "e"
+     ],
+     [
+      5,
+      7,
+      "e"
+     ]
+    ]
+   ]
+  },
+  "board/platebreaker": {
+   "work": [
+    [
+     [
+      3,
+      4,
+      "g"
+     ],
+     [
+      4,
+      4,
+      "h"
+     ],
+     [
+      6,
+      4,
+      "f"
+     ],
+     [
+      4,
+      7,
+      "i"
+     ],
+     [
+      5,
+      7,
+      "i"
+     ],
+     [
+      6,
+      7,
+      "i"
+     ]
+    ],
+    [
+     [
+      5,
+      4,
+      "g"
+     ],
+     [
+      6,
+      4,
+      "h"
+     ],
+     [
+      7,
+      4,
+      "g"
+     ],
+     [
+      4,
+      7,
+      "h"
+     ],
+     [
+      5,
+      7,
+      "j"
+     ],
+     [
+      6,
+      7,
+      "h"
+     ],
+     [
+      4,
+      8,
+      "h"
+     ],
+     [
+      5,
+      8,
+      "h"
+     ],
+     [
+      6,
+      8,
+      "g"
+     ]
+    ]
+   ]
+  },
+  "board/riveter": {
+   "work": [
+    [
+     [
+      4,
+      8,
+      "."
+     ],
+     [
+      5,
+      8,
+      "4"
+     ],
+     [
+      4,
+      9,
+      "w"
+     ],
+     [
+      5,
+      9,
+      "w"
+     ]
+    ],
+    [
+     [
+      3,
+      8,
+      "w"
+     ],
+     [
+      6,
+      8,
+      "w"
+     ],
+     [
+      5,
+      9,
+      "y"
+     ]
+    ]
+   ]
+  },
+  "board/rotgauge": {
+   "work": [
+    [
+     [
+      7,
+      4,
+      "e"
+     ],
+     [
+      7,
+      5,
+      "L"
+     ],
+     [
+      3,
+      10,
+      "v"
+     ],
+     [
+      4,
+      10,
+      "+"
+     ]
+    ],
+    [
+     [
+      7,
+      4,
+      "e"
+     ],
+     [
+      7,
+      3,
+      "L"
+     ],
+     [
+      3,
+      9,
+      "."
+     ],
+     [
+      4,
+      9,
+      "."
+     ],
+     [
+      3,
+      10,
+      "+"
+     ],
+     [
+      4,
+      10,
+      "9"
+     ]
+    ]
+   ]
+  },
+  "board/shieldwall": {
+   "work": [
+    [
+     [
+      3,
+      3,
+      "i"
+     ],
+     [
+      8,
+      6,
+      "i"
+     ],
+     [
+      5,
+      4,
+      "w"
+     ]
+    ],
+    [
+     [
+      8,
+      3,
+      "i"
+     ],
+     [
+      3,
+      6,
+      "i"
+     ],
+     [
+      6,
+      5,
+      "w"
+     ]
+    ]
+   ]
+  },
+  "board/splitter": {
+   "work": [
+    [
+     [
+      5,
+      8,
+      "w"
+     ],
+     [
+      6,
+      8,
+      "w"
+     ],
+     [
+      5,
+      9,
+      "w"
+     ],
+     [
+      6,
+      9,
+      "w"
+     ]
+    ],
+    [
+     [
+      7,
+      1,
+      "w"
+     ],
+     [
+      8,
+      1,
+      "w"
+     ],
+     [
+      9,
+      1,
+      "w"
+     ],
+     [
+      2,
+      4,
+      "w"
+     ],
+     [
+      3,
+      4,
+      "w"
+     ]
+    ]
+   ]
+  },
+  "board/trophychain": {
+   "work": [
+    [
+     [
+      3,
+      6,
+      "w"
+     ],
+     [
+      4,
+      6,
+      "Q"
+     ],
+     [
+      5,
+      6,
+      "d"
+     ],
+     [
+      3,
+      7,
+      "Q"
+     ],
+     [
+      4,
+      7,
+      "z"
+     ],
+     [
+      5,
+      7,
+      "d"
+     ],
+     [
+      3,
+      10,
+      "b"
+     ],
+     [
+      6,
+      10,
+      "."
+     ]
+    ],
+    [
+     [
+      4,
+      6,
+      "d"
+     ],
+     [
+      5,
+      6,
+      "E"
+     ],
+     [
+      6,
+      6,
+      "w"
+     ],
+     [
+      4,
+      7,
+      "d"
+     ],
+     [
+      5,
+      7,
+      "Q"
+     ],
+     [
+      6,
+      7,
+      "z"
+     ],
+     [
+      4,
+      10,
+      "."
+     ],
+     [
+      7,
+      10,
+      "a"
+     ]
+    ]
+   ]
+  },
+  "board/twingauge": {
+   "work": [
+    [
+     [
+      4,
+      2,
+      "5"
+     ],
+     [
+      3,
+      2,
+      "R"
+     ],
+     [
+      9,
+      2,
+      "5"
+     ],
+     [
+      8,
+      2,
+      "R"
+     ]
+    ],
+    [
+     [
+      2,
+      1,
+      "w"
+     ],
+     [
+      7,
+      1,
+      "w"
+     ],
+     [
+      2,
+      2,
+      "5"
+     ],
+     [
+      7,
+      2,
+      "5"
+     ]
+    ]
+   ]
+  },
+  "board/twinlatch": {
+   "work": [
+    [
+     [
+      3,
+      3,
+      "4"
+     ],
+     [
+      3,
+      4,
+      "2"
+     ],
+     [
+      3,
+      5,
+      "d"
+     ],
+     [
+      4,
+      4,
+      "4"
+     ],
+     [
+      4,
+      5,
+      "2"
+     ],
+     [
+      4,
+      6,
+      "a"
+     ],
+     [
+      5,
+      5,
+      "w"
+     ],
+     [
+      6,
+      6,
+      "L"
+     ]
+    ],
+    [
+     [
+      8,
+      3,
+      "4"
+     ],
+     [
+      8,
+      4,
+      "2"
+     ],
+     [
+      8,
+      5,
+      "b"
+     ],
+     [
+      7,
+      4,
+      "4"
+     ],
+     [
+      7,
+      5,
+      "2"
+     ],
+     [
+      7,
+      6,
+      "a"
+     ],
+     [
+      5,
+      5,
+      "w"
+     ],
+     [
+      6,
+      6,
+      "L"
+     ]
     ]
    ]
   }

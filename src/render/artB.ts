@@ -1,7 +1,10 @@
 // ARTB-CODE-1 (REQ-BFG-126, REQ-BFG-127): art direction B in the game. The first slice (ARTB-CODE-1, 1B): KILN, the ten FURNACE rigs (EMBER TROUGH, NAIL STRIP,
 // GREASE WORKS, BALLAST, RASP, BELLOWS, SPARK GAP, STATIC BRUSH, BARBED SPOOL, VENOM DRIP) and FURNACE's 32x32 face. ARTB-CODE-2A, batch 2 (a data swap: no drawing
 // code changed): the 32x32 faces of WEAVER, FOUNDRY and BASTION, the start factories LOOM, CRUCIBLE and WARDWORKS (drawn as KILN is), and the redrawn BARBED SPOOL
-// and STATIC BRUSH. So the data holds the four start factories, the ten rigs and the four playable heroes' faces. DISPLAY ONLY: every pixel comes from artBData.ts
+// and STATIC BRUSH. ARTB-CODE-3A, batches 2R, 3a, 4a and 4b (a data swap again: no drawing code changed): LOOM and CRUCIBLE (with their icons) and BARBED SPOOL (card and board
+// sprite) redrawn; the 13 gun pieces, WARD BELL and MENDING LOOM (card/<id> and icon/<id>); MEND PRESS (a bare 24x24 sprite with its icon, idle phases and flash, drawn as KILN is);
+// and 34 more rigs (card/<id> and board/<id> with two work phases). So the data holds the five factories (KILN, LOOM, CRUCIBLE, WARDWORKS, MEND PRESS), 44 rigs, the guns' and the
+// two mods' cards and icons and the four playable heroes' faces: 134 sprites. DISPLAY ONLY: every pixel comes from artBData.ts
 // (generated from tools/artb/artb-slice.json by tools/artb/gen.mjs); this file draws nothing of its own.
 //
 // ONE SWITCH (setArtB, on by default; a build made with VITE_ARTB=0 starts with it off). With it off every function below answers null ("not
@@ -13,9 +16,9 @@
 //   - a 1-cell rig (board/<id>, 12x12): `work`, two phases, phase (frame >> 1) & 1 while it works (today's `active`); idle holds still;
 //   - a body (body/<id>, 24x12 lying along x; an upright box gets it transposed, as shapeArt.ts transposes today): `idle`, two phases, phase
 //     (frame >> 2) & 1; while it works, `work` phase (frame >> 1) & 1;
-//   - a start factory (kiln, loom, crucible, wardworks: bare names, 24x24): `idle`, four phases, phase (frame >> 1) & 3 (the first is the plain sprite); `flash`
+//   - a factory (kiln, loom, crucible, wardworks, mendpress: bare names, 24x24): `idle`, four phases, phase (frame >> 1) & 3 (the first is the plain sprite); `flash`
 //     over the plain sprite while factorySprite's flash is true (the stars change nothing, as today);
-//   - the small icon of a rig is its board/<id> sprite (a factory: icon/<id>), the shop card's picture card/<id> (a factory: its bare name, 24x24), the face
+//   - the small icon of a rig is its board/<id> sprite (a factory, a gun or a mod: icon/<id>), the shop card's picture card/<id> (a factory: its bare name, 24x24), the face
 //     portrait/<hero id> (furnace, weaver, foundry, bastion).
 // Nothing here imports sprites.ts or shapeArt.ts (they import this).
 
@@ -91,7 +94,7 @@ export function artBBoardSil(id: string): Cv | null {
   return silOf(`board/${id}`, artBBoard(id, 0, false));
 }
 
-/** The 12x12 small icon (sprites.ts itemIcon): icon/<id> (a factory's: kiln, loom, crucible, wardworks) or else the rig's board/<id>, plain. null: not mine. */
+/** The 12x12 small icon (sprites.ts itemIcon): icon/<id> (a factory's: kiln, loom, crucible, wardworks, mendpress; a gun's; WARD BELL's and MENDING LOOM's) or else the rig's board/<id>, plain. null: not mine. */
 export function artBIcon(id: string): Cv | null {
   if (!ON) return null;
   const name = SPR.has(`icon/${id}`) ? `icon/${id}` : SPR.has(`board/${id}`) ? `board/${id}` : "";
@@ -100,7 +103,7 @@ export function artBIcon(id: string): Cv | null {
 
 // ------------------------------------------------------------------ the shop card
 
-/** The shop card's native 24x24 picture (shop.ts iconX2): card/<id>, or a factory's bare name (`kiln`, `loom`, `crucible`, `wardworks`). An id with a "/" is never a piece's id: null (N1). null: not mine. */
+/** The shop card's native 24x24 picture (shop.ts iconX2): card/<id>, or a factory's bare name (`kiln`, `loom`, `crucible`, `wardworks`, `mendpress`). An id with a "/" is never a piece's id: null (N1). null: not mine. */
 export function artBCard(id: string): Cv | null {
   if (!ON || id.includes("/")) return null; // ARTB-CODE-2A (N1): an id with a "/" is a sprite's NAME in the data ("card/barbed", "portrait/weaver"), never a piece's id: the bare-name branch below must not answer it (artBFactory and artBHas do not)
   const name = SPR.has(`card/${id}`) ? `card/${id}` : SPR.has(id) ? id : "";
@@ -109,7 +112,7 @@ export function artBCard(id: string): Cv | null {
 
 // ------------------------------------------------------------------ the factory and the bodies
 
-/** A start factory (KILN, LOOM, CRUCIBLE, WARDWORKS: a bare name in the data, 24x24; sprites.ts factorySprite): the plain sprite with its `idle` phase
+/** A factory (KILN, LOOM, CRUCIBLE, WARDWORKS, MEND PRESS: a bare name in the data, 24x24; sprites.ts factorySprite): the plain sprite with its `idle` phase
  *  (frame >> 1) & 3, or its `flash` over the plain sprite while `flash`. Stars change nothing. null: not mine. */
 export function artBFactory(id: string, frameIdx: number, flash: boolean): Cv | null {
   if (!ON || id.includes("/") || !SPR.has(id)) return null;
@@ -153,7 +156,7 @@ export function artBFace(id: string): Cv | null {
   return SPR.has(name) ? sprite(name, "plain") : null;
 }
 
-/** Whether the art holds a piece of this id (a rig, a start factory) with the switch on: the ids the card, icon, board and body hooks answer for. */
+/** Whether the art holds a piece of this id (a rig, a factory, a gun, a mod) with the switch on: the ids the card, icon, board and body hooks answer for. */
 export function artBHas(id: string): boolean {
   return ON && (SPR.has(`card/${id}`) || SPR.has(`board/${id}`) || SPR.has(`icon/${id}`) || SPR.has(`body/${id}`) || (!id.includes("/") && SPR.has(id)));
 }
