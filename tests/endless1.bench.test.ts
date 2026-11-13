@@ -9,6 +9,8 @@ import { dirname } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { SEED_POOL } from "../server/seedPoolData";
 import { checkSnapshot, ghostId, type PoolEntry } from "../src/net/snapshot";
+import { PICK_RULE } from "../src/net/pick"; // BUMP-1I (REQ-BFG-125, V2): the endless bench's veteran rule
+import { VETERAN_RULE } from "../src/net/veteran";
 import type { HeroId } from "../src/sim/content";
 import { ENDLESS, ENDLESS_GOD_HULL_STEP, ENDLESS_LAST_DAY, ENDLESS_LIVES, ENDLESS_WIN_CAP, setEndless } from "../src/sim/endless"; // BUMP-1F (RULING-BUMP1F-R9 R9.2): + ENDLESS_GOD_HULL_STEP
 import { benchRun, readOf, summary, DEFAULT_STEPS, ENDLESS_BOTS, type BenchRow, type EndlessBot } from "../src/sim/harness/endlessBench";
@@ -70,7 +72,8 @@ describe("ENDLESS-1 bench: one run, end to end (par, FURNACE, the committed seed
   });
 });
 
-const cfg = process.env.ENDLESS_BENCH ? (JSON.parse(process.env.ENDLESS_BENCH) as { bot: EndlessBot; hero: HeroId; from: number; to: number; out: string; budgetS: number; steps?: number[] }) : null;
+// BUMP-1I (REQ-BFG-125, V2): + streak, vrule ([share, at]) and shield: the bench's veteran (endlessBench.ts BenchVeteran; as tools/retune1.ts --streak, --vrule, --shield). Absent: the run as it was.
+const cfg = process.env.ENDLESS_BENCH ? (JSON.parse(process.env.ENDLESS_BENCH) as { bot: EndlessBot; hero: HeroId; from: number; to: number; out: string; budgetS: number; steps?: number[]; streak?: number; vrule?: [number, number]; shield?: boolean }) : null;
 
 describe.skipIf(!cfg)("ENDLESS-1 bench: the seeds of one (bot, hero) (ENDLESS_BENCH)", () => {
   it("plays them and appends one line a run", () => {
@@ -84,7 +87,8 @@ describe.skipIf(!cfg)("ENDLESS-1 bench: the seeds of one (bot, hero) (ENDLESS_BE
         appendFileSync(c.out, JSON.stringify({ stopped: seed - 1, bot: c.bot, hero: c.hero }) + "\n");
         break;
       }
-      appendFileSync(c.out, JSON.stringify(benchRun(c.bot, c.hero, seed, pool, c.steps ?? DEFAULT_STEPS)) + "\n");
+      const vet = c.streak || c.vrule || c.shield !== undefined ? { streak: c.streak ?? 0, ...(c.vrule ? { rule: { ...PICK_RULE, lead: { share: c.vrule[0], at: c.vrule[1] } } } : { rule: VETERAN_RULE }), ...(c.shield !== undefined ? { shield: c.shield } : {}) } : undefined; // BUMP-1I: the veteran's rule = PICK_RULE plus the lead (VETERAN_RULE's by default)
+      appendFileSync(c.out, JSON.stringify(benchRun(c.bot, c.hero, seed, pool, c.steps ?? DEFAULT_STEPS, vet)) + "\n");
       done++;
     }
     expect(done).toBeGreaterThan(0);

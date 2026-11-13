@@ -25,7 +25,7 @@ import { FAKE_CREDS, startFake, tigrisFor } from "./netStores";
 const POOL = generateSamplePool(); // the seed pool: 120 ghosts of RULES_VERSION (0.8.0 RC: the four heroes; was 60)
 // BUMP-1D: the seed pool is the long run's (bb-0.11.0): days 1-16, 4 heroes x 16 days x 3 variants = 192 ghosts (was days 1-10, 120)
 // BUMP-1H: 230 = those 192 + the CURVE's 24 streak ghosts (days 7-12, one a hero a day) + 14 depth ghosts (a second ghost on 14 busy matchups) (was 192)
-const POOL_N = 230, POOL_DAYS = 16;
+const POOL_N = 254, POOL_DAYS = 16; // BUMP-1I (REQ-BFG-125, P3's take E525; P4's R3 6aff36f7): 254 = the 192 + the tier's 48 ghosts (days 5-16, one a hero a day) + the 14 depth ghosts; was 230 (24 tier ghosts, days 7-12)
 const OLD = "bb-0.6.1";
 const plain = POOL.filter((s) => !s.build.turrets && !s.build.routes.some((r) => r.join !== undefined)); // valid under bb-0.6.1 too
 // HULL-ON (the flip, PICK): with PICK on every seed-pool ghost carries the seed step's grade (snapshot.grade), which no

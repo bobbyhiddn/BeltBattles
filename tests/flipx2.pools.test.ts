@@ -21,14 +21,14 @@ const noDormant = (b: Build) => (b.runes ?? []).filter((q) => DORMANT_RUNES.has(
 describe("FLIP-X2: the regenerated pools hold their runes", () => {
   // Y7b2 (the bump, the pools): title bb-0.9.1 -> bb-0.9.3
   it("the rules: bb-0.11.0, nothing carried; the stand-in pool was written under it (POOL_RULES, #350)", () => {
-    expect(RULES_VERSION).toBe("bb-0.15.0"); // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
+    expect(RULES_VERSION).toBe("bb-0.16.0"); // BUMP-1I (rules bb-0.15.0 -> bb-0.16.0, the stamped literal): was bb-0.15.0. BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, RULES_VERSION): was bb-0.13.0. BUMP-1F (label bb-0.12.0 -> bb-0.13.0, RULES_VERSION): the bump (was bb-0.12.0). BUMP-1E: the bump (was bb-0.11.0). BUMP-1D: the bump (was bb-0.10.0; AZ-BUMP: was bb-0.9.7; Z-BUMP: was bb-0.9.3; Y7b2: was bb-0.9.1; BAL-2: was bb-0.9.0)
     expect(POOL_RULES_CARRIED).toEqual({});
     expect(POOL_RULES).toBe(RULES_VERSION);
     // Y7b2 (the pools): the pool regenerated under the bump (4d772e4): was bb-0.9.1
     // Z-BUMP (the pools): was bb-0.9.3 (the pool regenerated once under the bump, 2c4ba76)
     // S8c (the pools): the stand-in pool regenerated ONCE under bb-0.10.0 with every switch on (P1 83c039d): was bb-0.9.7
     // BUMP-1D (P4 R1, 8fc5e24): the stand-in pool regenerated for days 1-16 under bb-0.11.0 with every switch on: was bb-0.10.0
-    expect(STAND_IN_DATA.rules).toBe("bb-0.15.0"); // BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the stand-in module's rules): was bb-0.13.0. BUMP-1F (the stand-in pool regenerated under bb-0.13.0: src/sim/standInPoolData.ts rules, RULING-BUMP1F-R5 R5.2 (2)): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BAL-2: the pool regenerated under the bump (c5e4780; was bb-0.9.0)
+    expect(STAND_IN_DATA.rules).toBe("bb-0.16.0"); // BUMP-1I (rules bb-0.15.0 -> bb-0.16.0, the stamped literal): was bb-0.15.0. BUMP-1H (rules bb-0.14.0 -> bb-0.15.0, the stamped literal): was bb-0.14.0. BUMP-1G (label bb-0.13.0 -> bb-0.14.0, the stand-in module's rules): was bb-0.13.0. BUMP-1F (the stand-in pool regenerated under bb-0.13.0: src/sim/standInPoolData.ts rules, RULING-BUMP1F-R5 R5.2 (2)): was bb-0.12.0. BUMP-1E: the bump (was bb-0.11.0). BAL-2: the pool regenerated under the bump (c5e4780; was bb-0.9.0)
   });
 
   it("every stand-in pool deck holds exactly `day` runes, none dormant", () => {
@@ -47,7 +47,7 @@ describe("FLIP-X2: the regenerated pools hold their runes", () => {
 
   it("every seed ghost is a v3 snapshot whose deck holds exactly `day` runes and passes the upload check", () => {
     const pool = generateSamplePool();
-    expect(pool).toHaveLength(230); // BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: the long world's pool, days 1-16 (was 120, days 1-10)
+    expect(pool).toHaveLength(254); // BUMP-1I (REQ-BFG-125; P3's take E525, R3 6aff36f7: 254 ghosts = the 192 + the tier's 48 (days 5-16) + the 14 depth ghosts): was 230. BUMP-1H: was 192 (the CURVE's 24 streak and 14 depth ghosts follow the 192: 230). BUMP-1D: the long world's pool, days 1-16 (was 120, days 1-10)
     for (const s of pool) {
       const at = `${s.hero} d${s.day} ${s.playerId}`;
       expect(s.v, at).toBe(SNAPSHOT_V3);

@@ -3,6 +3,42 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.18: new art for FURNACE
+
+New art for FURNACE: its face, its KILN and ten rigs are redrawn, and the shop cards of those ten rigs show a full-size picture.
+- **FURNACE's face** on the hero select screen is redrawn and bigger (32 by 32 pixels, where it was 24 by 24), and its name and
+  playstyle line sit a little further to the right. The other three heroes keep their faces.
+- **The KILN,** FURNACE's starting machine, has a new picture and a new small icon.
+- **Ten rigs have new pictures:** EMBER TROUGH, NAIL STRIP, GREASE WORKS, BALLAST, RASP, BELLOWS, SPARK GAP, STATIC BRUSH,
+  BARBED SPOOL and VENOM DRIP. Each has a full-size picture on its shop card, a new picture on your belt and a new small icon.
+  Every other part keeps the picture it had.
+
+The battle rules are still bb-0.16.0, so players of 0.9.18 meet the same ghosts as players of 0.9.17, and a run saved on 0.9.17
+loads and goes on.
+
+## 0.9.17: ghosts get tougher when you keep winning
+
+New battle rules: bb-0.16.0. This release is matched only with bb-0.16.0 ghosts (it turns away any other), and its server takes
+uploads only under bb-0.16.0, so ghosts and uploads from bb-0.15.0 and older no longer meet its players. The seed pool was
+rebuilt for the new rules and still covers days 1 to 16 (254 ghosts in the seed pool: the 192 of 0.9.16, 48 tougher ghosts for
+players on a streak and 14 for the busiest matchups).
+- **Win two runs in a row and your ghosts get tougher. Lose a run, or abandon one, and they go back.** The game counts, on your
+  device, the runs you won in a row (a run is won at its tenth win), but only while you play online. Once you have won two in a
+  row, each dusk's ghost on the way to your tenth win is chosen from the stronger half (rounded up) of the ghosts that fit your
+  record whenever you are two or more wins ahead of your losses. A run you lose, or end with ABANDON RUN before its tenth win,
+  puts the count back to zero. The count starts at zero with this release, and the game does not show it anywhere.
+- **The tougher ghosts are kept for players on a streak:** from day 5 to day 16 each hero's pool holds one more tough ghost
+  (48 in all, each built from one of the AI's decks of that day; 0.9.16's 24 streak ghosts stood on days 7 to 12 and anyone could
+  meet them). A player who is not on a streak does not meet them as long as any other ghost fits.
+- **Cards and notes:** on a phone held upright, the dark backing behind the footprint grid on a shop card now follows the grid's
+  own shape instead of filling a box, so a part such as the PICKAXE shows more of its picture. With a mouse, the explanation that
+  opens by itself the first time you meet a keyword on a part's panel no longer covers the panel's rows of text, wherever the
+  screen has room: it moves under the panel or beside the column.
+
+The battle rules are now bb-0.16.0, so players of 0.9.17 meet only 0.9.17's ghosts; a run saved on 0.9.16 or 0.9.15.1 loads and
+goes on, keeps the foe already picked for its day, from then on meets bb-0.16.0's ghosts, and counts toward your runs won in a
+row when it ends, like any other run.
+
 ## 0.9.16: a fairer climb to the tenth win
 
 New battle rules: bb-0.15.0. This release is matched only with bb-0.15.0 ghosts (it turns away any other), and its server takes
@@ -23,9 +59,9 @@ with a new deck, 24 streak ghosts and 14 for the busiest matchups).
 - **Icons and cards:** the heavy turrets' gun icon no longer has a stray white dot off the end of its barrel. On a phone held
   upright, a rig's arrows on its shop card now have arrowheads 4 px long (they were 3), as on the wider cards. A shaped part's
   icon now shows whole, with a small mark of its footprint in the corner instead of a grid over it, in the scout report's deck,
-  on the IRON MATRIARCH's legendary part on her card at the fork (on a phone held upright, where the card has room) and on LAST
-  CHANCE's part card where the name leaves no room for the footprint beside it. LAST CHANCE's cards now stand on one solid dark
-  panel, so nothing of the screen behind shows between them. The dawn rune pick (PICK A RUNE) has the same panel under its
+  on the IRON MATRIARCH's legendary part on her card at the fork (on a phone held upright, only where the card has room) and on
+  LAST CHANCE's part card where the name leaves no room for the footprint beside it. LAST CHANCE's cards now stand on one solid
+  dark panel, so nothing of the screen behind shows between them. The dawn rune pick (PICK A RUNE) has the same panel under its
   cards and its YOUR RUNES tray.
 
 The battle rules are now bb-0.15.0, so players of 0.9.16 meet only 0.9.16's ghosts; a run saved on 0.9.15.1 loads and goes on,

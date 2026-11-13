@@ -16,7 +16,7 @@ import { encodeStarred } from "../src/sim/standInPool";
 import { isReachable } from "../src/net/records";
 import { CURVE, setCurve, withCurve } from "../src/net/curve";
 import {
-  CASUAL_TARGET, CURVE_PICKS_FILE_ENV, DEPTH_SLOTS, DEPTH_VARIANT, SOFT1_CURVE, SOFT1_WORLD, STREAK_FIRST_DAY, STREAK_LAST_DAY, STREAK_RECORDS, STREAK_TARGET, STREAK_VARIANT,
+  CASUAL_TARGET, CURVE_PICKS_FILE_ENV, DEPTH_SLOTS, DEPTH_SLOT_BASE, DEPTH_VARIANT, SOFT1_CURVE, SOFT1_WORLD, STREAK_FIRST_DAY, STREAK_LAST_DAY, STREAK_RECORDS, STREAK_SLOT_BASE, STREAK_TARGET, STREAK_VARIANT, // BUMP-1I: + DEPTH_SLOT_BASE, STREAK_SLOT_BASE (the take's seeding, R4.3)
   baseSamplePool, curveGhosts, depthDeckByRule, depthSlot, depthSlots, drawnLabel, poolDepth, seedable, softDeckOf, softPickKey, streakDeckByRule, streakRecord, streakSlot,
   type SoftDeck,
 } from "../tools/samplePool";
@@ -35,7 +35,7 @@ describe("BUMP-1H CURVE: the pool's new slots (shape; no battles)", () => {
       withLongRun(() => withCurve(() => {
         const ghosts = curveGhosts(192);
         const days = STREAK_LAST_DAY - STREAK_FIRST_DAY + 1;
-        expect(ghosts).toHaveLength(PLAYABLE_HEROES.length * days + DEPTH_SLOTS.length); // 24 + 14
+        expect(ghosts).toHaveLength(PLAYABLE_HEROES.length * days + DEPTH_SLOTS.length); // BUMP-1I (REQ-BFG-125, P3's take E525: the tier is days 5-16, 12 days a hero): 48 + 14; was 24 + 14 (days 7-12)
         ghosts.slice(0, PLAYABLE_HEROES.length * days).forEach((g, i) => {
           const hero = PLAYABLE_HEROES[Math.floor(i / days)], day = STREAK_FIRST_DAY + (i % days);
           const [wins, lost] = streakRecord(day), rec = drawnLabel(day, wins, lost);
@@ -56,11 +56,14 @@ describe("BUMP-1H CURVE: the pool's new slots (shape; no battles)", () => {
       expect(poolDepth()).toBe(LONG_RUN_GEN_DAYS);
       // BUMP-1H run 2, THE TAKE (RULING-BUMP1H-R3: from day 7): the tier is days 7-12 (STREAK_FIRST_DAY..STREAK_LAST_DAY, 6 days a hero, 24 ghosts); was (the first take, days 6-12, 7 days a hero, 28 ghosts): 192 + 6, 192 + 7, 192 + 3 * 7 + 6, 192 + 28, 192 + 28 + 5;
       // and in the brief's days 2-16 (15 days a hero, 60 ghosts): 192 + 14, 192 + 15, 192 + 3 * 15 + 14, 192 + 60, 192 + 60 + 5
-      expect([STREAK_FIRST_DAY, STREAK_LAST_DAY]).toEqual([7, 12]);
-      expect(streakSlot("furnace", STREAK_FIRST_DAY)).toBe(192);
-      expect(streakSlot("furnace", STREAK_LAST_DAY)).toBe(192 + 5);
-      expect(streakSlot("weaver", 7)).toBe(192 + 6);
-      expect(streakSlot("bastion", 12)).toBe(192 + 3 * 6 + 5);
+      // BUMP-1I (REQ-BFG-125, P3's take E525; RULING-BUMP1H-R4 R4.3): the tier is days 5-16 (12 days a hero, 48 ghosts) and the streak grade's battles are seeded by HERO AND DAY, not by the tier's slot index: streakSlot = curveBase (192) + STREAK_SLOT_BASE 100
+      // + hero index x poolDepth (16) + day - 1, so the picks stay put when the tier's span moves; the depth ghosts keep the slots they had (DEPTH_SLOT_BASE 24 = bb-0.15.0's 4 x 6 tier ghosts). Was (days 7-12, slot = 192 + hero index x 6 + day - 7): [7, 12], 192, 192 + 5, 192 + 6, 192 + 3 * 6 + 5.
+      expect([STREAK_FIRST_DAY, STREAK_LAST_DAY]).toEqual([5, 16]);
+      expect([STREAK_SLOT_BASE, DEPTH_SLOT_BASE]).toEqual([100, 24]);
+      expect(streakSlot("furnace", STREAK_FIRST_DAY)).toBe(192 + 100 + 4);
+      expect(streakSlot("furnace", STREAK_LAST_DAY)).toBe(192 + 100 + 15);
+      expect(streakSlot("weaver", 5)).toBe(192 + 100 + 16 + 4);
+      expect(streakSlot("bastion", 16)).toBe(192 + 100 + 3 * 16 + 15);
       expect(depthSlot(0)).toBe(192 + 24);
       expect(depthSlot(5)).toBe(192 + 24 + 5);
     });
@@ -78,7 +81,7 @@ describe("BUMP-1H CURVE: the pool's new slots (shape; no battles)", () => {
       }
       expect(streakRecord(2)).toEqual([1, 0]);
       expect(streakRecord(6)).toEqual([5, 0]);
-      expect(streakRecord(STREAK_FIRST_DAY)).toEqual([6, 0]); // BUMP-1H run 2 (RULING-BUMP1H-R3): the tier's first day is 7 and reads the row [6, 0] (no row moved)
+      expect(streakRecord(STREAK_FIRST_DAY)).toEqual([4, 0]); // BUMP-1I (REQ-BFG-125, P3's take E525): the tier's first day is 5 and reads the row [4, 0] (no row moved); was [6, 0] (BUMP-1H run 2, RULING-BUMP1H-R3: the first day was 7)
     });
   });
 
@@ -103,7 +106,7 @@ describe("BUMP-1H CURVE: the pool's new slots (shape; no battles)", () => {
       for (const [day, row] of Object.entries(STREAK_RECORDS)) expect(row[0] + row[1], `day ${day}`).toBe(Number(day) - 1);
     });
     // BUMP-1H run 2, THE TAKE (RULING-BUMP1H-R1 R1.4 (2), R1.5; RULING-BUMP1H-R3: from day 7, was day 6; the REPORT's section 8): casual 500, streak 450 on days 7-12, V0's 13 depth slots plus (11, 4, 1); was: no constants (the tables were empty, the targets the screens' first reads)
-    expect([CASUAL_TARGET, STREAK_TARGET]).toEqual([500, 450]);
+    expect([CASUAL_TARGET, STREAK_TARGET]).toEqual([500, 525]); // BUMP-1I (REQ-BFG-125, P3's take E525: tools/samplePool.ts STREAK_TARGET): was [500, 450]
     expect(DEPTH_SLOTS).toHaveLength(14);
     expect(DEPTH_SLOTS[13]).toEqual([11, 4, 1]);
     expect(STREAK_LAST_DAY).toBeGreaterThanOrEqual(STREAK_FIRST_DAY); // BUMP-1H run 2: the tier's days are STREAK_FIRST_DAY..STREAK_LAST_DAY (16 = to the pool's last day)

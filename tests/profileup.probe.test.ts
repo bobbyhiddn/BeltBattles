@@ -60,19 +60,19 @@ describe("--profile is opt-in: without it nothing changes", () => {
     expect(profilePlan(NOW).map((p) => p.name)).toEqual(["profile-signed", "profile-badsig"]);
     const lines: string[] = [];
     expect(await probeMain([r.base, r.idFile], (l) => lines.push(l))).toBe(0);
-    expect(names(lines)).toHaveLength(21); // BUMP-1F (RULING-BUMP1F-R13 R13.3: the twenty POSTs and the endless match): was 17. BUMP-1F (the 17th row): was 16. BUMP-1E: was 15. BUMP-1D: was 13
-    expect(names(lines).at(-1)).toBe("endless-match"); // BUMP-1F (RULING-BUMP1F-R13 R13.3): the GET comes last without the flag
+    expect(names(lines)).toHaveLength(23); // BUMP-1I (REQ-BFG-125, P2's probe rows bc695246: veteran-match and veteran-bad, two GETs, follow the endless match): was 21. BUMP-1F (RULING-BUMP1F-R13 R13.3: the twenty POSTs and the endless match): was 17. BUMP-1F (the 17th row): was 16. BUMP-1E: was 15. BUMP-1D: was 13
+    expect(names(lines).slice(-3)).toEqual(["endless-match", "veteran-match", "veteran-bad"]); // BUMP-1I (REQ-BFG-125, P2's probe rows bc695246: veteran-match and veteran-bad, two GETs, follow the endless match): was .at(-1) the endless match. BUMP-1F (RULING-BUMP1F-R13 R13.3): the GET comes last without the flag
     expect(names(lines)).not.toContain("profile-signed");
     expect(lines.filter((l) => l.startsWith("probe: --profile"))).toEqual([]);
-    expect(lines[lines.length - 1]).toMatch(/^probe: 21 of 21 checks as expected; the server stored 10 deck\(s\) for this player \(expected 10\); the player id is in /); // BUMP-1F (RULING-BUMP1F-R13 R13.3): was 17 of 17, 9, 9. BUMP-1F (the 17th row): was 16 of 16, 8, 8. BUMP-1E: was 15 of 15, 7, 7. BUMP-1D: was 13 of 13, 6, 6
+    expect(lines[lines.length - 1]).toMatch(/^probe: 23 of 23 checks as expected; the server stored 10 deck\(s\) for this player \(expected 10\); the player id is in /); // BUMP-1I (REQ-BFG-125, P2's probe rows bc695246: veteran-match and veteran-bad, two GETs, follow the endless match): was 21 of 21. BUMP-1F (RULING-BUMP1F-R13 R13.3): was 17 of 17, 9, 9. BUMP-1F (the 17th row): was 16 of 16, 8, 8. BUMP-1E: was 15 of 15, 7, 7. BUMP-1D: was 13 of 13, 6, 6
     expect(r.log.some((l) => l.includes("/v1/profile"))).toBe(false);
     expect(r.profiles.records.size).toBe(0);
   });
 
-  it("runProbe without the option makes the same twenty-one checks and no profile request", async () => { // BUMP-1F (RULING-BUMP1F-R13 R13.3: the three endless POSTs and the endless match): was the same seventeen. BUMP-1F (the 17th row): was the same sixteen. BUMP-1E: the bump (was the same fifteen). BUMP-1D: the bump (was the same thirteen)
+  it("runProbe without the option makes the same twenty-three checks and no profile request", async () => { // BUMP-1I (REQ-BFG-125, P2's probe rows bc695246: veteran-match and veteran-bad, two GETs, follow the endless match): was twenty-one. BUMP-1F (RULING-BUMP1F-R13 R13.3: the three endless POSTs and the endless match): was the same seventeen. BUMP-1F (the 17th row): was the same sixteen. BUMP-1E: the bump (was the same fifteen). BUMP-1D: the bump (was the same thirteen)
     const r = await serve();
     const res = await runProbe(r.base, () => {}, 15_000, NOW);
-    expect(res.checks).toHaveLength(21); // BUMP-1F (RULING-BUMP1F-R13 R13.3): was 17. BUMP-1F (the 17th row): was 16. BUMP-1E: was 15. BUMP-1D: was 13
+    expect(res.checks).toHaveLength(23); // BUMP-1I (REQ-BFG-125, P2's probe rows bc695246: veteran-match and veteran-bad, two GETs, follow the endless match): was 21. BUMP-1F (RULING-BUMP1F-R13 R13.3): was 17. BUMP-1F (the 17th row): was 16. BUMP-1E: was 15. BUMP-1D: was 13
     expect(res.ok).toBe(true);
     expect(res.stored).toBe(10); // BUMP-1F (RULING-BUMP1F-R13 R13.3: the endless deck; the match's 200 is no deck): was 9. BUMP-1F (the 17th row's deck): was 8. BUMP-1E: was 7. BUMP-1D: was 6
     expect(r.log.some((l) => l.includes("/v1/profile"))).toBe(false);
@@ -91,16 +91,16 @@ describe("--profile: the two rows", () => {
     expect(w.updatedAt).toBe(NOW);
   });
 
-  it("every check passes on the JSON-lines store: 23 of 23, ten decks, one profile under the probe's player id, the flag anywhere", async () => { // BUMP-1F (RULING-BUMP1F-R13 R13.3: the endless rows): was 19 of 19, nine decks. BUMP-1F (the 17th row): was 18 of 18, eight decks. BUMP-1E: the bump (was 17 of 17, seven decks). BUMP-1D: the bump (was 15 of 15, six decks)
+  it("every check passes on the JSON-lines store: 25 of 25, ten decks, one profile under the probe's player id, the flag anywhere", async () => { // BUMP-1I (REQ-BFG-125, P2's probe rows bc695246: veteran-match and veteran-bad, two GETs, follow the endless match): was 23 of 23. BUMP-1F (RULING-BUMP1F-R13 R13.3: the endless rows): was 19 of 19, nine decks. BUMP-1F (the 17th row): was 18 of 18, eight decks. BUMP-1E: the bump (was 17 of 17, seven decks). BUMP-1D: the bump (was 15 of 15, six decks)
     for (const argv of [(r: Rig) => [r.base, r.idFile, PROFILE_FLAG], (r: Rig) => [PROFILE_FLAG, r.base, r.idFile], (r: Rig) => [r.base, PROFILE_FLAG, r.idFile]]) {
       const r = await serve();
       const lines: string[] = [];
       expect(await probeMain(argv(r), (l) => lines.push(l))).toBe(0);
-      expect(names(lines)).toHaveLength(23); // BUMP-1F (RULING-BUMP1F-R13 R13.3: the three endless POSTs, the endless match and the two PUTs): was 19. BUMP-1F (the 17th row): was 18. BUMP-1E: was 17. BUMP-1D: was 15
-      expect(names(lines).slice(-3)).toEqual(["endless-match", "profile-signed", "profile-badsig"]); // BUMP-1F (RULING-BUMP1F-R13 R13.3): the GET follows the POSTs and comes before the PUTs (was .slice(-2) without it)
+      expect(names(lines)).toHaveLength(25); // BUMP-1I (REQ-BFG-125, P2's probe rows bc695246: veteran-match and veteran-bad, two GETs, follow the endless match): was 23. BUMP-1F (RULING-BUMP1F-R13 R13.3: the three endless POSTs, the endless match and the two PUTs): was 19. BUMP-1F (the 17th row): was 18. BUMP-1E: was 17. BUMP-1D: was 15
+      expect(names(lines).slice(-5)).toEqual(["endless-match", "veteran-match", "veteran-bad", "profile-signed", "profile-badsig"]); // BUMP-1I (REQ-BFG-125, P2's probe rows bc695246: veteran-match and veteran-bad, two GETs, follow the endless match): was .slice(-3), the endless match and the PUTs. BUMP-1F (RULING-BUMP1F-R13 R13.3): the GET follows the POSTs and comes before the PUTs (was .slice(-2) without it)
       expect(lines.filter((l) => l.startsWith("FAIL"))).toEqual([]);
       expect(lines.some((l) => l.startsWith(`probe: ${PROFILE_FLAG}: then PUT ${r.base}/v1/profile`))).toBe(true);
-      expect(lines[lines.length - 1]).toMatch(/^probe: 23 of 23 checks as expected; the server stored 10 deck\(s\) for this player \(expected 10\); the player id is in /); // BUMP-1F (RULING-BUMP1F-R13 R13.3): was 19 of 19, 9, 9. BUMP-1F (the 17th row): was 18 of 18, 8, 8. BUMP-1E: was 17 of 17, 7, 7. BUMP-1D: was 15 of 15, 6, 6
+      expect(lines[lines.length - 1]).toMatch(/^probe: 25 of 25 checks as expected; the server stored 10 deck\(s\) for this player \(expected 10\); the player id is in /); // BUMP-1I (REQ-BFG-125, P2's probe rows bc695246: veteran-match and veteran-bad, two GETs, follow the endless match): was 23 of 23. BUMP-1F (RULING-BUMP1F-R13 R13.3): was 19 of 19, 9, 9. BUMP-1F (the 17th row): was 18 of 18, 8, 8. BUMP-1E: was 17 of 17, 7, 7. BUMP-1D: was 15 of 15, 6, 6
       const playerId = readFileSync(r.idFile, "utf8").trim();
       expect([...r.profiles.records.keys()]).toEqual([playerId]); // one record, the probe player's
       const rec = JSON.parse(r.profiles.records.get(playerId)!) as { receivedAt: number; profile: unknown };
@@ -126,16 +126,16 @@ describe("--profile: the two rows", () => {
     expect(broken.pass({ status: 404, text: "", error: "not found" })).toBe(false);
   });
 
-  it("on Tigris over the fake S3: 23 of 23, the ten decks under ghosts/, the profile at profiles/<player id>.json", async () => { // BUMP-1F (RULING-BUMP1F-R13 R13.3: the endless rows): was 19 of 19, the nine decks. BUMP-1F (the 17th row): was 18 of 18, the eight decks. BUMP-1E: the bump (was 17 of 17, the seven decks). BUMP-1D: the bump (was 15 of 15, the six decks)
+  it("on Tigris over the fake S3: 25 of 25, the ten decks under ghosts/, the profile at profiles/<player id>.json", async () => { // BUMP-1I (REQ-BFG-125, P2's probe rows bc695246: veteran-match and veteran-bad, two GETs, follow the endless match): was 23 of 23. BUMP-1F (RULING-BUMP1F-R13 R13.3: the endless rows): was 19 of 19, the nine decks. BUMP-1F (the 17th row): was 18 of 18, the eight decks. BUMP-1E: the bump (was 17 of 17, the seven decks). BUMP-1D: the bump (was 15 of 15, the six decks)
     const fake: FakeS3 = await startFake();
     cleanup.push(() => fake.close());
     const app = createGhostServer({ store: tigrisFor(fake), log: () => {} });
     cleanup.push(() => app.close());
     const base = `http://127.0.0.1:${await app.listen(0)}`;
     const res = await runProbe(base, () => {}, 15_000, Date.now(), { profile: true });
-    expect(res.checks.map((c) => c.name).slice(-3)).toEqual(["endless-match", "profile-signed", "profile-badsig"]); // BUMP-1F (RULING-BUMP1F-R13 R13.3): the endless match precedes the PUTs (was .slice(-2))
+    expect(res.checks.map((c) => c.name).slice(-5)).toEqual(["endless-match", "veteran-match", "veteran-bad", "profile-signed", "profile-badsig"]); // BUMP-1I (REQ-BFG-125, P2's probe rows bc695246: veteran-match and veteran-bad, two GETs, follow the endless match): was .slice(-3). BUMP-1F (RULING-BUMP1F-R13 R13.3): the endless match precedes the PUTs (was .slice(-2))
     expect(res.checks.filter((c) => !c.ok)).toEqual([]);
-    expect(res.checks).toHaveLength(23); // BUMP-1F (RULING-BUMP1F-R13 R13.3): was 19. BUMP-1F (the 17th row): was 18. BUMP-1E: was 17. BUMP-1D: was 15
+    expect(res.checks).toHaveLength(25); // BUMP-1I (REQ-BFG-125, P2's probe rows bc695246: veteran-match and veteran-bad, two GETs, follow the endless match): was 23. BUMP-1F (RULING-BUMP1F-R13 R13.3): was 19. BUMP-1F (the 17th row): was 18. BUMP-1E: was 17. BUMP-1D: was 15
     expect(res.stored).toBe(10); // BUMP-1F (RULING-BUMP1F-R13 R13.3: the endless deck): was 9. BUMP-1F (the 17th row's deck): was 8. BUMP-1E: was 7. BUMP-1D: was 6
     expect(fake.keys("bb-test", "ghosts/")).toHaveLength(10); // BUMP-1F (RULING-BUMP1F-R13 R13.3: the endless deck, under d14): was 9. BUMP-1F (the 17th row's deck): was 8. BUMP-1E: was 7. BUMP-1D: was 6
     expect(fake.keys("bb-test", "profiles/")).toEqual([`profiles/${res.playerId}.json`]);
@@ -146,7 +146,7 @@ describe("--profile: the two rows", () => {
     const lines: string[] = [];
     expect(await probeMain([r.base, r.idFile, PROFILE_FLAG], (l) => lines.push(l))).toBe(1);
     const fails = lines.filter((l) => l.startsWith("FAIL"));
-    expect(fails).toHaveLength(23); // the 20 POST rows too: closed uploads answer every one of them 403, and the endless match (a GET, not an upload) gets the empty store's 404 (BUMP-1F, R13.3: was 19 and the 17; BUMP-1F, the 17th row: was 18 and the 16; BUMP-1E: was 17 and the 15; BUMP-1D: was 15 and the 13)
+    expect(fails).toHaveLength(24); // BUMP-1I (REQ-BFG-125, P2's probe rows bc695246: veteran-match and veteran-bad, two GETs, follow the endless match): was 23: veteran-match gets the empty store's 404 (FAIL) too, veteran-bad its 400 before the store is read (PASS). The 20 POST rows too: closed uploads answer every one of them 403, and the endless match (a GET, not an upload) gets the empty store's 404 (BUMP-1F, R13.3: was 19 and the 17; BUMP-1F, the 17th row: was 18 and the 16; BUMP-1E: was 17 and the 15; BUMP-1D: was 15 and the 13)
     expect(fails.filter((l) => l.includes("profile-"))).toHaveLength(2);
     for (const l of fails.filter((l) => l.includes("profile-"))) expect(l).toContain("403 uploads are not open yet");
     expect(r.profiles.records.size).toBe(0);

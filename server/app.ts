@@ -27,10 +27,13 @@
 //                                       that day's dusk (src/net/records.ts isReachable), named with
 //                                       the day: "record: 0W 1 lives is no record a run carries into
 //                                       dusk 1". Nothing is stored
-//   GET  /v1/ghosts/match?rules=&day=&wins=&lives=&player=&seen=id1,id2&runs=n -> 200 { id, snapshot } | 404
+//   GET  /v1/ghosts/match?rules=&day=&wins=&lives=&player=&seen=id1,id2&runs=n&streak=n -> 200 { id, snapshot } | 404
 //                                   0.7.0a: never a ghost with a better record than wins/lives (D1,
 //                                   matchmaking.ts eligible); while runs < NEW_PLAYER_RUNS (absent = 0)
 //                                   only the seed pool is matched, never an upload (D2). None: 404
+//                                   BUMP-1I (REQ-BFG-125): streak = the device's runs won in a row (absent = 0; an
+//                                   integer in 0..99, else 400); from VETERAN_AT (2) under rules bb-0.16.0 or later
+//                                   the pick is the veteran's (veteran.ts veteranPick). A null pick leaves the rng alone
 //   PUT  /v1/profile                PROFILE-UP (REQ-BFG-074 clause 4): the player's profile, signed in its own domain
 //                                   ("bb-profile-1\n" + the body bytes), merged into the signer's record -> 200 { the
 //                                   merged profile }. 403 / 401 / 413 / 400 / 422 as documented in profileRoute.ts
@@ -42,8 +45,8 @@ import { join } from "node:path";
 import { Rng } from "../src/core/rng";
 import { RULES_VERSION } from "../src/sim/content";
 import { KEY_HEADER, SIG_HEADER, uploadHeaderError, verifyUpload } from "../src/net/identity";
-import { isNewPlayer, matchDays, matchSeed, type MatchRequest } from "../src/net/matchmaking"; // RUN-1 (D6): matchDays, the long run's widening order
-import { matchPick } from "../src/net/pick"; // RETUNE-1 T5 (REQ-BFG-092): the one pick, shared with the client's fallback
+import { isNewPlayer, matchDays, matchSeed } from "../src/net/matchmaking"; // RUN-1 (D6): matchDays, the long run's widening order; BUMP-1I: the request's type is veteran.ts VeteranRequest now (MatchRequest and a streak)
+import { veteranPick, VETERAN_STREAK_MAX, type VeteranRequest } from "../src/net/veteran"; // BUMP-1I (REQ-BFG-125): the one pick, shared with the client's fallback (was pick.ts matchPick, RETUNE-1 T5 (REQ-BFG-092); veteranPick is matchPick for every request that is not a veteran's)
 import { decodeSnapshot, ID_PATTERN, MAX_DAY, MAX_LIVES, MAX_SNAPSHOT_BYTES, NameError, SnapshotError, maxDayFor, type GhostSnapshot } from "../src/net/snapshot";
 import { nameProblem } from "../src/net/names"; // PACKS M2 (REQ-BFG-063)
 import { endlessRecordProblem, isReachable, lossesProblem } from "../src/net/records"; // ENDLESS-1: an endless snapshot's record
@@ -216,7 +219,7 @@ function intParam(q: URLSearchParams, name: string, min: number, max: number): n
   return Number(v);
 }
 
-export function parseMatchQuery(q: URLSearchParams): MatchRequest {
+export function parseMatchQuery(q: URLSearchParams): VeteranRequest { // BUMP-1I (REQ-BFG-125): was MatchRequest; + `streak`
   const rules = q.get("rules") ?? "";
   if (!/^[A-Za-z0-9._-]{1,32}$/.test(rules)) throw new HttpError(400, "rules: expected a rules version");
   const player = q.get("player") ?? "";
@@ -242,6 +245,9 @@ export function parseMatchQuery(q: URLSearchParams): MatchRequest {
     lives: intParam(q, "lives", 0, endless ? ENDLESS_LIVES : livesCapFor(rules, MAX_LIVES)), playerId: player, seen,
     // 0.7.0a D2: the client's finished runs; absent counts as 0 (a new player: seed pool only)
     runs: q.has("runs") ? intParam(q, "runs", 0, MAX_RUNS) : 0,
+    // BUMP-1I (REQ-BFG-125): the client's runs won in a row; absent counts as 0 (and adds no property: a request without one parses as it did);
+    // malformed or out of range is a 400, as `runs` is. Read as the veteran's pick reads it (veteran.ts veteranFor); an endless request ignores it
+    ...(q.has("streak") ? { streak: intParam(q, "streak", 0, VETERAN_STREAK_MAX) } : {}),
     ...(endless ? { endless: true as const } : {}),
   };
 }
@@ -431,10 +437,12 @@ export function createGhostServer(opts: ServerOptions): GhostServer {
         const scope = isNewPlayer(m) ? "pool" : "all";
         const rng = new Rng(matchSeed(m, salt()));
         const days = matchDays(m);
-        let hit = matchPick(await store.bucket(m.rules, days[0], scope), m, rng);
+        // BUMP-1I (REQ-BFG-125): veteranPick takes matchPick's place at both calls: a veteran's request (streak >= 2, rules bb-0.16.0 or later) takes the lead pick,
+        // every other request picks exactly as matchPick did (with the shield, if the release has one, it never draws a tier ghost while another is eligible)
+        let hit = veteranPick(await store.bucket(m.rules, days[0], scope), m, rng);
         if (!hit && days.length > 1) {
           for (const bucket of await Promise.all(days.slice(1).map((d) => store.bucket(m.rules, d, scope)))) {
-            hit = matchPick(bucket, m, rng);
+            hit = veteranPick(bucket, m, rng);
             if (hit) break;
           }
         }
