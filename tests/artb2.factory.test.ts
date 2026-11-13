@@ -172,6 +172,9 @@ describe("ARTB-CODE-2A T(d): with the switch off every hook answers the base for
       const a = [R(factorySprite(id, 2, false)).px.slice(), R(itemIcon(id)).px.slice(), R(factoryFlashSil(id)).px.slice()];
       setArtB(false);
       const b = [R(factorySprite(id, 2, false)).px.slice(), R(itemIcon(id)).px.slice(), R(factoryFlashSil(id)).px.slice()];
+      // ARTB-CODE-3A (the verifier's soft point 3, VERIFY-ARTB2): the pictures drawn with the art on just before are gone: off IS the base (its digests), not only "differs from on"
+      const off = allDigests([id]);
+      for (const fn of ["icon", "factory", "factorySil"]) expect(off[fn][id], `${id} ${fn}: off = the base's (after a draw with the art on)`).toBe(base[fn][id]);
       setArtB(true);
       const c = [R(factorySprite(id, 2, false)).px.slice(), R(itemIcon(id)).px.slice(), R(factoryFlashSil(id)).px.slice()];
       for (let k = 0; k < 3; k++) {
