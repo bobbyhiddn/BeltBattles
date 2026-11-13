@@ -30,10 +30,11 @@ import { K, SEED, barge, furnaceBench, item, latchDeck, twoPress, withItem, with
 
 installRaster();
 
-// ARTB-CODE-3A (REQ-BFG-126), old -> new: art direction B now draws PINCER, BRACE FRAME, PLATE BREAKER, IRON WALL and the other new rigs (board/<id>, batches 4a and 4b): the plain look gateSprite answers is art B's still sprite with the switch
-// on, and these tests compare the deck against wave3Art's own battle-state looks (machinery.ts draws wave3GateSprite while a moment's state shows, the base's drawing: the old art, whole, for the moment). Four asserts went red on that data:
-// PINCER "alone: no state pixels" (1 px of art B's sprite has a state look's colour), BRACE FRAME "shrugging", PLATE BREAKER "a plain blow" and IRON WALL "at 12 plating" ("plain-look pixels where the state differs"). This file pins A1's
-// moments on the BASE drawing (src/render/wave3Art.ts, the VITE_ARTB=0 path), so it runs with the switch off, every assert as it was; what art B does in a moment (the hook is bypassed: machinery.ts:516-517) is a finding, tests/artb3.moments.test.ts pins it.
+// ARTB-CODE-3A (REQ-BFG-126), old -> new: art direction B now draws PINCER, BRACE FRAME, SHIELD FUEL (id platebreaker), IRON WALL and the other new rigs (board/<id>, batches 4a and 4b): the plain look gateSprite answers is art B's still sprite with the switch
+// on, and these tests compare the deck against wave3Art's own battle-state looks (before ARTB-CODE-3B machinery.ts drew wave3GateSprite whole while a moment's state showed, the base's drawing: the old art for the moment). Four asserts went red on that data:
+// PINCER "alone: no state pixels" (1 px of art B's sprite has a state look's colour), BRACE FRAME "shrugging", SHIELD FUEL "a plain blow" and IRON WALL "at 12 plating" ("plain-look pixels where the state differs"). This file pins A1's
+// moments on the BASE drawing (src/render/wave3Art.ts, the VITE_ARTB=0 path), so it runs with the switch off, every assert as it was. ARTB-CODE-3B: machinery.ts now asks art B first (artBBoardState) when a rig is in a state, so with the switch ON
+// TWIN GAUGE, BRACE FRAME and IRON WALL show art B's own state looks and the held rigs show this base look; those are pinned in tests/artb3.moments.test.ts and tests/artb3.hold.test.ts.
 beforeAll(() => setArtB(false));
 afterAll(() => setArtB(true));
 
