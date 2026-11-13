@@ -39,6 +39,7 @@ const SHAPED = ["embertrough", "nailstrip"];
 const ONE_CELL = RIGS.filter((id) => !SHAPED.includes(id));
 // ARTB-CODE-2A (batch 2), old -> new: SLICE was the ten rigs and KILN (11 ids); the start factories LOOM, CRUCIBLE and WARDWORKS are art B's now too (14 ids), and so are the faces of WEAVER, FOUNDRY and BASTION
 // ARTB-CODE-3A, old -> new: 14 ids -> 64: the 44 rigs, the 13 guns and two mods (card and icon only: ICON_ONLY) and the five factories (MEND PRESS joins KILN, LOOM, CRUCIBLE, WARDWORKS)
+// ARTB-CODE-3B (the hold of 27 pictures), old -> new: 64 ids -> 37: the 24 rigs, the 6 guns and two mods that ride and the five factories; the 27 held ids are outside the slice again, so the base's digests below cover them
 const FACTORIES = FACTORY_PIECES;
 const SLICE = [...RIGS, ...ICON_ONLY, ...FACTORIES];
 

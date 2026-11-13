@@ -3,6 +3,7 @@
 //   - for each of the 34 new rigs and for barbed: artBBoard(id, frame, active) is board/<id>, plain and in both work phases (frame >> 1) & 1, and gateSprite, gateSil and itemIcon follow;
 //   - for the 13 guns, WARD BELL, MENDING LOOM and MEND PRESS: itemIcon(id) is icon/<id> (12x12); the guns and mods have no board sprite (artBBoard null) and no factory entry (MEND PRESS is a factory: tests/artb3.factory.test.ts).
 // Every expectation is decoded from tools/artb/artb-slice.json (tests/artb3.helpers.ts): no pixel, digest or pixel count is typed here.
+// ARTB-CODE-3B (the hold of 27 pictures), old -> new: the lists are the ids the data HOLDS: 22 new card ids (6 guns, 2 mods, 14 rigs; was 49), 14 new rigs (was 34), 6 guns (was 13); the held ids are pinned in tests/artb3.hold.
 import { afterEach, describe, expect, it } from "vitest";
 import { installRaster } from "./raster.helpers";
 
@@ -17,9 +18,9 @@ import { ICON_ONLY, MODS, GUNS, NEW_CARD_IDS, NEW_RIGS, data, expected, phase, s
 afterEach(() => setArtB(true));
 
 describe("ARTB-CODE-3A T(b): the cards", () => {
-  it("artBCard(id) is the data's card/<id>, 24x24, for each of the 49 new ids and for BARBED SPOOL; the shop's iconX2 is the same picture", () => {
+  it("artBCard(id) is the data's card/<id>, 24x24, for each of the 22 new ids that ride and for BARBED SPOOL; the shop's iconX2 is the same picture", () => {
     setArtB(true);
-    expect(NEW_CARD_IDS.length).toBe(49);
+    expect(NEW_CARD_IDS.length).toBe(22); // ARTB-CODE-3B, old -> new: 49
     for (const id of [...NEW_CARD_IDS, "barbed"]) {
       same(artBCard(id), expected(`card/${id}`), `${id} artBCard`);
       same(iconX2(id), expected(`card/${id}`), `${id} iconX2`);
@@ -28,7 +29,7 @@ describe("ARTB-CODE-3A T(b): the cards", () => {
   });
 });
 
-describe("ARTB-CODE-3A T(b): the board sprites of the 34 new rigs and of BARBED SPOOL", () => {
+describe("ARTB-CODE-3A T(b): the board sprites of the 14 new rigs that ride and of BARBED SPOOL", () => {
   it("artBBoard(id, frame, false) is board/<id>; with `active` it is board/<id> with work phase (frame >> 1) & 1 laid over it, at frames 0 to 7 and the wrapped frames (both phases are reached)", () => {
     setArtB(true);
     for (const id of [...NEW_RIGS, "barbed"]) {
@@ -60,7 +61,7 @@ describe("ARTB-CODE-3A T(b): the board sprites of the 34 new rigs and of BARBED 
     }
   });
 
-  it("the working phases show: for each of the 34 new rigs and BARBED SPOOL, some working frame draws a picture other than the idle one", () => {
+  it("the working phases show: for each of the 14 new rigs and BARBED SPOOL, some working frame draws a picture other than the idle one", () => {
     setArtB(true);
     for (const id of [...NEW_RIGS, "barbed"]) {
       const idle = expected(`board/${id}`).px;
@@ -71,9 +72,9 @@ describe("ARTB-CODE-3A T(b): the board sprites of the 34 new rigs and of BARBED 
 });
 
 describe("ARTB-CODE-3A T(b): the small icons of the guns, the two mods and MEND PRESS", () => {
-  it("itemIcon(id) is the data's icon/<id> (12x12) for the 13 guns, WARD BELL, MENDING LOOM and MEND PRESS; so is artBIcon", () => {
+  it("itemIcon(id) is the data's icon/<id> (12x12) for the 6 guns that ride, WARD BELL, MENDING LOOM and MEND PRESS; so is artBIcon", () => {
     setArtB(true);
-    expect([GUNS.length, MODS.length]).toEqual([13, 2]);
+    expect([GUNS.length, MODS.length]).toEqual([6, 2]); // ARTB-CODE-3B, old -> new: [13, 2]
     for (const id of [...ICON_ONLY, "mendpress"]) {
       same(itemIcon(id), expected(`icon/${id}`), `${id} itemIcon`);
       same(artBIcon(id), expected(`icon/${id}`), `${id} artBIcon`);

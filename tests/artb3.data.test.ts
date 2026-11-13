@@ -2,21 +2,26 @@
 // src/render/artBData.ts is generated from it. Every expectation reads the data (the JSON and the constants generated from it): no pixel, digest or pixel count is typed here; the only typed lists are ids and characters.
 //   FIRST: each of the 15 legend characters this swap adds names a colour of render/palette.ts C (and C's hex is legendHex's); then every sprite and work entry of the GENERATED module equals the JSON pixel for pixel;
 //   (a) the counts (134, 49, 86), the sizes by kind, the work shapes by kind, the 100 new sprites and the six redrawn ones by name.
+// ARTB-CODE-3B (the hold, REQ-BFG-126 (3)): 27 pictures missed the acceptance read and are out of the data, so the data is 80 sprites, 29 work entries, 86 legend colours (the legend stays whole); the 46 new sprites
+// that ride are named below (100 -> 46), and the work entries of three rigs carry a `state` key (STATE_RIGS: twingauge m, braceframe s, shieldwall p) that the generated module must read back too. tests/artb3.hold pins the held ids.
 import { describe, expect, it } from "vitest";
 import { C } from "../src/render/palette";
 import { ITEMS } from "../src/sim/content";
 import { PLAYABLE_HEROES } from "../src/sim/heroBuilds";
 import { ART_B_LEGEND, ART_B_SPRITES, ART_B_WORK } from "../src/render/artBData";
-import { FACTORY_PIECES, GUNS, ICON_ONLY, MODS, NEW_CARD_IDS, NEW_RIGS, REPLACED, SLICE_RIGS, data, kindOf, type Overlay } from "./artb3.helpers";
+import { FACTORY_PIECES, GUNS, ICON_ONLY, MODS, NEW_CARD_IDS, NEW_RIGS, REPLACED, SLICE_RIGS, STATE_RIGS, data, kindOf, type Overlay } from "./artb3.helpers";
 
 const pal = C as Record<string, string>;
 /** The 15 characters this swap adds to the legend (the brief's list: punctuation among them: - / ? [ _ and the backtick). */
 const NEW_CHARS = ["-", "/", "?", "A", "E", "J", "L", "N", "Q", "T", "[", "_", "x", "z", "`"];
+/** ARTB-CODE-3B: three of them (A, N and the backtick) were drawn only by held pictures: no kept sprite or overlay draws them, and the legend keeps them. */
+const DEAD_CHARS = ["A", "N", "`"];
 /** the sizes by kind */
 const SIZES: Record<string, [number, number]> = { portrait: [32, 32], bare: [24, 24], icon: [12, 12], card: [24, 24], board: [12, 12], body: [24, 12] };
 const hexOf = (legend: Readonly<Record<string, string>>, ch: string): string | null => (ch === "." ? null : pal[legend[ch]]);
-const overlays = (w: { work?: readonly Overlay[]; idle?: readonly Overlay[]; flash?: Overlay | readonly (readonly [number, number, string])[] }): Overlay[] =>
-  [...(w.work ?? []), ...(w.idle ?? []), ...(w.flash ? [w.flash as Overlay] : [])] as Overlay[];
+type WorkLike = { work?: readonly Overlay[]; idle?: readonly Overlay[]; flash?: Overlay | readonly (readonly [number, number, string])[]; state?: Readonly<Record<string, readonly Overlay[]>> };
+const overlays = (w: WorkLike): Overlay[] =>
+  [...(w.work ?? []), ...(w.idle ?? []), ...(w.flash ? [w.flash as Overlay] : []), ...Object.values(w.state ?? {}).flat()] as Overlay[]; // ARTB-CODE-3B: the state patches are overlays too
 
 describe("ARTB-CODE-3A D: the legend", () => {
   it("FIRST: each of the 15 characters this swap adds to the legend names a colour of render/palette.ts C, and C's hex is the one the art was drawn with (legendHex)", () => {
@@ -46,8 +51,10 @@ describe("ARTB-CODE-3A D: the legend", () => {
     for (const s of Object.values(data.sprites)) for (const r of s.rows) for (const ch of r) used.add(ch);
     for (const w of Object.values(data.work)) for (const l of overlays(w)) for (const [, , ch] of l) used.add(ch);
     used.delete(".");
-    expect([...used].sort(), "used characters = the legend").toEqual(Object.keys(data.legend).sort());
-    for (const ch of NEW_CHARS) expect(used.has(ch), `the new character '${ch}' is drawn`).toBe(true);
+    // ARTB-CODE-3B (the hold), old -> new: used characters = the legend (86) -> the legend less DEAD_CHARS (83): the legend stays whole, three characters have no kept picture
+    expect([...used].sort(), "used characters = the legend less the held pictures' own").toEqual(Object.keys(data.legend).filter((ch) => !DEAD_CHARS.includes(ch)).sort());
+    for (const ch of DEAD_CHARS) { expect(NEW_CHARS, `'${ch}' is one of the new characters`).toContain(ch); expect(used.has(ch), `'${ch}' is drawn by no kept picture`).toBe(false); }
+    for (const ch of NEW_CHARS) if (!DEAD_CHARS.includes(ch)) expect(used.has(ch), `the new character '${ch}' is drawn`).toBe(true);
   });
 });
 
@@ -79,6 +86,8 @@ describe("ARTB-CODE-3A D: the generated module reads back the JSON pixel for pix
         const out: string[] = [];
         for (const key of ["work", "idle"] as const) (x[key] ?? []).forEach((ph, i) => out.push(`${key}${i}:${ph.map(([px, py, ch]) => `${px},${py}=${hexOf(data.legend, ch) ?? "clear"}`).join(" ")}`));
         if (x.flash) out.push(`flash:${x.flash.map(([px, py, ch]) => `${px},${py}=${hexOf(data.legend, ch) ?? "clear"}`).join(" ")}`);
+        // ARTB-CODE-3B: the state patches of a rig (key -> phases), read back like the work phases
+        for (const [sk, phases] of Object.entries(x.state ?? {})) phases.forEach((ph, i) => out.push(`state.${sk}${i}:${ph.map(([px, py, ch]) => `${px},${py}=${hexOf(data.legend, ch) ?? "clear"}`).join(" ")}`));
         return out;
       };
       expect(flat(g), `${name}: every phase`).toEqual(flat(w));
@@ -87,9 +96,10 @@ describe("ARTB-CODE-3A D: the generated module reads back the JSON pixel for pix
 });
 
 describe("ARTB-CODE-3A T(a): the counts, the sizes and the work shapes", () => {
-  it("134 sprites, 49 work entries, 86 colours (the JSON and the generated module)", () => {
-    expect([Object.keys(data.sprites).length, Object.keys(data.work).length, Object.keys(data.legend).length]).toEqual([134, 49, 86]);
-    expect([Object.keys(ART_B_SPRITES).length, Object.keys(ART_B_WORK).length, Object.keys(ART_B_LEGEND).length]).toEqual([134, 49, 86]);
+  it("80 sprites, 29 work entries, 86 colours (the JSON and the generated module)", () => {
+    // ARTB-CODE-3B (the hold of 27 pictures), old -> new: [134, 49, 86] -> [80, 29, 86]
+    expect([Object.keys(data.sprites).length, Object.keys(data.work).length, Object.keys(data.legend).length]).toEqual([80, 29, 86]);
+    expect([Object.keys(ART_B_SPRITES).length, Object.keys(ART_B_WORK).length, Object.keys(ART_B_LEGEND).length]).toEqual([80, 29, 86]);
   });
 
   it("the size of every sprite follows its kind: portrait 32x32, a bare name 24x24, icon 12x12, card 24x24, board 12x12, body 24x12; and the count of each kind", () => {
@@ -100,10 +110,10 @@ describe("ARTB-CODE-3A T(a): the counts, the sizes and the work shapes", () => {
       expect([s.w, s.h], `${name} (${k})`).toEqual(SIZES[k]);
       n[k] = (n[k] ?? 0) + 1;
     }
-    expect(n).toEqual({ portrait: 4, bare: 5, icon: 20, card: 59, board: 44, body: 2 });
+    expect(n).toEqual({ portrait: 4, bare: 5, icon: 13, card: 32, board: 24, body: 2 }); // ARTB-CODE-3B, old -> new: icon 20, card 59, board 44 (the 27 held ids' sprites are out)
   });
 
-  it("the work shapes by kind: a factory (kiln, loom, crucible, wardworks, mendpress) idle x4 (the first plain) and a flash; each of the 34 new board sprites and BARBED SPOOL's work x2; a body work x2; nothing else has an entry", () => {
+  it("the work shapes by kind: a factory (kiln, loom, crucible, wardworks, mendpress) idle x4 (the first plain) and a flash; each of the 14 new board sprites and BARBED SPOOL's work x2 (the three state rigs also `state`); a body work x2; nothing else has an entry", () => {
     for (const [name, w] of Object.entries(data.work)) {
       const k = kindOf(name);
       if (k === "bare") {
@@ -113,8 +123,11 @@ describe("ARTB-CODE-3A T(a): the counts, the sizes and the work shapes", () => {
         expect(w.idle![0], `${name}: idle phase 0 is the plain sprite`).toEqual([]);
         expect(w.flash!.length, `${name}: a flash`).toBeGreaterThan(0);
       } else if (k === "board") {
-        expect(Object.keys(w), `${name}: work only`).toEqual(["work"]);
+        // ARTB-CODE-3B, old -> new: work only -> work, plus `state` for the three rigs that show a state through art B (STATE_RIGS: the keys and the phase counts are the helpers' list)
+        const st = STATE_RIGS[name.slice("board/".length)];
+        expect(Object.keys(w), `${name}: work${st ? " and state" : " only"}`).toEqual(st ? ["work", "state"] : ["work"]);
         expect(w.work!.length, `${name}: work x2`).toBe(2);
+        if (st) expect(Object.fromEntries(Object.entries(w.state!).map(([sk, ph]) => [sk, ph.length])), `${name}: state keys and phases`).toEqual(st);
       } else if (k === "body") {
         expect(w.work!.length, `${name}: work x2`).toBe(2);
       } else throw new Error(`a work entry for ${name} (a ${k}): the brief names none`);
@@ -132,21 +145,22 @@ describe("ARTB-CODE-3A T(a): the counts, the sizes and the work shapes", () => {
       for (let i = 1; i < 4; i++) expect(w.idle![i].some(([x, y, ch]) => plain[y][x] !== ch), `${id}: idle phase ${i} changes the sprite`).toBe(true);
       expect(w.flash!.some(([x, y, ch]) => plain[y][x] !== ch), `${id}: the flash changes the sprite`).toBe(true);
     }
-    expect(Object.keys(data.work).filter((n) => kindOf(n) === "board").length, "42 boards with work: batch 1's eight and the 34 new").toBe(42);
+    expect(Object.keys(data.work).filter((n) => kindOf(n) === "board").length, "22 boards with work: batch 1's eight and the 14 new").toBe(22); // ARTB-CODE-3B, old -> new: 42 (the 20 held rigs' entries are out)
   });
 });
 
-describe("ARTB-CODE-3A T(a): the 100 new sprites and the six redrawn ones, by name", () => {
-  it("49 card/<id> (24x24): the 13 guns, WARD BELL, MENDING LOOM and the 34 rigs; 34 board/<id> (12x12); 16 icon/<id> (12x12: the 13 guns, the two mods, MEND PRESS); the bare mendpress (24x24): 100 in all", () => {
-    expect([GUNS.length, MODS.length, NEW_RIGS.length, NEW_CARD_IDS.length]).toEqual([13, 2, 34, 49]);
+describe("ARTB-CODE-3A T(a): the 46 new sprites that ride and the six redrawn ones, by name", () => {
+  it("22 card/<id> (24x24): the 6 guns, WARD BELL, MENDING LOOM and the 14 rigs; 14 board/<id> (12x12); 9 icon/<id> (12x12: the 6 guns, the two mods, MEND PRESS); the bare mendpress (24x24): 46 in all", () => {
+    // ARTB-CODE-3B (the hold), old -> new: [13, 2, 34, 49] -> [6, 2, 14, 22]; 100 new names -> 46
+    expect([GUNS.length, MODS.length, NEW_RIGS.length, NEW_CARD_IDS.length]).toEqual([6, 2, 14, 22]);
     const names = [...NEW_CARD_IDS.map((id) => `card/${id}`), ...NEW_RIGS.map((id) => `board/${id}`), ...[...ICON_ONLY, "mendpress"].map((id) => `icon/${id}`), "mendpress"];
-    expect(names.length).toBe(100);
-    expect(new Set(names).size, "100 distinct names").toBe(100);
+    expect(names.length).toBe(46);
+    expect(new Set(names).size, "46 distinct names").toBe(46);
     for (const name of names) {
       expect(data.sprites[name], `${name}: in the data`).toBeDefined();
       expect([data.sprites[name].w, data.sprites[name].h], `${name}: its kind's size`).toEqual(SIZES[kindOf(name)]);
     }
-    // the data holds those 100 and the 34 sprites of the first two batches (28 unchanged + the six redrawn): nothing else
+    // the data holds those 46 and the 34 sprites of the first two batches (28 unchanged + the six redrawn): nothing else (34 + 46 = 80)
     const old = [
       ...SLICE_RIGS.flatMap((id) => [`card/${id}`, `board/${id}`]), "body/embertrough", "body/nailstrip", "kiln", "icon/kiln", "loom", "icon/loom", "crucible", "icon/crucible", "wardworks", "icon/wardworks",
       ...PLAYABLE_HEROES.map((id) => `portrait/${id}`),

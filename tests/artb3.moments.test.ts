@@ -16,15 +16,17 @@ import { NEW_RIGS } from "./artb3.helpers";
 afterEach(() => setArtB(true));
 
 describe("ARTB-CODE-3A: the new rigs whose battle moments draw the base's art (machinery.ts:516-517)", () => {
-  it("exactly eight of the 34 new rigs have a wave-3 moment look (wave3GateSprite answers for them): PLATE ROLLER, TWIN GAUGE, PINCER, BRACE FRAME, TWIN LATCH, STOKER, PLATE BREAKER, IRON WALL", () => {
+  // ARTB-CODE-3B (the hold of 27 pictures), old -> new: the data holds 14 of the 34 new rigs; four of the eight (PINCER, TWIN LATCH, STOKER, SHIELD FUEL) are held, so four are left: PLATE ROLLER, TWIN GAUGE, BRACE FRAME, IRON WALL
+  // (this whole file is rewritten by the next commit, item S, once machinery.ts asks art B first)
+  it("exactly four of the 14 new rigs have a wave-3 moment look (wave3GateSprite answers for them): PLATE ROLLER, TWIN GAUGE, BRACE FRAME, IRON WALL", () => {
     const w3 = NEW_RIGS.filter((id) => wave3GateSprite(id, 0, false, {}) !== null);
-    expect([...w3].sort()).toEqual(["braceframe", "pincer", "platebreaker", "plateroller", "shieldwall", "stoker", "twingauge", "twinlatch"]);
-    expect(w3.length).toBe(8);
+    expect([...w3].sort()).toEqual(["braceframe", "plateroller", "shieldwall", "twingauge"]);
+    expect(w3.length).toBe(4);
   });
 
-  it("for those eight, the moment's sprite (the base's wave3GateSprite) is another picture than art B's gateSprite at every frame, idle and working: the deck changes art for the moment", () => {
+  it("for those four, the moment's sprite (the base's wave3GateSprite) is another picture than art B's gateSprite at every frame, idle and working: the deck changes art for the moment", () => {
     setArtB(true);
-    for (const id of ["plateroller", "twingauge", "pincer", "braceframe", "twinlatch", "stoker", "platebreaker", "shieldwall"]) {
+    for (const id of ["plateroller", "twingauge", "braceframe", "shieldwall"]) {
       for (let f = 0; f < 8; f++) for (const active of [false, true]) {
         const moment = wave3GateSprite(id, f, active, {}), art = gateSprite(id, f, active);
         expect(R(moment).px, `${id} frame ${f} ${active ? "working" : "idle"}: the base's moment sprite is not art B's`).not.toEqual(R(art).px);

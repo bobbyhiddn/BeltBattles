@@ -15,7 +15,7 @@ const data = JSON.parse(readFileSync("tools/artb/artb-slice.json", "utf8")) as {
   legend: Record<string, string>;
   legendHex: Record<string, string>;
   sprites: Record<string, { w: number; h: number; rows: string[] }>;
-  work: Record<string, { work?: Overlay[]; idle?: Overlay[]; flash?: Overlay }>;
+  work: Record<string, { work?: Overlay[]; idle?: Overlay[]; flash?: Overlay; state?: Record<string, Overlay[]> }>;
 };
 const pal = C as Record<string, string>;
 
@@ -31,6 +31,8 @@ const FACTORIES = PLAYABLE_HEROES.map((id) => HEROES[id].factory);
 const NEW_CHARS_3A = ["-", "/", "?", "A", "E", "J", "L", "N", "Q", "T", "[", "_", "x", "z", "`"];
 /** ARTB-CODE-3A: the data also holds MEND PRESS (a factory, not a start factory of a playable hero): a bare 24x24 sprite, an icon and an idle/flash entry as the four start factories have. */
 const FACTORY_SPRITES = [...FACTORIES, "mendpress"];
+/** ARTB-CODE-3B (the hold of 27 pictures): three legend characters (A olive4, N oil2, ` plum1) were drawn only by held pictures; the legend stays whole (the held pictures come back after their redraw), so no sprite or overlay draws them now. */
+const DEAD_CHARS = ["A", "N", "`"];
 
 describe("ARTB-CODE-2A T(a): the legend of batch 2's data", () => {
   it("FIRST: each of the 25 characters batch 2 adds to the legend names a colour of render/palette.ts C, and C's hex is the one the art was drawn with (legendHex)", () => {
@@ -57,19 +59,22 @@ describe("ARTB-CODE-2A T(a): the legend of batch 2's data", () => {
     expect(ART_B_LEGEND).toEqual(data.legend);
   });
 
-  it("every legend character is drawn by some sprite or overlay (no dead entry), and every character a sprite or an overlay uses is in the legend", () => {
+  it("every legend character is drawn by some sprite or overlay except the three only the held pictures drew (the legend stays whole), and every character a sprite or an overlay uses is in the legend", () => {
     const used = new Set<string>();
     for (const s of Object.values(data.sprites)) for (const r of s.rows) for (const ch of r) used.add(ch);
-    for (const w of Object.values(data.work)) for (const l of [...(w.work ?? []), ...(w.idle ?? []), ...(w.flash ? [w.flash] : [])]) for (const [, , ch] of l) used.add(ch);
+    // ARTB-CODE-3B: the state patches are overlays too (`L` is drawn only by TWIN GAUGE's)
+    for (const w of Object.values(data.work)) for (const l of [...(w.work ?? []), ...(w.idle ?? []), ...(w.flash ? [w.flash] : []), ...Object.values(w.state ?? {}).flat()]) for (const [, , ch] of l) used.add(ch);
     used.delete(".");
-    expect([...used].sort(), "used characters = the legend").toEqual(Object.keys(data.legend).sort());
-    for (const ch of [...NEW_CHARS, ...NEW_CHARS_3A]) expect(used.has(ch), `the new character '${ch}' is drawn`).toBe(true);
+    // ARTB-CODE-3B (the hold), old -> new: used characters = the legend (86) -> the legend less DEAD_CHARS (83): the three characters only a held picture drew; every used character is in the legend
+    expect([...used].sort(), "used characters = the legend less the held pictures' own").toEqual(Object.keys(data.legend).filter((ch) => !DEAD_CHARS.includes(ch)).sort());
+    for (const ch of DEAD_CHARS) { expect(data.legend[ch], `the legend keeps '${ch}'`).toBeDefined(); expect(used.has(ch), `'${ch}' is drawn by no kept picture`).toBe(false); }
+    for (const ch of [...NEW_CHARS, ...NEW_CHARS_3A]) if (!DEAD_CHARS.includes(ch)) expect(used.has(ch), `the new character '${ch}' is drawn`).toBe(true);
   });
 });
 
 describe("ARTB-CODE-2A T(a): the sprites of batch 2's data, by kind", () => {
-  it("134 sprites; the size of each follows its kind: portrait 32x32, a bare name 24x24, icon 12x12, card 24x24, board 12x12, body 24x12", () => {
-    expect(Object.keys(data.sprites).length).toBe(134); // ARTB-CODE-3A, old -> new: 34 (the 100 new sprites of batches 2R, 3a, 4a, 4b: tests/artb3.data.test.ts names them)
+  it("80 sprites; the size of each follows its kind: portrait 32x32, a bare name 24x24, icon 12x12, card 24x24, board 12x12, body 24x12", () => {
+    expect(Object.keys(data.sprites).length).toBe(80); // ARTB-CODE-3B (the hold of 27 pictures), old -> new: 134 (ARTB-CODE-3A: 34; the sprites of batches 2R, 3a, 4a, 4b: tests/artb3.data.test.ts names them)
     for (const [name, s] of Object.entries(data.sprites)) {
       const k = kindOf(name);
       expect(SIZES[k], `${name}: a kind the brief names`).toBeDefined();
@@ -78,11 +83,12 @@ describe("ARTB-CODE-2A T(a): the sprites of batch 2's data, by kind", () => {
     expect(ART_B_SPRITES).toEqual(data.sprites);
   });
 
-  it("the count of each kind: 4 portraits, 5 bare names, 20 icons, 59 cards, 44 boards, 2 bodies", () => {
+  it("the count of each kind: 4 portraits, 5 bare names, 13 icons, 32 cards, 24 boards, 2 bodies", () => {
     const n: Record<string, number> = {};
     for (const name of Object.keys(data.sprites)) n[kindOf(name)] = (n[kindOf(name)] ?? 0) + 1;
     // ARTB-CODE-3A, old -> new: { portrait: 4, bare: 4, icon: 4, card: 10, board: 10, body: 2 } -> bare 5 (MEND PRESS), icon 20 (+ the 13 guns, WARD BELL, MENDING LOOM, MEND PRESS), card 59 (+ 49), board 44 (+ 34)
-    expect(n).toEqual({ portrait: 4, bare: 5, icon: 20, card: 59, board: 44, body: 2 });
+    // ARTB-CODE-3B (the hold of 27 pictures), old -> new: icon 20 -> 13 (the 7 held guns' icons), card 59 -> 32 (7 guns + 20 rigs), board 44 -> 24 (20 rigs)
+    expect(n).toEqual({ portrait: 4, bare: 5, icon: 13, card: 32, board: 24, body: 2 });
   });
 
   it("every playable hero has a face (portrait/<hero id>) and its start factory has its bare picture and its icon: the data names the four heroes and the four factories (and MEND PRESS), no other", () => {
@@ -93,7 +99,8 @@ describe("ARTB-CODE-2A T(a): the sprites of batch 2's data, by kind", () => {
     expect(Object.keys(data.sprites).filter((n) => kindOf(n) === "bare").sort(), "the bare names: the start factories and MEND PRESS").toEqual([...FACTORY_SPRITES].sort());
     const icons = Object.keys(data.sprites).filter((n) => n.startsWith("icon/")).sort();
     for (const id of FACTORY_SPRITES) expect(icons, `icon/${id}`).toContain(`icon/${id}`);
-    expect(icons.length, "the icons: the five factories', the 13 guns', WARD BELL's and MENDING LOOM's").toBe(FACTORY_SPRITES.length + 15);
+    // ARTB-CODE-3B (the hold), old -> new: + 15 -> + 8 (the 6 guns that ride, WARD BELL, MENDING LOOM)
+    expect(icons.length, "the icons: the five factories', the 6 guns', WARD BELL's and MENDING LOOM's").toBe(FACTORY_SPRITES.length + 8);
   });
 
   it("the nine sprites batch 2 adds and the three it redraws are all in the data at the sizes of their kind (card/barbed, board/barbed and board/staticbrush keep their sizes)", () => {
@@ -108,10 +115,11 @@ describe("ARTB-CODE-2A T(a): the sprites of batch 2's data, by kind", () => {
 });
 
 describe("ARTB-CODE-2A T(a): the working-state entries of batch 2's data", () => {
-  it("49 entries: 42 rig boards (two work phases: batch 1's eight and the 34 new ones), the two bodies, and five factories (four idle phases, the first the plain sprite, and a flash; no work phases)", () => {
+  it("29 entries: 22 rig boards (two work phases: batch 1's eight and the 14 new ones that ride), the two bodies, and five factories (four idle phases, the first the plain sprite, and a flash; no work phases)", () => {
     // ARTB-CODE-3A, old -> new: 14 entries (8 boards, 2 bodies, 4 factories) -> 49 (42 boards: + the 34 new rigs; 2 bodies; 5 factories: + MEND PRESS)
-    expect(Object.keys(data.work).length).toBe(49);
-    expect(Object.keys(data.work).filter((n) => n.startsWith("board/")).length).toBe(42);
+    // ARTB-CODE-3B (the hold of 27 pictures), old -> new: 49 -> 29 (42 boards -> 22: the 20 held rigs' entries are out; bodies and factories as they were)
+    expect(Object.keys(data.work).length).toBe(29);
+    expect(Object.keys(data.work).filter((n) => n.startsWith("board/")).length).toBe(22);
     expect(Object.keys(data.work).filter((n) => n.startsWith("body/")).length).toBe(2);
     expect(Object.keys(data.work).filter((n) => kindOf(n) === "bare").sort()).toEqual([...FACTORY_SPRITES].sort());
     for (const id of FACTORY_SPRITES) {

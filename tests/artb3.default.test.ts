@@ -14,7 +14,7 @@ import { data, expected, phase, same } from "./artb3.helpers";
 
 describe("ARTB-CODE-3A P2: with nothing flipped, the art is on (every case asks a hook, none touches the switch)", () => {
   it("a card: artBCard answers the data's card/<id> (a rig of batch 1, a new rig, a gun, a mod) and MEND PRESS's bare 24x24; the shop's iconX2 shows it", () => {
-    for (const id of ["grease", "temper", "scrapcannon", "wardbell"]) {
+    for (const id of ["grease", "temper", "dartgun", "wardbell"]) { // ARTB-CODE-3B: "scrapcannon" -> "dartgun" (SCRAP CANNON is held; DART GUN rides)
       same(artBCard(id), expected(`card/${id}`), `${id} artBCard`);
       same(iconX2(id), expected(`card/${id}`), `${id} iconX2`);
     }
@@ -49,10 +49,10 @@ describe("ARTB-CODE-3A P2: with nothing flipped, the art is on (every case asks 
   });
 
   it("a small icon: artBIcon and itemIcon answer the data's icon/<id> for a gun, a mod, MEND PRESS and the start factories", () => {
-    for (const id of ["scrapcannon", "wardbell", "mendpress", "kiln", "loom"]) {
+    for (const id of ["dartgun", "wardbell", "mendpress", "kiln", "loom"]) { // ARTB-CODE-3B: "scrapcannon" -> "dartgun" (SCRAP CANNON is held)
       same(artBIcon(id), expected(`icon/${id}`), `${id} artBIcon`);
       same(itemIcon(id), expected(`icon/${id}`), `${id} itemIcon`);
     }
-    expect(R(itemIcon("scrapcannon")).width).toBe(12);
+    expect(R(itemIcon("dartgun")).width).toBe(12);
   });
 });

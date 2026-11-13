@@ -6,6 +6,8 @@
 //       gate-silhouette digests of LOOM, CRUCIBLE, WARDWORKS and MEND PRESS (factories: the art draws their factory, flash silhouette and icon, never a rig's board sprite) are the base's, and so are the bodies of
 //       the shaped rigs the art has no body for; on, off, on swaps both ways with "off = the base" asserted (soft point 3).
 // Every expectation is decoded from tools/artb/artb-slice.json or read from the base's digests: no pixel, digest or pixel count is typed here.
+// ARTB-CODE-3B (the hold of 27 pictures), old -> new: the lists are the ids the data HOLDS: NEW_IDS 53 -> 26 (22 new cards + MEND PRESS, LOOM, CRUCIBLE, BARBED SPOOL), SLICE_IDS 64 -> 37; a held id is outside the slice, so
+// (g) below also pins that its digest on is the base's (tests/artb3.hold names the 27 and pins them on their own).
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { R, installRaster } from "./raster.helpers";
@@ -39,15 +41,15 @@ const ART_DRAWS: Record<string, (id: string) => boolean> = {
 afterEach(() => setArtB(true));
 
 describe("ARTB-CODE-3A T(e): with the switch off, every hook answers the base for every new id", () => {
-  it("the new ids are pieces of ITEMS (a name that is not a piece would never show); the list is 49 new cards, MEND PRESS, LOOM, CRUCIBLE and BARBED SPOOL", () => {
-    expect(NEW_IDS.length).toBe(49 + 4);
+  it("the new ids are pieces of ITEMS (a name that is not a piece would never show); the list is 22 new cards, MEND PRESS, LOOM, CRUCIBLE and BARBED SPOOL", () => {
+    expect(NEW_IDS.length).toBe(22 + 4); // ARTB-CODE-3B, old -> new: 49 + 4
     expect(new Set(NEW_IDS).size).toBe(NEW_IDS.length);
     for (const id of NEW_IDS) expect(ITEMS[id], id).toBeDefined();
     for (const id of SLICE_IDS) expect(ITEMS[id], id).toBeDefined();
-    expect(SLICE_IDS.length).toBe(64);
+    expect(SLICE_IDS.length).toBe(37); // ARTB-CODE-3B, old -> new: 64
   });
 
-  it("switch OFF: artBHas is false and every art hook answers null (icon, card, board at both states, board silhouette, factory at both states, factory silhouette, bodies, face) for all 64 ids", () => {
+  it("switch OFF: artBHas is false and every art hook answers null (icon, card, board at both states, board silhouette, factory at both states, factory silhouette, bodies, face) for all 37 ids", () => {
     setArtB(false);
     for (const id of SLICE_IDS) {
       expect(artBHas(id), id).toBe(false);
@@ -56,14 +58,14 @@ describe("ARTB-CODE-3A T(e): with the switch off, every hook answers the base fo
     }
   });
 
-  it("switch OFF: every drawing function of every new id (and of all 64) equals the base's digests: icon, gate, gate silhouette, factory, factory silhouette, the shaped bodies", () => {
+  it("switch OFF: every drawing function of every new id (and of all 37) equals the base's digests: icon, gate, gate silhouette, factory, factory silhouette, the shaped bodies", () => {
     setArtB(false);
     const ids = [...new Set([...SLICE_IDS, ...NEW_IDS])];
     const off = allDigests(ids);
     for (const fn of Object.keys(base)) {
       for (const key of Object.keys(off[fn])) expect(off[fn][key], `${fn} ${key}: the base's`).toBe(base[fn][key]);
     }
-    for (const fn of ["icon", "gate", "gateSil", "factory", "factorySil"]) expect(Object.keys(off[fn]).sort(), `${fn}: the 64 ids`).toEqual([...ids].sort());
+    for (const fn of ["icon", "gate", "gateSil", "factory", "factorySil"]) expect(Object.keys(off[fn]).sort(), `${fn}: the 37 ids`).toEqual([...ids].sort());
   });
 
   it("switch OFF: the shop's card picture of every new card is the base's: the icon doubled, pixel for pixel (24x24)", () => {
@@ -104,7 +106,7 @@ describe("ARTB-CODE-3A T(g): with the switch on, exactly the art's functions dif
     for (const k of Object.keys(base.body)) if (!SHAPED.includes(k.split("@")[0])) expect(on.body[k], `body ${k}: the base's`).toBe(base.body[k]);
   });
 
-  it("on, off, on: the 64 ids' drawings swap both ways (the pictures drawn with the art on are gone with it off: off = the base's digests; on again = on)", () => {
+  it("on, off, on: the 37 ids' drawings swap both ways (the pictures drawn with the art on are gone with it off: off = the base's digests; on again = on)", () => {
     setArtB(true);
     const a = allDigests(ICON_ONLY.concat(NEW_RIGS, FACTORY_PIECES, ["barbed"]));
     setArtB(false);

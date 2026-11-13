@@ -30,7 +30,8 @@ function plateInk(id: string, w: number): (x: number, y: number) => boolean {
 afterEach(() => setArtB(true));
 
 describe("ARTB-CODE-3A T(f): the plate guide for the new cards", () => {
-  it("every new card (the 49) and MEND PRESS: a plate hides at most 25% of the picture's opaque px on every width 46..70 (a card with no grid has no plate); the plated ones are the 13 guns and MEND PRESS", () => {
+  // ARTB-CODE-3B (the hold of 27 pictures), old -> new: the new cards are 22 (was 49) and the plated ones the 6 guns that ride (was 13) and MEND PRESS; the 7 held guns' cards are out of the data
+  it("every new card (the 22 that ride) and MEND PRESS: a plate hides at most 25% of the picture's opaque px on every width 46..70 (a card with no grid has no plate); the plated ones are the 6 guns and MEND PRESS", () => {
     setArtB(true);
     const ids = [...NEW_CARD_IDS, "mendpress"];
     const cases: [string, number, number][] = [["phone", CARD_W, CARD_H], ["desk", WIDE_CARD_MAX_W, WIDE_CARD_H], ["desk 69", 69, WIDE_CARD_H]];
@@ -58,7 +59,7 @@ describe("ARTB-CODE-3A T(f): the plate guide for the new cards", () => {
     const log = `ARTB3 PLATECOVER (the new cards: a plate hides at most 25% of its picture's opaque px): ${rows.length} rows, ${plated.length} plated cards\n${rows.join("\n")}\nworst share per plated card: ${Object.entries(worst).map(([id, v]) => `${id} ${(100 * v).toFixed(1)}%`).join(", ")}`;
     console.log(log);
     if (process.env.ARTB_PLATE3_LOG) writeFileSync(process.env.ARTB_PLATE3_LOG, log + "\n");
-    // the plated ones: the 13 guns (size-2 turrets, a plain 2x2 grid) and MEND PRESS (a plain 2x2 factory); the 34 rigs, WARD BELL and MENDING LOOM are one cell
+    // the plated ones: the 6 guns that ride (size-2 turrets, a plain 2x2 grid) and MEND PRESS (a plain 2x2 factory); the 14 rigs, WARD BELL and MENDING LOOM are one cell
     expect(plated.sort(), "the new cards that carry a plate").toEqual([...GUNS, "mendpress"].sort());
     for (const id of NEW_RIGS) expect(hasGrid(id), `${id}: one cell here, no plate`).toBe(false);
     for (const id of ["wardbell", "mendingloom"]) expect(hasGrid(id), `${id}: one cell, no plate`).toBe(false);

@@ -33,6 +33,7 @@ const pal = C as Record<string, string>;
 const RIGS = ALL_RIGS;
 // ARTB-CODE-2A (batch 2), old -> new: SLICE was the ten rigs and KILN (11 ids); the start factories LOOM, CRUCIBLE and WARDWORKS answer as card pictures the same way (their bare 24x24 sprite): 14 ids
 // ARTB-CODE-3A, old -> new: 14 ids -> 64: the 44 rigs, the 13 guns and the two mods (card/<id>: ICON_ONLY) and the five factories (MEND PRESS joins KILN, LOOM, CRUCIBLE, WARDWORKS: its bare 24x24 sprite)
+// ARTB-CODE-3B (the hold of 27 pictures), old -> new: 64 ids -> 37: the 24 rigs, the 6 guns and the two mods that ride and the five factories
 const FACTORIES = FACTORY_PIECES;
 const SLICE = [...RIGS, ...ICON_ONLY, ...FACTORIES];
 /** the data's card picture of a slice id as w*h hexes (null = clear): card/<id> for a rig, the bare sprite for a start factory */
@@ -163,8 +164,9 @@ describe("ARTB-CODE-1 C: the shop card's picture", () => {
     // the old three's shares did not move (3 of 341, 8 of 337, 8 of 403 opaque px on the 46x42 card: the table above)
     // ARTB-CODE-3A (batches 2R, 3a, 4a, 4b), old -> new: 6 plated pieces -> 20: + the 13 guns (size-2 turrets: a plain 2x2 grid, hasGrid) and MEND PRESS (a plain 2x2 factory); the 34 new rigs, WARD BELL and
     // MENDING LOOM are one cell here (no plate); the old six's shares did not move except LOOM's (9.3% -> 7.6%: the redrawn picture) and CRUCIBLE's (7.4% -> 4.6%); the new shares are all under 25% (the table above is the log)
-    expect(Object.keys(worst).sort(), "the plated slice pieces: the two shaped rigs, the 13 guns' and the five factories' plain 2x2").toEqual([...SHAPED, ...GUNS, ...FACTORIES].sort());
-    expect(Object.keys(worst).length).toBe(20);
+    // ARTB-CODE-3B (the hold of 27 pictures), old -> new: 20 plated pieces -> 13: the 7 held guns (scrapcannon rampart carronade hailgun deckgun bombard thunderer) are out of the data; the six that ride stay
+    expect(Object.keys(worst).sort(), "the plated slice pieces: the two shaped rigs, the 6 guns' and the five factories' plain 2x2").toEqual([...SHAPED, ...GUNS, ...FACTORIES].sort());
+    expect(Object.keys(worst).length).toBe(13);
     for (const id of Object.keys(worst)) expect(worst[id], `${id}: the plate hides at most 25% of the picture`).toBeLessThanOrEqual(0.25);
   });
 
