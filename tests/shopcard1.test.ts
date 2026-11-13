@@ -27,7 +27,7 @@ import { ITEMS, buyableModules, type MerchantId } from "../src/sim/content";
 import { newRun, type ShopBadge } from "../src/game/run";
 import { C } from "../src/render/palette";
 import { itemIcon } from "../src/render/sprites";
-import { artBCard } from "../src/render/artB"; // ARTB-CODE-1 (REQ-BFG-126): a slice piece's card shows art B's native 24x24 picture (iconX2), not the icon doubled
+import { artBCard, setArtB } from "../src/render/artB"; // ARTB-CODE-1 (REQ-BFG-126): a slice piece's card shows art B's native 24x24 picture (iconX2), not the icon doubled; ARTB-CODE-3A: the switch, for one assert
 import { footOffsets } from "../src/sim/foot";
 import { CARD_H, CARD_TEXT_MIN_W, CARD_W, WIDE_CARD_H, WIDE_CARD_MAX_W } from "../src/screens/build/layout";
 import {
@@ -200,8 +200,15 @@ describe("SHOPCARD-1 (REQ-BFG-115): every shop card is its icon at x2 and its pr
       drawCard(G(wait), { x: OX, y: OY, w, h }, ITEMS.whetstone, 3, "alchemist", { ...BASE, sale: true, badge: { kind: "wait" } as ShopBadge }, 0);
       expect([px(wait, z.sale, 1, 1), px(wait, z.sale, 4, 4)], `${wn}: the sale mark beside the owned marker`).toEqual([C.lime, C.lime]);
       // sold: no mark, no price, the icon dim (alpha), nothing at the price's place
+      // ARTB-CODE-3A (REQ-BFG-126), old -> new: WHETSTONE's card picture is art B's native 24x24 now (card/whetstone, batch 4a), whose ink outline reaches into the mark plates' places (the marks are drawn over the picture's corner;
+      // a sold card draws none, so the picture shows through): "not ink there" no longer holds with the switch on (phone sold: #050B12). The assert stays as it was on the BASE picture (the doubled icon, the switch off), and with the
+      // switch on a sold card that carries the marks' flags is drawn pixel for pixel as a sold card without them: no mark drawn.
       const sold = draw("whetstone", w, h, { sold: true, sale: true, badge: { kind: "merge", toStars: 2 } as ShopBadge });
-      for (const m of [z.merge, z.sale]) for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) expect(px(sold, m, x, y), `${wn} sold`).not.toBe(C.ink);
+      expect(sold.px, `${wn} sold (art B on): the sale and merge marks are not drawn`).toEqual(draw("whetstone", w, h, { sold: true }).px);
+      setArtB(false);
+      const soldBase = draw("whetstone", w, h, { sold: true, sale: true, badge: { kind: "merge", toStars: 2 } as ShopBadge });
+      setArtB(true);
+      for (const m of [z.merge, z.sale]) for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) expect(px(soldBase, m, x, y), `${wn} sold`).not.toBe(C.ink);
     }
   });
 });

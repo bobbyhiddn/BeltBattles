@@ -12,7 +12,8 @@
 // test is flipped (every wave-3 id IS an ITEMS entry, equal field by field to A1's copy in tools/wave3Defs.ts), the "I1's
 // world" block reads the real defs (no install, no remove), and "existing" means every ITEMS entry that is not wave 3's,
 // whether or not the switch lists them. Every other assertion is as A1 wrote it.
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { setArtB } from "../src/render/artB"; // ARTB-CODE-3A (REQ-BFG-126): the switch (the note below the imports)
 import { C, type ColorName } from "../src/render/palette";
 import { factoryFlashSil, factorySprite, gateSil, gateSprite, itemIcon } from "../src/render/sprites";
 import {
@@ -37,6 +38,12 @@ import type { ItemDef } from "../src/sim/content"; // AZ-BUMP (the flip, LADDER_
 import { LADDER_DEFS, withLadderFix } from "../src/sim/ladderFix"; // AZ-BUMP (the flip, LADDER_FIX): STOKER's fixed def
 import { GUARD_DEFS, withGuard } from "../src/sim/guard"; // HULL-ON (the flip, GUARD): PLATE ROLLER's guarded def
 import { SCALE_DEFS, SCALE_RIGS, withScaleRigs } from "../src/sim/scale"; // BUMP-1E (SCALE_RIGS on): IRON WALL's and SPALL CATCHER's entries are the scaling rules' defs; the 0.9.11 entries are read with the switch off
+
+// ARTB-CODE-3A (REQ-BFG-126), old -> new: art direction B now draws wave 3's rigs PLATE ROLLER, PINCER, BRACE FRAME, PLATE BREAKER, IRON WALL, TWIN GAUGE, TWIN LATCH, STOKER and others (board/<id>, batches 4a and 4b): gateSprite and itemIcon
+// answer art B's sprite with the switch on, a still idle picture with two work phases, not wave3Art.ts's animated one. One assert went red on that data: "frames differ where the art animates" (PLATE ROLLER: 1 idle picture, the bar 2).
+// This file pins the BASE drawing (src/render/wave3Art.ts, the VITE_ARTB=0 path), so it runs with the switch off, every assert as it was; art B's pictures of the same ids are pinned in tests/artb3.board.test.ts.
+beforeAll(() => setArtB(false));
+afterAll(() => setArtB(true));
 
 // ------------------------------------------------------------------------------------------------- a software raster
 
