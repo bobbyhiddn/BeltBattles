@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { C } from "../src/render/palette";
 import { ART_B_LEGEND, ART_B_SHA256, ART_B_SPRITES, ART_B_WORK } from "../src/render/artBData";
+import { ALL_RIGS, FACTORY_PIECES, ICON_ONLY, SHAPED, STATE_RIGS } from "./artb3.helpers"; // ARTB-CODE-3A: the names of the pieces (lists only, no pixel)
 
 // (paths are the repo root's, where vitest runs; the repo's node shims declare no node:url)
 const JSON_FILE = "tools/artb/artb-slice.json";
@@ -16,19 +17,25 @@ const data = JSON.parse(readFileSync(JSON_FILE, "utf8")) as {
   legend: Record<string, string>;
   legendHex: Record<string, string>;
   sprites: Record<string, { w: number; h: number; rows: string[] }>;
-  work: Record<string, { work?: [number, number, string][][]; idle?: [number, number, string][][]; flash?: [number, number, string][] }>;
+  work: Record<string, { work?: [number, number, string][][]; idle?: [number, number, string][][]; flash?: [number, number, string][]; state?: Record<string, [number, number, string][][]> }>;
 };
 
-/** The brief's list: the sprites the slice holds, with their sizes. */
-const RIGS = ["embertrough", "nailstrip", "grease", "ballast", "rasp", "bellows", "sparkgap", "staticbrush", "barbed", "venom"];
-const SHAPED = ["embertrough", "nailstrip"];
+/** The brief's list: the sprites the data holds, with their sizes. ARTB-CODE-2A (batch 2), old -> new: 25 sprites -> 34: the start factories LOOM, CRUCIBLE and WARDWORKS (24x24) with their icons (12x12), and the
+ *  faces of WEAVER, FOUNDRY and BASTION (32x32) join KILN, icon/kiln and portrait/furnace.
+ *  ARTB-CODE-3A (batches 2R, 3a, 4a, 4b), old -> new: 34 sprites -> 134: RIGS is the ten of batch 1 and the 34 new rigs (44: card/<id> and board/<id>); the 13 guns and the two mods (ICON_ONLY) have card/<id> and
+ *  icon/<id>; FACTORIES gains MEND PRESS (a bare 24x24 and icon/mendpress): 59 cards, 44 boards, 2 bodies, 5 bare names, 20 icons, 4 faces.
+ *  ARTB-CODE-3B (the hold of 27 pictures), 134 -> 80: RIGS is the ten of batch 1 and the 14 new rigs that ride (24: 24 boards and 32 cards with the 8 gun and mod cards), ICON_ONLY the 6 guns and 2 mods:
+ *  32 cards, 24 boards, 2 bodies, 5 bare names, 13 icons, 4 faces. */
+const RIGS = ALL_RIGS;
+const FACTORIES = FACTORY_PIECES;
+const FACES = ["furnace", "weaver", "foundry", "bastion"];
 const EXPECT: Record<string, [number, number]> = {
-  ...Object.fromEntries(RIGS.map((id) => [`card/${id}`, [24, 24]])),
+  ...Object.fromEntries([...RIGS, ...ICON_ONLY].map((id) => [`card/${id}`, [24, 24]])),
   ...Object.fromEntries(RIGS.map((id) => [`board/${id}`, [12, 12]])),
   ...Object.fromEntries(SHAPED.map((id) => [`body/${id}`, [24, 12]])),
-  kiln: [24, 24],
-  "icon/kiln": [12, 12],
-  "portrait/furnace": [32, 32],
+  ...Object.fromEntries(FACTORIES.map((id) => [id, [24, 24]])),
+  ...Object.fromEntries([...FACTORIES, ...ICON_ONLY].map((id) => [`icon/${id}`, [12, 12]])),
+  ...Object.fromEntries(FACES.map((id) => [`portrait/${id}`, [32, 32]])),
 };
 
 describe("ARTB-CODE-1 D: the data in the repo and its generator", () => {
@@ -75,7 +82,7 @@ describe("ARTB-CODE-1 D: the data in the repo and its generator", () => {
     for (const [name, w] of Object.entries(data.work)) {
       const s = data.sprites[name];
       expect(s, `work entry ${name} names a sprite`).toBeDefined();
-      const lists = [...(w.work ?? []), ...(w.idle ?? []), ...(w.flash ? [w.flash] : [])];
+      const lists = [...(w.work ?? []), ...(w.idle ?? []), ...(w.flash ? [w.flash] : []), ...Object.values(w.state ?? {}).flat()]; // ARTB-CODE-3B: the state patches too
       for (const l of lists) for (const [x, y, ch] of l) {
         expect(x >= 0 && y >= 0 && x < s.w && y < s.h, `${name}: pixel ${x},${y} is inside ${s.w}x${s.h}`).toBe(true);
         expect(ch === "." || data.legend[ch] !== undefined, `${name}: '${ch}' is in the legend`).toBe(true);
@@ -83,19 +90,27 @@ describe("ARTB-CODE-1 D: the data in the repo and its generator", () => {
     }
   });
 
-  it("the sprite list is exactly the brief's: ten cards (24x24), ten boards (12x12), two bodies (24x12), kiln (24x24), icon/kiln (12x12), portrait/furnace (32x32)", () => {
+  it("the sprite list is exactly the briefs': 32 cards (24x24), 24 boards (12x12), two bodies (24x12), five factories (24x24: the four start factories and MEND PRESS), 13 icons (12x12), the four heroes' faces (32x32): 80", () => {
+    expect(Object.keys(EXPECT).length).toBe(80); // ARTB-CODE-3B (the hold), old -> new: 134 (ARTB-CODE-3A: 34; ARTB-CODE-2A: 25)
     expect(Object.keys(data.sprites).sort()).toEqual(Object.keys(EXPECT).sort());
     for (const [name, [w, h]] of Object.entries(EXPECT)) expect([data.sprites[name].w, data.sprites[name].h], name).toEqual([w, h]);
   });
 
-  it("the working-state entries have the brief's shape: a rig two work phases; a body two work phases (and two idle phases if any); KILN four idle phases (the first is the plain sprite) and a flash", () => {
+  it("the working-state entries have the briefs' shape: a rig two work phases; a body two work phases (and two idle phases if any); a factory (KILN, LOOM, CRUCIBLE, WARDWORKS, MEND PRESS) four idle phases (the first is the plain sprite) and a flash", () => {
     for (const [name, w] of Object.entries(data.work)) {
-      if (name.startsWith("board/")) { expect(Object.keys(w), name).toEqual(["work"]); expect(w.work!.length, name).toBe(2); }
+      // ARTB-CODE-3B, old -> new: a board's keys were ["work"]; the three rigs that show a state through art B (STATE_RIGS) also carry `state` (its keys and phase counts are the helpers' list)
+      if (name.startsWith("board/")) {
+        const st = STATE_RIGS[name.slice("board/".length)];
+        expect(Object.keys(w), name).toEqual(st ? ["work", "state"] : ["work"]);
+        expect(w.work!.length, name).toBe(2);
+        if (st) expect(Object.fromEntries(Object.entries(w.state!).map(([k, ph]) => [k, ph.length])), `${name}: the state keys and their phase counts`).toEqual(st);
+      }
       else if (name.startsWith("body/")) { expect(w.work!.length, name).toBe(2); if (w.idle) { expect(w.idle.length, name).toBe(2); expect(w.idle[0], `${name}: idle phase 0 is the plain sprite`).toEqual([]); } }
-      else if (name === "kiln") { expect(w.idle!.length).toBe(4); expect(w.idle![0], "kiln: idle phase 0 is the plain sprite").toEqual([]); expect(w.flash!.length).toBeGreaterThan(0); }
-      else throw new Error(`a work entry for ${name}, which the brief does not name`);
+      // ARTB-CODE-2A (batch 2), old -> new: only "kiln" was named; LOOM, CRUCIBLE and WARDWORKS have the same shape (idle x4, flash)
+      else if (FACTORIES.includes(name)) { expect(w.idle!.length, name).toBe(4); expect(w.idle![0], `${name}: idle phase 0 is the plain sprite`).toEqual([]); expect(w.flash!.length, name).toBeGreaterThan(0); }
+      else throw new Error(`a work entry for ${name}, which the briefs do not name`);
     }
-    // a work entry only for a board, a body or kiln: no card, no icon, no portrait (they hold still)
-    expect(Object.keys(data.work).every((n) => n.startsWith("board/") || n.startsWith("body/") || n === "kiln")).toBe(true);
+    // a work entry only for a board, a body or a start factory: no card, no icon, no portrait (they hold still)
+    expect(Object.keys(data.work).every((n) => n.startsWith("board/") || n.startsWith("body/") || FACTORIES.includes(n))).toBe(true);
   });
 });

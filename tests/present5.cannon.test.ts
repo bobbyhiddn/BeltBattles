@@ -2,13 +2,19 @@
 //  PRESENT-3 C drew a white pixel at (10, 0), off the barrel's end inside an ink cap; three of six of PRESENT-4's readers took it for a glint or spark (K-03), and PRESENT-4 M's try of joining it to the barrel read as a blade
 //  (a cannon or gun 2 of 6) and was put back. M2 drops the pixel (candidate A of O/img/m2/candidates.png): row 0 `......#ws#w#` -> `......#ws###`, every other pixel PRESENT-3's.
 //  This guard pins the new rows for every heavy turret (every rarity's rim) and that no bright pixel stands alone. (tests/present3.cannon.test.ts pins the SCRAP CANNON's rows and that the other classes' icons are as they were.)
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { setArtB } from "../src/render/artB";
 import { installRaster, type RasterCanvas } from "./raster.helpers";
 import { C, RARITY_COLOR } from "../src/render/palette";
 import { ITEMS } from "../src/sim/content";
 import { itemIcon } from "../src/render/sprites";
 
 installRaster();
+
+// ARTB-CODE-3A (REQ-BFG-126), old -> new: art direction B now draws the 13 gun pieces' small icon (icon/<id>, batch 3a): with the switch on itemIcon is art B's picture, not the carriage gun's rows (scrapcannon: white pixels in rows 0-9:
+// 0, the old rows 4). This file pins the BASE carriage gun (src/render/turretIcon.ts carriageGun, the VITE_ARTB=0 path), so it runs with the switch off, every assert as it was; art B's icons are pinned in tests/artb3.board.test.ts.
+beforeAll(() => setArtB(false));
+afterAll(() => setArtB(true));
 
 const px = (id: string): (string | null)[] => { const cv = itemIcon(id) as unknown as RasterCanvas; return Array.from({ length: 144 }, (_, i) => cv.at(i % 12, Math.floor(i / 12))); };
 const heavy = Object.values(ITEMS).filter((d) => d.kind === "turret" && d.turret && d.turret.class === "heavy").map((d) => d.id);

@@ -5,7 +5,8 @@
 //  - FURNACE's face is the data's portrait/furnace, 32x32, at the same place as the 24x24 face was (ix + 1, iy + 1), in option B's frame: a 34 x 34 ring in the faction's trim
 //    at (ix, iy) hugging it (four 1 px lines), the face's own ink outline its border (an ink backing exactly under it, no ink margin); the ring's last row is iy + 33, so one clear
 //    row (iy + 34) lies between the frame and the first rule line (iy + HEAD_H, HEAD_H 35); the head's text column starts at ix + 38 (the 4 clear px beside the ring the 24x24 heroes have);
-//  - WEAVER, FOUNDRY and BASTION still draw their own 24x24 faces (portraits.ts's, the same objects), in the base's frame at the base's place, with the switch on or off;
+//  - WEAVER, FOUNDRY and BASTION: with the switch off their own 24x24 faces (portraits.ts's, the same objects) in the base's frame at the base's place (ARTB-CODE-2A: with it on, art B's 32x32 faces,
+//    batch 2's data: tests/artb2.hero.test.ts pins their frame);
 //  - on every view the head's text keeps whole and clear of the frame, and no row below the head, no region and no tap moves (FURNACE with the art on and off).
 import { readFileSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -165,19 +166,28 @@ describe("ARTB-CODE-1 H: FURNACE's face on hero select", () => {
     expect([br.x, br.y, br.w, br.h, br.lines], "the base's ring").toEqual([img.x - 2, img.y - 2, 28, 28, 4]);
   });
 
-  it("WEAVER, FOUNDRY and BASTION keep their 24x24 faces: portraits.ts's own canvases, in the base's frame at the base's place, with the switch on and off", () => {
+  // ARTB-CODE-2A (batch 2), old -> new (cause: portrait/weaver, portrait/foundry and portrait/bastion are in the data now): this test pinned that the three keep their 24x24 faces with the switch on and off
+  // (artBFace null; portraits.ts's canvas; 24x24; the frame, every head text line and the regions equal to the switch-off run's). Now, per hero and view: the switch OFF is the base's frame (portraits.ts's
+  // canvas, 24x24, the 26 px ink box and the 28 px ring, absolute, where it was only compared with the switch-on run), the switch ON is art B's own 32x32 canvas (artBFace) at the same top-left corner, and the
+  // regions are still the switch-off run's. Frame B itself (the ring, the ink backing, the +7 px text column, the clear row) is pinned for all four heroes in tests/artb2.hero.test.ts.
+  it("WEAVER, FOUNDRY and BASTION: with the switch off their 24x24 faces are portraits.ts's own canvases in the base's frame at the base's place; with it on art B's 32x32 face stands at the same corner, the regions the base's", () => {
     for (const id of ids.filter((h) => h !== "furnace")) for (const [vn, w, h, dprs] of VIEWS) for (const dpr of dprs) {
       setArtB(true);
+      const faceOn = artBFace(id);
       const on = frameOf(id, w, h, dpr);
       setArtB(false);
       const off = frameOf(id, w, h, dpr);
       const what = `${id} ${vn} @${dpr}`;
-      expect(artBFace(id), what).toBeNull();
-      expect(on.img!.img, `${what}: portraits.ts's face`).toBe(portraitImage(id as PortraitHero));
-      expect([on.img!.w, on.img!.h], what).toEqual([24, 24]);
-      expect([on.img!.x, on.img!.y, on.ink!.x, on.ink!.y, on.ink!.w], `${what}: the frame is the base's`).toEqual([off.img!.x, off.img!.y, off.ink!.x, off.ink!.y, off.ink!.w]);
-      const head = (fr: Frame): string => JSON.stringify(fr.text.filter((t) => t.y >= fr.ink!.y - 1).map((t) => [t.s, t.x, t.y, t.w, t.font, t.scale]));
-      expect(head(on), `${what}: every text line from the head down is the base's`).toBe(head(off));
+      expect(artBFace(id), `${what}: null with the switch off`).toBeNull();
+      expect(off.img!.img, `${what}: portraits.ts's face`).toBe(portraitImage(id as PortraitHero));
+      expect([off.img!.w, off.img!.h], what).toEqual([24, 24]);
+      expect([off.ink!.x, off.ink!.y, off.ink!.w, off.ink!.h], `${what}: the base's ink box`).toEqual([off.img!.x - 1, off.img!.y - 1, 26, 26]);
+      const br = ringOf(off, FACTION[HEROES[id].faction].trim1)!;
+      expect([br.x, br.y, br.w, br.h, br.lines], `${what}: the base's ring`).toEqual([off.img!.x - 2, off.img!.y - 2, 28, 28, 4]);
+      expect(faceOn, `${what}: art B holds the face`).not.toBeNull();
+      expect(on.img!.img, `${what}: art B's face`).toBe(faceOn);
+      expect([on.img!.w, on.img!.h], what).toEqual([32, 32]);
+      expect([on.img!.x, on.img!.y], `${what}: the face stands where the 24x24 face did`).toEqual([off.img!.x, off.img!.y]);
       expect(on.regions, `${what}: the regions are the base's`).toEqual(off.regions);
     }
   });

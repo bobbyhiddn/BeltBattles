@@ -3,7 +3,8 @@
 //  picture that no reader of PRESENT-2's K-02 could name (0 of 6, bare or under a grid; the KILN, the other slot, read 4 of 6).
 //  Step 1 (598837cc): two FAT upright barrels. Run 2's cold read (the bare control, six fresh seats) read that as a face or a robot: no seat called it a gun. cap's RULINGS-RUN1 item 3 allowed V3.
 //  Now (the fix round): V3, a CARRIAGE GUN (a wheel, a carriage, a barrel on the diagonal), the same 12x12 and palette; the rarity rim keeps its place at the wheel's foot. The other classes' icons are untouched.
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { setArtB } from "../src/render/artB";
 import { installRaster, fresh, G as gOf, type RasterCanvas } from "./raster.helpers";
 import { C, RARITY_COLOR } from "../src/render/palette";
 import { ITEMS } from "../src/sim/content";
@@ -11,6 +12,12 @@ import { itemIcon } from "../src/render/sprites";
 import { rect } from "../src/render/pixel";
 
 installRaster();
+
+// ARTB-CODE-3A (REQ-BFG-126), old -> new: art direction B now draws the 13 gun pieces' small icon (icon/<id>, batch 3a), so itemIcon answers art B's picture with the switch on: the SCRAP CANNON's icon is not the carriage gun any more
+// (scrapcannon: colour #D0CEB7 was not in the old icon) and the light, medium and adaptable turrets' icons are not "exactly as they were" (dartgun: 144 px differ). This file pins the BASE icons (src/render/turretIcon.ts, the
+// VITE_ARTB=0 path), so it runs with the switch off, every assert as it was; art B's icons of the same ids are pinned in tests/artb3.board.test.ts (itemIcon is icon/<id>).
+beforeAll(() => setArtB(false));
+afterAll(() => setArtB(true));
 
 /** The turret icon as render/turretIcon.ts drew it before PRESENT-3 (every class, the heavy one with its thin barrels), for the comparison. */
 function oldIcon(id: string): (string | null)[] {

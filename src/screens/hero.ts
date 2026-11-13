@@ -15,7 +15,7 @@ import { frame, rect, type G } from "../render/pixel";
 import { drawText, wrap } from "../render/font";
 import { HULL_A, HULL_L, frameForHull } from "../render/frame";
 import { portraitImage, type PortraitHero } from "../render/portraits";
-import { artBFace } from "../render/artB"; // ARTB-CODE-1 (REQ-BFG-127): FURNACE's 32x32 face
+import { artBFace } from "../render/artB"; // ARTB-CODE-1 (REQ-BFG-127): a hero's 32x32 face (FURNACE's; ARTB-CODE-2A: WEAVER's, FOUNDRY's and BASTION's too)
 import { heroTrick } from "../ui/abilityText";
 import { heroFace, heroPlaystyle, ruleSpans } from "../ui/faces"; // U2a (REQ-BFG-046): a TEXT hero's face
 import { colourize, drawRich, wrapRich } from "../ui/richText"; // U2a: the face wraps with the number rule (font.ts wrap has none)
@@ -28,7 +28,7 @@ import { settings } from "../core/settings";
 
 /** The carousel's heroes, in roster order (tests and tooling read it). */
 export const ORDER: readonly HeroId[] = PLAYABLE_HEROES;
-/** The portrait's side (24x24 at 1x, framed in ink and the faction's trim). */
+/** The portrait's side (24x24 at 1x, framed in ink and the faction's trim): portraits.ts's face, drawn when art B holds none for the hero or its switch is off. */
 const PORTRAIT = 24;
 /** Text column height beside the portrait: faction (8) + name (18) + playstyle (9). */
 const HEAD_H = 35;
@@ -148,11 +148,12 @@ export class HeroScreen implements Screen {
     const iw = infoW;
     let iy = portrait ? py0 + ph + 14 : py0;
     // 0.8.0 H1: the hero's portrait, framed in ink and its faction's trim, with the faction, name and playstyle beside it
-    // ARTB-CODE-1 (REQ-BFG-127): FURNACE's face is art B's own 32x32 (artBFace; null for the other three heroes and with the switch off: their 24x24
-    // faces, the frame and the text column exactly as before).
+    // ARTB-CODE-1 (REQ-BFG-127): a hero's face is art B's own 32x32 when the data holds one (artBFace; null with the switch off: the 24x24 face, the frame and the
+    // text column exactly as before). ARTB-CODE-2A (batch 2, a data swap: this code did not change): the data holds all four playable heroes' faces now (FURNACE's,
+    // WEAVER's, FOUNDRY's, BASTION's), so all four take the frame below; the 24x24 branch is the switch-off path.
     // ARTB-CODE-1B (REQ-BFG-127; cap's ruling 1 on ARTB-CODE-1, option B): the ring hugs the 32x32 face: 34 x 34 at (ix, iy) in the faction's trim, the face's own ink outline is its border (ink only behind its clear px, no ink
     // margin), the face at (ix + 1, iy + 1) where the 24x24 face stands; the ring's last row (iy + 33) leaves one clear row before the head ends (iy + 34), so the first rule line (iy + HEAD_H) has air above it.
-    // HEAD_H stays 35: no row, region or tap moves. The text column keeps the 4 clear px beside the ring that the 24x24 heroes have (their ring ends at ix + 26, their text starts at ix + 31): FURNACE's starts at ix + 38.
+    // HEAD_H stays 35: no row, region or tap moves. The text column keeps the 4 clear px beside the ring that the 24x24 face has (its ring ends at ix + 26, its text starts at ix + 31): a 32x32 face's text starts at ix + 38.
     const face32 = artBFace(id);
     let tx: number;
     if (face32) {
