@@ -3,6 +3,32 @@
 What each release adds for players. The repo kept no changelog before 0.8.0. 0.7.0's notes are in docs/ASYNC.md
 ("0.7.0 for players"), and 0.6.x's are in the published release notes.
 
+## 0.9.19: a tidier build screen on small phones
+
+The build screen is tidier on small phones: the ENCHANTER's word cards sit clear of your hull, and your own HULL, BELT and FEEDS
+stay on screen on more screens.
+- **Shorter word cards in the ENCHANTER's row.** On small phones the ENCHANTER's word cards that stand in a row under the shop
+  are shorter (a smaller icon, still bigger than a finger). With a rune held and 6 or 7 offers they no longer sit on the hull and
+  the bow turret's mount, and the panel under them keeps up to 10 px more room.
+- **Your HULL, BELT and FEEDS stay on screen.** With the ENCHANTER's word cards in a row under the shop, the NEXT BATTLE card now
+  stays inside its own strip instead of sliding down over the hull and the bow turrets. Where the strip under the shop is too short
+  for your hero card (small phones, phones with the browser's bars up, some windows and tablets), your HULL, BELT and FEEDS now
+  stay on screen: in a slim line above the NEXT BATTLE card, or in a small panel near the BELT and HULL buttons. Not yet
+  everywhere: on some tablets held upright (for example 768x1024, 820x1180 and 834x1194 screens, and 1024x1366 with the WEAVER,
+  FOUNDRY or SIPHON) they show only while you hold a rune.
+- **A selected word card in the margin keeps clear.** On small phones, a selected ENCHANTER word card in the margin beside the shop
+  keeps its frame clear of the MENU corner, the rune bar and the bar above it. To make room the two cards sit one pixel lower on
+  some phones, and a few are one pixel shorter.
+- **The short hero card is back in some windows.** In some portrait browser windows and on some tablets, with the ENCHANTER's word
+  cards in a row, the strip under the shop now has room for the short hero card again (your hero, HULL, BELT and FEEDS), and the
+  NEXT BATTLE card sits a little lower.
+- **A very short NEXT line shows one row.** Where the strip under the shop is under 19 px tall (as on the smallest phones), the
+  NEXT line shows the foe's name and what is at stake on one row. Its second row (the foe's hero and HULL, your belt and your W-L
+  record) is left out there instead of running over the bow turrets' barrels.
+
+The battle rules are still bb-0.16.0, so players of 0.9.19 meet the same ghosts as players of 0.9.18, and a run saved on 0.9.18
+loads and goes on.
+
 ## 0.9.18: new art for FURNACE
 
 New art for FURNACE: its face, its KILN and ten rigs are redrawn, and the shop cards of those ten rigs show a full-size picture.
