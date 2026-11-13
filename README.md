@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| Current release | **0.9.18**: new art for FURNACE ([changelog](docs/CHANGELOG.md)) |
+| Current release | **0.9.19**: a tidier build screen on small phones ([changelog](docs/CHANGELOG.md)) |
 | Battle rules | `bb-0.16.0` |
 | Runs on | any modern browser, desktop or phone |
 
@@ -34,7 +34,7 @@ Battles play themselves. Your skill is in the build: what you buy, where it sits
 
 - **Client:** TypeScript and plain Canvas 2D and WebAudio, built with Vite into a single-file page of about 1 MB. All art is pixel art that lives in the code, drawn by it or stored in it as pixel data, and all sound is synthesized in code.
 - **Ghost server:** a zero-dependency Node 22 process (`node:http`, WebCrypto) that serves the page and the API. It runs on [Fly.io](https://fly.io) (app `beltbattles`) and stores ghosts and profiles in a Tigris bucket.
-- **Tests:** Vitest. The full suite is about 610 files and 7,200 tests, covering the sim, the rules text, the server and the screens.
+- **Tests:** Vitest. The full suite is about 620 files and 7,300 tests, covering the sim, the rules text, the server and the screens.
 
 ## Getting started
 
