@@ -10,15 +10,17 @@ import { R, installRaster } from "./raster.helpers";
 
 installRaster();
 
+import type { Arena } from "../src/game/arena";
 import { ITEMS } from "../src/sim/content";
+import type { Build } from "../src/sim/deck";
 import { heroStartBuild } from "../src/sim/heroBuilds";
 import { cruiserModel } from "../src/render/cruiser";
-import { artBBoard, artBBoardState, setArtB } from "../src/render/artB";
-import { gateSprite } from "../src/render/sprites";
+import { artBBoard, artBBoardSil, artBBoardState, setArtB } from "../src/render/artB";
+import { gateSil, gateSprite } from "../src/render/sprites";
 import { stKey, wave3GateSprite, type Wave3RigState } from "../src/render/wave3Art";
 import { rigMoment } from "../src/render/wave3Moments";
 import { ALL_RIGS, SHAPED, STATE_RIGS, data, expected, phase, same } from "./artb3.helpers";
-import { battleView, buildView, cellCheck, drawDeck, gate, hot, momentOf, play } from "./artb3.scene";
+import { battleView, buildView, cellCheck, cellOf, drawDeck, gate, hot, momentOf, play } from "./artb3.scene";
 import { barge, furnaceBench, item, withItem } from "./wave3.helpers";
 
 /** the state each of the three rigs can be in, as wave3Moments.ts rigMoment gives it */
@@ -104,6 +106,54 @@ describe("ARTB-CODE-3B S: where art B has no board sprite the base's drawing run
   it("with the switch off artBBoardState answers null for every id and key: the deck draws wave3GateSprite as it did", () => {
     setArtB(false);
     for (const id of [...ALL_RIGS, ...Object.keys(ITEMS)]) for (const key of KEYS) expect(artBBoardState(id, 0, true, key), `${id} key ${key}`).toBeNull();
+  });
+});
+
+describe("ARTB-CODE-3B X: the hit flash never lays art B's silhouette over the base's look (the cause of ARTB-CODE-3A's 20 px outside the boxes)", () => {
+  // The cause (found by the controlled experiment kit/xsupp.* on the frame dusk-pool-d10-mid-phone; W/output-artb3b/REPORT.md section X): drawRigs draws a flashing rig as its sprite and then gateSil(id), a white silhouette at alpha 0.7
+  // (C.white). At ARTB-CODE-3A a rig in a battle moment state was drawn by the BASE's wave3GateSprite whole while gateSil(id) was already art B's silhouette, so the white laid over the old art had art B's shape: 496 px of the cell differed
+  // from the 0.9.18 frame, 20 of them outside every sprite's box. Leave the silhouettes out and the cell equalled the 0.9.18 frame. Now a state sprite and its silhouette come from the same art, or both from the base.
+  it("art B answers a rig's state sprite and its hit silhouette together: artBBoardState, artBBoardSil and artBBoard are all null or all not null, for every piece of the game and every key", () => {
+    setArtB(true);
+    let both = 0;
+    for (const id of Object.keys(ITEMS)) for (const key of KEYS) {
+      const st = artBBoardState(id, 0, false, key) !== null, sil = artBBoardSil(id) !== null, board = artBBoard(id, 0, false) !== null;
+      expect([st, sil], `${id} key ${key}: state sprite, silhouette`).toEqual([board, board]);
+      if (board) both++;
+    }
+    expect(both, "the 24 rigs art B draws, 9 keys each").toBe(ALL_RIGS.length * KEYS.length);
+  });
+
+  /** A flashing rig `id` (rig 30 on FURNACE's bench, a hit flash running) in its state and out of it: the cell of the deck drawn with every paint (the translucent silhouette too), and which cell px differ between the two. */
+  function flashCell(id: string, def: Build, on: (a: Arena) => void, off: (a: Arena) => void): { got: Set<number>; expect: Set<number>; st: Wave3RigState } {
+    const a = play(def, barge(), (x) => x.b.t > 2 && !hot(x, 30));
+    gate(a, 30).flash = 0.5; // a hit: the rig draws working, and its white silhouette goes over it at alpha 0.7
+    off(a);
+    const plain = cellOf(drawDeck(battleView(a), false), def, 30);
+    on(a);
+    const v = battleView(a);
+    const st = momentOf(a, v, 30);
+    const state = cellOf(drawDeck(v, false), def, 30);
+    const key = stKey(st), want = R(artBBoardState(id, 0, true, key)), bare = R(artBBoard(id, 0, true)), sil = R(gateSil(id));
+    const exp = new Set<number>(), got = new Set<number>();
+    for (let j = 0; j < 12; j++) for (let i = 0; i < 12; i++) {
+      const wp = want.at(i, j);
+      if (wp !== null && wp !== bare.at(i, j) && sil.at(i, j) === null) exp.add(j * 12 + i);
+      if (state[j * 12 + i] !== plain[j * 12 + i]) got.add(j * 12 + i);
+    }
+    return { got, expect: exp, st };
+  }
+
+  it("a flashing IRON WALL and a flashing BRACE FRAME in their states: the cell differs from the same rig's plain flashing cell only at the state's own pixels that the white silhouette does not cover", () => {
+    setArtB(true);
+    const wall = flashCell("shieldwall", withItem(furnaceBench(), item(30, "shieldwall", 3, 3, 0)), (a) => { a.b.sides[0].plate.plate = 1000; }, (a) => { a.b.sides[0].plate.plate = 0; });
+    expect(wall.st, "rigMoment: plated").toEqual({ plated: true });
+    for (const k of wall.got) expect(wall.expect.has(k), `IRON WALL: cell px ${k % 12},${Math.floor(k / 12)} differs from the plain flashing wall but is not a state pixel outside the silhouette`).toBe(true);
+    const brace = flashCell("braceframe", withItem(furnaceBench(), item(30, "braceframe", 3, 4, 0)), (a) => { a.sfx[0].w3.shrug.set(30, 0.2); }, (a) => { a.sfx[0].w3.shrug.delete(30); });
+    expect(brace.st, "rigMoment: shrugging").toEqual({ shrug: true });
+    expect(brace.expect.size, "BRACE FRAME's sparks lie outside its silhouette").toBeGreaterThan(0);
+    expect(brace.got.size, "the sparks show through the flash").toBeGreaterThan(0);
+    for (const k of brace.got) expect(brace.expect.has(k), `BRACE FRAME: cell px ${k % 12},${Math.floor(k / 12)} differs from the plain flashing rig but is not a state pixel outside the silhouette`).toBe(true);
   });
 });
 
