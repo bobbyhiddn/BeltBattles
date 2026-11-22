@@ -7,7 +7,8 @@
 // the sheet (scripts/art1e/sheet.ts) and in Chromium on the shop cards and the tap panel (the REPORT's stills).
 // BUMP-1E: the switch ships ON (bb-0.12.0), so the seven are in ITEMS as shipped; the "absent with it off" half asks for the 0.9.11 world
 // with withScaleRigs(fn, false) (synchronously only).
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { setArtB } from "../src/render/artB";
 import { C } from "../src/render/palette";
 import * as sprites from "../src/render/sprites";
 import { gateSprite, itemIcon } from "../src/render/sprites";
@@ -173,6 +174,13 @@ function iou(a: RasterCanvas, b: RasterCanvas): number {
 
 /** The most a new rig's silhouette may overlap another rig's (the nearest today is 0.77: CINDER MAIL and IRON WALL). */
 const MAX_IOU = 0.85;
+
+// ARTB-CODE-3A (REQ-BFG-126), old -> new: art direction B now draws these seven rigs (CINDER MAIL, ROT GAUGE, LEECH COIL, CROWD PRESS, AEGIS SPIKE, GRUDGE ROD, TROPHY CHAIN: board/<id> and card/<id> of the 34 new rigs, batches 4a and 4b),
+// so gateSprite and itemIcon answer art B's sprite with the switch on (a still idle picture with two work phases, not scaleArt.ts's moving one). Two asserts went red on that data: "the art moves: at least two idle frames differ"
+// (CINDER MAIL: 1 idle picture) and "no rig's silhouette is near another rig's" (CROWD PRESS and TEMPER: 0.866, the bar 0.85). This file pins the BASE drawing (src/render/scaleArt.ts, the VITE_ARTB=0 path), so it runs with the switch
+// off, every assert as it was; art B's pictures of the same ids are pinned in tests/artb3.board.test.ts.
+beforeAll(() => setArtB(false));
+afterAll(() => setArtB(true));
 
 // ======================================================================================================= the seven rigs
 

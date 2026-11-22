@@ -331,7 +331,7 @@ export function drawWave3Gate(g: G, id: string, f: number, active: boolean, st: 
   return true;
 }
 
-const stKey = (st: Wave3RigState): string =>
+export const stKey = (st: Wave3RigState): string =>
   `${st.matched ? "m" : ""}${st.crowd ? `c${Math.min(3, Math.floor(st.crowd))}` : ""}${st.shrug ? "s" : ""}${st.latch ?? ""}${st.spent === false ? "n" : ""}${st.plated ? "p" : ""}`;
 
 /** A wave-3 rig's 12x12 sprite in a battle state (I1 draws it in place of sprites.ts gateSprite when P1's sim gives the

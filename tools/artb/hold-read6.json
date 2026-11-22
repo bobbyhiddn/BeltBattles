@@ -1,0 +1,256 @@
+{
+ "source": "ARTB-READ-6 run 1 ca95734914a58512, REPORT.md line 2 (names matching, bar 5 of 6)",
+ "held": [
+  {
+   "id": "hailgun",
+   "name": "HAIL GUN",
+   "names_matching_of_6": 4,
+   "kind": "gun"
+  },
+  {
+   "id": "carronade",
+   "name": "CARRONADE",
+   "names_matching_of_6": 1,
+   "kind": "gun"
+  },
+  {
+   "id": "thunderer",
+   "name": "THUNDERER",
+   "names_matching_of_6": 4,
+   "kind": "gun"
+  },
+  {
+   "id": "deckgun",
+   "name": "DECK GUN",
+   "names_matching_of_6": 2,
+   "kind": "gun"
+  },
+  {
+   "id": "rampart",
+   "name": "RAMPART CANNON",
+   "names_matching_of_6": 2,
+   "kind": "gun"
+  },
+  {
+   "id": "bombard",
+   "name": "BOMBARD",
+   "names_matching_of_6": 4,
+   "kind": "gun"
+  },
+  {
+   "id": "scrapcannon",
+   "name": "SCRAP CANNON",
+   "names_matching_of_6": 4,
+   "kind": "gun"
+  },
+  {
+   "id": "overdrive",
+   "name": "OVERDRIVE",
+   "names_matching_of_6": 2,
+   "kind": "rig"
+  },
+  {
+   "id": "platebreaker",
+   "name": "SHIELD FUEL",
+   "names_matching_of_6": 1,
+   "kind": "rig"
+  },
+  {
+   "id": "overclocker",
+   "name": "OVERCLOCKER",
+   "names_matching_of_6": 3,
+   "kind": "rig"
+  },
+  {
+   "id": "longhaul",
+   "name": "LONG HAUL",
+   "names_matching_of_6": 4,
+   "kind": "rig"
+  },
+  {
+   "id": "splitter",
+   "name": "SPLITTER",
+   "names_matching_of_6": 4,
+   "kind": "rig"
+  },
+  {
+   "id": "grindstone",
+   "name": "GRINDSTONE",
+   "names_matching_of_6": 4,
+   "kind": "rig"
+  },
+  {
+   "id": "quench",
+   "name": "QUENCH TANK",
+   "names_matching_of_6": 4,
+   "kind": "rig"
+  },
+  {
+   "id": "rotgauge",
+   "name": "ROT GAUGE",
+   "names_matching_of_6": 4,
+   "kind": "rig"
+  },
+  {
+   "id": "heatjacket",
+   "name": "HEAT JACKET",
+   "names_matching_of_6": 2,
+   "kind": "rig"
+  },
+  {
+   "id": "leechcoil",
+   "name": "LEECH COIL",
+   "names_matching_of_6": 3,
+   "kind": "rig"
+  },
+  {
+   "id": "coil",
+   "name": "GALVANIC COIL",
+   "names_matching_of_6": 4,
+   "kind": "rig"
+  },
+  {
+   "id": "riveter",
+   "name": "RIVETER",
+   "names_matching_of_6": 4,
+   "kind": "rig"
+  },
+  {
+   "id": "crowdpress",
+   "name": "CROWD PRESS",
+   "names_matching_of_6": 4,
+   "kind": "rig"
+  },
+  {
+   "id": "brandingiron",
+   "name": "BRANDING IRON",
+   "names_matching_of_6": 4,
+   "kind": "rig"
+  },
+  {
+   "id": "stoker",
+   "name": "STOKER",
+   "names_matching_of_6": 3,
+   "kind": "rig"
+  },
+  {
+   "id": "sorting",
+   "name": "SORTING ARM",
+   "names_matching_of_6": 4,
+   "kind": "rig"
+  },
+  {
+   "id": "twinlatch",
+   "name": "TWIN LATCH",
+   "names_matching_of_6": 4,
+   "kind": "rig"
+  },
+  {
+   "id": "cindermail",
+   "name": "CINDER MAIL",
+   "names_matching_of_6": 4,
+   "kind": "rig"
+  },
+  {
+   "id": "scaleguard",
+   "name": "SCALE GUARD",
+   "names_matching_of_6": 4,
+   "kind": "rig"
+  },
+  {
+   "id": "pincer",
+   "name": "PINCER",
+   "names_matching_of_6": 4,
+   "kind": "rig"
+  }
+ ],
+ "removed_sprites": [
+  "card/hailgun",
+  "icon/hailgun",
+  "card/carronade",
+  "icon/carronade",
+  "card/thunderer",
+  "icon/thunderer",
+  "card/deckgun",
+  "icon/deckgun",
+  "card/rampart",
+  "icon/rampart",
+  "card/bombard",
+  "icon/bombard",
+  "card/scrapcannon",
+  "icon/scrapcannon",
+  "card/overdrive",
+  "board/overdrive",
+  "card/platebreaker",
+  "board/platebreaker",
+  "card/overclocker",
+  "board/overclocker",
+  "card/longhaul",
+  "board/longhaul",
+  "card/splitter",
+  "board/splitter",
+  "card/grindstone",
+  "board/grindstone",
+  "card/quench",
+  "board/quench",
+  "card/rotgauge",
+  "board/rotgauge",
+  "card/heatjacket",
+  "board/heatjacket",
+  "card/leechcoil",
+  "board/leechcoil",
+  "card/coil",
+  "board/coil",
+  "card/riveter",
+  "board/riveter",
+  "card/crowdpress",
+  "board/crowdpress",
+  "card/brandingiron",
+  "board/brandingiron",
+  "card/stoker",
+  "board/stoker",
+  "card/sorting",
+  "board/sorting",
+  "card/twinlatch",
+  "board/twinlatch",
+  "card/cindermail",
+  "board/cindermail",
+  "card/scaleguard",
+  "board/scaleguard",
+  "card/pincer",
+  "board/pincer"
+ ],
+ "removed_work": [
+  "board/overdrive",
+  "board/platebreaker",
+  "board/overclocker",
+  "board/longhaul",
+  "board/splitter",
+  "board/grindstone",
+  "board/quench",
+  "board/rotgauge",
+  "board/heatjacket",
+  "board/leechcoil",
+  "board/coil",
+  "board/riveter",
+  "board/crowdpress",
+  "board/brandingiron",
+  "board/stoker",
+  "board/sorting",
+  "board/twinlatch",
+  "board/cindermail",
+  "board/scaleguard",
+  "board/pincer"
+ ],
+ "states_left": {
+  "board/braceframe": [
+   "s"
+  ],
+  "board/shieldwall": [
+   "p"
+  ],
+  "board/twingauge": [
+   "m"
+  ]
+ }
+}

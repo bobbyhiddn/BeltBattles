@@ -18,6 +18,7 @@ import { artBBoard, artBBody, artBCard, artBFace, artBFactory, artBHas, artBIcon
 import { factoryFlashSil, factorySprite, gateSil, gateSprite, itemIcon } from "../src/render/sprites";
 import { shapedRigBody, shapedRigSil } from "../src/render/shapeArt";
 import { FRAMES, allDigests, type Digests } from "./artb1.helpers";
+import { ALL_RIGS, FACTORY_PIECES, ICON_ONLY } from "./artb3.helpers"; // ARTB-CODE-3A: the names of the pieces (lists only, no pixel)
 
 type Px = string | null;
 type Ex = { w: number; h: number; px: Px[] };
@@ -32,10 +33,15 @@ const base = JSON.parse(readFileSync("tests/artb1.base-digests.json", "utf8")) a
 const pal = C as Record<string, string>;
 const hex = (ch: string): Px => (ch === "." ? null : pal[data.legend[ch]]);
 
-const RIGS = ["embertrough", "nailstrip", "grease", "ballast", "rasp", "bellows", "sparkgap", "staticbrush", "barbed", "venom"];
+// ARTB-CODE-3A (batches 2R, 3a, 4a, 4b), old -> new: RIGS was batch 1's ten rigs (the ten still are in it: the first ten of the 44); the 34 new rigs have a board/<id> and a card/<id> too
+const RIGS = ALL_RIGS;
 const SHAPED = ["embertrough", "nailstrip"];
 const ONE_CELL = RIGS.filter((id) => !SHAPED.includes(id));
-const SLICE = [...RIGS, "kiln"];
+// ARTB-CODE-2A (batch 2), old -> new: SLICE was the ten rigs and KILN (11 ids); the start factories LOOM, CRUCIBLE and WARDWORKS are art B's now too (14 ids), and so are the faces of WEAVER, FOUNDRY and BASTION
+// ARTB-CODE-3A, old -> new: 14 ids -> 64: the 44 rigs, the 13 guns and two mods (card and icon only: ICON_ONLY) and the five factories (MEND PRESS joins KILN, LOOM, CRUCIBLE, WARDWORKS)
+// ARTB-CODE-3B (the hold of 27 pictures), old -> new: 64 ids -> 37: the 24 rigs, the 6 guns and two mods that ride and the five factories; the 27 held ids are outside the slice again, so the base's digests below cover them
+const FACTORIES = FACTORY_PIECES;
+const SLICE = [...RIGS, ...ICON_ONLY, ...FACTORIES];
 
 /** The sprite `name` of the data as w x h palette hexes (null = clear), with `overlay` laid over it. */
 function expected(name: string, overlay: Overlay = []): Ex {
@@ -75,11 +81,12 @@ describe("ARTB-CODE-1 M: the module and its one switch", () => {
       expect(artBIcon(id) !== null, `${id}: icon`).toBe(mine);
       expect(artBCard(id) !== null, `${id}: card`).toBe(mine);
       expect(artBBoard(id, 0, false) !== null, `${id}: board`).toBe(RIGS.includes(id));
-      expect(artBFactory(id, 0, false) !== null, `${id}: factory`).toBe(id === "kiln");
+      expect(artBFactory(id, 0, false) !== null, `${id}: factory`).toBe(FACTORIES.includes(id)); // ARTB-CODE-2A, old -> new: id === "kiln"
       expect(artBBody(id, 24, 12, 0, false) !== null, `${id}: body`).toBe(SHAPED.includes(id));
     }
-    expect(artBFace("furnace")).not.toBeNull();
-    for (const h of ["weaver", "foundry", "bastion"]) expect(artBFace(h), h).toBeNull();
+    // ARTB-CODE-2A (batch 2), old -> new: only furnace had a face (weaver, foundry and bastion: null); now the four playable heroes have one (the other heroes of HEROES still none)
+    for (const h of ["furnace", "weaver", "foundry", "bastion"]) expect(artBFace(h), h).not.toBeNull();
+    for (const h of ["metronome", "siphon"]) expect(artBFace(h), h).toBeNull();
   });
 
   it("with the switch off every function answers null, for every id", () => {
@@ -207,8 +214,10 @@ describe("ARTB-CODE-1 B: every other id is the base's, the switch on or off; wit
       expect(on.gate[id], `${id} gateSprite is new art`).not.toBe(base.gate[id]);
       expect(on.gateSil[id], `${id} gateSil follows the new sprite`).not.toBe(base.gateSil[id]);
     }
-    expect(on.factory.kiln, "kiln factorySprite is new art").not.toBe(base.factory.kiln);
-    expect(on.factorySil.kiln, "kiln factoryFlashSil follows").not.toBe(base.factorySil.kiln);
+    for (const id of FACTORIES) { // ARTB-CODE-2A, old -> new: kiln only
+      expect(on.factory[id], `${id} factorySprite is new art`).not.toBe(base.factory[id]);
+      expect(on.factorySil[id], `${id} factoryFlashSil follows`).not.toBe(base.factorySil[id]);
+    }
     for (const id of SHAPED) for (let rot = 0; rot < 4; rot++) {
       const b = rot % 2 ? "upright" : "lying";
       expect(on.body[`${id}@${rot}`], `${id} ${b} body is new art`).not.toBe(base.body[`${id}@${rot}`]);
